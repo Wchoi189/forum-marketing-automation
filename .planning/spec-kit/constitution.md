@@ -34,6 +34,16 @@ governance:
   handovers:
     suffix_format: "YYYYMMDD-HHMM"
     location: ".agent/session-handovers"
+  execution:
+    require_declared_entry_points: true
+    require_preconditions_per_entry_point: true
+    require_input_output_contract_refs: true
+    require_idempotency_declaration: true
+    require_failure_policy_declaration: true
+    require_run_id_traceability: true
+    require_single_active_run_lock: true
+    allowed_modes: [auto, manual_override, dry_run, bootstrap]
+    required_states: [IDLE, OBSERVING, DECIDING, PUBLISHING, PERSISTING, ERROR]
 ---
 
 This file defines non-user-facing constraints for the Ppomppu automation project.

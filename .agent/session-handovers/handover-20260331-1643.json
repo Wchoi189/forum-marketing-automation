@@ -1,0 +1,121 @@
+{
+  "handover_id": "handover-20260331-1643",
+  "timestamp_utc": "2026-03-31T16:43:46Z",
+  "session_type": "m2m-hybrid",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "implementation",
+  "objective": "Implement production-grade observer/publisher execution with fail-closed behavior, scheduler wiring, and contract-aligned API/model runtime.",
+  "non_goals": [
+    "multi-forum runtime implementation beyond ppomppu adapter",
+    "desktop packaging implementation",
+    "public-facing documentation"
+  ],
+  "current_state": {
+    "completed": [
+      "Spec-kit planning artifacts and schemas are created",
+      "AI-native .agent state/contracts/handover structure exists",
+      "Shared TypeScript models added in contracts/models.ts",
+      "Env validation implemented in config/env.ts",
+      "Initial commit pushed to origin/main"
+    ],
+    "gaps": [
+      "Publisher still in simulation mode (submit click disabled)",
+      "Scheduler loop not wired to RUN_INTERVAL_MINUTES",
+      "No runtime validator for workflow/schema files at startup",
+      "No automated integration tests implemented"
+    ]
+  },
+  "decisions_locked": [
+    "AI-facing documentation only",
+    "Fail-closed default behavior",
+    "Single-forum now, multi-forum-ready architecture",
+    "Machine-parseable contracts under .planning/spec-kit and .agent/contracts"
+  ],
+  "constraints": [
+    "Do not weaken safety guards before enabling live publish",
+    "No credentials in committed files",
+    "Maintain strict env contract validation at startup",
+    "Preserve compatibility with current Express + React + Playwright stack"
+  ],
+  "acceptance_criteria": [
+    "Observer produces contract-valid logs with confidence-aware decision outcomes",
+    "Publisher can execute real submit only when DRY_RUN_MODE=false and guard checks pass",
+    "Scheduler triggers observer/publisher loop according to RUN_INTERVAL_MINUTES",
+    "API responses remain aligned with data-contracts.schema.json",
+    "Integration tests cover observer run, blocked publish, and manual override paths"
+  ],
+  "implementation_plan": [
+    {
+      "step": 1,
+      "name": "Harden observer parsing",
+      "actions": [
+        "Add parse-confidence scoring and fallback selector chain",
+        "Emit MANUAL_REVIEW-equivalent status path on low confidence"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Finalize publisher safety flow",
+      "actions": [
+        "Gate live submit behind DRY_RUN_MODE=false",
+        "Retain draft/body/category verification and abort on failures"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "Add scheduler loop",
+      "actions": [
+        "Use RUN_INTERVAL_MINUTES to trigger periodic observer/publisher checks",
+        "Prevent overlapping runs with in-process lock"
+      ]
+    },
+    {
+      "step": 4,
+      "name": "Runtime contract validation",
+      "actions": [
+        "Validate critical workflow/config JSON at startup",
+        "Abort startup on schema mismatch"
+      ]
+    },
+    {
+      "step": 5,
+      "name": "Integration tests",
+      "actions": [
+        "Implement API-level tests for run-observer and run-publisher force/non-force",
+        "Verify response payload shape against contracts"
+      ]
+    }
+  ],
+  "practical_recommendations": [
+    "Use this handover file as the only seed context in the new session",
+    "Start with objective + acceptance criteria before coding details",
+    "Treat implementation_plan as flexible sequence; adjust order only with rationale",
+    "Record deviations under decisions_locked or constraints updates",
+    "Create follow-up handover files using handover-YYYYMMDD-HHMM.json naming",
+    "At each major milestone, update .agent/state/state.index.json last_handover_file"
+  ],
+  "env_requirements": [
+    "PROJECT_ROOT",
+    "FORUM_PRIMARY_ID",
+    "PPOMPPU_USER_ID",
+    "PPOMPPU_USER_PW",
+    "BOT_PROFILE_DIR",
+    "ACTIVITY_LOG_PATH",
+    "OBSERVER_GAP_THRESHOLD",
+    "RUN_INTERVAL_MINUTES",
+    "MANUAL_OVERRIDE_ENABLED",
+    "DRY_RUN_MODE",
+    "PORT"
+  ],
+  "artifacts_touched": [
+    ".agent/session-handovers/handover-20260331-1643.json",
+    ".planning/spec-kit/specs/decision-rules.json",
+    ".planning/spec-kit/specs/execution-loop.contract.json",
+    ".planning/spec-kit/specs/integration-test-plan.json",
+    "config/env.ts",
+    "bot.ts",
+    "server.ts"
+  ],
+  "next_action": "Start new session and implement Step 1 (observer hardening) with tests-first checkpoints."
+}

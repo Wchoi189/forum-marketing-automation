@@ -10,6 +10,7 @@
 │       │   ├── forum-adapter.contract.json
 │       │   ├── workflow-import.contract.json
 │       │   ├── folder-conventions.json
+│       │   ├── entry-points.contract.json
 │       │   ├── execution-loop.contract.json
 │       │   ├── packaging.strategy.json
 │       │   ├── risk-review.edge-cases.json

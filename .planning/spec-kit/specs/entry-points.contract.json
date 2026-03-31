@@ -1,0 +1,30 @@
+{
+  "contract_id": "entry-points-v1",
+  "required_entry_fields": [
+    "name",
+    "trigger",
+    "mode",
+    "start_step",
+    "preconditions",
+    "end_conditions",
+    "idempotency"
+  ],
+  "allowed_modes": ["auto", "manual_override", "dry_run", "bootstrap"],
+  "required_preconditions": [
+    "env_valid",
+    "run_lock_available"
+  ],
+  "required_runtime_metadata": [
+    "run_id",
+    "entry_point",
+    "mode",
+    "started_at_utc",
+    "outcome"
+  ],
+  "failure_policies": [
+    "abort_startup",
+    "fail_closed",
+    "manual_review",
+    "retry_once_then_error"
+  ]
+}

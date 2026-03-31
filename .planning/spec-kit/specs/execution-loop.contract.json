@@ -1,5 +1,65 @@
 {
   "contract_id": "execution-loop-v1",
+  "run_context": {
+    "required_fields": [
+      "run_id",
+      "entry_point",
+      "mode",
+      "started_at_utc"
+    ],
+    "state_machine": [
+      "IDLE",
+      "OBSERVING",
+      "DECIDING",
+      "PUBLISHING",
+      "PERSISTING",
+      "ERROR"
+    ],
+    "concurrency_policy": "single_active_run_lock"
+  },
+  "entry_points_ref": "entry-points.contract.json",
+  "entry_points": [
+    {
+      "name": "startup_validation",
+      "trigger": "process_start",
+      "mode": "bootstrap",
+      "start_step": "validate_snapshot",
+      "preconditions": ["env_valid"],
+      "end_conditions": ["api_ready"],
+      "on_fail": "abort_startup"
+    },
+    {
+      "name": "api_run_observer",
+      "trigger": "POST /api/run-observer",
+      "mode": "dry_run",
+      "start_step": "observe_board",
+      "preconditions": ["env_valid", "run_lock_available"],
+      "end_conditions": ["log_persisted", "api_response_sent"],
+      "idempotency": "per_run_id"
+    },
+    {
+      "name": "api_run_publisher",
+      "trigger": "POST /api/run-publisher",
+      "mode": "manual_override",
+      "start_step": "observe_board",
+      "preconditions": ["env_valid", "run_lock_available"],
+      "decision_gate_step": "decide_eligibility",
+      "publish_gate": "DRY_RUN_MODE == false OR force == true",
+      "end_conditions": ["log_persisted", "api_response_sent"],
+      "idempotency": "per_run_id"
+    },
+    {
+      "name": "scheduler_tick",
+      "trigger": "interval(RUN_INTERVAL_MINUTES)",
+      "mode": "auto",
+      "start_step": "observe_board",
+      "preconditions": ["env_valid", "run_lock_available", "manual_override_not_active"],
+      "decision_gate_step": "decide_eligibility",
+      "publish_gate": "status == POST_ALLOWED AND DRY_RUN_MODE == false",
+      "end_conditions": ["log_persisted"],
+      "idempotency": "per_tick"
+    }
+  ],
   "loop_steps": [
     {
       "index": 1,
@@ -16,7 +76,8 @@
       "index": 3,
       "name": "decide_eligibility",
       "rules_ref": "decision-rules.json",
-      "on_error": "manual_review"
+      "on_error": "manual_review",
+      "outputs": ["POST_ALLOWED", "POST_DELAY", "MANUAL_REVIEW"]
     },
     {
       "index": 4,
@@ -28,7 +89,8 @@
       "index": 5,
       "name": "persist_log",
       "target": "activity_log.json",
-      "on_error": "retry_once_then_error"
+      "on_error": "retry_once_then_error",
+      "required_fields": ["run_id", "entry_point", "mode", "outcome"]
     },
     {
       "index": 6,
