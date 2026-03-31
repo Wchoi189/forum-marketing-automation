@@ -1,0 +1,137 @@
+{
+  "handover_id": "handover-20260331-1826",
+  "timestamp_utc": "2026-03-31T18:26:52Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "gpt-5.3-codex",
+  "target_agent": "gpt-5.3-codex",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "implementation",
+  "objective": "Implement production-grade observer/publisher execution with fail-closed behavior, scheduler wiring, runtime contract validation, and contract-aligned API tests.",
+  "non_goals": [
+    "multi-forum runtime implementation beyond ppomppu adapter",
+    "desktop packaging implementation",
+    "public-facing documentation"
+  ],
+  "current_state": {
+    "completed": [
+      "Observer parsing hardened with fallback selectors and parse-confidence scoring",
+      "Manual-review-equivalent fail-closed path added for low-confidence observer snapshots",
+      "Publisher safety flow finalized with live-submit gate (DRY_RUN_MODE=false), guard checks, and manual override policy check",
+      "Scheduler loop wired to RUN_INTERVAL_MINUTES with in-process overlap lock",
+      "Startup runtime contract validation added with schema-backed checks",
+      "Workflow definition file added and validated against workflow.schema.json at startup",
+      "API-level integration tests implemented for observer, blocked publish, manual override, and scheduler lock behavior",
+      "Typecheck and integration tests passing"
+    ],
+    "gaps": [
+      "Observer runtime thresholds are still partly constant-driven and should be read from workflow/decision contracts to prevent policy drift",
+      "No live Playwright E2E integration executed against real board environment in this session",
+      "No commit created yet in this session"
+    ]
+  },
+  "status": "in_progress",
+  "decisions_locked": [
+    "AI-facing documentation only",
+    "Fail-closed default behavior",
+    "Single-forum now, multi-forum-ready architecture",
+    "Machine-parseable contracts under .planning/spec-kit and .agent/contracts"
+  ],
+  "acceptance_criteria": [
+    "Observer produces contract-valid logs with confidence-aware decision outcomes",
+    "Publisher can execute real submit only when DRY_RUN_MODE=false and guard checks pass",
+    "Scheduler triggers observer/publisher loop according to RUN_INTERVAL_MINUTES",
+    "API responses remain aligned with data-contracts.schema.json",
+    "Integration tests cover observer run, blocked publish, and manual override paths"
+  ],
+  "implementation_plan": [
+    {
+      "step": 1,
+      "name": "Externalize observer policy from contracts",
+      "actions": [
+        "Load parse_confidence_min and gap_threshold_min from workflow/decision contract sources",
+        "Use contract-driven values in runObserver and decision gate"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Strengthen runtime validation coverage",
+      "actions": [
+        "Add explicit checks for API contract references and data schema refs",
+        "Assert workflow publisher step coverage for required guard actions"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "Expand integration tests",
+      "actions": [
+        "Add assertions for low-confidence manual-review message behavior",
+        "Add startup validation failure test using invalid workflow fixture"
+      ]
+    }
+  ],
+  "practical_recommendations": [
+    "Start a new session with this handover as the single seed context for cleaner continuity",
+    "Keep fail-closed behavior intact when moving policy values from constants to contracts",
+    "Do not weaken publisher guards while enabling live publish path",
+    "Update state.index last_handover_file after each major milestone"
+  ],
+  "completed_items": [
+    "Added runtime validation module using AJV and formats support",
+    "Refactored server for dependency-injected app creation and scheduler lifecycle hooks",
+    "Added workflow manifest file for ppomppu-gonggu-v1 and startup schema validation",
+    "Added API integration test suite runnable via npm script"
+  ],
+  "pending_items": [
+    "Contract-driven observer thresholds",
+    "Additional negative-path runtime-validation tests",
+    "Optional live-environment execution checklist"
+  ],
+  "decisions": [
+    {
+      "id": "D-20260331-01",
+      "title": "Keep API status contract unchanged while signaling manual review",
+      "rationale": "activity-log status enum is fixed to safe/unsafe/error; low confidence is represented as unsafe + explicit error reason to preserve schema compatibility"
+    },
+    {
+      "id": "D-20260331-02",
+      "title": "Inject dependencies for API integration tests",
+      "rationale": "Allows deterministic API-level contract tests without requiring live Playwright/browser side effects"
+    }
+  ],
+  "constraints": [
+    "Do not weaken safety guards before enabling live publish",
+    "No credentials in committed files",
+    "Maintain strict env contract validation at startup",
+    "Preserve compatibility with current Express + React + Playwright stack"
+  ],
+  "env_requirements": [
+    "PROJECT_ROOT",
+    "FORUM_PRIMARY_ID",
+    "PPOMPPU_USER_ID",
+    "PPOMPPU_USER_PW",
+    "BOT_PROFILE_DIR",
+    "ACTIVITY_LOG_PATH",
+    "OBSERVER_GAP_THRESHOLD",
+    "RUN_INTERVAL_MINUTES",
+    "MANUAL_OVERRIDE_ENABLED",
+    "DRY_RUN_MODE",
+    "PORT"
+  ],
+  "next_actions": [
+    "Implement contract-driven observer thresholds and remove duplicated constants",
+    "Add tests for low-confidence observer/manual-review behavior",
+    "Optionally run a staged live publish dry-run checklist with real profile data"
+  ],
+  "artifacts_touched": [
+    "bot.ts",
+    "server.ts",
+    "config/runtime-validation.ts",
+    "tests/integration/api.integration.test.ts",
+    "package.json",
+    "package-lock.json",
+    ".planning/spec-kit/manifest/workflow.ppomppu-gonggu-v1.json",
+    ".agent/session-handovers/handover-20260331-1826.json",
+    ".agent/state/state.index.json"
+  ]
+}

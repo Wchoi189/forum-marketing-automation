@@ -8,12 +8,15 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:integration": "PROJECT_ROOT=/parent/marketing-automation FORUM_PRIMARY_ID=ppomppu PPOMPPU_USER_ID=test-user PPOMPPU_USER_PW=test-pass BOT_PROFILE_DIR=/tmp/ppomppu-profile ACTIVITY_LOG_PATH=/tmp/activity-log.json tsx --test tests/integration/api.integration.test.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
+    "ajv": "^8.18.0",
+    "ajv-formats": "^3.0.1",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",

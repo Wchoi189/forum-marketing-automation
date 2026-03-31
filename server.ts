@@ -1,25 +1,34 @@
 import express from "express";
 import path from "path";
 import cors from "cors";
+import { pathToFileURL } from "url";
 import { createServer as createViteServer } from "vite";
 import { runObserver, runPublisher, getLogs } from "./bot.js";
 import { ENV } from "./config/env.js";
+import { validateRuntimeContracts } from "./config/runtime-validation.js";
 
-async function startServer() {
+type BotDeps = {
+  runObserver: typeof runObserver;
+  runPublisher: typeof runPublisher;
+  getLogs: typeof getLogs;
+};
+
+const defaultDeps: BotDeps = { runObserver, runPublisher, getLogs };
+
+export function createApp(deps: BotDeps = defaultDeps) {
   const app = express();
-  const PORT = ENV.PORT;
 
   app.use(cors());
   app.use(express.json());
 
   // API Routes
   app.get("/api/logs", async (req, res) => {
-    const logs = await getLogs();
+    const logs = await deps.getLogs();
     res.json(logs);
   });
 
   app.get("/api/competitor-stats", async (req, res) => {
-    const logs = await getLogs();
+    const logs = await deps.getLogs();
     const stats: Record<string, { count: number, totalViews: number }> = {};
     
     const oneWeekAgo = new Date();
@@ -57,7 +66,7 @@ async function startServer() {
   });
 
   app.get("/api/board-stats", async (req, res) => {
-    const logs = await getLogs();
+    const logs = await deps.getLogs();
     if (logs.length < 2) return res.json({ turnoverRate: 0, shareOfVoice: 0 });
 
     const latest = logs[0];
@@ -92,7 +101,7 @@ async function startServer() {
 
   app.post("/api/run-observer", async (req, res) => {
     try {
-      const log = await runObserver();
+      const log = await deps.runObserver();
       if (log.status === 'error') {
         res.status(500).json({ success: false, error: log.error, log });
       } else {
@@ -106,9 +115,9 @@ async function startServer() {
   app.post("/api/run-publisher", async (req, res) => {
     const { force } = req.body;
     try {
-      const result = await runPublisher(force);
+      const result = await deps.runPublisher(force);
       if (!result.success) {
-        res.status(500).json({ success: false, error: result.message, log: result.log });
+        res.status(500).json({ success: false, message: result.message, error: result.message, log: result.log });
       } else {
         res.json(result);
       }
@@ -117,7 +126,45 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
+  return app;
+}
+
+export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: number = ENV.RUN_INTERVAL_MINUTES) {
+  const intervalMs = intervalMinutes * 60 * 1000;
+  let running = false;
+
+  const tick = async () => {
+    if (running) {
+      console.warn("[Scheduler] Tick skipped because previous run is still active.");
+      return;
+    }
+
+    running = true;
+    try {
+      await deps.runPublisher(false);
+    } catch (error: any) {
+      console.error("[Scheduler] Tick failed:", error.message);
+    } finally {
+      running = false;
+    }
+  };
+
+  const timer = setInterval(() => {
+    void tick();
+  }, intervalMs);
+
+  console.log(`[Scheduler] Started with interval ${intervalMinutes} minute(s).`);
+
+  return {
+    stop: () => clearInterval(timer),
+    runNow: tick
+  };
+}
+
+export async function startServer() {
+  await validateRuntimeContracts();
+
+  const app = createApp();
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -132,9 +179,15 @@ async function startServer() {
     });
   }
 
+  const PORT = ENV.PORT;
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+
+  startScheduler();
 }
 
-startServer();
+const isDirectRun = Boolean(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href);
+if (isDirectRun) {
+  startServer();
+}

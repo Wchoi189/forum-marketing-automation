@@ -1,0 +1,43 @@
+{
+  "workflow_id": "ppomppu-gonggu-v1",
+  "forum_id": "ppomppu",
+  "entry_url": "https://www.ppomppu.co.kr/zboard/zboard.php?id=gonggu",
+  "status": "active",
+  "observer_rules": {
+    "author_match": "shareplan",
+    "gap_threshold_min": 5,
+    "parse_confidence_min": 0.9,
+    "exclude_notice_rows": true
+  },
+  "publisher_sequence": [
+    {
+      "step_id": "navigate-board",
+      "action": "navigate"
+    },
+    {
+      "step_id": "click-write",
+      "action": "click",
+      "selector": "a:has-text(\"글쓰기\")"
+    },
+    {
+      "step_id": "open-saved-drafts",
+      "action": "click",
+      "selector": "input[value=\"임시저장된 게시글\"], button:has-text(\"임시저장된 게시글\")"
+    },
+    {
+      "step_id": "verify-required-body",
+      "action": "verify_text",
+      "expected_text": "회원 모집 안내"
+    },
+    {
+      "step_id": "set-youtube-category",
+      "action": "select",
+      "selector": "select[name=\"category\"], select#category"
+    },
+    {
+      "step_id": "submit-post",
+      "action": "submit",
+      "selector": "input[value=\"작성완료\"], button:has-text(\"작성완료\")"
+    }
+  ]
+}
