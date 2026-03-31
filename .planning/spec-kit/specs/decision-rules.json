@@ -1,0 +1,48 @@
+{
+  "ruleset_id": "observer-publisher-rules-v1",
+  "scope": "ppomppu-gonggu-v1",
+  "observer_rules": {
+    "author_match_mode": "contains_case_insensitive",
+    "author_match_value": "shareplan",
+    "gap_threshold_min": 5,
+    "parse_confidence_min": 0.9,
+    "notice_rows_excluded": true,
+    "duplicate_detection_window": "current_page_visible"
+  },
+  "decision_outcomes": [
+    {
+      "code": "POST_ALLOWED",
+      "conditions_all": [
+        "gap_count >= gap_threshold_min",
+        "parse_confidence >= parse_confidence_min",
+        "no_recent_duplicate_title_by_owner"
+      ]
+    },
+    {
+      "code": "POST_DELAY",
+      "conditions_any": [
+        "gap_count < gap_threshold_min",
+        "latest_owned_post_is_topmost"
+      ]
+    },
+    {
+      "code": "MANUAL_REVIEW",
+      "conditions_any": [
+        "parse_confidence < parse_confidence_min",
+        "draft_verification_failed",
+        "selector_mismatch_detected"
+      ]
+    }
+  ],
+  "publisher_guards": {
+    "require_draft_title_match": true,
+    "require_body_contains": "회원 모집 안내",
+    "require_category_label": "유튜브",
+    "fail_closed_on_any_guard_failure": true
+  },
+  "manual_override": {
+    "enabled_by_env": "MANUAL_OVERRIDE_ENABLED",
+    "audit_required": true,
+    "force_publish_param": "force"
+  }
+}

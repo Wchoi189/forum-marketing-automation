@@ -1,0 +1,49 @@
+{
+  "contract_id": "forum-adapter-v1",
+  "interface_name": "ForumAdapter",
+  "required_methods": [
+    {
+      "name": "observeBoard",
+      "input": {
+        "workflowId": "string",
+        "entryUrl": "string"
+      },
+      "output_ref": ".agent/contracts/activity-log.contract.json#/definitions/activityLog"
+    },
+    {
+      "name": "loadDraft",
+      "input": {
+        "draftSelectorPolicy": "object"
+      },
+      "output": {
+        "selectedDraftId": "string",
+        "selectedDraftTimestamp": "string"
+      }
+    },
+    {
+      "name": "verifyDraft",
+      "input": {
+        "requiredText": "string"
+      },
+      "output": {
+        "ok": "boolean",
+        "reason": "string|null"
+      }
+    },
+    {
+      "name": "publishPost",
+      "input": {
+        "categoryLabel": "string",
+        "force": "boolean"
+      },
+      "output": {
+        "success": "boolean",
+        "message": "string"
+      }
+    }
+  ],
+  "constraints": {
+    "forum_specific_selectors_must_stay_in_adapter": true,
+    "core_engine_must_not_reference_forum_dom_selectors": true
+  }
+}

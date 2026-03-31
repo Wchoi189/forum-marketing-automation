@@ -1,0 +1,42 @@
+{
+  "review_id": "adversarial-review-v1",
+  "focus": "operational_and_misuse_risks",
+  "risks": [
+    {
+      "id": "AR-001",
+      "risk": "credential leakage via logs or config commits",
+      "mitigation": [
+        "secrets_in_env_only",
+        "redact_sensitive_fields_in_logs",
+        "ignore_env_files_in_vcs"
+      ]
+    },
+    {
+      "id": "AR-002",
+      "risk": "accidental spam-like behavior from aggressive scheduling",
+      "mitigation": [
+        "enforce_gap_threshold",
+        "minimum_run_interval",
+        "fail_closed_default"
+      ]
+    },
+    {
+      "id": "AR-003",
+      "risk": "unsafe forced publishing without traceability",
+      "mitigation": [
+        "manual_override_enabled_flag",
+        "audit_event_required",
+        "operator_id_capture_for_override"
+      ]
+    },
+    {
+      "id": "AR-004",
+      "risk": "schema drift between UI/backend/bot",
+      "mitigation": [
+        "single_contract_source",
+        "startup_schema_validation",
+        "contract_version_pin"
+      ]
+    }
+  ]
+}

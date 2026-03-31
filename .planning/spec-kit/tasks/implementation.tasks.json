@@ -1,0 +1,15 @@
+{
+  "taskset_id": "implementation-tasks-v1",
+  "tasks": [
+    { "id": "T-001", "name": "Create planning and agent containers", "status": "done" },
+    { "id": "T-002", "name": "Pin manifest and schema contracts", "status": "done" },
+    { "id": "T-003", "name": "Define workflow import model", "status": "done" },
+    { "id": "T-004", "name": "Define forum adapter contract", "status": "done" },
+    { "id": "T-005", "name": "Define decision rules", "status": "done" },
+    { "id": "T-006", "name": "Define API contract", "status": "done" },
+    { "id": "T-007", "name": "Define shared data model contract", "status": "done" },
+    { "id": "T-008", "name": "Define env variable contract and schema", "status": "done" },
+    { "id": "T-009", "name": "Define execution loop and handover template", "status": "done" },
+    { "id": "T-010", "name": "Create integration test plan", "status": "done" }
+  ]
+}

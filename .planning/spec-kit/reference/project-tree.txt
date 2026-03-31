@@ -1,0 +1,41 @@
+/parent/marketing-automation
+├── .planning/
+│   └── spec-kit/
+│       ├── constitution.md
+│       ├── specs/
+│       │   ├── source-artifacts.json
+│       │   ├── decision-rules.json
+│       │   ├── api-contract.json
+│       │   ├── shared-model.contract.json
+│       │   ├── forum-adapter.contract.json
+│       │   ├── workflow-import.contract.json
+│       │   ├── folder-conventions.json
+│       │   ├── execution-loop.contract.json
+│       │   ├── packaging.strategy.json
+│       │   ├── risk-review.edge-cases.json
+│       │   ├── risk-review.adversarial.json
+│       │   └── integration-test-plan.json
+│       ├── tasks/
+│       │   └── implementation.tasks.json
+│       ├── manifest/
+│       │   ├── project.manifest.json
+│       │   ├── keys.manifest.json
+│       │   └── schemas/
+│       │       ├── project.manifest.schema.json
+│       │       ├── workflow.schema.json
+│       │       ├── data-contracts.schema.json
+│       │       └── env.schema.json
+│       └── reference/
+│           └── project-tree.txt
+├── .agent/
+│   ├── state/
+│   │   └── state.index.json
+│   ├── contracts/
+│   │   ├── activity-log.contract.json
+│   │   └── env.contract.json
+│   ├── skills/
+│   │   └── registry.json
+│   └── session-handovers/
+│       ├── template.json
+│       └── handover-YYYYMMDD-HHMM.json
+└── runtime code (server.ts, bot.ts, src/, etc.)

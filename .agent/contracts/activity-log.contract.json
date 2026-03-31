@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contract_id": "activity-log-contract-v1",
+  "definitions": {
+    "post": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "author", "date", "views", "isNotice"],
+      "properties": {
+        "title": { "type": "string" },
+        "author": { "type": "string" },
+        "date": { "type": "string" },
+        "views": { "type": "integer", "minimum": 0 },
+        "isNotice": { "type": "boolean" }
+      }
+    },
+    "activityLog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timestamp",
+        "current_gap_count",
+        "last_post_timestamp",
+        "top_competitor_names",
+        "view_count_of_last_post",
+        "status",
+        "all_posts"
+      ],
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "current_gap_count": { "type": "integer", "minimum": 0 },
+        "last_post_timestamp": { "type": "string" },
+        "top_competitor_names": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "view_count_of_last_post": { "type": "integer", "minimum": 0 },
+        "status": { "type": "string", "enum": ["safe", "unsafe", "error"] },
+        "all_posts": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/post" }
+        },
+        "error": { "type": "string" }
+      }
+    }
+  }
+}

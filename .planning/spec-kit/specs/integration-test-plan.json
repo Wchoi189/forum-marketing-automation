@@ -1,0 +1,53 @@
+{
+  "plan_id": "integration-test-plan-v1",
+  "scope": "bot_to_api_to_ui",
+  "scenarios": [
+    {
+      "id": "IT-001",
+      "name": "Observer happy path",
+      "steps": [
+        "POST /api/run-observer",
+        "GET /api/logs",
+        "verify latest log status in {safe,unsafe}"
+      ],
+      "assertions": [
+        "response.success == true",
+        "latest log has required activity fields"
+      ]
+    },
+    {
+      "id": "IT-002",
+      "name": "Publisher blocked by unsafe gap",
+      "steps": [
+        "POST /api/run-publisher with force=false under unsafe condition"
+      ],
+      "assertions": [
+        "response.success == false",
+        "response.error or response.message includes gap policy reason"
+      ]
+    },
+    {
+      "id": "IT-003",
+      "name": "Manual override path",
+      "steps": [
+        "POST /api/run-publisher with force=true"
+      ],
+      "assertions": [
+        "audit event persisted",
+        "result payload includes success boolean and log snapshot"
+      ]
+    },
+    {
+      "id": "IT-004",
+      "name": "Frontend polling contract",
+      "steps": [
+        "Load UI",
+        "observe 30-second polling to /api/logs, /api/competitor-stats, /api/board-stats, /api/drafts"
+      ],
+      "assertions": [
+        "UI renders latest status and chart data",
+        "no schema mismatch in console for contract fields"
+      ]
+    }
+  ]
+}

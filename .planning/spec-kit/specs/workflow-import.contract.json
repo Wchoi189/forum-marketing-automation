@@ -1,0 +1,22 @@
+{
+  "contract_id": "workflow-import-v1",
+  "supported_formats": ["json"],
+  "validation_schema": "../manifest/schemas/workflow.schema.json",
+  "workflow_required_fields": [
+    "workflow_id",
+    "forum_id",
+    "entry_url",
+    "observer_rules",
+    "publisher_sequence"
+  ],
+  "import_rules": {
+    "reject_unknown_top_level_keys": true,
+    "reject_missing_required_fields": true,
+    "reject_invalid_step_order": true,
+    "reject_duplicate_workflow_id": true
+  },
+  "lifecycle": {
+    "statuses": ["draft", "active", "disabled"],
+    "default_status": "draft"
+  }
+}

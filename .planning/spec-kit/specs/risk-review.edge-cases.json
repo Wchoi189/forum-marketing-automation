@@ -1,0 +1,36 @@
+{
+  "review_id": "edge-case-review-v1",
+  "method": "edge-case-hunter",
+  "findings": [
+    {
+      "id": "EC-001",
+      "area": "observer_parsing",
+      "condition": "board row selector drift",
+      "required_guard": "selector_fallback_chain + parse_confidence_floor"
+    },
+    {
+      "id": "EC-002",
+      "area": "draft_loading",
+      "condition": "duplicate draft titles with same prefix",
+      "required_guard": "select_most_recent_by_timestamp"
+    },
+    {
+      "id": "EC-003",
+      "area": "publish",
+      "condition": "verification text not present in loaded editor",
+      "required_guard": "abort_before_submit"
+    },
+    {
+      "id": "EC-004",
+      "area": "manual_override",
+      "condition": "override requested while publisher busy",
+      "required_guard": "mutual_exclusion_lock"
+    },
+    {
+      "id": "EC-005",
+      "area": "storage",
+      "condition": "activity_log write failure",
+      "required_guard": "retry_once_then_error_status"
+    }
+  ]
+}

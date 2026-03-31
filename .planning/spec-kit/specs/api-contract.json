@@ -1,0 +1,44 @@
+{
+  "contract_id": "express-api-v1",
+  "base_path": "/api",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/logs",
+      "description": "Fetch ordered activity logs",
+      "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/activityLogArray"
+    },
+    {
+      "method": "GET",
+      "path": "/competitor-stats",
+      "description": "Fetch top competitor stats over recent window",
+      "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/competitorStatsArray"
+    },
+    {
+      "method": "GET",
+      "path": "/board-stats",
+      "description": "Fetch board turnover and share-of-voice metrics",
+      "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/boardStats"
+    },
+    {
+      "method": "GET",
+      "path": "/drafts",
+      "description": "Fetch available drafts for UI visualization",
+      "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/draftsArray"
+    },
+    {
+      "method": "POST",
+      "path": "/run-observer",
+      "description": "Trigger observer module",
+      "request_schema_ref": null,
+      "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/observerRunResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/run-publisher",
+      "description": "Trigger publisher module with optional force override",
+      "request_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/publisherRunRequest",
+      "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/publisherRunResponse"
+    }
+  ]
+}

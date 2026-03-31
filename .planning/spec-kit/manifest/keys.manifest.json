@@ -1,0 +1,43 @@
+{
+  "manifest_keyset_id": "project-manifest-keys-v1",
+  "required_keys": [
+    "manifest_version",
+    "project_id",
+    "architecture_id",
+    "runtime_stack",
+    "workflow_registry",
+    "data_contracts",
+    "execution_loop",
+    "paths",
+    "env_contract_ref"
+  ],
+  "optional_keys": [
+    "packaging",
+    "feature_flags",
+    "notes"
+  ],
+  "forbidden_keys": [
+    "credentials",
+    "password",
+    "secret",
+    "token"
+  ],
+  "enum_constraints": {
+    "workflow_registry[].forum_id": ["ppomppu"],
+    "execution_loop.steps[]": [
+      "observe_board",
+      "validate_snapshot",
+      "decide_eligibility",
+      "maybe_publish",
+      "persist_log",
+      "expose_api",
+      "refresh_ui"
+    ]
+  },
+  "format_constraints": {
+    "manifest_version": "semver",
+    "project_id": "kebab-case",
+    "architecture_id": "kebab-case",
+    "workflow_registry[].entry_url": "uri"
+  }
+}

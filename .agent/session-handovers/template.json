@@ -1,0 +1,17 @@
+{
+  "handover_id": "handover-YYYYMMDD-HHMM",
+  "timestamp_utc": "YYYY-MM-DDTHH:MM:SSZ",
+  "session_type": "m2m",
+  "source_agent": "agent_name",
+  "target_agent": "agent_name",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "status": "in_progress",
+  "completed_items": [],
+  "pending_items": [],
+  "decisions": [],
+  "constraints": [],
+  "env_requirements": [],
+  "next_actions": [],
+  "artifacts_touched": []
+}

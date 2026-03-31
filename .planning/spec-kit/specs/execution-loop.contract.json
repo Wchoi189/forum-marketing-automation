@@ -1,0 +1,47 @@
+{
+  "contract_id": "execution-loop-v1",
+  "loop_steps": [
+    {
+      "index": 1,
+      "name": "observe_board",
+      "on_error": "fail_closed"
+    },
+    {
+      "index": 2,
+      "name": "validate_snapshot",
+      "checks": ["parse_confidence", "required_fields_present"],
+      "on_error": "manual_review"
+    },
+    {
+      "index": 3,
+      "name": "decide_eligibility",
+      "rules_ref": "decision-rules.json",
+      "on_error": "manual_review"
+    },
+    {
+      "index": 4,
+      "name": "maybe_publish",
+      "modes": ["auto", "manual_override"],
+      "on_error": "abort_publish"
+    },
+    {
+      "index": 5,
+      "name": "persist_log",
+      "target": "activity_log.json",
+      "on_error": "retry_once_then_error"
+    },
+    {
+      "index": 6,
+      "name": "expose_api",
+      "target": "/api/*",
+      "on_error": "serve_last_known_state"
+    },
+    {
+      "index": 7,
+      "name": "refresh_ui",
+      "cadence_seconds": 30,
+      "on_error": "show_stale_indicator"
+    }
+  ],
+  "outcomes": ["POST_ALLOWED", "POST_DELAY", "MANUAL_REVIEW", "ERROR"]
+}

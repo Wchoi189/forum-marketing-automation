@@ -1,0 +1,27 @@
+{
+  "artifact_set_id": "ppomppu-source-artifacts-v1",
+  "generated_at": "2026-03-31T00:00:00Z",
+  "artifacts": [
+    {
+      "artifact_id": "workflow_pdf_ppomppu",
+      "path": "_bmad/draft/automation_Post YouTube OTT Listing on Ppomppu.pdf",
+      "type": "pdf",
+      "status": "present",
+      "purpose": "baseline_workflow_reference"
+    },
+    {
+      "artifact_id": "conversation_snippet",
+      "path": "_bmad/draft/conversation_snippet1.md",
+      "type": "markdown",
+      "status": "present",
+      "purpose": "initial_architecture_input"
+    },
+    {
+      "artifact_id": "sample_board_list",
+      "path": "_bmad/draft/sample_board_list.txt",
+      "type": "text",
+      "status": "present",
+      "purpose": "observer_parsing_fixture"
+    }
+  ]
+}

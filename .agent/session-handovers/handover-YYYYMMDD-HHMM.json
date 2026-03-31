@@ -1,0 +1,7 @@
+{
+  "handover_id": "handover-YYYYMMDD-HHMM",
+  "timestamp_utc": "YYYY-MM-DDTHH:MM:SSZ",
+  "session_type": "m2m",
+  "project_id": "ppomppu-ott-bot",
+  "message": "Replace placeholders and save with real timestamp suffix."
+}

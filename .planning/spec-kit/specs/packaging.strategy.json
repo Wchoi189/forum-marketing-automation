@@ -1,0 +1,20 @@
+{
+  "strategy_id": "packaging-strategy-v1",
+  "current_stack": "node-react-playwright",
+  "mvp_mode": {
+    "distribution": "local_node_app",
+    "commands": ["npm install", "npm run dev"],
+    "desktop_binary_required": false
+  },
+  "future_mode": {
+    "distribution": "desktop_wrapper",
+    "candidate_wrappers": ["neutralino", "tauri"],
+    "backend_packaging_candidates": ["pkg", "nexe"],
+    "decision_gate": "only_if_single_installer_or_public_distribution_needed"
+  },
+  "readiness_requirements": [
+    "frontend_uses_relative_api_paths",
+    "paths_resolved_via_env_contract",
+    "no_hardcoded_absolute_localhost_dependency_in_frontend_config"
+  ]
+}

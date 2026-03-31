@@ -1,0 +1,34 @@
+{
+  "convention_id": "folder-conventions-v1",
+  "roots": {
+    "planning": ".planning/spec-kit",
+    "agent": ".agent",
+    "runtime": "."
+  },
+  "rules": [
+    {
+      "id": "planning_ai_only",
+      "path": ".planning/spec-kit",
+      "allowed_formats": ["json", "yaml", "md", "txt"],
+      "notes": "markdown limited to constraints and short references"
+    },
+    {
+      "id": "agent_state_container",
+      "path": ".agent/state",
+      "allowed_formats": ["json"],
+      "notes": "state snapshots and resumable context"
+    },
+    {
+      "id": "agent_contracts_container",
+      "path": ".agent/contracts",
+      "allowed_formats": ["json"],
+      "notes": "canonical data and API contracts"
+    },
+    {
+      "id": "handover_container",
+      "path": ".agent/session-handovers",
+      "allowed_formats": ["json"],
+      "file_pattern": "^handover-\\d{8}-\\d{4}\\.json$"
+    }
+  ]
+}

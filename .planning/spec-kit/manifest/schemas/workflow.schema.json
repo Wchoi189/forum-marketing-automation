@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ppomppu-ott-bot/specs/workflow.schema.json",
+  "title": "WorkflowDefinition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workflow_id",
+    "forum_id",
+    "entry_url",
+    "observer_rules",
+    "publisher_sequence"
+  ],
+  "properties": {
+    "workflow_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "forum_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "entry_url": { "type": "string", "format": "uri" },
+    "status": { "type": "string", "enum": ["draft", "active", "disabled"] },
+    "observer_rules": { "$ref": "#/definitions/observerRules" },
+    "publisher_sequence": { "$ref": "#/definitions/publisherSequence" }
+  },
+  "definitions": {
+    "observerRules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["author_match", "gap_threshold_min", "parse_confidence_min"],
+      "properties": {
+        "author_match": { "type": "string" },
+        "gap_threshold_min": { "type": "integer", "minimum": 0, "maximum": 50 },
+        "parse_confidence_min": { "type": "number", "minimum": 0, "maximum": 1 },
+        "exclude_notice_rows": { "type": "boolean" }
+      }
+    },
+    "publisherSequence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step_id", "action"],
+        "properties": {
+          "step_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "action": {
+            "type": "string",
+            "enum": ["navigate", "click", "select", "verify_text", "submit"]
+          },
+          "selector": { "type": "string" },
+          "expected_text": { "type": "string" },
+          "optional": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

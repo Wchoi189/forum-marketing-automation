@@ -1,0 +1,54 @@
+{
+  "manifest_version": "1.0.0",
+  "project_id": "ppomppu-ott-bot",
+  "architecture_id": "ppomppu-ott-bot-arch-v1",
+  "runtime_stack": {
+    "frontend": "react18+vite+tailwind+motion+recharts",
+    "backend": "express+tsx",
+    "bot": "playwright+node",
+    "storage": "json-file"
+  },
+  "workflow_registry": [
+    {
+      "workflow_id": "ppomppu-gonggu-v1",
+      "forum_id": "ppomppu",
+      "entry_url": "https://www.ppomppu.co.kr/zboard/zboard.php?id=gonggu",
+      "observer_rules_ref": "./schemas/workflow.schema.json#/definitions/observerRules",
+      "publisher_sequence_ref": "./schemas/workflow.schema.json#/definitions/publisherSequence"
+    }
+  ],
+  "data_contracts": {
+    "activity_log": ".agent/contracts/activity-log.contract.json",
+    "env": "./schemas/env.schema.json"
+  },
+  "execution_loop": {
+    "id": "observe-validate-decide-publish-persist-expose-refresh",
+    "steps": [
+      "observe_board",
+      "validate_snapshot",
+      "decide_eligibility",
+      "maybe_publish",
+      "persist_log",
+      "expose_api",
+      "refresh_ui"
+    ]
+  },
+  "paths": {
+    "project_root_env": "PROJECT_ROOT",
+    "planning_root": ".planning/spec-kit",
+    "agent_root": ".agent",
+    "activity_log": "activity_log.json"
+  },
+  "env_contract_ref": "./schemas/env.schema.json",
+  "packaging": {
+    "mode": "local_node_app",
+    "future_shell": [
+      "neutralino",
+      "tauri"
+    ],
+    "backend_binary_candidates": [
+      "pkg",
+      "nexe"
+    ]
+  }
+}

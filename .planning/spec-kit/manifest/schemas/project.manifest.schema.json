@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ppomppu-ott-bot/specs/project.manifest.schema.json",
+  "title": "ProjectManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest_version",
+    "project_id",
+    "architecture_id",
+    "runtime_stack",
+    "workflow_registry",
+    "data_contracts",
+    "execution_loop",
+    "paths",
+    "env_contract_ref"
+  ],
+  "properties": {
+    "manifest_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "architecture_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "runtime_stack": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "frontend": { "type": "string" },
+        "backend": { "type": "string" },
+        "bot": { "type": "string" },
+        "storage": { "type": "string" }
+      },
+      "required": ["frontend", "backend", "bot", "storage"]
+    },
+    "workflow_registry": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workflow_id",
+          "forum_id",
+          "entry_url"
+        ],
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "forum_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "entry_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "observer_rules_ref": { "type": "string" },
+          "publisher_sequence_ref": { "type": "string" }
+        }
+      }
+    },
+    "data_contracts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "activity_log": { "type": "string" },
+        "env": { "type": "string" }
+      },
+      "required": ["activity_log", "env"]
+    },
+    "execution_loop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "steps"],
+      "properties": {
+        "id": { "type": "string" },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": [
+              "observe_board",
+              "validate_snapshot",
+              "decide_eligibility",
+              "maybe_publish",
+              "persist_log",
+              "expose_api",
+              "refresh_ui"
+            ]
+          }
+        }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_root_env": { "type": "string" },
+        "planning_root": { "type": "string" },
+        "agent_root": { "type": "string" },
+        "activity_log": { "type": "string" }
+      },
+      "required": ["project_root_env", "planning_root", "agent_root", "activity_log"]
+    },
+    "env_contract_ref": {
+      "type": "string"
+    },
+    "packaging": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string" },
+        "future_shell": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "backend_binary_candidates": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
