@@ -1,17 +1,129 @@
 import { chromium } from 'playwright';
 import fs from 'fs/promises';
+import path from 'path';
 import type { ActivityLog, Post } from './contracts/models.js';
 import { ENV } from './config/env.js';
 
-const BOARD_URL = 'https://www.ppomppu.co.kr/zboard/zboard.php?id=gonggu';
 const USER_DATA_DIR = ENV.BOT_PROFILE_DIR;
 const LOG_FILE = ENV.ACTIVITY_LOG_PATH;
-const GAP_THRESHOLD = ENV.OBSERVER_GAP_THRESHOLD;
-const PARSE_CONFIDENCE_MIN = 0.9;
 const REQUIRED_DRAFT_TITLE =
   '[OTT/멤버십] [SharePlan] 끝까지 관리된 유튜브/코세라 프리미엄 (가입 완료 후 결제)';
 const REQUIRED_BODY_TEXT = '회원 모집 안내';
 const REQUIRED_CATEGORY_LABEL = '유튜브';
+
+type ObserverPolicy = {
+  boardUrl: string;
+  authorMatch: string;
+  gapThresholdMin: number;
+  parseConfidenceMin: number;
+  excludeNoticeRows: boolean;
+};
+
+type WorkflowManifest = {
+  entry_url?: unknown;
+  observer_rules?: {
+    author_match?: unknown;
+    gap_threshold_min?: unknown;
+    parse_confidence_min?: unknown;
+    exclude_notice_rows?: unknown;
+  };
+};
+
+type DecisionRules = {
+  observer_rules?: {
+    author_match_value?: unknown;
+    gap_threshold_min?: unknown;
+    parse_confidence_min?: unknown;
+    notice_rows_excluded?: unknown;
+  };
+};
+
+let observerPolicyPromise: Promise<ObserverPolicy> | null = null;
+
+async function readPlanningJson<T>(relativePath: string): Promise<T> {
+  const filePath = path.join(ENV.PROJECT_ROOT, '.planning', 'spec-kit', relativePath);
+  const content = await fs.readFile(filePath, 'utf-8');
+  return JSON.parse(content) as T;
+}
+
+function assertPolicy(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(`[OBSERVER_POLICY] ${message}`);
+  }
+}
+
+function toInt(value: unknown, label: string): number {
+  assertPolicy(typeof value === 'number' && Number.isInteger(value), `${label} must be an integer`);
+  return value;
+}
+
+function toNumber(value: unknown, label: string): number {
+  assertPolicy(typeof value === 'number' && Number.isFinite(value), `${label} must be a number`);
+  return value;
+}
+
+async function loadObserverPolicy(): Promise<ObserverPolicy> {
+  if (observerPolicyPromise) {
+    return observerPolicyPromise;
+  }
+
+  observerPolicyPromise = (async () => {
+    const [workflow, decisionRules] = await Promise.all([
+      readPlanningJson<WorkflowManifest>('manifest/workflow.ppomppu-gonggu-v1.json'),
+      readPlanningJson<DecisionRules>('specs/decision-rules.json')
+    ]);
+
+    const workflowRules = workflow.observer_rules;
+    const decisionObserverRules = decisionRules.observer_rules;
+    assertPolicy(Boolean(workflowRules), 'workflow observer_rules are missing');
+    assertPolicy(Boolean(decisionObserverRules), 'decision-rules observer_rules are missing');
+
+    const boardUrl = workflow.entry_url;
+    assertPolicy(typeof boardUrl === 'string' && boardUrl.length > 0, 'workflow.entry_url must be a non-empty string');
+
+    const workflowAuthorMatch = workflowRules?.author_match;
+    const decisionAuthorMatch = decisionObserverRules?.author_match_value;
+    assertPolicy(typeof workflowAuthorMatch === 'string' && workflowAuthorMatch.length > 0, 'workflow observer_rules.author_match must be a non-empty string');
+    assertPolicy(typeof decisionAuthorMatch === 'string' && decisionAuthorMatch.length > 0, 'decision-rules observer_rules.author_match_value must be a non-empty string');
+    assertPolicy(
+      workflowAuthorMatch.trim().toLowerCase() === decisionAuthorMatch.trim().toLowerCase(),
+      'author_match values differ between workflow and decision-rules contracts'
+    );
+
+    const workflowGapThreshold = toInt(workflowRules?.gap_threshold_min, 'workflow observer_rules.gap_threshold_min');
+    const decisionGapThreshold = toInt(decisionObserverRules?.gap_threshold_min, 'decision-rules observer_rules.gap_threshold_min');
+    assertPolicy(
+      workflowGapThreshold === decisionGapThreshold,
+      'gap_threshold_min differs between workflow and decision-rules contracts'
+    );
+
+    const workflowParseConfidence = toNumber(workflowRules?.parse_confidence_min, 'workflow observer_rules.parse_confidence_min');
+    const decisionParseConfidence = toNumber(decisionObserverRules?.parse_confidence_min, 'decision-rules observer_rules.parse_confidence_min');
+    assertPolicy(
+      workflowParseConfidence === decisionParseConfidence,
+      'parse_confidence_min differs between workflow and decision-rules contracts'
+    );
+
+    const workflowExcludeNotice = workflowRules?.exclude_notice_rows;
+    const decisionExcludeNotice = decisionObserverRules?.notice_rows_excluded;
+    assertPolicy(typeof workflowExcludeNotice === 'boolean', 'workflow observer_rules.exclude_notice_rows must be boolean');
+    assertPolicy(typeof decisionExcludeNotice === 'boolean', 'decision-rules observer_rules.notice_rows_excluded must be boolean');
+    assertPolicy(
+      workflowExcludeNotice === decisionExcludeNotice,
+      'notice-row exclusion policy differs between workflow and decision-rules contracts'
+    );
+
+    return {
+      boardUrl,
+      authorMatch: workflowAuthorMatch,
+      gapThresholdMin: workflowGapThreshold,
+      parseConfidenceMin: workflowParseConfidence,
+      excludeNoticeRows: workflowExcludeNotice
+    };
+  })();
+
+  return observerPolicyPromise;
+}
 
 export async function getLogs(): Promise<ActivityLog[]> {
   try {
@@ -22,8 +134,8 @@ export async function getLogs(): Promise<ActivityLog[]> {
   }
 }
 
-function createManualReviewMessage(parseConfidence: number): string {
-  return `MANUAL_REVIEW_REQUIRED: parse confidence ${parseConfidence.toFixed(2)} is below ${PARSE_CONFIDENCE_MIN.toFixed(2)}`;
+function createManualReviewMessage(parseConfidence: number, parseConfidenceMin: number): string {
+  return `MANUAL_REVIEW_REQUIRED: parse confidence ${parseConfidence.toFixed(2)} is below ${parseConfidenceMin.toFixed(2)}`;
 }
 
 async function saveLog(log: ActivityLog) {
@@ -38,8 +150,9 @@ export async function runObserver() {
   const page = await browser.newPage();
   
   try {
+    const policy = await loadObserverPolicy();
     console.log('Running Observer...');
-    await page.goto(BOARD_URL, { waitUntil: 'networkidle' });
+    await page.goto(policy.boardUrl, { waitUntil: 'networkidle' });
 
     // Fallback selector chain + confidence score keeps observer fail-closed on layout drift.
     const rows = await page.$$eval('tr.list0, tr.list1', (trs) => {
@@ -79,14 +192,16 @@ export async function runObserver() {
       });
     });
 
-    const nonNoticeRows = rows.filter(r => !r.isNotice);
+    const nonNoticeRows = policy.excludeNoticeRows ? rows.filter(r => !r.isNotice) : rows;
     const validRows = nonNoticeRows.filter(r => r.title && r.author);
     const parseConfidence =
       validRows.length === 0
         ? 0
         : validRows.reduce((acc, row) => acc + row.parseConfidence, 0) / validRows.length;
 
-    const sharePlanIndex = validRows.findIndex(r => r.author.toLowerCase().includes('shareplan'));
+    const sharePlanIndex = validRows.findIndex(
+      (r) => r.author.toLowerCase().includes(policy.authorMatch.toLowerCase())
+    );
 
     let gap = 0;
     let competitors: string[] = [];
@@ -102,7 +217,12 @@ export async function runObserver() {
       lastPost = validRows[sharePlanIndex];
     }
 
-    const status = parseConfidence < PARSE_CONFIDENCE_MIN ? 'unsafe' : gap >= GAP_THRESHOLD ? 'safe' : 'unsafe';
+    const status =
+      parseConfidence < policy.parseConfidenceMin
+        ? 'unsafe'
+        : gap >= policy.gapThresholdMin
+          ? 'safe'
+          : 'unsafe';
     const allPosts: Post[] = validRows.map(({ title, author, date, views, isNotice }) => ({
       title,
       author,
@@ -119,7 +239,9 @@ export async function runObserver() {
       view_count_of_last_post: lastPost?.views || 0,
       status,
       all_posts: allPosts,
-      ...(parseConfidence < PARSE_CONFIDENCE_MIN ? { error: createManualReviewMessage(parseConfidence) } : {})
+      ...(parseConfidence < policy.parseConfidenceMin
+        ? { error: createManualReviewMessage(parseConfidence, policy.parseConfidenceMin) }
+        : {})
     };
 
     await saveLog(log);
@@ -146,6 +268,7 @@ export async function runObserver() {
 export async function runPublisher(force: boolean = false) {
   let log: ActivityLog | undefined;
   try {
+    const policy = await loadObserverPolicy();
     log = await runObserver();
     
     if (log.status === 'error') {
@@ -171,7 +294,7 @@ export async function runPublisher(force: boolean = false) {
 
     try {
       console.log('Running Publisher...');
-      await page.goto(BOARD_URL);
+      await page.goto(policy.boardUrl);
 
       // Step 1: Access Writing Interface
       // Find "글쓰기" button. Usually an <a> tag with text or image

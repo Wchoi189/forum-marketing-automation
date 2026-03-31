@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { createApp, startScheduler } from "../../server.ts";
+import { validateRuntimeContracts } from "../../config/runtime-validation.ts";
 import type { ActivityLog } from "../../contracts/models.ts";
 
 type BotDeps = NonNullable<Parameters<typeof createApp>[0]>;
@@ -97,6 +100,31 @@ test("POST /api/run-publisher blocks unsafe non-force path", async () => {
   });
 });
 
+test("POST /api/run-publisher preserves low-confidence manual-review message", async () => {
+  const manualReviewMessage = "MANUAL_REVIEW_REQUIRED: parse confidence 0.72 is below 0.90";
+  const unsafeLog = createLog("unsafe", manualReviewMessage);
+  const deps: BotDeps = {
+    runObserver: async () => unsafeLog,
+    runPublisher: async () => ({ success: false, message: manualReviewMessage, log: unsafeLog }),
+    getLogs: async () => [unsafeLog]
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/api/run-publisher`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ force: false })
+    });
+
+    assert.equal(res.status, 500);
+    const body = await res.json();
+    assert.equal(body.success, false);
+    assert.match(body.error, /MANUAL_REVIEW_REQUIRED/);
+    assert.equal(body.message, manualReviewMessage);
+    assertActivityLogShape(body.log as ActivityLog);
+  });
+});
+
 test("POST /api/run-publisher supports manual override force path", async () => {
   const unsafeLog = createLog("unsafe");
   let capturedForce = false;
@@ -151,4 +179,24 @@ test("scheduler uses lock to avoid overlapping runs", async () => {
   scheduler.stop();
 
   assert.equal(runCount, 1);
+});
+
+test("runtime validation fails when workflow fixture violates schema", async () => {
+  const workflowPath = path.join(
+    process.env.PROJECT_ROOT || "/parent/marketing-automation",
+    ".planning/spec-kit/manifest/workflow.ppomppu-gonggu-v1.json"
+  );
+  const original = await fs.readFile(workflowPath, "utf-8");
+
+  try {
+    const brokenWorkflow = JSON.parse(original) as Record<string, unknown>;
+    delete brokenWorkflow.publisher_sequence;
+    await fs.writeFile(workflowPath, JSON.stringify(brokenWorkflow, null, 2));
+    await assert.rejects(
+      () => validateRuntimeContracts(),
+      /workflow\.ppomppu-gonggu-v1\.json schema mismatch/
+    );
+  } finally {
+    await fs.writeFile(workflowPath, original);
+  }
 });

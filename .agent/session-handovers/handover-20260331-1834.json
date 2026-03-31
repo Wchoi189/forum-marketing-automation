@@ -1,0 +1,123 @@
+{
+  "handover_id": "handover-20260331-1834",
+  "timestamp_utc": "2026-03-31T18:34:48Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "gpt-5.3-codex",
+  "target_agent": "gpt-5.3-codex",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "implementation",
+  "objective": "Complete contract-driven policy execution and strengthen runtime/API contract validation with negative-path test coverage.",
+  "non_goals": [
+    "multi-forum runtime implementation beyond ppomppu adapter",
+    "desktop packaging implementation",
+    "public-facing documentation"
+  ],
+  "current_state": {
+    "completed": [
+      "Observer thresholds and author-match policy are loaded from workflow + decision-rule contracts",
+      "Observer/publisher board URL now uses workflow entry_url contract value",
+      "Fail-closed consistency checks added for workflow/decision observer policy drift",
+      "Runtime validation now verifies API schema refs against data-contracts schema definitions",
+      "Runtime validation now asserts project manifest activity-log contract path + schema parity",
+      "Runtime validation now enforces publisher sequence guard action coverage and verify_text alignment",
+      "Integration tests now cover low-confidence manual-review message behavior",
+      "Integration tests now cover startup failure on invalid workflow fixture",
+      "Typecheck and integration tests passing after changes"
+    ],
+    "gaps": [
+      "No live Playwright E2E execution against real board environment in this session",
+      "No commit created yet in this session"
+    ]
+  },
+  "status": "in_progress",
+  "decisions_locked": [
+    "AI-facing documentation only",
+    "Fail-closed default behavior",
+    "Single-forum now, multi-forum-ready architecture",
+    "Machine-parseable contracts under .planning/spec-kit and .agent/contracts"
+  ],
+  "acceptance_criteria": [
+    "Observer produces contract-valid logs with confidence-aware decision outcomes",
+    "Publisher can execute real submit only when DRY_RUN_MODE=false and guard checks pass",
+    "Scheduler triggers observer/publisher loop according to RUN_INTERVAL_MINUTES",
+    "API responses remain aligned with data-contracts.schema.json",
+    "Integration tests cover observer run, blocked publish, manual override, and manual-review behavior"
+  ],
+  "implementation_plan": [
+    {
+      "step": 1,
+      "name": "Execute staged live-environment checklist",
+      "actions": [
+        "Run observer-only pass with real profile/session",
+        "Run publisher in DRY_RUN_MODE=true and capture guard outcomes",
+        "Run controlled submit validation in DRY_RUN_MODE=false with rollback-safe timing"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Finalize release handoff",
+      "actions": [
+        "Create commit with contract-policy and validation/test updates",
+        "Attach runtime/test evidence summary for reviewer"
+      ]
+    }
+  ],
+  "practical_recommendations": [
+    "Use this handover file as the single continuation seed in the next session",
+    "Preserve fail-closed behavior while running live checks",
+    "Do not weaken manual-override and dry-run safety gates"
+  ],
+  "completed_items": [
+    "Contract-driven observer thresholds and author-match policy loading",
+    "Runtime validation expansion for API refs and data-contract alignment",
+    "Negative-path integration tests for manual-review payload and invalid workflow fixture"
+  ],
+  "pending_items": [
+    "Live-environment execution checklist",
+    "Commit and PR packaging"
+  ],
+  "decisions": [
+    {
+      "id": "D-20260331-03",
+      "title": "Fail startup on cross-contract schema/reference drift",
+      "rationale": "Prevents silent divergence between API contracts, project manifest refs, and activity-log schema assumptions"
+    },
+    {
+      "id": "D-20260331-04",
+      "title": "Use contract values as runtime source of observer policy truth",
+      "rationale": "Eliminates threshold/author policy drift from duplicated constants in code"
+    }
+  ],
+  "constraints": [
+    "Do not weaken safety guards before enabling live publish",
+    "No credentials in committed files",
+    "Maintain strict env and contract validation at startup",
+    "Preserve compatibility with current Express + React + Playwright stack"
+  ],
+  "env_requirements": [
+    "PROJECT_ROOT",
+    "FORUM_PRIMARY_ID",
+    "PPOMPPU_USER_ID",
+    "PPOMPPU_USER_PW",
+    "BOT_PROFILE_DIR",
+    "ACTIVITY_LOG_PATH",
+    "OBSERVER_GAP_THRESHOLD",
+    "RUN_INTERVAL_MINUTES",
+    "MANUAL_OVERRIDE_ENABLED",
+    "DRY_RUN_MODE",
+    "PORT"
+  ],
+  "next_actions": [
+    "Run staged live-environment checklist for observer/publisher behavior",
+    "Create commit for bot/runtime-validation/test updates",
+    "Prepare PR summary with contract and safety impact"
+  ],
+  "artifacts_touched": [
+    "bot.ts",
+    "config/runtime-validation.ts",
+    "tests/integration/api.integration.test.ts",
+    ".agent/session-handovers/handover-20260331-1834.json",
+    ".agent/state/state.index.json"
+  ]
+}
