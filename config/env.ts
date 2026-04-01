@@ -16,6 +16,11 @@ type EnvConfig = {
   DRY_RUN_MODE: boolean;
   BROWSER_HEADLESS: boolean;
   PORT: number;
+  MCP_PARSER_HOST: string;
+  MCP_PARSER_PORT: number;
+  MCP_PARSER_HEADLESS: boolean;
+  MCP_PARSER_NAV_TIMEOUT_MS: number;
+  MCP_PARSER_MAX_STORED_SNAPSHOTS: number;
 };
 
 function requiredString(name: string): string {
@@ -79,6 +84,11 @@ function buildEnv(): EnvConfig {
     DRY_RUN_MODE: optionalBool("DRY_RUN_MODE", true),
     BROWSER_HEADLESS: optionalBool("BROWSER_HEADLESS", true),
     PORT: optionalInt("PORT", 3000, 1, 65535),
+    MCP_PARSER_HOST: process.env.MCP_PARSER_HOST?.trim() || "127.0.0.1",
+    MCP_PARSER_PORT: optionalInt("MCP_PARSER_PORT", 3333, 1, 65535),
+    MCP_PARSER_HEADLESS: optionalBool("MCP_PARSER_HEADLESS", true),
+    MCP_PARSER_NAV_TIMEOUT_MS: optionalInt("MCP_PARSER_NAV_TIMEOUT_MS", 45000, 5000, 120000),
+    MCP_PARSER_MAX_STORED_SNAPSHOTS: optionalInt("MCP_PARSER_MAX_STORED_SNAPSHOTS", 200, 10, 1000),
   };
 }
 

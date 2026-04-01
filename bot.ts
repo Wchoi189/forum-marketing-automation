@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import type { ActivityLog, Post } from './contracts/models.js';
 import { ENV } from './config/env.js';
+import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
 
 const USER_DATA_DIR = ENV.BOT_PROFILE_DIR;
 const LOG_FILE = ENV.ACTIVITY_LOG_PATH;
@@ -40,6 +41,21 @@ type DecisionRules = {
 };
 
 let observerPolicyPromise: Promise<ObserverPolicy> | null = null;
+let previousBoardSnapshot: ProjectedSnapshot | null = null;
+
+type ParserSignal = {
+  projectedRowCount: number;
+  parserConfidence: number;
+  warnings: string[];
+  diffSummary: { added: number; removed: number; changed: number };
+};
+
+const PARSER_OPTIONS = {
+  maxDepth: 6,
+  maxSiblingsPerNode: 60,
+  maxTotalNodes: 550,
+  maxTextLengthPerNode: 200
+} as const;
 
 async function readPlanningJson<T>(relativePath: string): Promise<T> {
   const filePath = path.join(ENV.PROJECT_ROOT, '.planning', 'spec-kit', relativePath);
@@ -148,6 +164,35 @@ async function getBoardDiagnostics(page: import('playwright').Page) {
   };
 }
 
+async function attemptPpomppuLoginFromBoard(page: import('playwright').Page, boardUrl: string): Promise<boolean> {
+  const loginLink = page.locator('a:has-text("로그인")').first();
+  if ((await loginLink.count()) === 0) {
+    return false;
+  }
+
+  await Promise.all([page.waitForLoadState('domcontentloaded'), loginLink.click()]);
+
+  const loginForm = page.locator('form#zb_login');
+  if ((await loginForm.count()) === 0) {
+    return false;
+  }
+
+  await page.fill('input[name="user_id"]', ENV.PPOMPPU_USER_ID);
+  await page.fill('input[name="password"]', ENV.PPOMPPU_USER_PW);
+
+  await Promise.all([
+    page.waitForURL(/zboard\.php\?id=gonggu/, { timeout: 30000 }).catch(() => null),
+    page.locator('form#zb_login').locator('a:has-text("로그인")').first().click()
+  ]);
+
+  if (!page.url().includes('zboard.php?id=gonggu')) {
+    await page.goto(boardUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  }
+
+  const after = await getBoardDiagnostics(page);
+  return after.writeButtonCount > 0;
+}
+
 export async function getLogs(): Promise<ActivityLog[]> {
   try {
     const data = await fs.readFile(LOG_FILE, 'utf-8');
@@ -161,7 +206,55 @@ function createManualReviewMessage(parseConfidence: number, parseConfidenceMin: 
   return `MANUAL_REVIEW_REQUIRED: parse confidence ${parseConfidence.toFixed(2)} is below ${parseConfidenceMin.toFixed(2)}`;
 }
 
-async function captureBoardRowRegionArtifact(page: import('playwright').Page, reason: string): Promise<string> {
+function flattenProjectedNodes(nodes: ProjectedNode[]): ProjectedNode[] {
+  const output: ProjectedNode[] = [];
+  const visit = (node: ProjectedNode) => {
+    output.push(node);
+    for (const child of node.children) {
+      visit(child);
+    }
+  };
+  for (const node of nodes) {
+    visit(node);
+  }
+  return output;
+}
+
+async function collectParserSignal(page: import('playwright').Page): Promise<{
+  signal: ParserSignal;
+  snapshot: ProjectedSnapshot;
+  outline: Awaited<ReturnType<typeof pageOutline>>;
+}> {
+  const snapshot = await subtree(page, 'table#revolution_main_table, form[name="bbs_list"], body', PARSER_OPTIONS);
+  const outline = await pageOutline(page, { ...PARSER_OPTIONS, maxDepth: 4, maxTotalNodes: 260 });
+  const rowLikeCount = flattenProjectedNodes(snapshot.nodes).filter((node) => node.tag === 'tr').length;
+  const diff = snapshotDiff(previousBoardSnapshot, snapshot);
+  previousBoardSnapshot = snapshot;
+  return {
+    signal: {
+      projectedRowCount: rowLikeCount,
+      parserConfidence: snapshot.confidence,
+      warnings: snapshot.warnings,
+      diffSummary: { added: diff.added.length, removed: diff.removed.length, changed: diff.changed.length }
+    },
+    snapshot,
+    outline
+  };
+}
+
+function combinedConfidence(legacyConfidence: number, parserConfidence: number): number {
+  return Number(Math.min(legacyConfidence, parserConfidence).toFixed(2));
+}
+
+async function captureBoardRowRegionArtifact(
+  page: import('playwright').Page,
+  reason: string,
+  parserBundle?: {
+    signal: ParserSignal;
+    snapshot: ProjectedSnapshot;
+    outline: Awaited<ReturnType<typeof pageOutline>>;
+  }
+): Promise<string> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const artifactDir = path.join(ENV.PROJECT_ROOT, 'artifacts', 'board-diagnostics');
   await fs.mkdir(artifactDir, { recursive: true });
@@ -184,17 +277,32 @@ async function captureBoardRowRegionArtifact(page: import('playwright').Page, re
 
     return {
       selectorCounts,
-      boardRootHtml: boardRoot?.outerHTML?.slice(0, 20000) ?? '',
       bodyExcerpt: document.body?.innerText?.slice(0, 4000) ?? ''
     };
   });
+
+  const parserResult =
+    parserBundle ??
+    (await collectParserSignal(page).catch(() => ({
+      signal: {
+        projectedRowCount: 0,
+        parserConfidence: 0,
+        warnings: ['parser_collection_failed'],
+        diffSummary: { added: 0, removed: 0, changed: 0 }
+      },
+      snapshot: null,
+      outline: null
+    })));
 
   const payload = {
     capturedAt: new Date().toISOString(),
     reason,
     url: page.url(),
     title: await page.title().catch(() => 'N/A'),
-    ...diagnostic
+    ...diagnostic,
+    parserSignal: parserResult.signal,
+    projectionSnapshot: parserResult.snapshot,
+    projectionOutline: parserResult.outline
   };
 
   await fs.writeFile(artifactPath, JSON.stringify(payload, null, 2), 'utf-8');
@@ -223,6 +331,7 @@ export async function runObserver() {
         `BOARD_ACCESS_DENIED: status=${statusCode} title="${diagnostics.title}" url="${diagnostics.url}" rows=${diagnostics.rowCount}`
       );
     }
+    const parserBundle = await collectParserSignal(page);
     const rowsReady = await page
       .locator(BOARD_ROW_SELECTOR)
       .first()
@@ -231,7 +340,7 @@ export async function runObserver() {
       .catch(() => false);
     if (!rowsReady) {
       const latest = await getBoardDiagnostics(page);
-      const artifactPath = await captureBoardRowRegionArtifact(page, 'observer_rows_not_attached');
+      const artifactPath = await captureBoardRowRegionArtifact(page, 'observer_rows_not_attached', parserBundle);
       throw new Error(
         `BOARD_CONTENT_UNAVAILABLE: title="${latest.title}" url="${latest.url}" rows=${latest.rowCount} artifact="${artifactPath}"`
       );
@@ -322,6 +431,8 @@ export async function runObserver() {
       validRows.length === 0
         ? 0
         : validRows.reduce((acc, row) => acc + row.parseConfidence, 0) / validRows.length;
+    const parserConfidence = parserBundle.signal.parserConfidence;
+    const effectiveParseConfidence = combinedConfidence(parseConfidence, parserConfidence);
 
     const sharePlanIndex = validRows.findIndex(
       (r) => r.author.toLowerCase().includes(policy.authorMatch.toLowerCase())
@@ -342,7 +453,7 @@ export async function runObserver() {
     }
 
     const status =
-      parseConfidence < policy.parseConfidenceMin
+      effectiveParseConfidence < policy.parseConfidenceMin
         ? 'unsafe'
         : gap >= policy.gapThresholdMin
           ? 'safe'
@@ -363,8 +474,10 @@ export async function runObserver() {
       view_count_of_last_post: lastPost?.views || 0,
       status,
       all_posts: allPosts,
-      ...(parseConfidence < policy.parseConfidenceMin
-        ? { error: createManualReviewMessage(parseConfidence, policy.parseConfidenceMin) }
+      ...(effectiveParseConfidence < policy.parseConfidenceMin
+        ? {
+            error: `${createManualReviewMessage(effectiveParseConfidence, policy.parseConfidenceMin)} (legacy=${parseConfidence.toFixed(2)}, parser=${parserConfidence.toFixed(2)}, projectedRows=${parserBundle.signal.projectedRowCount}, diff=${JSON.stringify(parserBundle.signal.diffSummary)})`
+          }
         : {})
     };
 
@@ -427,17 +540,23 @@ export async function runPublisher(force: boolean = false) {
         );
       }
       if (diagnostics.writeButtonCount === 0) {
-        const reason = diagnostics.loginPromptVisible
-          ? 'login_required_or_session_missing'
-          : 'write_button_not_visible';
-        throw new Error(
-          `PUBLISHER_WRITE_ENTRY_UNAVAILABLE: reason=${reason} title="${diagnostics.title}" url="${diagnostics.url}" rows=${diagnostics.rowCount}`
-        );
+        const loginRecovered = diagnostics.loginPromptVisible
+          ? await attemptPpomppuLoginFromBoard(page, policy.boardUrl).catch(() => false)
+          : false;
+        if (!loginRecovered) {
+          const latest = await getBoardDiagnostics(page);
+          const reason = latest.loginPromptVisible
+            ? 'login_required_or_session_missing'
+            : 'write_button_not_visible';
+          throw new Error(
+            `PUBLISHER_WRITE_ENTRY_UNAVAILABLE: reason=${reason} title="${latest.title}" url="${latest.url}" rows=${latest.rowCount}`
+          );
+        }
       }
 
       // Step 1: Access Writing Interface
       // Find "글쓰기" button. Usually an <a> tag with text or image
-      const writeBtn = page.locator('a:has-text("글쓰기")');
+      const writeBtn = page.locator('a:has-text("글쓰기")').first();
       await writeBtn.click();
 
       // Step 2: Retrieve Draft
@@ -457,8 +576,12 @@ export async function runPublisher(force: boolean = false) {
       }
 
       // Step 3: Load & Verify
-      const loadBtn = draftRow.locator('a:has-text("불러오기"), button:has-text("불러오기")');
-      await loadBtn.click();
+      const loadBtn = draftRow.locator('a:has-text("불러오기"), button:has-text("불러오기")').first();
+      if ((await loadBtn.count()) > 0) {
+        await loadBtn.click();
+      } else {
+        await draftRow.click();
+      }
 
       // Wait for editor to load
       await page.waitForTimeout(2000);

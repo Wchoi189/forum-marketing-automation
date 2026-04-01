@@ -1,0 +1,31 @@
+---
+description: Parser MCP tool usage and guardrails
+alwaysApply: true
+---
+
+# Parser MCP Usage
+
+Use the parser MCP server tools to gather low-noise page context before taking actions.
+
+## Tool Selection
+
+- Use `page_outline` first for map-first navigation (landmarks, headings, forms, interactives).
+- Use `subtree` when a specific page region is known (`selector` required).
+- Use `interactive_elements` when selecting actionable controls only.
+- Use `snapshot_diff` to compare two parser snapshots after an action.
+
+## Preferred Sequence
+
+1. Run `page_outline` (or `subtree`) and store `snapshotId`.
+2. Perform one deliberate action.
+3. Run `subtree` or `interactive_elements` again and store new `snapshotId`.
+4. Run `snapshot_diff` with `beforeSnapshotId` and `afterSnapshotId`.
+
+## Guardrails
+
+- Respect truncation and confidence signals:
+  - If `truncation.truncated` is true, narrow scope (smaller subtree, tighter options).
+  - If confidence is low, do not assume page state; gather another focused snapshot.
+- Prefer parser outputs over raw HTML by default.
+- Keep options bounded; avoid raising limits unless explicitly needed.
+- Fail closed on ambiguity: request another projection step before critical actions.

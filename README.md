@@ -16,6 +16,31 @@ Node + Playwright automation bot for observing and posting to the Ppomppu OTT bo
 3. Run locally:
    - `npm run dev`
 
+## Parser MCP Server
+- Start server:
+  - `npm run mcp:parser`
+- Endpoint:
+  - `http://127.0.0.1:3333/mcp` (default)
+- Exposed tools:
+  - `page_outline`
+  - `subtree`
+  - `interactive_elements`
+  - `snapshot_diff`
+- Typical call sequence:
+  - Run `page_outline` or `subtree` and keep returned `snapshotId`.
+  - Run another parser call after page changes to get another `snapshotId`.
+  - Run `snapshot_diff` with `beforeSnapshotId` and `afterSnapshotId`.
+- Agent-facing guidance:
+  - Rule: `.cursor/rules/parser-mcp-usage.mdc`
+  - Canonical call examples: `examples/mcp-parser-calls.json`
+
+### Parser MCP Env Knobs
+- `MCP_PARSER_HOST` (default: `127.0.0.1`)
+- `MCP_PARSER_PORT` (default: `3333`)
+- `MCP_PARSER_HEADLESS` (default: `true`)
+- `MCP_PARSER_NAV_TIMEOUT_MS` (default: `45000`)
+- `MCP_PARSER_MAX_STORED_SNAPSHOTS` (default: `200`)
+
 ## Project Structure
 - `server.ts` - API + Vite middleware
 - `bot.ts` - observer/publisher workflow

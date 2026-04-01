@@ -1,0 +1,118 @@
+{
+  "handover_id": "handover-20260401-0832",
+  "timestamp_utc": "2026-04-01T08:32:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "gpt-5.3-codex",
+  "target_agent": "gpt-5.3-codex",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "implementation",
+  "objective": "Stabilize live observer/publisher execution against current ppomppu markup and verify dry-run publish path under authenticated session.",
+  "non_goals": [
+    "multi-forum runtime implementation beyond ppomppu adapter",
+    "desktop packaging implementation",
+    "public-facing documentation"
+  ],
+  "current_state": {
+    "completed": [
+      "Observer selector drift fixed (common-list0/common-list1 support with legacy fallbacks)",
+      "BOARD_CONTENT_UNAVAILABLE now writes deterministic board diagnostics artifact JSON",
+      "Publisher preflight now attempts guarded login recovery when write button is absent",
+      "Publisher write-entry strict locator issue fixed by selecting first matching write button",
+      "Draft load path fixed for row-click fallback when explicit 불러오기 control is missing",
+      "Forced publisher run succeeds end-to-end in DRY_RUN_MODE=true"
+    ],
+    "gaps": [
+      "No non-dry-run publish attempted in this session",
+      "Live submit safety still gated by DRY_RUN_MODE and operator policy"
+    ]
+  },
+  "status": "in_progress",
+  "decisions_locked": [
+    "AI-facing documentation only",
+    "Fail-closed default behavior",
+    "Single-forum now, multi-forum-ready architecture",
+    "Machine-parseable contracts under .planning/spec-kit and .agent/contracts"
+  ],
+  "acceptance_criteria": [
+    "Observer no longer fails due to stale row selectors on current board markup",
+    "Failures remain explicit between board access/content/login/write-entry causes",
+    "Publisher can complete dry-run workflow through draft load and content verification"
+  ],
+  "implementation_plan": [
+    {
+      "step": 1,
+      "name": "Live-submit readiness gate",
+      "actions": [
+        "Keep DRY_RUN_MODE=true until operator approval for live submission",
+        "Run one more forced dry-run smoke to ensure stable login persistence in BOT_PROFILE_DIR"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Controlled live validation",
+      "actions": [
+        "Temporarily disable DRY_RUN_MODE in a controlled window",
+        "Execute single forced publish and verify post appears with expected category/text",
+        "Re-enable DRY_RUN_MODE after validation if continuous auto-live is not approved"
+      ]
+    }
+  ],
+  "practical_recommendations": [
+    "Preserve BOARD_ROW_SELECTOR fallback chain for future ppomppu class drift",
+    "Keep board-diagnostics artifact capture for rapid selector triage",
+    "Use xvfb-run in this runtime when headed Playwright is required"
+  ],
+  "completed_items": [
+    "Selector drift verification completed with captured artifacts",
+    "Write-entry and draft load path verified under dry-run",
+    "Typecheck/lint passes after changes"
+  ],
+  "pending_items": [
+    "Commit pending code and handover/state updates",
+    "Operator-approved non-dry-run publish validation"
+  ],
+  "decisions": [
+    {
+      "id": "D-20260401-04",
+      "title": "Add guarded login recovery in publisher preflight",
+      "rationale": "Persistent profile can be logged out; explicit recovery reduces false write-entry failures while keeping fail-closed behavior"
+    },
+    {
+      "id": "D-20260401-05",
+      "title": "Use row-click fallback for draft loading",
+      "rationale": "Current draft list rows are selectable without explicit 불러오기 controls"
+    }
+  ],
+  "constraints": [
+    "Do not weaken safety guards before enabling live publish",
+    "No credentials in committed files",
+    "Maintain strict env and contract validation at startup",
+    "Preserve compatibility with current Express + React + Playwright stack"
+  ],
+  "env_requirements": [
+    "PROJECT_ROOT",
+    "FORUM_PRIMARY_ID",
+    "PPOMPPU_USER_ID",
+    "PPOMPPU_USER_PW",
+    "BOT_PROFILE_DIR",
+    "ACTIVITY_LOG_PATH",
+    "OBSERVER_GAP_THRESHOLD",
+    "RUN_INTERVAL_MINUTES",
+    "MANUAL_OVERRIDE_ENABLED",
+    "DRY_RUN_MODE",
+    "BROWSER_HEADLESS",
+    "PORT"
+  ],
+  "next_actions": [
+    "Review git diff and commit bot.ts + handover/state updates",
+    "Optionally run one additional forced dry-run smoke",
+    "Proceed to controlled live-submit validation only after explicit approval"
+  ],
+  "artifacts_touched": [
+    "bot.ts",
+    "artifacts/board-diagnostics/board-row-region-2026-04-01T07-54-58-152Z.json",
+    ".agent/session-handovers/handover-20260401-0832.json",
+    ".agent/state/state.index.json"
+  ]
+}

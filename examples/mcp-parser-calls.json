@@ -1,0 +1,105 @@
+{
+  "notes": [
+    "Canonical Parser MCP tool-call examples for agents and local testing.",
+    "Replace URLs/selectors with target values for your workflow."
+  ],
+  "sequence_map_first_then_diff": [
+    {
+      "method": "tools/call",
+      "params": {
+        "name": "page_outline",
+        "arguments": {
+          "url": "https://example.com",
+          "options": {
+            "maxDepth": 4,
+            "maxTotalNodes": 260
+          }
+        }
+      },
+      "expect": {
+        "structuredContent": {
+          "snapshotId": "<beforeSnapshotId>",
+          "confidence": "<number>",
+          "warnings": "<string[]>",
+          "stats": "<object>",
+          "truncation": "<object>"
+        }
+      }
+    },
+    {
+      "comment": "After an action changes the page state, capture another snapshot"
+    },
+    {
+      "method": "tools/call",
+      "params": {
+        "name": "subtree",
+        "arguments": {
+          "selector": "main, body",
+          "url": "https://example.com/after-action",
+          "options": {
+            "maxDepth": 6,
+            "maxTotalNodes": 400
+          }
+        }
+      },
+      "expect": {
+        "structuredContent": {
+          "snapshotId": "<afterSnapshotId>",
+          "snapshot": "<ProjectedSnapshot>",
+          "truncation": "<object>"
+        }
+      }
+    },
+    {
+      "method": "tools/call",
+      "params": {
+        "name": "snapshot_diff",
+        "arguments": {
+          "beforeSnapshotId": "<beforeSnapshotId>",
+          "afterSnapshotId": "<afterSnapshotId>"
+        }
+      },
+      "expect": {
+        "structuredContent": {
+          "diff": "<SnapshotDiff>",
+          "summary": {
+            "added": "<number>",
+            "removed": "<number>",
+            "changed": "<number>",
+            "unchangedCount": "<number>"
+          }
+        }
+      }
+    }
+  ],
+  "sequence_interactive_focus": [
+    {
+      "method": "tools/call",
+      "params": {
+        "name": "interactive_elements",
+        "arguments": {
+          "url": "https://example.com/form",
+          "options": {
+            "maxDepth": 6,
+            "maxTotalNodes": 250
+          }
+        }
+      }
+    }
+  ],
+  "sequence_stateless_inline_diff": [
+    {
+      "comment": "If snapshot IDs are unavailable, inline snapshots are accepted."
+    },
+    {
+      "method": "tools/call",
+      "params": {
+        "name": "snapshot_diff",
+        "arguments": {
+          "beforeSnapshot": "<ProjectedSnapshot>",
+          "afterSnapshot": "<ProjectedSnapshot>"
+        }
+      }
+    }
+  ]
+}
