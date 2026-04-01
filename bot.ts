@@ -10,6 +10,7 @@ const REQUIRED_DRAFT_TITLE =
   '[OTT/멤버십] [SharePlan] 끝까지 관리된 유튜브/코세라 프리미엄 (가입 완료 후 결제)';
 const REQUIRED_BODY_TEXT = '회원 모집 안내';
 const REQUIRED_CATEGORY_LABEL = '유튜브';
+const BOARD_ROW_SELECTOR = 'tr.list0, tr.list1, tr.common-list0, tr.common-list1, tr.list_notice';
 
 type ObserverPolicy = {
   boardUrl: string;
@@ -125,6 +126,28 @@ async function loadObserverPolicy(): Promise<ObserverPolicy> {
   return observerPolicyPromise;
 }
 
+async function getBoardDiagnostics(page: import('playwright').Page) {
+  const [title, rowCount, writeButtonCount, bodyText] = await Promise.all([
+    page.title(),
+    page.locator(BOARD_ROW_SELECTOR).count(),
+    page.locator('a:has-text("글쓰기")').count(),
+    page.locator('body').innerText().catch(() => '')
+  ]);
+
+  const isForbidden = title.toLowerCase().includes('403') || bodyText.toLowerCase().includes('forbidden');
+  const loginHints = ['로그인', '로그 인', 'login'];
+  const loginPromptVisible = loginHints.some((hint) => bodyText.toLowerCase().includes(hint.toLowerCase()));
+
+  return {
+    url: page.url(),
+    title,
+    rowCount,
+    writeButtonCount,
+    isForbidden,
+    loginPromptVisible
+  };
+}
+
 export async function getLogs(): Promise<ActivityLog[]> {
   try {
     const data = await fs.readFile(LOG_FILE, 'utf-8');
@@ -138,6 +161,46 @@ function createManualReviewMessage(parseConfidence: number, parseConfidenceMin: 
   return `MANUAL_REVIEW_REQUIRED: parse confidence ${parseConfidence.toFixed(2)} is below ${parseConfidenceMin.toFixed(2)}`;
 }
 
+async function captureBoardRowRegionArtifact(page: import('playwright').Page, reason: string): Promise<string> {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const artifactDir = path.join(ENV.PROJECT_ROOT, 'artifacts', 'board-diagnostics');
+  await fs.mkdir(artifactDir, { recursive: true });
+  const artifactPath = path.join(artifactDir, `board-row-region-${timestamp}.json`);
+
+  const diagnostic = await page.evaluate(() => {
+    const selectorCounts = {
+      rowLegacy: document.querySelectorAll('tr.list0, tr.list1').length,
+      rowCurrent: document.querySelectorAll('tr.common-list0, tr.common-list1').length,
+      rowAlt: document.querySelectorAll('tr[class*="list"]').length,
+      boardTables: document.querySelectorAll('table').length,
+      boardLinks: document.querySelectorAll('a[href*="no="], a[href*="zboard.php?id="]').length
+    };
+
+    const boardRoot =
+      document.querySelector('table#revolution_main_table') ||
+      document.querySelector('form[name="bbs_list"]') ||
+      document.querySelector('table') ||
+      document.body;
+
+    return {
+      selectorCounts,
+      boardRootHtml: boardRoot?.outerHTML?.slice(0, 20000) ?? '',
+      bodyExcerpt: document.body?.innerText?.slice(0, 4000) ?? ''
+    };
+  });
+
+  const payload = {
+    capturedAt: new Date().toISOString(),
+    reason,
+    url: page.url(),
+    title: await page.title().catch(() => 'N/A'),
+    ...diagnostic
+  };
+
+  await fs.writeFile(artifactPath, JSON.stringify(payload, null, 2), 'utf-8');
+  return artifactPath;
+}
+
 async function saveLog(log: ActivityLog) {
   const logs = await getLogs();
   logs.unshift(log);
@@ -146,50 +209,111 @@ async function saveLog(log: ActivityLog) {
 }
 
 export async function runObserver() {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: ENV.BROWSER_HEADLESS });
   const page = await browser.newPage();
   
   try {
     const policy = await loadObserverPolicy();
     console.log('Running Observer...');
-    await page.goto(policy.boardUrl, { waitUntil: 'networkidle' });
+    const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    const statusCode = response?.status() ?? 0;
+    const diagnostics = await getBoardDiagnostics(page);
+    if (statusCode >= 400 || diagnostics.isForbidden) {
+      throw new Error(
+        `BOARD_ACCESS_DENIED: status=${statusCode} title="${diagnostics.title}" url="${diagnostics.url}" rows=${diagnostics.rowCount}`
+      );
+    }
+    const rowsReady = await page
+      .locator(BOARD_ROW_SELECTOR)
+      .first()
+      .waitFor({ state: 'attached', timeout: 15000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!rowsReady) {
+      const latest = await getBoardDiagnostics(page);
+      const artifactPath = await captureBoardRowRegionArtifact(page, 'observer_rows_not_attached');
+      throw new Error(
+        `BOARD_CONTENT_UNAVAILABLE: title="${latest.title}" url="${latest.url}" rows=${latest.rowCount} artifact="${artifactPath}"`
+      );
+    }
 
     // Fallback selector chain + confidence score keeps observer fail-closed on layout drift.
-    const rows = await page.$$eval('tr.list0, tr.list1', (trs) => {
-      function pickText(el: Element, selectors: string[]): { value: string; confidence: number } {
-        for (let i = 0; i < selectors.length; i++) {
-          const selected = el.querySelector(selectors[i]);
-          const value = selected?.textContent?.trim() || '';
+    const rows = await page.$$eval(BOARD_ROW_SELECTOR, function (trs) {
+      const output: Array<{
+        title: string;
+        author: string;
+        date: string;
+        views: number;
+        parseConfidence: number;
+        isNotice: boolean;
+      }> = [];
+
+      for (const tr of trs) {
+        const titleSelectors = ['a.baseList-title .list_title', '.list_title', 'a.baseList-title', 'td:nth-child(3)'];
+        const authorSelectors = ['a.baseList-name .list_name', 'span.list_name', '.list_name', 'td:nth-child(4)'];
+        const dateSelectors = ['td[title] nobr', 'td[title]', 'td.eng.list_vspace nobr', 'td:nth-child(5)'];
+
+        let title = '';
+        let titleConfidence = 0;
+        for (let i = 0; i < titleSelectors.length; i++) {
+          const value = tr.querySelector(titleSelectors[i])?.textContent?.trim() || '';
           if (value) {
-            return { value, confidence: i === 0 ? 1 : 0.75 };
+            title = value;
+            titleConfidence = i === 0 ? 1 : 0.75;
+            break;
           }
         }
-        return { value: '', confidence: 0 };
-      }
 
-      function pickInt(el: Element, selectors: string[]): { value: number; confidence: number } {
-        const textResult = pickText(el, selectors);
-        const value = Number.parseInt(textResult.value || '0', 10);
-        return { value: Number.isNaN(value) ? 0 : value, confidence: textResult.confidence };
-      }
+        let author = '';
+        let authorConfidence = 0;
+        for (let i = 0; i < authorSelectors.length; i++) {
+          const value = tr.querySelector(authorSelectors[i])?.textContent?.trim() || '';
+          if (value) {
+            author = value;
+            authorConfidence = i === 0 ? 1 : 0.75;
+            break;
+          }
+        }
 
-      return trs.map(tr => {
-        const title = pickText(tr, ['td.list_title', 'td[class*="list_title"]', 'td:nth-child(3)']);
-        const author = pickText(tr, ['td.list_name', 'td[class*="list_name"]', 'td:nth-child(4)']);
-        const date = pickText(tr, ['td.eng.list_date', 'td[class*="list_date"]', 'td:nth-child(5)']);
-        const views = pickInt(tr, ['td.eng.list_hit', 'td[class*="list_hit"]', 'td:nth-child(6)']);
+        let date = '';
+        let dateConfidence = 0;
+        for (let i = 0; i < dateSelectors.length; i++) {
+          const value = tr.querySelector(dateSelectors[i])?.textContent?.trim() || '';
+          if (value) {
+            date = value;
+            dateConfidence = i === 0 ? 1 : 0.75;
+            break;
+          }
+        }
 
-        const parseConfidence = (title.confidence + author.confidence + date.confidence + views.confidence) / 4;
+        let viewsText = '';
+        let viewsConfidence = 0;
+        const numericCandidates = Array.from(tr.querySelectorAll('td.eng.list_vspace, td.eng'))
+          .map((td) => td.textContent?.replace(/[^\d]/g, '') || '')
+          .filter((value) => value.length > 0);
+        if (numericCandidates.length > 0) {
+          viewsText = numericCandidates[numericCandidates.length - 1];
+          viewsConfidence = 0.75;
+        }
 
-        return {
-          title: title.value,
-          author: author.value,
-          date: date.value,
-          views: views.value,
+        const parsedViews = Number.parseInt(viewsText || '0', 10);
+        const views = Number.isNaN(parsedViews) ? 0 : parsedViews;
+        const parseConfidence = (titleConfidence + authorConfidence + dateConfidence + viewsConfidence) / 4;
+
+        output.push({
+          title,
+          author,
+          date,
+          views,
           parseConfidence,
-          isNotice: tr.querySelector('img[src*="notice"]') !== null
-        };
-      });
+          isNotice:
+            tr.className.toLowerCase().includes('notice') ||
+            tr.querySelector('img[src*="notice"]') !== null ||
+            (tr.textContent || '').includes('공지')
+        });
+      }
+
+      return output;
     });
 
     const nonNoticeRows = policy.excludeNoticeRows ? rows.filter(r => !r.isNotice) : rows;
@@ -286,7 +410,7 @@ export async function runPublisher(force: boolean = false) {
 
     // Launch persistent context
     const context = await chromium.launchPersistentContext(USER_DATA_DIR, {
-      headless: true,
+      headless: ENV.BROWSER_HEADLESS,
       viewport: { width: 1280, height: 800 }
     });
 
@@ -294,7 +418,22 @@ export async function runPublisher(force: boolean = false) {
 
     try {
       console.log('Running Publisher...');
-      await page.goto(policy.boardUrl);
+      const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      const statusCode = response?.status() ?? 0;
+      const diagnostics = await getBoardDiagnostics(page);
+      if (statusCode >= 400 || diagnostics.isForbidden) {
+        throw new Error(
+          `PUBLISHER_BOARD_BLOCKED: status=${statusCode} title="${diagnostics.title}" url="${diagnostics.url}"`
+        );
+      }
+      if (diagnostics.writeButtonCount === 0) {
+        const reason = diagnostics.loginPromptVisible
+          ? 'login_required_or_session_missing'
+          : 'write_button_not_visible';
+        throw new Error(
+          `PUBLISHER_WRITE_ENTRY_UNAVAILABLE: reason=${reason} title="${diagnostics.title}" url="${diagnostics.url}" rows=${diagnostics.rowCount}`
+        );
+      }
 
       // Step 1: Access Writing Interface
       // Find "글쓰기" button. Usually an <a> tag with text or image

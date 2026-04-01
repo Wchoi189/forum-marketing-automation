@@ -14,6 +14,7 @@ type EnvConfig = {
   RUN_INTERVAL_MINUTES: number;
   MANUAL_OVERRIDE_ENABLED: boolean;
   DRY_RUN_MODE: boolean;
+  BROWSER_HEADLESS: boolean;
   PORT: number;
 };
 
@@ -76,6 +77,7 @@ function buildEnv(): EnvConfig {
     RUN_INTERVAL_MINUTES: optionalInt("RUN_INTERVAL_MINUTES", 60, 5, 1440),
     MANUAL_OVERRIDE_ENABLED: optionalBool("MANUAL_OVERRIDE_ENABLED", true),
     DRY_RUN_MODE: optionalBool("DRY_RUN_MODE", true),
+    BROWSER_HEADLESS: optionalBool("BROWSER_HEADLESS", true),
     PORT: optionalInt("PORT", 3000, 1, 65535),
   };
 }

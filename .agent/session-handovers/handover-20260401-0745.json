@@ -1,0 +1,109 @@
+{
+  "handover_id": "handover-20260401-0745",
+  "timestamp_utc": "2026-04-01T07:45:11Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "gpt-5.3-codex",
+  "target_agent": "gpt-5.3-codex",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "implementation",
+  "objective": "Stabilize live smoke navigation by replacing fragile networkidle waits and preserve strong diagnostics for board readiness.",
+  "non_goals": [
+    "multi-forum runtime implementation beyond ppomppu adapter",
+    "desktop packaging implementation",
+    "public-facing documentation"
+  ],
+  "current_state": {
+    "completed": [
+      "Observer and publisher navigation waits changed from networkidle to domcontentloaded with timeout budget",
+      "Observer now fails fast with BOARD_CONTENT_UNAVAILABLE when board rows never attach",
+      "xvfb-run smoke test executes and returns deterministic board-readiness diagnostics",
+      "Typecheck passes after the patch"
+    ],
+    "gaps": [
+      "Board page returns title/status OK in some runs but row selectors still resolve to zero",
+      "Live publisher flow remains blocked until board row/selectors and write-entry path are verified under stable session/IP context",
+      "Uncommitted local changes exist"
+    ]
+  },
+  "status": "in_progress",
+  "decisions_locked": [
+    "AI-facing documentation only",
+    "Fail-closed default behavior",
+    "Single-forum now, multi-forum-ready architecture",
+    "Machine-parseable contracts under .planning/spec-kit and .agent/contracts"
+  ],
+  "acceptance_criteria": [
+    "Smoke run does not fail on networkidle timeout for base board navigation",
+    "Failures are explicit between access denied vs content unavailable vs login/write-entry",
+    "Next session can continue from deterministic diagnostics without re-triaging transport timing"
+  ],
+  "implementation_plan": [
+    {
+      "step": 1,
+      "name": "Selector drift verification",
+      "actions": [
+        "Capture post-load DOM snapshot of row region when BOARD_CONTENT_UNAVAILABLE occurs",
+        "Adjust observer row selectors to current board markup if needed"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Write-entry path verification",
+      "actions": [
+        "Confirm logged-in state and write button visibility under same profile/session",
+        "Re-run staged checklist (observer, dry-run publisher, live-submit validation)"
+      ]
+    }
+  ],
+  "practical_recommendations": [
+    "Start next session from this handover as single seed context",
+    "Use xvfb-run for smoke/debug in this runtime when headed mode is required",
+    "Keep domcontentloaded + explicit readiness checks to avoid ad/script-induced networkidle hangs"
+  ],
+  "completed_items": [
+    "Navigation wait strategy hardened",
+    "Smoke diagnostics updated and validated"
+  ],
+  "pending_items": [
+    "Board selector/session validation with fresh artifacts",
+    "Commit pending code and handover/state updates"
+  ],
+  "decisions": [
+    {
+      "id": "D-20260401-03",
+      "title": "Use domcontentloaded plus explicit readiness checks for board navigation",
+      "rationale": "Networkidle is unreliable on ad-heavy pages and caused false-negative smoke failures"
+    }
+  ],
+  "constraints": [
+    "Do not weaken safety guards before enabling live publish",
+    "No credentials in committed files",
+    "Maintain strict env and contract validation at startup",
+    "Preserve compatibility with current Express + React + Playwright stack"
+  ],
+  "env_requirements": [
+    "PROJECT_ROOT",
+    "FORUM_PRIMARY_ID",
+    "PPOMPPU_USER_ID",
+    "PPOMPPU_USER_PW",
+    "BOT_PROFILE_DIR",
+    "ACTIVITY_LOG_PATH",
+    "OBSERVER_GAP_THRESHOLD",
+    "RUN_INTERVAL_MINUTES",
+    "MANUAL_OVERRIDE_ENABLED",
+    "DRY_RUN_MODE",
+    "BROWSER_HEADLESS",
+    "PORT"
+  ],
+  "next_actions": [
+    "Capture row-region DOM artifact when BOARD_CONTENT_UNAVAILABLE appears",
+    "Adjust selector strategy if markup drift is confirmed",
+    "Re-run staged checklist and commit changes"
+  ],
+  "artifacts_touched": [
+    "bot.ts",
+    ".agent/session-handovers/handover-20260401-0745.json",
+    ".agent/state/state.index.json"
+  ]
+}

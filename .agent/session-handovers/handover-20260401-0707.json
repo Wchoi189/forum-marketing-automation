@@ -1,0 +1,132 @@
+{
+  "handover_id": "handover-20260401-0707",
+  "timestamp_utc": "2026-04-01T07:07:51Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "gpt-5.3-codex",
+  "target_agent": "gpt-5.3-codex",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "implementation",
+  "objective": "Enable visual verification option for browser automation and continue staged live-environment validation.",
+  "non_goals": [
+    "multi-forum runtime implementation beyond ppomppu adapter",
+    "desktop packaging implementation",
+    "public-facing documentation"
+  ],
+  "current_state": {
+    "completed": [
+      "Added BROWSER_HEADLESS runtime toggle and wired it through env parsing",
+      "Updated env schema and runtime contract validation to include BROWSER_HEADLESS",
+      "Updated .env.example with BROWSER_HEADLESS",
+      "Added explicit board preflight diagnostics and fail-fast errors for 403 and write-entry availability",
+      "Confirmed staged live checks are currently blocked by BOARD_ACCESS_DENIED (403)",
+      "Confirmed headed launch path works in code but requires display server in this runtime"
+    ],
+    "gaps": [
+      "Current execution runtime has no X server / DISPLAY, so headed visual browser cannot launch",
+      "Live board access currently returns 403 in this environment",
+      "Uncommitted local changes exist from diagnostics + headless toggle updates"
+    ]
+  },
+  "status": "in_progress",
+  "decisions_locked": [
+    "AI-facing documentation only",
+    "Fail-closed default behavior",
+    "Single-forum now, multi-forum-ready architecture",
+    "Machine-parseable contracts under .planning/spec-kit and .agent/contracts"
+  ],
+  "acceptance_criteria": [
+    "Observer and publisher can run with BROWSER_HEADLESS=false in a display-capable runtime",
+    "Staged checklist clearly distinguishes 403/WAF block vs login/session gap vs selector drift",
+    "Runtime contracts remain schema-valid with the new browser-mode env toggle"
+  ],
+  "implementation_plan": [
+    {
+      "step": 1,
+      "name": "Run visual smoke in display-capable runtime",
+      "actions": [
+        "Launch with BROWSER_HEADLESS=false where DISPLAY is available",
+        "Verify board navigation and write-entry visibility manually"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Re-run staged live checklist",
+      "actions": [
+        "Observer pass",
+        "Publisher dry-run pass",
+        "Controlled DRY_RUN_MODE=false validation"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "Package checkpoint",
+      "actions": [
+        "Commit diagnostics + headed-toggle changes",
+        "Publish updated evidence in next handover"
+      ]
+    }
+  ],
+  "practical_recommendations": [
+    "Use session boundaries when external blockers appear (403/WAF, missing DISPLAY, credentials/session requirements)",
+    "Cut handover every 45-90 minutes or after any milestone that changes runtime behavior",
+    "Always checkpoint before switching runtime context (headless <-> headed, local <-> remote)",
+    "Treat unresolved environment blockers as explicit stop points and hand over with evidence"
+  ],
+  "completed_items": [
+    "Headless/headed runtime toggle support",
+    "Preflight diagnostics for board access and write-entry detection",
+    "Live-check execution evidence captured for current environment"
+  ],
+  "pending_items": [
+    "Visual headed run in GUI-capable runtime",
+    "Resolve 403 access path for live board in this environment",
+    "Commit outstanding local changes"
+  ],
+  "decisions": [
+    {
+      "id": "D-20260401-01",
+      "title": "Add explicit board preflight diagnostics before selector actions",
+      "rationale": "Reduces ambiguity between permission/session problems and automation selector regressions"
+    },
+    {
+      "id": "D-20260401-02",
+      "title": "Use BROWSER_HEADLESS as runtime-controlled execution mode",
+      "rationale": "Supports visual verification workflows without hardcoding headed mode into production paths"
+    }
+  ],
+  "constraints": [
+    "Do not weaken safety guards before enabling live publish",
+    "No credentials in committed files",
+    "Maintain strict env and contract validation at startup",
+    "Preserve compatibility with current Express + React + Playwright stack"
+  ],
+  "env_requirements": [
+    "PROJECT_ROOT",
+    "FORUM_PRIMARY_ID",
+    "PPOMPPU_USER_ID",
+    "PPOMPPU_USER_PW",
+    "BOT_PROFILE_DIR",
+    "ACTIVITY_LOG_PATH",
+    "OBSERVER_GAP_THRESHOLD",
+    "RUN_INTERVAL_MINUTES",
+    "MANUAL_OVERRIDE_ENABLED",
+    "DRY_RUN_MODE",
+    "BROWSER_HEADLESS",
+    "PORT"
+  ],
+  "next_actions": [
+    "Run headed smoke check in runtime with DISPLAY or xvfb-run",
+    "Re-run staged checklist and capture evidence",
+    "Commit bot/env/schema/runtime-validation updates"
+  ],
+  "artifacts_touched": [
+    "bot.ts",
+    "config/env.ts",
+    "config/runtime-validation.ts",
+    ".planning/spec-kit/manifest/schemas/env.schema.json",
+    ".env.example",
+    ".agent/session-handovers/handover-20260401-0707.json",
+    ".agent/state/state.index.json"
+  ]
+}

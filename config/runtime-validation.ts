@@ -104,7 +104,8 @@ export async function validateRuntimeContracts(): Promise<void> {
     OBSERVER_GAP_THRESHOLD: ENV.OBSERVER_GAP_THRESHOLD,
     RUN_INTERVAL_MINUTES: ENV.RUN_INTERVAL_MINUTES,
     MANUAL_OVERRIDE_ENABLED: ENV.MANUAL_OVERRIDE_ENABLED,
-    DRY_RUN_MODE: ENV.DRY_RUN_MODE
+    DRY_RUN_MODE: ENV.DRY_RUN_MODE,
+    BROWSER_HEADLESS: ENV.BROWSER_HEADLESS
   };
   validateOrThrow(ajv, envSchema, envPayload, 'runtime env');
 
