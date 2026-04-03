@@ -1,4 +1,5 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from '../lib/playwright/browser-eval-polyfill.js';
 
 type ManagedSession = {
   context: BrowserContext;
@@ -31,9 +32,7 @@ export class ParserSessionManager {
   private async createContext(): Promise<BrowserContext> {
     const browser = await this.getBrowser();
     const context = await browser.newContext();
-    await context.addInitScript({
-      content: 'globalThis.__name = globalThis.__name || ((fn, _name) => fn);'
-    });
+    await context.addInitScript({ content: BROWSER_EVAL_NAME_POLYFILL_SCRIPT });
     return context;
   }
 

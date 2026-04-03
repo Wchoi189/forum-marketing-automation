@@ -15,6 +15,8 @@ type EnvConfig = {
   MANUAL_OVERRIDE_ENABLED: boolean;
   DRY_RUN_MODE: boolean;
   BROWSER_HEADLESS: boolean;
+  /** Desktop Chrome UA; reduces naive bot fingerprinting (override if the site still returns 403). */
+  BROWSER_USER_AGENT: string;
   PORT: number;
   MCP_PARSER_HOST: string;
   MCP_PARSER_PORT: number;
@@ -50,8 +52,27 @@ function optionalBool(name: string, fallback: boolean): boolean {
   throw new Error(`[ENV] ${name} must be "true" or "false"`);
 }
 
+/** Headed Chromium on Linux requires an X server ($DISPLAY). Otherwise Playwright exits with a confusing error. */
+function coerceHeadlessForLinux(requestedHeadless: boolean, envVarName: string): boolean {
+  if (requestedHeadless) return true;
+  if (process.platform !== "linux") return false;
+  if (process.env.DISPLAY?.trim()) return false;
+  console.warn(
+    `[ENV] ${envVarName}=false ignored on Linux with no DISPLAY; using headless Chromium. For headed mode use a display, set DISPLAY, or run the app under xvfb-run.`
+  );
+  return true;
+}
+
 function resolvePath(value: string, projectRoot: string): string {
   return path.isAbsolute(value) ? value : path.join(projectRoot, value);
+}
+
+const DEFAULT_BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
+
+function optionalString(name: string, fallback: string): string {
+  const raw = process.env[name]?.trim();
+  return raw && raw.length > 0 ? raw : fallback;
 }
 
 function buildEnv(): EnvConfig {
@@ -82,11 +103,12 @@ function buildEnv(): EnvConfig {
     RUN_INTERVAL_MINUTES: optionalInt("RUN_INTERVAL_MINUTES", 60, 5, 1440),
     MANUAL_OVERRIDE_ENABLED: optionalBool("MANUAL_OVERRIDE_ENABLED", true),
     DRY_RUN_MODE: optionalBool("DRY_RUN_MODE", true),
-    BROWSER_HEADLESS: optionalBool("BROWSER_HEADLESS", true),
+    BROWSER_HEADLESS: coerceHeadlessForLinux(optionalBool("BROWSER_HEADLESS", true), "BROWSER_HEADLESS"),
+    BROWSER_USER_AGENT: optionalString("BROWSER_USER_AGENT", DEFAULT_BROWSER_USER_AGENT),
     PORT: optionalInt("PORT", 3000, 1, 65535),
     MCP_PARSER_HOST: process.env.MCP_PARSER_HOST?.trim() || "127.0.0.1",
     MCP_PARSER_PORT: optionalInt("MCP_PARSER_PORT", 3333, 1, 65535),
-    MCP_PARSER_HEADLESS: optionalBool("MCP_PARSER_HEADLESS", true),
+    MCP_PARSER_HEADLESS: coerceHeadlessForLinux(optionalBool("MCP_PARSER_HEADLESS", true), "MCP_PARSER_HEADLESS"),
     MCP_PARSER_NAV_TIMEOUT_MS: optionalInt("MCP_PARSER_NAV_TIMEOUT_MS", 45000, 5000, 120000),
     MCP_PARSER_MAX_STORED_SNAPSHOTS: optionalInt("MCP_PARSER_MAX_STORED_SNAPSHOTS", 200, 10, 1000),
   };

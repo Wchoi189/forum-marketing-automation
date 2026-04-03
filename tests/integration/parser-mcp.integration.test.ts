@@ -121,6 +121,10 @@ test('parser MCP server: tools + snapshot_diff', async () => {
     const diffStructured = (diffResult as unknown as { structuredContent?: any }).structuredContent;
     assert(diffStructured?.summary, 'Expected snapshot_diff to return summary');
     assert(typeof diffStructured.summary.added === 'number', 'Expected numeric diff summary counts');
+    assert(
+      diffStructured.summary.added > 0,
+      'Expected second page (extra paragraph + button) to register as added projection nodes vs first page'
+    );
   } finally {
     await transport.close().catch(() => null);
     await close();

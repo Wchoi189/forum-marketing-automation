@@ -3,7 +3,7 @@ import path from "path";
 import cors from "cors";
 import { pathToFileURL } from "url";
 import { createServer as createViteServer } from "vite";
-import { runObserver, runPublisher, getLogs } from "./bot.js";
+import { getLogs, getObserverControls, runObserver, runPublisher, setObserverControls } from "./bot.js";
 import { ENV } from "./config/env.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
 
@@ -15,7 +15,147 @@ type BotDeps = {
 
 const defaultDeps: BotDeps = { runObserver, runPublisher, getLogs };
 
-export function createApp(deps: BotDeps = defaultDeps) {
+type SchedulerController = ReturnType<typeof startScheduler>;
+
+type ControlPanelResponse = {
+  preset: "balanced" | "night-safe" | "day-aggressive";
+  observer: ReturnType<typeof getObserverControls>;
+  autoPublisher: {
+    enabled: boolean;
+    baseIntervalMinutes: number;
+    effectiveIntervalMinutes: number;
+    quietHoursStart: number;
+    quietHoursEnd: number;
+    quietHoursMultiplier: number;
+    activeHoursStart: number;
+    activeHoursEnd: number;
+    activeHoursMultiplier: number;
+    trendAdaptiveEnabled: boolean;
+    trendWindowDays: number;
+    trendRecalibrationDays: number;
+    running: boolean;
+  };
+};
+
+type ControlPanelPreset = ControlPanelResponse["preset"];
+
+type AutoPublisherControls = {
+  enabled: boolean;
+  baseIntervalMinutes: number;
+  quietHoursStart: number;
+  quietHoursEnd: number;
+  quietHoursMultiplier: number;
+  activeHoursStart: number;
+  activeHoursEnd: number;
+  activeHoursMultiplier: number;
+  trendAdaptiveEnabled: boolean;
+  trendWindowDays: number;
+  trendRecalibrationDays: number;
+};
+
+function isHourInRange(hour: number, start: number, end: number): boolean {
+  if (start === end) return true;
+  if (start < end) return hour >= start && hour < end;
+  return hour >= start || hour < end;
+}
+
+function clampInt(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function clampFloat(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, Number(value.toFixed(2))));
+}
+
+function normalizeAutoPublisherControls(
+  base: AutoPublisherControls,
+  patch?: Partial<AutoPublisherControls>
+): AutoPublisherControls {
+  const merged = { ...base, ...(patch ?? {}) };
+  return {
+    enabled: Boolean(merged.enabled),
+    baseIntervalMinutes: clampInt(merged.baseIntervalMinutes, 1, 1440),
+    quietHoursStart: clampInt(merged.quietHoursStart, 0, 23),
+    quietHoursEnd: clampInt(merged.quietHoursEnd, 0, 23),
+    quietHoursMultiplier: clampFloat(merged.quietHoursMultiplier, 0.2, 5),
+    activeHoursStart: clampInt(merged.activeHoursStart, 0, 23),
+    activeHoursEnd: clampInt(merged.activeHoursEnd, 0, 23),
+    activeHoursMultiplier: clampFloat(merged.activeHoursMultiplier, 0.2, 5),
+    trendAdaptiveEnabled: Boolean(merged.trendAdaptiveEnabled),
+    trendWindowDays: clampInt(merged.trendWindowDays, 1, 60),
+    trendRecalibrationDays: clampInt(merged.trendRecalibrationDays, 1, 30)
+  };
+}
+
+const PRESET_CONFIG: Record<
+  ControlPanelPreset,
+  { observer: Parameters<typeof setObserverControls>[0]; autoPublisher: Partial<AutoPublisherControls> }
+> = {
+  balanced: {
+    observer: {
+      enabled: true,
+      minPreVisitDelayMs: 2000,
+      maxPreVisitDelayMs: 7000,
+      minIntervalBetweenRunsMs: 30000
+    },
+    autoPublisher: {
+      baseIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
+      quietHoursStart: 3,
+      quietHoursEnd: 5,
+      quietHoursMultiplier: 1.8,
+      activeHoursStart: 8,
+      activeHoursEnd: 23,
+      activeHoursMultiplier: 0.8,
+      trendAdaptiveEnabled: true,
+      trendWindowDays: 7,
+      trendRecalibrationDays: 7
+    }
+  },
+  "night-safe": {
+    observer: {
+      enabled: true,
+      minPreVisitDelayMs: 5000,
+      maxPreVisitDelayMs: 12000,
+      minIntervalBetweenRunsMs: 60000
+    },
+    autoPublisher: {
+      baseIntervalMinutes: Math.max(45, ENV.RUN_INTERVAL_MINUTES),
+      quietHoursStart: 2,
+      quietHoursEnd: 6,
+      quietHoursMultiplier: 2.2,
+      activeHoursStart: 9,
+      activeHoursEnd: 22,
+      activeHoursMultiplier: 0.9,
+      trendAdaptiveEnabled: true,
+      trendWindowDays: 14,
+      trendRecalibrationDays: 14
+    }
+  },
+  "day-aggressive": {
+    observer: {
+      enabled: true,
+      minPreVisitDelayMs: 1000,
+      maxPreVisitDelayMs: 4000,
+      minIntervalBetweenRunsMs: 15000
+    },
+    autoPublisher: {
+      baseIntervalMinutes: Math.max(20, Math.round(ENV.RUN_INTERVAL_MINUTES * 0.7)),
+      quietHoursStart: 3,
+      quietHoursEnd: 5,
+      quietHoursMultiplier: 1.6,
+      activeHoursStart: 9,
+      activeHoursEnd: 23,
+      activeHoursMultiplier: 0.6,
+      trendAdaptiveEnabled: true,
+      trendWindowDays: 7,
+      trendRecalibrationDays: 7
+    }
+  }
+};
+
+export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerController) {
   const app = express();
 
   app.use(cors());
@@ -42,7 +182,6 @@ export function createApp(deps: BotDeps = defaultDeps) {
         // Let's go with "how many unique posts they made" across all snapshots
         const uniquePostsInSnapshot = new Set();
         log.all_posts.forEach(post => {
-          if (post.author.toLowerCase().includes('shareplan')) return;
           const key = post.title + post.author;
           if (!uniquePostsInSnapshot.has(key)) {
             if (!stats[post.author]) {
@@ -61,8 +200,23 @@ export function createApp(deps: BotDeps = defaultDeps) {
       frequency: s.count,
       avgViews: Math.round(s.totalViews / s.count)
     })).sort((a, b) => b.frequency - a.frequency);
-
-    res.json(result.slice(0, 10));
+    const isSharePlanAuthor = (author: string) => author.toLowerCase().includes("shareplan");
+    const sharePlanRow = result.find((row) => isSharePlanAuthor(row.author)) ?? {
+      author: "SharePlan",
+      frequency: 0,
+      avgViews: 0
+    };
+    const top = result.slice(0, 10);
+    const includesSharePlan = top.some((row) => isSharePlanAuthor(row.author));
+    if (includesSharePlan) {
+      res.json(top);
+      return;
+    }
+    if (top.length < 10) {
+      res.json([...top, sharePlanRow]);
+      return;
+    }
+    res.json([...top.slice(0, 9), sharePlanRow]);
   });
 
   app.get("/api/board-stats", async (req, res) => {
@@ -103,12 +257,16 @@ export function createApp(deps: BotDeps = defaultDeps) {
     try {
       const log = await deps.runObserver();
       if (log.status === 'error') {
-        res.status(500).json({ success: false, error: log.error, log });
+        res.status(500).json({ success: false, action: 'observer', error: log.error, log });
       } else {
-        res.json({ success: true, log });
+        res.json({ success: true, action: 'observer', log });
       }
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
+      res.status(500).json({
+        success: false,
+        action: 'observer',
+        error: `[Observer] ${String(error?.message ?? error)}`
+      });
     }
   });
 
@@ -117,23 +275,195 @@ export function createApp(deps: BotDeps = defaultDeps) {
     try {
       const result = await deps.runPublisher(force);
       if (!result.success) {
-        res.status(500).json({ success: false, message: result.message, error: result.message, log: result.log });
+        res.status(500).json({
+          success: false,
+          action: 'publisher',
+          force: Boolean(force),
+          message: result.message,
+          error: result.message,
+          log: result.log
+        });
       } else {
-        res.json(result);
+        res.json({ ...result, action: 'publisher', force: Boolean(force) });
       }
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
+      res.status(500).json({
+        success: false,
+        action: 'publisher',
+        force: Boolean(req.body?.force),
+        error: `[Publisher] ${String(error?.message ?? error)}`
+      });
     }
+  });
+
+  app.get("/api/control-panel", async (req, res) => {
+    const autoPublisherState = (scheduler ? await scheduler.getState() : null) ?? {
+      enabled: true,
+      baseIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
+      effectiveIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
+      quietHoursStart: 3,
+      quietHoursEnd: 5,
+      quietHoursMultiplier: 1.8,
+      activeHoursStart: 8,
+      activeHoursEnd: 23,
+      activeHoursMultiplier: 0.8,
+      trendAdaptiveEnabled: true,
+      trendWindowDays: 7,
+      trendRecalibrationDays: 7,
+      running: false
+    };
+    const payload: ControlPanelResponse = {
+      preset: scheduler?.getPreset() ?? "balanced",
+      observer: getObserverControls(),
+      autoPublisher: autoPublisherState
+    };
+    res.json(payload);
+  });
+
+  app.post("/api/control-panel", async (req, res) => {
+    const body = (req.body ?? {}) as {
+      preset?: ControlPanelPreset;
+      observer?: Partial<ReturnType<typeof getObserverControls>>;
+      autoPublisher?: Partial<AutoPublisherControls> & { enabled?: boolean };
+    };
+
+    let observer = setObserverControls(body.observer ?? {});
+
+    if (scheduler && body.preset && PRESET_CONFIG[body.preset]) {
+      const presetConfig = PRESET_CONFIG[body.preset];
+      observer = setObserverControls({ ...presetConfig.observer, ...(body.observer ?? {}) });
+      scheduler.applyPreset(body.preset);
+      scheduler.setControls(presetConfig.autoPublisher);
+    }
+
+    if (scheduler && body.autoPublisher) {
+      if (Object.prototype.hasOwnProperty.call(body.autoPublisher, "enabled")) {
+        scheduler.setEnabled(Boolean(body.autoPublisher.enabled));
+      }
+      scheduler.setControls(body.autoPublisher);
+    }
+
+    const autoPublisherState = (scheduler ? await scheduler.getState() : null) ?? {
+      enabled: true,
+      baseIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
+      effectiveIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
+      quietHoursStart: 3,
+      quietHoursEnd: 5,
+      quietHoursMultiplier: 1.8,
+      activeHoursStart: 8,
+      activeHoursEnd: 23,
+      activeHoursMultiplier: 0.8,
+      trendAdaptiveEnabled: true,
+      trendWindowDays: 7,
+      trendRecalibrationDays: 7,
+      running: false
+    };
+    const payload: ControlPanelResponse = {
+      preset: scheduler?.getPreset() ?? "balanced",
+      observer,
+      autoPublisher: autoPublisherState
+    };
+    res.json(payload);
   });
 
   return app;
 }
 
 export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: number = ENV.RUN_INTERVAL_MINUTES) {
-  const intervalMs = intervalMinutes * 60 * 1000;
+  let preset: ControlPanelPreset = "balanced";
+  let controls = normalizeAutoPublisherControls(
+    {
+      enabled: true,
+      baseIntervalMinutes: Math.max(1, intervalMinutes),
+      quietHoursStart: 3,
+      quietHoursEnd: 5,
+      quietHoursMultiplier: 1.8,
+      activeHoursStart: 8,
+      activeHoursEnd: 23,
+      activeHoursMultiplier: 0.8,
+      trendAdaptiveEnabled: true,
+      trendWindowDays: 7,
+      trendRecalibrationDays: 7
+    },
+    { ...PRESET_CONFIG.balanced.autoPublisher, baseIntervalMinutes: Math.max(1, intervalMinutes) }
+  );
+  let timer: NodeJS.Timeout | null = null;
+  let enabled = true;
   let running = false;
+  let lastTrendRecalculatedAt = 0;
+  let trendFactor = 1;
+
+  const recalcTrendFactor = async (): Promise<number> => {
+    if (!controls.trendAdaptiveEnabled) {
+      trendFactor = 1;
+      return 1;
+    }
+    const now = Date.now();
+    const minAgeMs = controls.trendRecalibrationDays * 24 * 60 * 60 * 1000;
+    if (lastTrendRecalculatedAt > 0 && now - lastTrendRecalculatedAt < minAgeMs) {
+      return trendFactor;
+    }
+
+    const logs = await deps.getLogs();
+    const cutoff = now - controls.trendWindowDays * 24 * 60 * 60 * 1000;
+    const recent = logs
+      .filter((log) => Date.parse(log.timestamp) >= cutoff && Array.isArray(log.all_posts) && log.all_posts.length > 0)
+      .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+
+    if (recent.length < 3) {
+      trendFactor = 1;
+      lastTrendRecalculatedAt = now;
+      return trendFactor;
+    }
+
+    let totalRate = 0;
+    let count = 0;
+    for (let i = 1; i < recent.length; i++) {
+      const prev = recent[i - 1];
+      const curr = recent[i];
+      const prevKeys = new Set((prev.all_posts ?? []).map((p) => `${p.title}::${p.author}`));
+      const newPosts = (curr.all_posts ?? []).filter((p) => !prevKeys.has(`${p.title}::${p.author}`)).length;
+      const dtHours = (Date.parse(curr.timestamp) - Date.parse(prev.timestamp)) / (1000 * 60 * 60);
+      if (dtHours <= 0) continue;
+      totalRate += newPosts / dtHours;
+      count += 1;
+    }
+
+    const avgRate = count > 0 ? totalRate / count : 0;
+    if (avgRate >= 16) {
+      trendFactor = 0.65;
+    } else if (avgRate >= 10) {
+      trendFactor = 0.8;
+    } else if (avgRate <= 3) {
+      trendFactor = 1.6;
+    } else if (avgRate <= 5) {
+      trendFactor = 1.25;
+    } else {
+      trendFactor = 1;
+    }
+
+    lastTrendRecalculatedAt = now;
+    return trendFactor;
+  };
+
+  const computeEffectiveIntervalMinutes = async (): Promise<number> => {
+    const hour = new Date().getHours();
+    let multiplier = 1;
+    if (isHourInRange(hour, controls.quietHoursStart, controls.quietHoursEnd)) {
+      multiplier *= controls.quietHoursMultiplier;
+    }
+    if (isHourInRange(hour, controls.activeHoursStart, controls.activeHoursEnd)) {
+      multiplier *= controls.activeHoursMultiplier;
+    }
+    multiplier *= await recalcTrendFactor();
+    const effective = controls.baseIntervalMinutes * multiplier;
+    return clampInt(effective, 1, 1440);
+  };
 
   const tick = async () => {
+    if (!enabled) {
+      return;
+    }
     if (running) {
       console.warn("[Scheduler] Tick skipped because previous run is still active.");
       return;
@@ -149,22 +479,67 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
     }
   };
 
-  const timer = setInterval(() => {
-    void tick();
-  }, intervalMs);
+  const scheduleNext = async () => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+    const nextMinutes = await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes);
+    timer = setTimeout(() => {
+      void (async () => {
+        await tick();
+        await scheduleNext();
+      })();
+    }, nextMinutes * 60 * 1000);
+  };
+  void scheduleNext();
 
-  console.log(`[Scheduler] Started with interval ${intervalMinutes} minute(s).`);
+  console.log(`[Scheduler] Started with interval ${controls.baseIntervalMinutes} minute(s).`);
 
   return {
-    stop: () => clearInterval(timer),
-    runNow: tick
+    stop: () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    },
+    runNow: tick,
+    setEnabled: (nextEnabled: boolean) => {
+      enabled = nextEnabled;
+    },
+    setIntervalMinutes: (nextIntervalMinutes: number) => {
+      controls = normalizeAutoPublisherControls(controls, { baseIntervalMinutes: nextIntervalMinutes });
+      void scheduleNext();
+    },
+    setControls: (patch: Partial<AutoPublisherControls>) => {
+      controls = normalizeAutoPublisherControls(controls, patch);
+      if (controls.trendAdaptiveEnabled === false) {
+        trendFactor = 1;
+      }
+      void scheduleNext();
+    },
+    setPreset: (nextPreset: ControlPanelPreset) => {
+      preset = nextPreset;
+    },
+    getPreset: () => preset,
+    applyPreset: (nextPreset: ControlPanelPreset) => {
+      preset = nextPreset;
+      controls = normalizeAutoPublisherControls(controls, PRESET_CONFIG[nextPreset].autoPublisher);
+      void scheduleNext();
+    },
+    getState: async () => ({
+      enabled,
+      ...controls,
+      effectiveIntervalMinutes: await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes),
+      running
+    })
   };
 }
 
 export async function startServer() {
   await validateRuntimeContracts();
 
-  const app = createApp();
+  const scheduler = startScheduler();
+  const app = createApp(defaultDeps, scheduler);
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -184,7 +559,6 @@ export async function startServer() {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 
-  startScheduler();
 }
 
 const isDirectRun = Boolean(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href);

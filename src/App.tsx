@@ -24,6 +24,69 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import type { ActivityLog, BoardStats, CompetitorStat, DraftItem } from '../contracts/models';
 
+/** API errors may already include `[Observer]` / `[Publisher]`; strip one leading tag for readable banner text. */
+function stripTaggedErrorPrefix(text: string) {
+  return text.replace(/^\[(Observer|Publisher)\]\s*/, '').trim();
+}
+
+type ObserverControlState = {
+  enabled: boolean;
+  minPreVisitDelayMs: number;
+  maxPreVisitDelayMs: number;
+  minIntervalBetweenRunsMs: number;
+};
+
+type AutoPublisherControlState = {
+  enabled: boolean;
+  baseIntervalMinutes: number;
+  effectiveIntervalMinutes: number;
+  quietHoursStart: number;
+  quietHoursEnd: number;
+  quietHoursMultiplier: number;
+  activeHoursStart: number;
+  activeHoursEnd: number;
+  activeHoursMultiplier: number;
+  trendAdaptiveEnabled: boolean;
+  trendWindowDays: number;
+  trendRecalibrationDays: number;
+  running: boolean;
+};
+
+type ControlPanelState = {
+  preset: 'balanced' | 'night-safe' | 'day-aggressive';
+  observer: ObserverControlState;
+  autoPublisher: AutoPublisherControlState;
+};
+
+const DEFAULT_CONTROL_PANEL: ControlPanelState = {
+  preset: 'balanced',
+  observer: {
+    enabled: true,
+    minPreVisitDelayMs: 0,
+    maxPreVisitDelayMs: 0,
+    minIntervalBetweenRunsMs: 0
+  },
+  autoPublisher: {
+    enabled: true,
+    baseIntervalMinutes: 60,
+    effectiveIntervalMinutes: 60,
+    quietHoursStart: 3,
+    quietHoursEnd: 5,
+    quietHoursMultiplier: 1.8,
+    activeHoursStart: 8,
+    activeHoursEnd: 23,
+    activeHoursMultiplier: 0.8,
+    trendAdaptiveEnabled: true,
+    trendWindowDays: 7,
+    trendRecalibrationDays: 7,
+    running: false
+  }
+};
+
+function isSharePlanAuthor(author: string) {
+  return author.toLowerCase().includes('shareplan');
+}
+
 export default function App() {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [competitorStats, setCompetitorStats] = useState<CompetitorStat[]>([]);
@@ -32,6 +95,8 @@ export default function App() {
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error', text: string, log?: ActivityLog } | null>(null);
 
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
+  const [controlPanel, setControlPanel] = useState<ControlPanelState>(DEFAULT_CONTROL_PANEL);
+  const [controlSaving, setControlSaving] = useState(false);
 
   const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
 
@@ -92,17 +157,47 @@ export default function App() {
     }
   };
 
+  const fetchControlPanel = async () => {
+    try {
+      const response = await fetch('/api/control-panel');
+      const data = await response.json();
+      setControlPanel(data);
+    } catch (error) {
+      console.error('Failed to fetch control panel:', error);
+    }
+  };
+
   useEffect(() => {
     fetchLogs();
     fetchDrafts();
     fetchStats();
+    fetchControlPanel();
     const interval = setInterval(() => {
       fetchLogs();
       fetchDrafts();
       fetchStats();
+      fetchControlPanel();
     }, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const saveControlPanel = async () => {
+    setControlSaving(true);
+    try {
+      const response = await fetch('/api/control-panel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(controlPanel)
+      });
+      const data = await response.json();
+      setControlPanel(data);
+      setActionMessage({ type: 'success', text: 'Control panel settings saved.' });
+    } catch (error) {
+      setActionMessage({ type: 'error', text: 'Control panel save failed (network/API error).' });
+    } finally {
+      setControlSaving(false);
+    }
+  };
 
   const runObserver = async () => {
     setLoading(true);
@@ -110,13 +205,14 @@ export default function App() {
       const response = await fetch('/api/run-observer', { method: 'POST' });
       const data = await response.json();
       if (data.success) {
-        setActionMessage({ type: 'success', text: 'Observer run completed.', log: data.log });
+        setActionMessage({ type: 'success', text: 'Observer run completed successfully.', log: data.log });
         fetchLogs();
       } else {
-        setActionMessage({ type: 'error', text: data.error || 'Observer failed.', log: data.log });
+        const detail = stripTaggedErrorPrefix(data.error || 'Observer failed.');
+        setActionMessage({ type: 'error', text: `Observer — ${detail}`, log: data.log });
       }
     } catch (error) {
-      setActionMessage({ type: 'error', text: 'Network error.' });
+      setActionMessage({ type: 'error', text: 'Observer — network error (could not reach API).' });
     } finally {
       setLoading(false);
     }
@@ -131,14 +227,17 @@ export default function App() {
         body: JSON.stringify({ force })
       });
       const data = await response.json();
+      const label = force ? 'Publisher (manual override)' : 'Publisher (scheduled-style / auto)';
       if (data.success) {
-        setActionMessage({ type: 'success', text: data.message, log: data.log });
+        setActionMessage({ type: 'success', text: `${label} — ${data.message}`, log: data.log });
         fetchLogs();
       } else {
-        setActionMessage({ type: 'error', text: data.error || data.message || 'Publisher failed.', log: data.log });
+        const detail = stripTaggedErrorPrefix(data.error || data.message || 'Publisher failed.');
+        setActionMessage({ type: 'error', text: `${label} — ${detail}`, log: data.log });
       }
     } catch (error) {
-      setActionMessage({ type: 'error', text: 'Network error.' });
+      const label = force ? 'Publisher (manual override)' : 'Publisher (scheduled-style / auto)';
+      setActionMessage({ type: 'error', text: `${label} — network error (could not reach API).` });
     } finally {
       setLoading(false);
     }
@@ -319,6 +418,318 @@ export default function App() {
           </motion.div>
         </div>
 
+        {/* Runtime Control Panel */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-8 rounded-3xl border border-white/10 bg-white/5 space-y-6"
+        >
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">Runtime Control Panel</h2>
+            <span className="text-[10px] opacity-40 uppercase tracking-widest">
+              Scheduler: {controlPanel.autoPublisher.enabled ? 'Enabled' : 'Paused'} / {controlPanel.autoPublisher.running ? 'Running' : 'Idle'} / Effective {controlPanel.autoPublisher.effectiveIntervalMinutes}m
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label className="text-xs opacity-60 uppercase tracking-widest">Preset</label>
+            <select
+              value={controlPanel.preset}
+              onChange={(e) =>
+                setControlPanel((current) => ({
+                  ...current,
+                  preset: e.target.value as ControlPanelState['preset']
+                }))
+              }
+              className="px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+            >
+              <option value="balanced">Balanced</option>
+              <option value="night-safe">Night Safe</option>
+              <option value="day-aggressive">Day Aggressive</option>
+            </select>
+            <span className="text-[10px] opacity-40">Preset updates both observer pacing and scheduler cadence.</span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4 p-4 rounded-2xl bg-white/5 border border-white/10">
+              <p className="text-[11px] font-bold uppercase tracking-wider opacity-60">Observer Pacing</p>
+              <label className="flex items-center justify-between text-sm">
+                <span>Observer enabled</span>
+                <input
+                  type="checkbox"
+                  checked={controlPanel.observer.enabled}
+                  onChange={(e) =>
+                    setControlPanel((current) => ({
+                      ...current,
+                      observer: { ...current.observer, enabled: e.target.checked }
+                    }))
+                  }
+                />
+              </label>
+              <label className="block text-xs opacity-60">Min delay before board visit (ms)</label>
+              <input
+                type="number"
+                min={0}
+                value={controlPanel.observer.minPreVisitDelayMs}
+                onChange={(e) =>
+                  setControlPanel((current) => ({
+                    ...current,
+                    observer: {
+                      ...current.observer,
+                      minPreVisitDelayMs: Math.max(0, Number(e.target.value) || 0)
+                    }
+                  }))
+                }
+                className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+              />
+              <label className="block text-xs opacity-60">Max delay before board visit (ms)</label>
+              <input
+                type="number"
+                min={0}
+                value={controlPanel.observer.maxPreVisitDelayMs}
+                onChange={(e) =>
+                  setControlPanel((current) => ({
+                    ...current,
+                    observer: {
+                      ...current.observer,
+                      maxPreVisitDelayMs: Math.max(0, Number(e.target.value) || 0)
+                    }
+                  }))
+                }
+                className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+              />
+              <label className="block text-xs opacity-60">Minimum time between observer runs (ms)</label>
+              <input
+                type="number"
+                min={0}
+                value={controlPanel.observer.minIntervalBetweenRunsMs}
+                onChange={(e) =>
+                  setControlPanel((current) => ({
+                    ...current,
+                    observer: {
+                      ...current.observer,
+                      minIntervalBetweenRunsMs: Math.max(0, Number(e.target.value) || 0)
+                    }
+                  }))
+                }
+                className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+              />
+            </div>
+
+            <div className="space-y-4 p-4 rounded-2xl bg-white/5 border border-white/10">
+              <p className="text-[11px] font-bold uppercase tracking-wider opacity-60">Auto-Publisher Scheduler</p>
+              <label className="flex items-center justify-between text-sm">
+                <span>Auto-publisher enabled</span>
+                <input
+                  type="checkbox"
+                  checked={controlPanel.autoPublisher.enabled}
+                  onChange={(e) =>
+                    setControlPanel((current) => ({
+                      ...current,
+                      autoPublisher: { ...current.autoPublisher, enabled: e.target.checked }
+                    }))
+                  }
+                />
+              </label>
+              <label className="block text-xs opacity-60">Base interval (minutes)</label>
+              <input
+                type="number"
+                min={1}
+                value={controlPanel.autoPublisher.baseIntervalMinutes}
+                onChange={(e) =>
+                  setControlPanel((current) => ({
+                    ...current,
+                    autoPublisher: {
+                      ...current.autoPublisher,
+                      baseIntervalMinutes: Math.max(1, Number(e.target.value) || 1)
+                    }
+                  }))
+                }
+                className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs opacity-60">Quiet hours start</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={controlPanel.autoPublisher.quietHoursStart}
+                    onChange={(e) =>
+                      setControlPanel((current) => ({
+                        ...current,
+                        autoPublisher: {
+                          ...current.autoPublisher,
+                          quietHoursStart: Math.max(0, Math.min(23, Number(e.target.value) || 0))
+                        }
+                      }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs opacity-60">Quiet hours end</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={controlPanel.autoPublisher.quietHoursEnd}
+                    onChange={(e) =>
+                      setControlPanel((current) => ({
+                        ...current,
+                        autoPublisher: {
+                          ...current.autoPublisher,
+                          quietHoursEnd: Math.max(0, Math.min(23, Number(e.target.value) || 0))
+                        }
+                      }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+                  />
+                </div>
+              </div>
+              <label className="block text-xs opacity-60">Quiet-hours multiplier (higher = slower)</label>
+              <input
+                type="number"
+                min={0.2}
+                max={5}
+                step={0.1}
+                value={controlPanel.autoPublisher.quietHoursMultiplier}
+                onChange={(e) =>
+                  setControlPanel((current) => ({
+                    ...current,
+                    autoPublisher: {
+                      ...current.autoPublisher,
+                      quietHoursMultiplier: Math.max(0.2, Math.min(5, Number(e.target.value) || 1))
+                    }
+                  }))
+                }
+                className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs opacity-60">Active hours start</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={controlPanel.autoPublisher.activeHoursStart}
+                    onChange={(e) =>
+                      setControlPanel((current) => ({
+                        ...current,
+                        autoPublisher: {
+                          ...current.autoPublisher,
+                          activeHoursStart: Math.max(0, Math.min(23, Number(e.target.value) || 0))
+                        }
+                      }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs opacity-60">Active hours end</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={controlPanel.autoPublisher.activeHoursEnd}
+                    onChange={(e) =>
+                      setControlPanel((current) => ({
+                        ...current,
+                        autoPublisher: {
+                          ...current.autoPublisher,
+                          activeHoursEnd: Math.max(0, Math.min(23, Number(e.target.value) || 0))
+                        }
+                      }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+                  />
+                </div>
+              </div>
+              <label className="block text-xs opacity-60">Active-hours multiplier (lower = faster)</label>
+              <input
+                type="number"
+                min={0.2}
+                max={5}
+                step={0.1}
+                value={controlPanel.autoPublisher.activeHoursMultiplier}
+                onChange={(e) =>
+                  setControlPanel((current) => ({
+                    ...current,
+                    autoPublisher: {
+                      ...current.autoPublisher,
+                      activeHoursMultiplier: Math.max(0.2, Math.min(5, Number(e.target.value) || 1))
+                    }
+                  }))
+                }
+                className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+              />
+              <label className="flex items-center justify-between text-sm">
+                <span>Trend adaptive scheduling</span>
+                <input
+                  type="checkbox"
+                  checked={controlPanel.autoPublisher.trendAdaptiveEnabled}
+                  onChange={(e) =>
+                    setControlPanel((current) => ({
+                      ...current,
+                      autoPublisher: { ...current.autoPublisher, trendAdaptiveEnabled: e.target.checked }
+                    }))
+                  }
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs opacity-60">Trend window (days)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={controlPanel.autoPublisher.trendWindowDays}
+                    onChange={(e) =>
+                      setControlPanel((current) => ({
+                        ...current,
+                        autoPublisher: {
+                          ...current.autoPublisher,
+                          trendWindowDays: Math.max(1, Math.min(60, Number(e.target.value) || 7))
+                        }
+                      }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs opacity-60">Recalibration cycle (days)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={controlPanel.autoPublisher.trendRecalibrationDays}
+                    onChange={(e) =>
+                      setControlPanel((current) => ({
+                        ...current,
+                        autoPublisher: {
+                          ...current.autoPublisher,
+                          trendRecalibrationDays: Math.max(1, Math.min(30, Number(e.target.value) || 7))
+                        }
+                      }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end">
+            <button
+              onClick={saveControlPanel}
+              disabled={controlSaving}
+              className="px-4 py-2 rounded-full bg-orange-600 hover:bg-orange-500 transition-all text-sm font-bold disabled:opacity-50"
+            >
+              {controlSaving ? 'Saving...' : 'Apply Controls'}
+            </button>
+          </div>
+        </motion.div>
+
         {/* Competitor Intelligence */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -364,9 +775,19 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {sortedCompetitors.length > 0 ? sortedCompetitors.map((comp, i) => (
-                  <tr key={i} className="border-b border-white/5 group hover:bg-white/5 transition-all">
-                    <td className="py-4 text-sm font-medium">{comp.author}</td>
+                {sortedCompetitors.length > 0 ? sortedCompetitors.map((comp, i) => {
+                  const isReference = isSharePlanAuthor(comp.author);
+                  return (
+                  <tr
+                    key={i}
+                    className={`border-b border-white/5 group transition-all ${isReference ? 'bg-orange-500/10' : 'hover:bg-white/5'}`}
+                  >
+                    <td className="py-4 text-sm font-medium">
+                      {comp.author}
+                      {isReference && (
+                        <span className="ml-2 px-2 py-0.5 rounded bg-orange-600/20 text-orange-400 text-[10px] uppercase tracking-wider">Reference</span>
+                      )}
+                    </td>
                     <td className="py-4 text-sm font-mono text-center">{comp.frequency}</td>
                     <td className="py-4 text-sm font-mono text-center">{comp.avgViews}</td>
                     <td className="py-4">
@@ -378,7 +799,7 @@ export default function App() {
                       </div>
                     </td>
                   </tr>
-                )) : (
+                )}) : (
                   <tr>
                     <td colSpan={4} className="py-8 text-center text-sm opacity-30 italic">No competitor data available yet. Run observer to collect data.</td>
                   </tr>

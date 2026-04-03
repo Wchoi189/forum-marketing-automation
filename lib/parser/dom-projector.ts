@@ -16,12 +16,11 @@ type BrowserProjectionResult = {
   warnings: string[];
 };
 
-function browserProjectDom(opts: Required<ProjectionOptions>): BrowserProjectionResult {
-  // Some transpilers inject `__name(fn, "name")` wrappers. Ensure the browser context
-  // always has it available.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const __name = (fn: any, _name: string) => fn;
-
+/**
+ * In-browser projection. Must not use nested `function` declarations: TypeScript emits
+ * `__name(...)` helpers that are undefined inside Playwright's `page.evaluate` VM.
+ */
+const browserProjectDom = (opts: Required<ProjectionOptions>): BrowserProjectionResult => {
   const interactiveTags = new Set(['a', 'button', 'input', 'select', 'textarea', 'summary', 'option']);
   const hiddenTags = new Set(['script', 'style', 'noscript', 'template']);
   const attrWhitelist = new Set([
@@ -51,12 +50,12 @@ function browserProjectDom(opts: Required<ProjectionOptions>): BrowserProjection
     return { nodes: [], stats, warnings: ['root_not_found'] };
   }
 
-  function toText(value: string | null | undefined): string {
+  const toText = (value: string | null | undefined): string => {
     if (!value) return '';
     return value.replace(/\s+/g, ' ').trim().slice(0, opts.maxTextLengthPerNode);
-  }
+  };
 
-  function getRole(el: Element): string | null {
+  const getRole = (el: Element): string | null => {
     const explicit = el.getAttribute('role');
     if (explicit) return explicit;
     const tag = el.tagName.toLowerCase();
@@ -74,9 +73,9 @@ function browserProjectDom(opts: Required<ProjectionOptions>): BrowserProjection
     if (tag === 'form') return 'form';
     if (tag === 'main' || tag === 'nav' || tag === 'aside' || tag === 'header' || tag === 'footer') return 'landmark';
     return null;
-  }
+  };
 
-  function isVisible(el: Element): boolean {
+  const isVisible = (el: Element): boolean => {
     if (opts.includeHidden) return true;
     const htmlEl = el as HTMLElement;
     if (htmlEl.hidden) return false;
@@ -84,9 +83,9 @@ function browserProjectDom(opts: Required<ProjectionOptions>): BrowserProjection
     if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
     const rect = htmlEl.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0;
-  }
+  };
 
-  function getName(el: Element): string {
+  const getName = (el: Element): string => {
     const aria = el.getAttribute('aria-label');
     if (aria) return toText(aria);
     const labelledBy = el.getAttribute('aria-labelledby');
@@ -99,18 +98,18 @@ function browserProjectDom(opts: Required<ProjectionOptions>): BrowserProjection
       return toText(htmlEl.innerText);
     }
     return toText(el.textContent);
-  }
+  };
 
-  function shouldKeep(el: Element): boolean {
+  const shouldKeep = (el: Element): boolean => {
     const tag = el.tagName.toLowerCase();
     if (hiddenTags.has(tag)) return false;
     if (!isVisible(el)) return false;
     if (!opts.interactiveOnly) return true;
     const role = getRole(el);
     return interactiveTags.has(tag) || Boolean(role && ['button', 'link', 'textbox', 'combobox', 'checkbox', 'radio'].includes(role));
-  }
+  };
 
-  function collectAttrs(el: Element): Record<string, string> {
+  const collectAttrs = (el: Element): Record<string, string> => {
     const out: Record<string, string> = {};
     for (const attr of Array.from(el.attributes)) {
       const name = attr.name.toLowerCase();
@@ -118,13 +117,11 @@ function browserProjectDom(opts: Required<ProjectionOptions>): BrowserProjection
       out[name] = toText(attr.value);
     }
     return out;
-  }
+  };
 
-  function toPath(pathParts: string[]): string {
-    return pathParts.join('>');
-  }
+  const toPath = (pathParts: string[]): string => pathParts.join('>');
 
-  function walk(el: Element, depth: number, pathParts: string[]): ProjectedNode | null {
+  const walk = (el: Element, depth: number, pathParts: string[]): ProjectedNode | null => {
     if (stats.nodesEmitted >= opts.maxTotalNodes) {
       stats.truncatedNodes = true;
       return null;
@@ -173,7 +170,7 @@ function browserProjectDom(opts: Required<ProjectionOptions>): BrowserProjection
       if (childNode) node.children.push(childNode);
     }
     return node;
-  }
+  };
 
   const initialPath = [`${root.tagName.toLowerCase()}[0]`];
   const rootNode = walk(root, 0, initialPath);
@@ -186,7 +183,7 @@ function browserProjectDom(opts: Required<ProjectionOptions>): BrowserProjection
     stats,
     warnings
   };
-}
+};
 
 function normalizeOptions(options?: ProjectionOptions): Required<ProjectionOptions> {
   return {

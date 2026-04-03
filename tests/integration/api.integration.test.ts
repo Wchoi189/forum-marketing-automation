@@ -79,7 +79,11 @@ test("POST /api/run-publisher blocks unsafe non-force path", async () => {
     runObserver: async () => unsafeLog,
     runPublisher: async (force?: boolean) => {
       capturedForce = Boolean(force);
-      return { success: false, message: "Gap is too small", log: unsafeLog };
+      return {
+        success: false,
+        message: "[Publisher] Gap is too small to publish (safety / gap policy)",
+        log: unsafeLog
+      };
     },
     getLogs: async () => [unsafeLog]
   };
@@ -94,7 +98,7 @@ test("POST /api/run-publisher blocks unsafe non-force path", async () => {
     assert.equal(res.status, 500);
     const body = await res.json();
     assert.equal(body.success, false);
-    assert.equal(body.error, "Gap is too small");
+    assert.match(String(body.error), /\[Publisher\].*Gap/);
     assert.equal(capturedForce, false);
     assertActivityLogShape(body.log as ActivityLog);
   });
@@ -105,7 +109,11 @@ test("POST /api/run-publisher preserves low-confidence manual-review message", a
   const unsafeLog = createLog("unsafe", manualReviewMessage);
   const deps: BotDeps = {
     runObserver: async () => unsafeLog,
-    runPublisher: async () => ({ success: false, message: manualReviewMessage, log: unsafeLog }),
+    runPublisher: async () => ({
+      success: false,
+      message: manualReviewMessage,
+      log: unsafeLog
+    }),
     getLogs: async () => [unsafeLog]
   };
 

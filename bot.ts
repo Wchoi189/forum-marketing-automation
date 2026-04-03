@@ -1,9 +1,10 @@
-import { chromium } from 'playwright';
+import { chromium, type BrowserContext, type BrowserContextOptions } from 'playwright';
 import fs from 'fs/promises';
 import path from 'path';
 import type { ActivityLog, Post } from './contracts/models.js';
 import { ENV } from './config/env.js';
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
+import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval-polyfill.js';
 
 const USER_DATA_DIR = ENV.BOT_PROFILE_DIR;
 const LOG_FILE = ENV.ACTIVITY_LOG_PATH;
@@ -12,6 +13,28 @@ const REQUIRED_DRAFT_TITLE =
 const REQUIRED_BODY_TEXT = '회원 모집 안내';
 const REQUIRED_CATEGORY_LABEL = '유튜브';
 const BOARD_ROW_SELECTOR = 'tr.list0, tr.list1, tr.common-list0, tr.common-list1, tr.list_notice';
+
+/** Reduces trivial AutomationControlled / headless flags; sites may still block by IP or advanced WAF. */
+const CHROMIUM_LAUNCH_ARGS = ['--disable-blink-features=AutomationControlled'] as const;
+
+function sharedBrowserContextOptions(): BrowserContextOptions {
+  return {
+    userAgent: ENV.BROWSER_USER_AGENT,
+    locale: 'ko-KR',
+    timezoneId: 'Asia/Seoul',
+    viewport: { width: 1280, height: 800 },
+    extraHTTPHeaders: {
+      'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
+    }
+  };
+}
+
+async function addStealthInitScripts(context: BrowserContext): Promise<void> {
+  await context.addInitScript({ content: BROWSER_EVAL_NAME_POLYFILL_SCRIPT });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+  });
+}
 
 type ObserverPolicy = {
   boardUrl: string;
@@ -50,12 +73,67 @@ type ParserSignal = {
   diffSummary: { added: number; removed: number; changed: number };
 };
 
+export type ObserverControls = {
+  enabled: boolean;
+  minPreVisitDelayMs: number;
+  maxPreVisitDelayMs: number;
+  minIntervalBetweenRunsMs: number;
+};
+
+const observerControls: ObserverControls = {
+  enabled: true,
+  minPreVisitDelayMs: 0,
+  maxPreVisitDelayMs: 0,
+  minIntervalBetweenRunsMs: 0
+};
+
+let observerRunning = false;
+let lastObserverRunStartedAt = 0;
+
 const PARSER_OPTIONS = {
   maxDepth: 6,
   maxSiblingsPerNode: 60,
   maxTotalNodes: 550,
   maxTextLengthPerNode: 200
 } as const;
+
+function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  const rounded = Math.round(value);
+  return Math.max(min, Math.min(max, rounded));
+}
+
+function randomInt(min: number, max: number): number {
+  if (max <= min) return min;
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function getObserverControls(): ObserverControls {
+  return { ...observerControls };
+}
+
+export function setObserverControls(next: Partial<ObserverControls>): ObserverControls {
+  if (typeof next.enabled === 'boolean') {
+    observerControls.enabled = next.enabled;
+  }
+
+  const minDelay = clampInt(next.minPreVisitDelayMs, observerControls.minPreVisitDelayMs, 0, 120000);
+  const maxDelay = clampInt(next.maxPreVisitDelayMs, observerControls.maxPreVisitDelayMs, 0, 120000);
+  observerControls.minPreVisitDelayMs = Math.min(minDelay, maxDelay);
+  observerControls.maxPreVisitDelayMs = Math.max(minDelay, maxDelay);
+  observerControls.minIntervalBetweenRunsMs = clampInt(
+    next.minIntervalBetweenRunsMs,
+    observerControls.minIntervalBetweenRunsMs,
+    0,
+    3600000
+  );
+
+  return getObserverControls();
+}
 
 async function readPlanningJson<T>(relativePath: string): Promise<T> {
   const filePath = path.join(ENV.PROJECT_ROOT, '.planning', 'spec-kit', relativePath);
@@ -317,10 +395,57 @@ async function saveLog(log: ActivityLog) {
 }
 
 export async function runObserver() {
-  const browser = await chromium.launch({ headless: ENV.BROWSER_HEADLESS });
-  const page = await browser.newPage();
-  
+  if (!observerControls.enabled) {
+    const log: ActivityLog = {
+      timestamp: new Date().toISOString(),
+      current_gap_count: 0,
+      last_post_timestamp: 'N/A',
+      top_competitor_names: [],
+      view_count_of_last_post: 0,
+      status: 'error',
+      all_posts: [],
+      error: '[Observer] Observer is paused by control panel'
+    };
+    await saveLog(log);
+    return log;
+  }
+
+  if (observerRunning) {
+    const log: ActivityLog = {
+      timestamp: new Date().toISOString(),
+      current_gap_count: 0,
+      last_post_timestamp: 'N/A',
+      top_competitor_names: [],
+      view_count_of_last_post: 0,
+      status: 'error',
+      all_posts: [],
+      error: '[Observer] Observer run already in progress'
+    };
+    await saveLog(log);
+    return log;
+  }
+  observerRunning = true;
+
+  const now = Date.now();
+  const elapsed = now - lastObserverRunStartedAt;
+  const waitForInterval = Math.max(0, observerControls.minIntervalBetweenRunsMs - elapsed);
+  const preVisitJitter = randomInt(observerControls.minPreVisitDelayMs, observerControls.maxPreVisitDelayMs);
+  const totalDelay = waitForInterval + preVisitJitter;
+  if (totalDelay > 0) {
+    await sleep(totalDelay);
+  }
+  lastObserverRunStartedAt = Date.now();
+
+  let browser: import('playwright').Browser | null = null;
   try {
+    browser = await chromium.launch({
+      headless: ENV.BROWSER_HEADLESS,
+      args: [...CHROMIUM_LAUNCH_ARGS]
+    });
+    const context = await browser.newContext(sharedBrowserContextOptions());
+    await addStealthInitScripts(context);
+    const page = await context.newPage();
+
     const policy = await loadObserverPolicy();
     console.log('Running Observer...');
     const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -328,7 +453,10 @@ export async function runObserver() {
     const diagnostics = await getBoardDiagnostics(page);
     if (statusCode >= 400 || diagnostics.isForbidden) {
       throw new Error(
-        `BOARD_ACCESS_DENIED: status=${statusCode} title="${diagnostics.title}" url="${diagnostics.url}" rows=${diagnostics.rowCount}`
+        `BOARD_ACCESS_DENIED: status=${statusCode} title="${diagnostics.title}" url="${diagnostics.url}" rows=${diagnostics.rowCount}` +
+          (statusCode === 403
+            ? ' | hint=403_often_bot_or_waf_not_login — try headed Chrome, custom BROWSER_USER_AGENT, or non-datacenter IP'
+            : '')
       );
     }
     const parserBundle = await collectParserSignal(page);
@@ -493,12 +621,15 @@ export async function runObserver() {
       view_count_of_last_post: 0,
       status: 'error',
       all_posts: [],
-      error: error.message
+      error: `[Observer] ${String(error?.message ?? error)}`
     };
     await saveLog(log);
     return log;
   } finally {
-    await browser.close();
+    observerRunning = false;
+    if (browser) {
+      await browser.close().catch(() => null);
+    }
   }
 }
 
@@ -509,23 +640,32 @@ export async function runPublisher(force: boolean = false) {
     log = await runObserver();
     
     if (log.status === 'error') {
-      return { success: false, message: log.error || 'Observer failed', log };
+      return { success: false, message: log.error || '[Observer] Observer failed', log };
     }
 
     if (force && !ENV.MANUAL_OVERRIDE_ENABLED) {
-      return { success: false, message: 'Manual override is disabled by environment policy', log };
+      return {
+        success: false,
+        message: '[Publisher] Manual override is disabled by environment policy (MANUAL_OVERRIDE_ENABLED=false)',
+        log
+      };
     }
 
     if (!force && log.status !== 'safe') {
       console.log('Gap is too small. Skipping publication.');
-      return { success: false, message: log.error || 'Gap is too small', log };
+      return {
+        success: false,
+        message: log.error || '[Publisher] Gap is too small to publish (safety / gap policy)',
+        log
+      };
     }
 
-    // Launch persistent context
     const context = await chromium.launchPersistentContext(USER_DATA_DIR, {
       headless: ENV.BROWSER_HEADLESS,
-      viewport: { width: 1280, height: 800 }
+      args: [...CHROMIUM_LAUNCH_ARGS],
+      ...sharedBrowserContextOptions()
     });
+    await addStealthInitScripts(context);
 
     const page = await context.newPage();
 
@@ -536,7 +676,10 @@ export async function runPublisher(force: boolean = false) {
       const diagnostics = await getBoardDiagnostics(page);
       if (statusCode >= 400 || diagnostics.isForbidden) {
         throw new Error(
-          `PUBLISHER_BOARD_BLOCKED: status=${statusCode} title="${diagnostics.title}" url="${diagnostics.url}"`
+          `PUBLISHER_BOARD_BLOCKED: status=${statusCode} title="${diagnostics.title}" url="${diagnostics.url}"` +
+            (statusCode === 403
+              ? ' | hint=403_often_bot_or_waf_not_login — try headed Chrome, custom BROWSER_USER_AGENT, or non-datacenter IP'
+              : '')
         );
       }
       if (diagnostics.writeButtonCount === 0) {
@@ -630,6 +773,6 @@ export async function runPublisher(force: boolean = false) {
     }
   } catch (error: any) {
     console.error('Publisher Error:', error);
-    return { success: false, message: error.message, log };
+    return { success: false, message: `[Publisher] ${String(error?.message ?? error)}`, log };
   }
 }
