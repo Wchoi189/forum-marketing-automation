@@ -48,6 +48,7 @@ Use this to exercise the bot **without** submitting a real post.
 
 API equivalents (e.g. for scripts): `POST /api/run-observer`, `POST /api/run-publisher` with JSON body `{ "force": true }` for manual override.
 Control panel API: `GET /api/control-panel`, `POST /api/control-panel`.
+Trend analytics (Spec-kit `analytics-trend` + `scheduler-adaptation.policy`): `GET /api/trend-insights` with optional query `windowDays` (1–60) and `trendAdaptiveEnabled` (`true`/`false`).
 
 ## Parser MCP Server
 - Start server:

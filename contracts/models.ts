@@ -35,3 +35,41 @@ export interface DraftItem {
   timestamp: string;
   id: string;
 }
+
+export type TrendConfidenceReason =
+  | "insufficient_snapshots"
+  | "insufficient_pairs"
+  | "empirical_window"
+  | "adaptive_disabled";
+
+export type TrendMultiplierBand =
+  | "very_active"
+  | "active"
+  | "balanced"
+  | "quiet"
+  | "very_quiet"
+  | "unknown";
+
+export interface TrendHourlyBucket {
+  hour: number;
+  avgNewPostsPerHour: number;
+}
+
+export interface TrendInsights {
+  windowDays: number;
+  referenceBaseIntervalMinutes: number;
+  trendAdaptiveEnabled: boolean;
+  recentSnapshotCount: number;
+  pairSampleCount: number;
+  avgNewPostsPerHour: number;
+  volatility: number;
+  confidence: number;
+  confidenceReason: TrendConfidenceReason;
+  trendMultiplier: number;
+  multiplierBand: TrendMultiplierBand;
+  recommendedIntervalMinutesQuiet: number;
+  recommendedIntervalMinutesActive: number;
+  hourlyProfile: TrendHourlyBucket[];
+  explanation: string;
+  precedenceNote: string;
+}

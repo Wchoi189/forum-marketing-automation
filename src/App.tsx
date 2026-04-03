@@ -19,10 +19,13 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
-import type { ActivityLog, BoardStats, CompetitorStat, DraftItem } from '../contracts/models';
+import type { ActivityLog, BoardStats, CompetitorStat, DraftItem, TrendInsights } from '../contracts/models';
 
 /** API errors may already include `[Observer]` / `[Publisher]`; strip one leading tag for readable banner text. */
 function stripTaggedErrorPrefix(text: string) {
@@ -91,6 +94,7 @@ export default function App() {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [competitorStats, setCompetitorStats] = useState<CompetitorStat[]>([]);
   const [boardStats, setBoardStats] = useState<BoardStats | null>(null);
+  const [trendInsights, setTrendInsights] = useState<TrendInsights | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error', text: string, log?: ActivityLog } | null>(null);
 
@@ -122,16 +126,21 @@ export default function App() {
 
   const fetchStats = async () => {
     try {
-      const [compRes, boardRes] = await Promise.all([
+      const [compRes, boardRes, trendRes] = await Promise.all([
         fetch('/api/competitor-stats'),
-        fetch('/api/board-stats')
+        fetch('/api/board-stats'),
+        fetch('/api/trend-insights')
       ]);
-      const [compData, boardData] = await Promise.all([
+      const [compData, boardData, trendData] = await Promise.all([
         compRes.json(),
-        boardRes.json()
+        boardRes.json(),
+        trendRes.json()
       ]);
       setCompetitorStats(compData);
       setBoardStats(boardData);
+      if (trendRes.ok && trendData && typeof trendData.trendMultiplier === 'number') {
+        setTrendInsights(trendData as TrendInsights);
+      }
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     }
@@ -417,6 +426,76 @@ export default function App() {
             </button>
           </motion.div>
         </div>
+
+        {/* Trend insights (Spec-kit: analytics-trend + scheduler-adaptation policy) */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-8 rounded-3xl border border-orange-500/20 bg-orange-500/5 space-y-6"
+        >
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">Trend Insights</h2>
+              <p className="text-[10px] opacity-40 mt-1 max-w-xl">
+                Hourly turnover profile from activity logs; multiplier and interval hints follow scheduler-adaptation policy.
+                {trendInsights?.precedenceNote ? ` ${trendInsights.precedenceNote}` : ''}
+              </p>
+            </div>
+            {trendInsights && (
+              <div className="flex flex-wrap gap-3 text-[10px] uppercase tracking-widest opacity-60">
+                <span>Window {trendInsights.windowDays}d</span>
+                <span>Mult ×{trendInsights.trendMultiplier}</span>
+                <span>Conf {Math.round(trendInsights.confidence * 100)}%</span>
+                <span className="text-orange-300/90">{trendInsights.multiplierBand.replace(/_/g, ' ')}</span>
+              </div>
+            )}
+          </div>
+
+          {trendInsights ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="space-y-4 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-[10px] opacity-40 uppercase tracking-widest mb-1">Avg posts/hr</p>
+                    <p className="text-2xl font-mono font-bold">{trendInsights.avgNewPostsPerHour}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-[10px] opacity-40 uppercase tracking-widest mb-1">Volatility</p>
+                    <p className="text-2xl font-mono font-bold">{trendInsights.volatility}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4 col-span-2">
+                    <p className="text-[10px] opacity-40 uppercase tracking-widest mb-1">Advisory intervals (ref ×1.8 quiet / ×0.8 active)</p>
+                    <p className="text-lg font-mono">
+                      Quiet ~{trendInsights.recommendedIntervalMinutesQuiet}m · Active ~{trendInsights.recommendedIntervalMinutesActive}m
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs opacity-50 leading-relaxed">{trendInsights.explanation}</p>
+                <p className="text-[10px] opacity-35 font-mono">{trendInsights.confidenceReason.replace(/_/g, ' ')}</p>
+              </div>
+              <div className="lg:col-span-2 h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={trendInsights.hourlyProfile.map((h) => ({ label: `${h.hour}h`, rate: h.avgNewPostsPerHour }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
+                    <XAxis dataKey="label" tick={{ fill: '#ffffff55', fontSize: 9 }} interval={3} />
+                    <YAxis tick={{ fill: '#ffffff55', fontSize: 10 }} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: 8 }}
+                      labelStyle={{ color: '#fff' }}
+                    />
+                    <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
+                      {trendInsights.hourlyProfile.map((_, i) => (
+                        <Cell key={i} fill={i % 2 === 0 ? '#ea580caa' : '#f97316cc'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm opacity-40 italic">Loading trend insights…</p>
+          )}
+        </motion.div>
 
         {/* Runtime Control Panel */}
         <motion.div

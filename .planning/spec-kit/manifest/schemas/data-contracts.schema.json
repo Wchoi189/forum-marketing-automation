@@ -115,6 +115,71 @@
         "error": { "type": "string" },
         "log": { "$ref": "#/definitions/activityLog" }
       }
+    },
+    "trendHourlyBucket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hour", "avgNewPostsPerHour"],
+      "properties": {
+        "hour": { "type": "integer", "minimum": 0, "maximum": 23 },
+        "avgNewPostsPerHour": { "type": "number", "minimum": 0 }
+      }
+    },
+    "trendInsights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "windowDays",
+        "referenceBaseIntervalMinutes",
+        "trendAdaptiveEnabled",
+        "recentSnapshotCount",
+        "pairSampleCount",
+        "avgNewPostsPerHour",
+        "volatility",
+        "confidence",
+        "confidenceReason",
+        "trendMultiplier",
+        "multiplierBand",
+        "recommendedIntervalMinutesQuiet",
+        "recommendedIntervalMinutesActive",
+        "hourlyProfile",
+        "explanation",
+        "precedenceNote"
+      ],
+      "properties": {
+        "windowDays": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "referenceBaseIntervalMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 },
+        "trendAdaptiveEnabled": { "type": "boolean" },
+        "recentSnapshotCount": { "type": "integer", "minimum": 0 },
+        "pairSampleCount": { "type": "integer", "minimum": 0 },
+        "avgNewPostsPerHour": { "type": "number", "minimum": 0 },
+        "volatility": { "type": "number", "minimum": 0, "maximum": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "confidenceReason": {
+          "type": "string",
+          "enum": [
+            "insufficient_snapshots",
+            "insufficient_pairs",
+            "empirical_window",
+            "adaptive_disabled"
+          ]
+        },
+        "trendMultiplier": { "type": "number", "minimum": 0.65, "maximum": 1.6 },
+        "multiplierBand": {
+          "type": "string",
+          "enum": ["very_active", "active", "balanced", "quiet", "very_quiet", "unknown"]
+        },
+        "recommendedIntervalMinutesQuiet": { "type": "integer", "minimum": 1, "maximum": 1440 },
+        "recommendedIntervalMinutesActive": { "type": "integer", "minimum": 1, "maximum": 1440 },
+        "hourlyProfile": {
+          "type": "array",
+          "minItems": 24,
+          "maxItems": 24,
+          "items": { "$ref": "#/definitions/trendHourlyBucket" }
+        },
+        "explanation": { "type": "string" },
+        "precedenceNote": { "type": "string" }
+      }
     }
   }
 }

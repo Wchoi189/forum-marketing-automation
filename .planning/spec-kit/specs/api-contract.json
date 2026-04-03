@@ -22,6 +22,12 @@
     },
     {
       "method": "GET",
+      "path": "/trend-insights",
+      "description": "Trend analytics from activity logs and advisory scheduler interval hints",
+      "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/trendInsights"
+    },
+    {
+      "method": "GET",
       "path": "/drafts",
       "description": "Fetch available drafts for UI visualization",
       "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/draftsArray"

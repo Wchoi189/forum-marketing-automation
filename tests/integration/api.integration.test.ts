@@ -189,6 +189,89 @@ test("scheduler uses lock to avoid overlapping runs", async () => {
   assert.equal(runCount, 1);
 });
 
+function trendLogsSteadyRate(): ActivityLog[] {
+  const base = {
+    current_gap_count: 8,
+    last_post_timestamp: "2026-03-31 10:00:00",
+    top_competitor_names: ["alpha"],
+    view_count_of_last_post: 100,
+    status: "safe" as const,
+    all_posts: [] as ActivityLog["all_posts"]
+  };
+  const post = (title: string) => ({
+    title,
+    author: "alpha",
+    date: "10:00",
+    views: 10,
+    isNotice: false
+  });
+  return [
+    {
+      ...base,
+      timestamp: "2026-04-04T10:00:00.000Z",
+      all_posts: [post("p1"), post("p2")]
+    },
+    {
+      ...base,
+      timestamp: "2026-04-04T11:00:00.000Z",
+      all_posts: [post("p1"), post("p2"), post("p3")]
+    },
+    {
+      ...base,
+      timestamp: "2026-04-04T12:00:00.000Z",
+      all_posts: [post("p1"), post("p2"), post("p3"), post("p4")]
+    },
+    {
+      ...base,
+      timestamp: "2026-04-04T13:00:00.000Z",
+      all_posts: [post("p1"), post("p2"), post("p3"), post("p4"), post("p5")]
+    }
+  ];
+}
+
+test("GET /api/trend-insights returns contract-shaped payload", async () => {
+  const logs = trendLogsSteadyRate();
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    getLogs: async () => logs
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/api/trend-insights`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as Record<string, unknown>;
+
+    assert.equal(body.windowDays, 7);
+    assert.equal(typeof body.trendMultiplier, "number");
+    assert.equal(body.confidenceReason, "empirical_window");
+    assert.ok(Array.isArray(body.hourlyProfile));
+    assert.equal((body.hourlyProfile as unknown[]).length, 24);
+    const first = (body.hourlyProfile as { hour: number; avgNewPostsPerHour: number }[])[0];
+    assert.equal(typeof first.hour, "number");
+    assert.equal(typeof first.avgNewPostsPerHour, "number");
+    assert.equal(body.trendMultiplier, 1.6);
+  });
+});
+
+test("GET /api/trend-insights trendAdaptiveEnabled=false forces multiplier 1", async () => {
+  const logs = trendLogsSteadyRate();
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    getLogs: async () => logs
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/api/trend-insights?trendAdaptiveEnabled=false`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.equal(body.trendMultiplier, 1);
+    assert.equal(body.confidenceReason, "adaptive_disabled");
+    assert.equal(body.multiplierBand, "unknown");
+  });
+});
+
 test("runtime validation fails when workflow fixture violates schema", async () => {
   const workflowPath = path.join(
     process.env.PROJECT_ROOT || "/parent/marketing-automation",

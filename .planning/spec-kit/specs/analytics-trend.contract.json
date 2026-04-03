@@ -1,0 +1,31 @@
+{
+  "contract_id": "analytics-trend-v1",
+  "data_source": "activity_log",
+  "window": {
+    "query_param": "windowDays",
+    "min": 1,
+    "max": 60,
+    "default": 7
+  },
+  "pairwise_turnover_rate": {
+    "numerator": "count_of_posts_in_snapshot_not_present_in_previous_snapshot",
+    "denominator": "delta_hours_between_snapshot_timestamps",
+    "skip_non_positive_delta_hours": true
+  },
+  "aggregates": {
+    "avg_new_posts_per_hour": "arithmetic_mean_of_pairwise_rates",
+    "volatility": "coefficient_of_variation_stddev_over_mean_capped_at_1"
+  },
+  "confidence": {
+    "insufficient_snapshots_threshold": 3,
+    "insufficient_pairs_threshold": 3,
+    "sample_strength_cap_pairs": 18,
+    "volatility_penalty_max": 0.7
+  },
+  "hourly_profile": {
+    "timezone": "server_local",
+    "bucket_count": 24,
+    "per_bucket_metric": "mean_pairwise_rate_for_pairs_whose_end_snapshot_falls_in_bucket_hour"
+  },
+  "api_response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/trendInsights"
+}

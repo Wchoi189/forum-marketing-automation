@@ -1,0 +1,33 @@
+{
+  "policy_id": "scheduler-adaptation-v1",
+  "analytics_contract_ref": "analytics-trend.contract.json",
+  "precedence": [
+    "manual_override_force_on_publish",
+    "operator_control_panel_preset_and_auto_publisher_controls",
+    "trend_adaptive_multiplier_on_effective_interval"
+  ],
+  "trend_multiplier_bounds": {
+    "min": 0.65,
+    "max": 1.6
+  },
+  "effective_interval_bounds_minutes": {
+    "min": 1,
+    "max": 1440
+  },
+  "avg_new_posts_per_hour_to_multiplier": [
+    { "minInclusive": 16, "multiplier": 0.65, "band": "very_active" },
+    { "minInclusive": 10, "multiplier": 0.8, "band": "active" },
+    { "minInclusive": 0, "maxExclusive": 3, "multiplier": 1.6, "band": "very_quiet" },
+    { "minInclusive": 3, "maxExclusive": 5, "multiplier": 1.25, "band": "quiet" },
+    { "minInclusive": 5, "maxExclusive": 10, "multiplier": 1, "band": "balanced" }
+  ],
+  "recalibration": {
+    "respect_control_field": "trendRecalibrationDays",
+    "unit": "days"
+  },
+  "advisory_interval_reference": {
+    "quiet_hours_multiplier": 1.8,
+    "active_hours_multiplier": 0.8,
+    "note": "Recommended quiet/active minutes use reference multipliers from balanced preset; operator presets may differ."
+  }
+}

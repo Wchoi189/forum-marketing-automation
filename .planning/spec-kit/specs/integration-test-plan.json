@@ -42,11 +42,29 @@
       "name": "Frontend polling contract",
       "steps": [
         "Load UI",
-        "observe 30-second polling to /api/logs, /api/competitor-stats, /api/board-stats, /api/drafts"
+        "observe 30-second polling to /api/logs, /api/competitor-stats, /api/board-stats, /api/drafts, /api/trend-insights"
       ],
       "assertions": [
         "UI renders latest status and chart data",
         "no schema mismatch in console for contract fields"
+      ]
+    },
+    {
+      "id": "IT-005",
+      "name": "Trend insights contract",
+      "steps": ["GET /api/trend-insights"],
+      "assertions": [
+        "response includes windowDays, trendMultiplier, hourlyProfile length 24",
+        "confidenceReason is one of the contract enum values"
+      ]
+    },
+    {
+      "id": "IT-006",
+      "name": "Trend insights adaptive_disabled",
+      "steps": ["GET /api/trend-insights?trendAdaptiveEnabled=false"],
+      "assertions": [
+        "trendMultiplier == 1",
+        "confidenceReason == adaptive_disabled"
       ]
     }
   ]

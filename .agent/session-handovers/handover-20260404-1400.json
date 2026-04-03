@@ -1,0 +1,76 @@
+{
+  "handover_id": "handover-20260404-1400",
+  "timestamp_utc": "2026-04-04T14:00:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "gpt-5.3-codex",
+  "target_agent": "gpt-5.3-codex",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "implementation",
+  "objective": "Ship Spec-kit-backed trend analytics (GET /api/trend-insights), dashboard Trend Insights UI, and shared scheduler turnover math per scheduler-adaptation policy.",
+  "status": "completed",
+  "decisions_locked": [
+    "spec_first",
+    "contracts_over_prose",
+    "strict_validation",
+    "single_active_run_lock",
+    "trend_multiplier_bounds_0.65_to_1.6",
+    "manual_override_precedence_unchanged"
+  ],
+  "spec_kit_updates": {
+    "new_specs": [
+      ".planning/spec-kit/specs/analytics-trend.contract.json",
+      ".planning/spec-kit/specs/scheduler-adaptation.policy.json"
+    ],
+    "updated_specs": [
+      ".planning/spec-kit/specs/api-contract.json",
+      ".planning/spec-kit/specs/integration-test-plan.json",
+      ".planning/spec-kit/manifest/schemas/data-contracts.schema.json"
+    ]
+  },
+  "current_state": {
+    "completed": [
+      "analytics-trend + scheduler-adaptation policy JSON under .planning/spec-kit/specs",
+      "data-contracts.schema.json definitions.trendInsights + hourly bucket",
+      "lib/trendInsights.ts: turnover analysis, confidence, API payload builder, trendMultiplierFromAvgRate",
+      "server GET /api/trend-insights with optional windowDays and trendAdaptiveEnabled query overrides",
+      "startScheduler recalcTrendFactor uses computeTurnoverAnalysis + trendMultiplierFromAvgRate; requires >=3 snapshots and >=3 pairs before adapting",
+      "App.tsx Trend Insights card + hourly bar chart; polls /api/trend-insights every 30s with stats",
+      "Integration tests IT-style for trend endpoint shape and adaptive_disabled"
+    ],
+    "gaps": [
+      "Optional Phase 2: external forecasting library behind feature flag (not implemented)",
+      "Optional: persist last trend snapshot to .agent/state for cross-process audit"
+    ]
+  },
+  "acceptance_criteria": [
+    "GET /api/trend-insights returns schema-valid trendInsights payload",
+    "Scheduler adaptation uses same multiplier mapping as policy; effective interval still clamped 1–1440",
+    "npm run test passes (lint + integration + parser MCP)"
+  ],
+  "constraints": [
+    "No credentials in specs or commits",
+    "Fail-closed: insufficient snapshots or pairs yields trend multiplier 1",
+    "Do not weaken publisher manual override or gap policy"
+  ],
+  "next_actions": [
+    "Optional: add env-driven TREND_* floors/caps if operators need tighter clamps than 0.65–1.6",
+    "Optional: Phase 2 model-assisted recommendation vs heuristic A/B on historical logs",
+    "Run npm run dev and visually confirm Trend Insights card against real ACTIVITY_LOG_PATH data"
+  ],
+  "artifacts_touched": [
+    "lib/trendInsights.ts",
+    "server.ts",
+    "contracts/models.ts",
+    "src/App.tsx",
+    "README.md",
+    ".agent/state/state.index.json",
+    "tests/integration/api.integration.test.ts",
+    ".planning/spec-kit/specs/analytics-trend.contract.json",
+    ".planning/spec-kit/specs/scheduler-adaptation.policy.json",
+    ".planning/spec-kit/specs/api-contract.json",
+    ".planning/spec-kit/specs/integration-test-plan.json",
+    ".planning/spec-kit/manifest/schemas/data-contracts.schema.json",
+    ".agent/session-handovers/handover-20260404-1400.json"
+  ]
+}

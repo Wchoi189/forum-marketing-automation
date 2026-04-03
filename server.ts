@@ -6,6 +6,7 @@ import { createServer as createViteServer } from "vite";
 import { getLogs, getObserverControls, runObserver, runPublisher, setObserverControls } from "./bot.js";
 import { ENV } from "./config/env.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
+import { buildTrendInsightsPayload, computeTurnoverAnalysis, trendMultiplierFromAvgRate } from "./lib/trendInsights.js";
 
 type BotDeps = {
   runObserver: typeof runObserver;
@@ -238,6 +239,45 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     res.json({ turnoverRate, shareOfVoice });
   });
 
+  app.get("/api/trend-insights", async (req, res) => {
+    try {
+      const logs = await deps.getLogs();
+      let windowDays = 7;
+      let trendAdaptiveEnabled = true;
+      let referenceBaseIntervalMinutes = ENV.RUN_INTERVAL_MINUTES;
+
+      if (scheduler) {
+        const st = await scheduler.getState();
+        referenceBaseIntervalMinutes = st.baseIntervalMinutes;
+        trendAdaptiveEnabled = st.trendAdaptiveEnabled;
+        windowDays = st.trendWindowDays;
+      }
+
+      const rawWindow = req.query.windowDays;
+      if (rawWindow !== undefined) {
+        const str = Array.isArray(rawWindow) ? rawWindow[0] : rawWindow;
+        const n = Number(str);
+        if (Number.isInteger(n) && n >= 1 && n <= 60) {
+          windowDays = n;
+        }
+      }
+
+      const rawAdaptive = req.query.trendAdaptiveEnabled;
+      if (rawAdaptive === "true") trendAdaptiveEnabled = true;
+      if (rawAdaptive === "false") trendAdaptiveEnabled = false;
+
+      const payload = buildTrendInsightsPayload(logs, {
+        windowDays,
+        referenceBaseIntervalMinutes,
+        trendAdaptiveEnabled
+      });
+      res.json(payload);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: `[TrendInsights] ${message}` });
+    }
+  });
+
   app.get("/api/drafts", (req, res) => {
     res.json([
       {
@@ -405,42 +445,15 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
     }
 
     const logs = await deps.getLogs();
-    const cutoff = now - controls.trendWindowDays * 24 * 60 * 60 * 1000;
-    const recent = logs
-      .filter((log) => Date.parse(log.timestamp) >= cutoff && Array.isArray(log.all_posts) && log.all_posts.length > 0)
-      .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+    const analysis = computeTurnoverAnalysis(logs, controls.trendWindowDays);
 
-    if (recent.length < 3) {
+    if (analysis.recentSnapshotCount < 3 || analysis.pairSampleCount < 3) {
       trendFactor = 1;
       lastTrendRecalculatedAt = now;
       return trendFactor;
     }
 
-    let totalRate = 0;
-    let count = 0;
-    for (let i = 1; i < recent.length; i++) {
-      const prev = recent[i - 1];
-      const curr = recent[i];
-      const prevKeys = new Set((prev.all_posts ?? []).map((p) => `${p.title}::${p.author}`));
-      const newPosts = (curr.all_posts ?? []).filter((p) => !prevKeys.has(`${p.title}::${p.author}`)).length;
-      const dtHours = (Date.parse(curr.timestamp) - Date.parse(prev.timestamp)) / (1000 * 60 * 60);
-      if (dtHours <= 0) continue;
-      totalRate += newPosts / dtHours;
-      count += 1;
-    }
-
-    const avgRate = count > 0 ? totalRate / count : 0;
-    if (avgRate >= 16) {
-      trendFactor = 0.65;
-    } else if (avgRate >= 10) {
-      trendFactor = 0.8;
-    } else if (avgRate <= 3) {
-      trendFactor = 1.6;
-    } else if (avgRate <= 5) {
-      trendFactor = 1.25;
-    } else {
-      trendFactor = 1;
-    }
+    trendFactor = trendMultiplierFromAvgRate(analysis.avgNewPostsPerHour);
 
     lastTrendRecalculatedAt = now;
     return trendFactor;
