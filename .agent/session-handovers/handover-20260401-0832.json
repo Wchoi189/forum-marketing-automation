@@ -1,6 +1,7 @@
 {
   "handover_id": "handover-20260401-0832",
   "timestamp_utc": "2026-04-01T08:32:00Z",
+  "last_continuation_utc": "2026-04-04T00:00:00Z",
   "session_type": "m2m-hybrid",
   "source_agent": "gpt-5.3-codex",
   "target_agent": "gpt-5.3-codex",
@@ -66,11 +67,12 @@
   "completed_items": [
     "Selector drift verification completed with captured artifacts",
     "Write-entry and draft load path verified under dry-run",
-    "Typecheck/lint passes after changes"
+    "Typecheck/lint passes after changes",
+    "Working tree clean on main; prior handover-related changes committed (incl. bot.ts, state index, parser MCP follow-on)",
+    "Continuation 2026-04-04: npm run lint and npm run test:integration pass"
   ],
   "pending_items": [
-    "Commit pending code and handover/state updates",
-    "Operator-approved non-dry-run publish validation"
+    "Operator-approved non-dry-run publish validation (DRY_RUN_MODE=false, single forced publish)"
   ],
   "decisions": [
     {
@@ -105,9 +107,8 @@
     "PORT"
   ],
   "next_actions": [
-    "Review git diff and commit bot.ts + handover/state updates",
-    "Optionally run one additional forced dry-run smoke",
-    "Proceed to controlled live-submit validation only after explicit approval"
+    "Optional: forced dry-run smoke via POST /api/run-publisher with force:true, DRY_RUN_MODE=true, real BOT_PROFILE_DIR + credentials",
+    "Proceed to controlled live-submit validation only after explicit operator approval (disable DRY_RUN_MODE, single publish, re-enable dry-run)"
   ],
   "artifacts_touched": [
     "bot.ts",
