@@ -1,0 +1,17 @@
+---
+description: Publisher workflow regression prevention and debugging
+alwaysApply: true
+---
+
+# Publisher Regression Guardrails
+
+- Keep publisher fail-closed: ambiguous state must return error, not success.
+- Success must require post-submit URL verification to non-write board list/view.
+- Prefer scoped selectors that disambiguate duplicated buttons in draft list/modals.
+- Keep waits bounded (`BOT_MAX_WAIT_MS`) and avoid unbounded retries.
+- Preserve debug artifact capture for triage:
+  - Step screenshots when `PUBLISHER_DEBUG_SCREENSHOTS=true`
+  - Trace zip when `PUBLISHER_DEBUG_TRACE=true`
+  - `error.png` on publisher failure when page exists
+- After publisher flow edits, run `npm run lint` and `npm run test:integration`.
+

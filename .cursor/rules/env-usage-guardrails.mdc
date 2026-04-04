@@ -1,0 +1,14 @@
+---
+description: Env variable lifecycle and safety guardrails
+alwaysApply: true
+---
+
+# Env Usage Guardrails
+
+- Treat `config/env.ts`, `.agent/contracts/env.contract.json`, and `.planning/spec-kit/manifest/schemas/env.schema.json` as one unit.
+- Any env variable add/remove/rename must update all three files in the same change.
+- Keep defaults, ranges, and type checks explicit in `config/env.ts`.
+- Keep schema constraints synchronized with runtime validation behavior.
+- Never print or persist secret env values in logs, artifacts, docs, or tests.
+- If env behavior changes, run `npm run lint` and `npm run test:integration`.
+

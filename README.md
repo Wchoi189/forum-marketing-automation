@@ -8,6 +8,13 @@ Node + Playwright automation bot for observing and posting to the Ppomppu OTT bo
 - Frontend: React + Vite
 - Contracts/Planning: `.planning/spec-kit`, `.agent`
 
+## Agent Grounding
+- Agent runbook: `AGENTS.md`
+- Always-applied rules:
+  - `.cursor/rules/parser-mcp-usage.mdc`
+  - `.cursor/rules/env-usage-guardrails.mdc`
+  - `.cursor/rules/publisher-regression-guardrails.mdc`
+
 ## Quick Start
 1. Install dependencies:
    - `npm install`
