@@ -21,6 +21,9 @@ const CHROMIUM_LAUNCH_ARGS = ['--disable-blink-features=AutomationControlled'] a
 /** Upper bound for Playwright navigation/locator/URL waits in this module. */
 const BOT_MAX_WAIT_MS = 3000;
 
+/** Drafts modal can load after click; wrong `.popup_layer` index is a common false-empty. */
+const PUBLISHER_DRAFT_MODAL_WAIT_MS = Math.max(BOT_MAX_WAIT_MS, 20000);
+
 function sharedBrowserContextOptions(): BrowserContextOptions {
   return {
     userAgent: ENV.BROWSER_USER_AGENT,
@@ -926,25 +929,69 @@ export async function runPublisher(force: boolean = false) {
       const { draftItemIndex } = getPublisherControls();
       const zeroBasedTr = (draftItemIndex - 1) * 2;
 
-      await page.waitForSelector('.popup_layer, .modal', { timeout: BOT_MAX_WAIT_MS }).catch(() => {});
+      // Do not rely on `.popup_layer` — production markup often uses other wrappers; the modal still shows
+      // the drafts grid (제목 / 등록일). Wait for that table, then resolve a shell that includes footer "닫기"
+      // so preview-bar XPath stays under the same card as the grid.
+      const draftsListTable = page
+        .locator('table')
+        .filter({ has: page.locator('th').filter({ hasText: '제목' }) })
+        .filter({ has: page.locator('th').filter({ hasText: '등록일' }) })
+        .first();
 
-      const draftModal = page.locator('.popup_layer:visible').last();
-      await draftModal.waitFor({ state: 'visible', timeout: BOT_MAX_WAIT_MS }).catch(() => {});
+      await draftsListTable.waitFor({ state: 'visible', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS });
 
-      let draftRows = draftModal.locator('table tbody tr');
-      if ((await draftRows.count()) === 0) {
-        const fallbackModal = page.locator('.modal:visible').last();
-        draftRows = fallbackModal.locator('table tbody tr');
+      const shellByCard = draftsListTable.locator(
+        'xpath=ancestor::div[contains(., "임시저장된 게시글") and contains(., "닫기")][1]'
+      );
+      const shellByTitle = draftsListTable.locator('xpath=ancestor::div[contains(., "임시저장된 게시글")][1]');
+
+      let draftModal: import('playwright').Locator = draftsListTable;
+      if ((await shellByCard.count()) > 0) {
+        draftModal = shellByCard.first();
+      } else if ((await shellByTitle.count()) > 0) {
+        draftModal = shellByTitle.first();
       }
+      await draftModal.waitFor({ state: 'attached', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS });
+
+      const tableDataRows = (root: import('playwright').Locator) =>
+        root.locator('table tr').filter({ has: page.locator('td') });
+
+      let draftRows = draftsListTable.locator('tbody tr').filter({ has: page.locator('td') });
+      if ((await draftRows.count()) === 0) {
+        draftRows = tableDataRows(draftsListTable);
+      }
+      if ((await draftRows.count()) === 0) {
+        const loose = page
+          .locator('div:visible')
+          .filter({ hasText: '임시저장된 게시글' })
+          .filter({ has: page.locator('table tr') })
+          .first();
+        await loose.waitFor({ state: 'visible', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS }).catch(() => null);
+        draftRows = tableDataRows(loose);
+      }
+
+      await draftRows
+        .first()
+        .waitFor({ state: 'attached', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS })
+        .catch(() => null);
 
       const rowCount = await draftRows.count();
-      if (zeroBasedTr >= rowCount) {
+      // Ppomppu modal table: item 1 = tbody/tr[1], preview = tr[2], item 2 = tr[3], … → tr[2*index-1] (1-based XPath).
+      // Scoped `.//...` under the drafts modal — do not use /html/body/div[14] (index shifts between sessions).
+      const trXPathOneBased = draftItemIndex * 2 - 1;
+      const tbodyTrCount = await draftsListTable.locator('tbody tr').count();
+
+      let draftRow: import('playwright').Locator;
+      if (tbodyTrCount > 0 && trXPathOneBased <= tbodyTrCount) {
+        draftRow = draftsListTable.locator(`xpath=.//tbody/tr[${trXPathOneBased}]`).first();
+        await draftRow.waitFor({ state: 'attached', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS });
+      } else if (zeroBasedTr < rowCount) {
+        draftRow = draftRows.nth(zeroBasedTr);
+      } else {
         throw new Error(
-          `PUBLISHER_DRAFT_ROW_MISSING: draftItemIndex=${draftItemIndex} needs tbody tr index ${zeroBasedTr} (1-based row ${zeroBasedTr + 1}) but table has ${rowCount} row(s)`
+          `PUBLISHER_DRAFT_ROW_MISSING: draftItemIndex=${draftItemIndex} needs tbody tr[${trXPathOneBased}] (0-based filtered index ${zeroBasedTr}) but tbody has ${tbodyTrCount} tr, filtered data rows=${rowCount}`
         );
       }
-
-      const draftRow = draftRows.nth(zeroBasedTr);
       const rowText = (await draftRow.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
       if (!rowText.includes(REQUIRED_DRAFT_TITLE)) {
         throw new Error(
@@ -960,21 +1007,26 @@ export async function runPublisher(force: boolean = false) {
         await draftRow.click();
       }
 
-      // Row list also has btn_set_tempas (strict if unscoped). Confirm bar is 불러오기 then 닫기 (see user HTML).
+      // After row click, preview bar appears — wait first, then match your DOM: div/div[2]/div[2]/button[1] under the same modal (no /html/body/div[14]).
       const closePreviewBtn = page.locator('button.btn_preview_close').last();
-      await closePreviewBtn.waitFor({ state: 'visible', timeout: BOT_MAX_WAIT_MS });
-      let confirmDraftLoadBtn = closePreviewBtn.locator(
-        'xpath=preceding-sibling::button[contains(@class,"btn_set_tempas")]'
-      );
-      if ((await confirmDraftLoadBtn.count()) === 0) {
-        confirmDraftLoadBtn = closePreviewBtn.locator(
-          'xpath=following-sibling::button[contains(@class,"btn_set_tempas")]'
-        );
+      await closePreviewBtn.waitFor({ state: 'visible', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS });
+
+      const confirmByModalXPath = draftModal.locator('xpath=.//div/div[2]/div[2]/button[1]');
+      let confirmDraftLoadBtn: import('playwright').Locator;
+      const xpathCandidate = confirmByModalXPath.first();
+      if ((await confirmByModalXPath.count()) > 0 && (await xpathCandidate.isVisible().catch(() => false))) {
+        confirmDraftLoadBtn = xpathCandidate;
+      } else {
+        let sib = closePreviewBtn.locator('xpath=preceding-sibling::button[contains(@class,"btn_set_tempas")]');
+        if ((await sib.count()) === 0) {
+          sib = closePreviewBtn.locator('xpath=following-sibling::button[contains(@class,"btn_set_tempas")]');
+        }
+        if ((await sib.count()) === 0) {
+          sib = page.locator('button.btn_set_tempas').filter({ hasText: '불러오기' }).last();
+        }
+        confirmDraftLoadBtn = sib;
       }
-      if ((await confirmDraftLoadBtn.count()) === 0) {
-        confirmDraftLoadBtn = page.locator('button.btn_set_tempas').filter({ hasText: '불러오기' }).last();
-      }
-      await confirmDraftLoadBtn.waitFor({ state: 'visible', timeout: BOT_MAX_WAIT_MS });
+      await confirmDraftLoadBtn.waitFor({ state: 'visible', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS });
       await confirmDraftLoadBtn.click();
 
       // Wait for editor to load
