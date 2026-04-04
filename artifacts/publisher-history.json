@@ -1,0 +1,32 @@
+[
+  {
+    "at": "2026-04-04T18:30:53.851Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201780&page=1&slave=off)"
+  },
+  {
+    "at": "2026-04-04T18:21:21.617Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.popup_layer:visible, .layer_popup:visible, .pop_layer:visible, [class*=\"layer_popup\"]:visible, [class*=\"pop_layer\"]:visible').filter({ hasText: '임시저장된 게시글' }).filter({ has: locator('table') }).first() to be visible\u001b[22m\n"
+  },
+  {
+    "at": "2026-04-04T18:07:53.284Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.popup_layer:visible, .layer_popup:visible, .pop_layer:visible, [class*=\"layer_popup\"]:visible, [class*=\"pop_layer\"]:visible').filter({ hasText: '임시저장된 게시글' }).filter({ has: locator('table') }).first() to be visible\u001b[22m\n"
+  },
+  {
+    "at": "2026-04-04T17:50:12.586Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] PUBLISHER_DRAFT_ROW_MISSING: draftItemIndex=1 needs tbody tr index 0 (1-based row 1) but table has 0 row(s)"
+  },
+  {
+    "at": "2026-04-04T17:17:26.872Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] PUBLISHER_DRAFT_ROW_MISSING: draftItemIndex=1 needs tbody tr index 0 (1-based row 1) but table has 0 row(s)"
+  }
+]
