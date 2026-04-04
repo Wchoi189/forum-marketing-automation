@@ -6,7 +6,7 @@
   "observer_rules": {
     "author_match": "shareplan",
     "gap_threshold_min": 5,
-    "parse_confidence_min": 0.9,
+    "parse_confidence_min": 0.8,
     "exclude_notice_rows": true
   },
   "publisher_sequence": [
@@ -23,6 +23,11 @@
       "step_id": "open-saved-drafts",
       "action": "click",
       "selector": "input[value=\"임시저장된 게시글\"], button:has-text(\"임시저장된 게시글\")"
+    },
+    {
+      "step_id": "confirm-load-draft-modal",
+      "action": "click",
+      "selector": "button.btn_set_tempas:has-text(\"불러오기\")"
     },
     {
       "step_id": "verify-required-body",

@@ -197,6 +197,7 @@ function normalizeOptions(options?: ProjectionOptions): Required<ProjectionOptio
   };
 }
 
+/** Heuristic 0–1 score: penalties stack when projection hits caps (large boards often land at 0.80 from depth+sibling caps, or from the node budget alone). */
 function computeConfidence(stats: ProjectionStats, warnings: string[]): number {
   let confidence = 1;
   if (stats.truncatedDepth) confidence -= 0.1;

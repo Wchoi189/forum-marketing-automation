@@ -23,6 +23,10 @@ type EnvConfig = {
   MCP_PARSER_HEADLESS: boolean;
   MCP_PARSER_NAV_TIMEOUT_MS: number;
   MCP_PARSER_MAX_STORED_SNAPSHOTS: number;
+  /** Full-page PNGs under artifacts/publisher-runs/<timestamp>/ during runPublisher. */
+  PUBLISHER_DEBUG_SCREENSHOTS: boolean;
+  /** Playwright trace.zip (open with `npx playwright show-trace <path>`). */
+  PUBLISHER_DEBUG_TRACE: boolean;
 };
 
 function requiredString(name: string): string {
@@ -111,6 +115,8 @@ function buildEnv(): EnvConfig {
     MCP_PARSER_HEADLESS: coerceHeadlessForLinux(optionalBool("MCP_PARSER_HEADLESS", true), "MCP_PARSER_HEADLESS"),
     MCP_PARSER_NAV_TIMEOUT_MS: optionalInt("MCP_PARSER_NAV_TIMEOUT_MS", 45000, 5000, 120000),
     MCP_PARSER_MAX_STORED_SNAPSHOTS: optionalInt("MCP_PARSER_MAX_STORED_SNAPSHOTS", 200, 10, 1000),
+    PUBLISHER_DEBUG_SCREENSHOTS: optionalBool("PUBLISHER_DEBUG_SCREENSHOTS", false),
+    PUBLISHER_DEBUG_TRACE: optionalBool("PUBLISHER_DEBUG_TRACE", false),
   };
 }
 

@@ -105,7 +105,7 @@ test("POST /api/run-publisher blocks unsafe non-force path", async () => {
 });
 
 test("POST /api/run-publisher preserves low-confidence manual-review message", async () => {
-  const manualReviewMessage = "MANUAL_REVIEW_REQUIRED: parse confidence 0.72 is below 0.90";
+  const manualReviewMessage = "MANUAL_REVIEW_REQUIRED: parse confidence 0.72 is below 0.80";
   const unsafeLog = createLog("unsafe", manualReviewMessage);
   const deps: BotDeps = {
     runObserver: async () => unsafeLog,

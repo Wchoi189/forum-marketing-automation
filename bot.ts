@@ -17,6 +17,9 @@ const BOARD_ROW_SELECTOR = 'tr.list0, tr.list1, tr.common-list0, tr.common-list1
 /** Reduces trivial AutomationControlled / headless flags; sites may still block by IP or advanced WAF. */
 const CHROMIUM_LAUNCH_ARGS = ['--disable-blink-features=AutomationControlled'] as const;
 
+/** Upper bound for Playwright navigation/locator/URL waits in this module. */
+const BOT_MAX_WAIT_MS = 3000;
+
 function sharedBrowserContextOptions(): BrowserContextOptions {
   return {
     userAgent: ENV.BROWSER_USER_AGENT,
@@ -92,8 +95,8 @@ let lastObserverRunStartedAt = 0;
 
 const PARSER_OPTIONS = {
   maxDepth: 6,
-  maxSiblingsPerNode: 60,
-  maxTotalNodes: 550,
+  maxSiblingsPerNode: 80,
+  maxTotalNodes: 750,
   maxTextLengthPerNode: 200
 } as const;
 
@@ -155,6 +158,32 @@ function toInt(value: unknown, label: string): number {
 function toNumber(value: unknown, label: string): number {
   assertPolicy(typeof value === 'number' && Number.isFinite(value), `${label} must be a number`);
   return value;
+}
+
+function boardIdFromEntryUrl(boardUrl: string): string {
+  try {
+    const id = new URL(boardUrl).searchParams.get('id');
+    return id || 'gonggu';
+  } catch {
+    return 'gonggu';
+  }
+}
+
+/** Post-submit landing page for this Zboard (list or view), not the compose screen. */
+function isPublishSuccessUrl(href: string, boardId: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(href);
+  } catch {
+    return false;
+  }
+  if (u.searchParams.get('id') !== boardId) return false;
+  if (u.searchParams.get('page') === 'write') return false;
+  if (/write\.php/i.test(u.pathname)) return false;
+  if (u.searchParams.has('no')) return true;
+  if (u.pathname.includes('zboard.php')) return true;
+  if (u.pathname.includes('view.php')) return true;
+  return false;
 }
 
 async function loadObserverPolicy(): Promise<ObserverPolicy> {
@@ -259,12 +288,12 @@ async function attemptPpomppuLoginFromBoard(page: import('playwright').Page, boa
   await page.fill('input[name="password"]', ENV.PPOMPPU_USER_PW);
 
   await Promise.all([
-    page.waitForURL(/zboard\.php\?id=gonggu/, { timeout: 30000 }).catch(() => null),
+    page.waitForURL(/zboard\.php\?id=gonggu/, { timeout: BOT_MAX_WAIT_MS }).catch(() => null),
     page.locator('form#zb_login').locator('a:has-text("로그인")').first().click()
   ]);
 
   if (!page.url().includes('zboard.php?id=gonggu')) {
-    await page.goto(boardUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.goto(boardUrl, { waitUntil: 'domcontentloaded', timeout: BOT_MAX_WAIT_MS });
   }
 
   const after = await getBoardDiagnostics(page);
@@ -322,6 +351,40 @@ async function collectParserSignal(page: import('playwright').Page): Promise<{
 
 function combinedConfidence(legacyConfidence: number, parserConfidence: number): number {
   return Number(Math.min(legacyConfidence, parserConfidence).toFixed(2));
+}
+
+function publisherDebugRunDir(): string | null {
+  if (!ENV.PUBLISHER_DEBUG_SCREENSHOTS && !ENV.PUBLISHER_DEBUG_TRACE) return null;
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  return path.join(ENV.PROJECT_ROOT, 'artifacts', 'publisher-runs', stamp);
+}
+
+async function publisherDebugScreenshot(
+  page: import('playwright').Page,
+  runDir: string | null,
+  label: string
+): Promise<void> {
+  if (!runDir || !ENV.PUBLISHER_DEBUG_SCREENSHOTS) return;
+  await fs.mkdir(runDir, { recursive: true });
+  const safe = label.replace(/[^a-z0-9_-]+/gi, '_');
+  const file = path.join(runDir, `${safe}.png`);
+  await page.screenshot({ path: file, fullPage: true }).catch(() => null);
+  console.log(`[Publisher] debug screenshot ${file}`);
+}
+
+/** Always written on publisher failure (when a page exists), even if step screenshots are off. */
+async function publisherFailureScreenshot(
+  page: import('playwright').Page | null,
+  preferredDir: string | null
+): Promise<void> {
+  if (!page) return;
+  const dir =
+    preferredDir ??
+    path.join(ENV.PROJECT_ROOT, 'artifacts', 'publisher-runs', 'failures', new Date().toISOString().replace(/[:.]/g, '-'));
+  await fs.mkdir(dir, { recursive: true });
+  const file = path.join(dir, 'error.png');
+  await page.screenshot({ path: file, fullPage: true }).catch(() => null);
+  console.log(`[Publisher] failure screenshot ${file}`);
 }
 
 async function captureBoardRowRegionArtifact(
@@ -448,7 +511,7 @@ export async function runObserver() {
 
     const policy = await loadObserverPolicy();
     console.log('Running Observer...');
-    const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: BOT_MAX_WAIT_MS });
     const statusCode = response?.status() ?? 0;
     const diagnostics = await getBoardDiagnostics(page);
     if (statusCode >= 400 || diagnostics.isForbidden) {
@@ -463,7 +526,7 @@ export async function runObserver() {
     const rowsReady = await page
       .locator(BOARD_ROW_SELECTOR)
       .first()
-      .waitFor({ state: 'attached', timeout: 15000 })
+      .waitFor({ state: 'attached', timeout: BOT_MAX_WAIT_MS })
       .then(() => true)
       .catch(() => false);
     if (!rowsReady) {
@@ -660,18 +723,30 @@ export async function runPublisher(force: boolean = false) {
       };
     }
 
+    const debugDir = publisherDebugRunDir();
+    let traceStarted = false;
     const context = await chromium.launchPersistentContext(USER_DATA_DIR, {
       headless: ENV.BROWSER_HEADLESS,
       args: [...CHROMIUM_LAUNCH_ARGS],
       ...sharedBrowserContextOptions()
     });
     await addStealthInitScripts(context);
+    if (debugDir) {
+      await fs.mkdir(debugDir, { recursive: true });
+    }
+    if (debugDir && ENV.PUBLISHER_DEBUG_TRACE) {
+      await context.tracing.start({ screenshots: true, snapshots: true });
+      traceStarted = true;
+    }
 
-    const page = await context.newPage();
-
+    let page: import('playwright').Page | null = null;
     try {
+      page = await context.newPage();
       console.log('Running Publisher...');
-      const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      if (debugDir) {
+        console.log(`[Publisher] debug artifacts dir ${debugDir}`);
+      }
+      const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: BOT_MAX_WAIT_MS });
       const statusCode = response?.status() ?? 0;
       const diagnostics = await getBoardDiagnostics(page);
       if (statusCode >= 400 || diagnostics.isForbidden) {
@@ -697,20 +772,24 @@ export async function runPublisher(force: boolean = false) {
         }
       }
 
+      await publisherDebugScreenshot(page, debugDir, '01-board');
+
       // Step 1: Access Writing Interface
       // Find "글쓰기" button. Usually an <a> tag with text or image
       const writeBtn = page.locator('a:has-text("글쓰기")').first();
       await writeBtn.click();
+      await publisherDebugScreenshot(page, debugDir, '02-write');
 
       // Step 2: Retrieve Draft
       // Click "임시저장된 게시글"
       const draftBtn = page.locator('input[value="임시저장된 게시글"], button:has-text("임시저장된 게시글")');
       await draftBtn.click();
+      await publisherDebugScreenshot(page, debugDir, '03-drafts');
 
       // The drafts appear in a popup or modal. We need to find the specific one.
       // Logic: Find the draft titled `[OTT/멤버십] [SharePlan] 끝까지 관리된 유튜브/코세라 프리미엄 (가입 완료 후 결제)`
       // Select the most recent one.
-      await page.waitForSelector('.popup_layer, .modal', { timeout: 5000 }).catch(() => {});
+      await page.waitForSelector('.popup_layer, .modal', { timeout: BOT_MAX_WAIT_MS }).catch(() => {});
       
       const draftRow = page.locator(`tr:has-text("${REQUIRED_DRAFT_TITLE}")`).first();
       
@@ -718,17 +797,35 @@ export async function runPublisher(force: boolean = false) {
         throw new Error('Draft not found');
       }
 
-      // Step 3: Load & Verify
-      const loadBtn = draftRow.locator('a:has-text("불러오기"), button:has-text("불러오기")').first();
-      if ((await loadBtn.count()) > 0) {
-        await loadBtn.click();
+      // Step 3: Load draft — table row may open a second Tempas modal; real confirm is button.btn_set_tempas.
+      const loadBtnInRow = draftRow.locator('a:has-text("불러오기"), button:has-text("불러오기")').first();
+      if ((await loadBtnInRow.count()) > 0) {
+        await loadBtnInRow.click();
       } else {
         await draftRow.click();
       }
 
+      // Row list also has btn_set_tempas (strict if unscoped). Confirm bar is 불러오기 then 닫기 (see user HTML).
+      const closePreviewBtn = page.locator('button.btn_preview_close').last();
+      await closePreviewBtn.waitFor({ state: 'visible', timeout: BOT_MAX_WAIT_MS });
+      let confirmDraftLoadBtn = closePreviewBtn.locator(
+        'xpath=preceding-sibling::button[contains(@class,"btn_set_tempas")]'
+      );
+      if ((await confirmDraftLoadBtn.count()) === 0) {
+        confirmDraftLoadBtn = closePreviewBtn.locator(
+          'xpath=following-sibling::button[contains(@class,"btn_set_tempas")]'
+        );
+      }
+      if ((await confirmDraftLoadBtn.count()) === 0) {
+        confirmDraftLoadBtn = page.locator('button.btn_set_tempas').filter({ hasText: '불러오기' }).last();
+      }
+      await confirmDraftLoadBtn.waitFor({ state: 'visible', timeout: BOT_MAX_WAIT_MS });
+      await confirmDraftLoadBtn.click();
+
       // Wait for editor to load
       await page.waitForTimeout(2000);
-      
+      await publisherDebugScreenshot(page, debugDir, '04-editor');
+
       // Verify required text is in editor body
       // Ppomppu uses a custom editor, often an iframe or a textarea
       const content = await page.content();
@@ -757,18 +854,39 @@ export async function runPublisher(force: boolean = false) {
         }
       }
 
+      await publisherDebugScreenshot(page, debugDir, '05-before-submit');
+
       // Step 5: Publish
-      const submitBtn = page.locator('input[value="작성완료"], button:has-text("작성완료")');
+      const submitBtn = page.locator('#ok_button, input[value="작성완료"], button:has-text("작성완료")');
       if (ENV.DRY_RUN_MODE) {
         console.log('Dry-run mode enabled. Submit click intentionally skipped.');
         return { success: true, message: 'Publication simulated successfully (DRY_RUN_MODE=true)', log };
       }
 
-      await submitBtn.click();
+      await submitBtn.waitFor({ state: 'attached', timeout: BOT_MAX_WAIT_MS });
+      const boardId = boardIdFromEntryUrl(policy.boardUrl);
+      // Native click + wait until navigation lands on list/view (not compose). Rejects if site shows error and stays on write.
+      await Promise.all([
+        page.waitForURL((u) => isPublishSuccessUrl(u.href, boardId), { timeout: BOT_MAX_WAIT_MS }),
+        submitBtn.evaluate((el: HTMLInputElement | HTMLButtonElement) => {
+          el.click();
+        })
+      ]);
+      await publisherDebugScreenshot(page, debugDir, '06-success');
       console.log('Draft loaded, verified, and submitted.');
-      return { success: true, message: 'Publication submitted successfully', log };
-
+      return {
+        success: true,
+        message: `Publication submitted successfully (verified redirect to ${page.url()})`,
+        log
+      };
+    } catch (innerErr) {
+      await publisherFailureScreenshot(page, debugDir);
+      throw innerErr;
     } finally {
+      if (traceStarted && debugDir) {
+        await context.tracing.stop({ path: path.join(debugDir, 'trace.zip') }).catch(() => null);
+        console.log(`[Publisher] debug trace ${path.join(debugDir, 'trace.zip')}`);
+      }
       await context.close();
     }
   } catch (error: any) {

@@ -5,7 +5,7 @@
     "author_match_mode": "contains_case_insensitive",
     "author_match_value": "shareplan",
     "gap_threshold_min": 5,
-    "parse_confidence_min": 0.9,
+    "parse_confidence_min": 0.8,
     "notice_rows_excluded": true,
     "duplicate_detection_window": "current_page_visible"
   },
