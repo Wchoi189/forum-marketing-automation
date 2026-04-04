@@ -76,6 +76,21 @@
         "shareOfVoice": { "type": "integer", "minimum": 0, "maximum": 100 }
       }
     },
+    "publisherHistoryEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["at", "success", "force", "message"],
+      "properties": {
+        "at": { "type": "string", "format": "date-time" },
+        "success": { "type": "boolean" },
+        "force": { "type": "boolean" },
+        "message": { "type": "string" }
+      }
+    },
+    "publisherHistoryArray": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/publisherHistoryEntry" }
+    },
     "draftItem": {
       "type": "object",
       "additionalProperties": false,
@@ -123,6 +138,119 @@
       "properties": {
         "hour": { "type": "integer", "minimum": 0, "maximum": 23 },
         "avgNewPostsPerHour": { "type": "number", "minimum": 0 }
+      }
+    },
+    "competitorAnalyticsDataHealth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshotCount",
+        "medianGapHours",
+        "largeGapWarning",
+        "fromIso",
+        "toIso",
+        "bucket"
+      ],
+      "properties": {
+        "snapshotCount": { "type": "integer", "minimum": 0 },
+        "medianGapHours": { "type": ["number", "null"] },
+        "largeGapWarning": { "type": "boolean" },
+        "fromIso": { "type": "string" },
+        "toIso": { "type": "string" },
+        "bucket": { "type": "string", "enum": ["hour", "day", "week"] }
+      }
+    },
+    "competitorAnalyticsSummaryRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["author", "postsInRange", "postsPerDay", "totalViews", "rank"],
+      "properties": {
+        "author": { "type": "string" },
+        "postsInRange": { "type": "integer", "minimum": 0 },
+        "postsPerDay": { "type": "number" },
+        "totalViews": { "type": "integer", "minimum": 0 },
+        "rank": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "competitorAnalyticsHeatmapCell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dayOfWeek", "hour", "count"],
+      "properties": {
+        "dayOfWeek": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "hour": { "type": "integer", "minimum": 0, "maximum": 23 },
+        "count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "competitorAnalyticsBotSignals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "author",
+        "postCount",
+        "interArrivalCv",
+        "clockAlignmentScore",
+        "hourEntropy",
+        "circadianUniformity",
+        "burstMaxIn6h",
+        "burstRatio",
+        "heuristicTier"
+      ],
+      "properties": {
+        "author": { "type": "string" },
+        "postCount": { "type": "integer", "minimum": 0 },
+        "interArrivalCv": { "type": ["number", "null"] },
+        "clockAlignmentScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "hourEntropy": { "type": "number", "minimum": 0 },
+        "circadianUniformity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "burstMaxIn6h": { "type": "integer", "minimum": 0 },
+        "burstRatio": { "type": "number", "minimum": 0 },
+        "heuristicTier": { "type": "string", "enum": ["low", "medium", "high"] }
+      }
+    },
+    "competitorAnalyticsPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dataHealth",
+        "timeSeries",
+        "seriesAuthors",
+        "summary",
+        "heatmap",
+        "botSignals",
+        "disclaimer"
+      ],
+      "properties": {
+        "dataHealth": { "$ref": "#/definitions/competitorAnalyticsDataHealth" },
+        "timeSeries": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "seriesAuthors": { "type": "array", "items": { "type": "string" } },
+        "summary": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/competitorAnalyticsSummaryRow" }
+        },
+        "heatmap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "cells"],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["post_date_parsed", "snapshot_hour_only"]
+            },
+            "cells": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/competitorAnalyticsHeatmapCell" }
+            }
+          }
+        },
+        "botSignals": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/competitorAnalyticsBotSignals" }
+        },
+        "disclaimer": { "type": "string" }
       }
     },
     "trendInsights": {

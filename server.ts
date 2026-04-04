@@ -14,6 +14,9 @@ import {
 } from "./bot.js";
 import { ENV } from "./config/env.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
+import { buildCompetitorAnalyticsPayload, parseAnalyticsQuery } from "./lib/competitorAnalytics.js";
+import { readPublisherHistory } from "./lib/publisherHistory.js";
+import { applyScheduleJitter, type ScheduleJitterMode } from "./lib/scheduleJitter.js";
 import { buildTrendInsightsPayload, computeTurnoverAnalysis, trendMultiplierFromAvgRate } from "./lib/trendInsights.js";
 
 type BotDeps = {
@@ -43,6 +46,10 @@ type ControlPanelResponse = {
     trendAdaptiveEnabled: boolean;
     trendWindowDays: number;
     trendRecalibrationDays: number;
+    scheduleJitterPercent: number;
+    scheduleJitterMode: ScheduleJitterMode;
+    /** 0 = off; otherwise blended with trend-based effective interval. */
+    targetPublishIntervalMinutes: number;
     running: boolean;
   };
 };
@@ -61,6 +68,9 @@ type AutoPublisherControls = {
   trendAdaptiveEnabled: boolean;
   trendWindowDays: number;
   trendRecalibrationDays: number;
+  scheduleJitterPercent: number;
+  scheduleJitterMode: ScheduleJitterMode;
+  targetPublishIntervalMinutes: number;
 };
 
 function isHourInRange(hour: number, start: number, end: number): boolean {
@@ -95,7 +105,20 @@ function normalizeAutoPublisherControls(
     activeHoursMultiplier: clampFloat(merged.activeHoursMultiplier, 0.2, 5),
     trendAdaptiveEnabled: Boolean(merged.trendAdaptiveEnabled),
     trendWindowDays: clampInt(merged.trendWindowDays, 1, 60),
-    trendRecalibrationDays: clampInt(merged.trendRecalibrationDays, 1, 30)
+    trendRecalibrationDays: clampInt(merged.trendRecalibrationDays, 1, 30),
+    scheduleJitterPercent: clampInt(
+      typeof merged.scheduleJitterPercent === "number" ? merged.scheduleJitterPercent : base.scheduleJitterPercent,
+      0,
+      50
+    ),
+    scheduleJitterMode: merged.scheduleJitterMode === "none" ? "none" : "uniform",
+    targetPublishIntervalMinutes: clampInt(
+      typeof merged.targetPublishIntervalMinutes === "number"
+        ? merged.targetPublishIntervalMinutes
+        : base.targetPublishIntervalMinutes,
+      0,
+      1440
+    )
   };
 }
 
@@ -120,7 +143,10 @@ const PRESET_CONFIG: Record<
       activeHoursMultiplier: 0.8,
       trendAdaptiveEnabled: true,
       trendWindowDays: 7,
-      trendRecalibrationDays: 7
+      trendRecalibrationDays: 7,
+      scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
+      scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
+      targetPublishIntervalMinutes: 0
     }
   },
   "night-safe": {
@@ -140,7 +166,10 @@ const PRESET_CONFIG: Record<
       activeHoursMultiplier: 0.9,
       trendAdaptiveEnabled: true,
       trendWindowDays: 14,
-      trendRecalibrationDays: 14
+      trendRecalibrationDays: 14,
+      scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
+      scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
+      targetPublishIntervalMinutes: 0
     }
   },
   "day-aggressive": {
@@ -160,7 +189,10 @@ const PRESET_CONFIG: Record<
       activeHoursMultiplier: 0.6,
       trendAdaptiveEnabled: true,
       trendWindowDays: 7,
-      trendRecalibrationDays: 7
+      trendRecalibrationDays: 7,
+      scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
+      scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
+      targetPublishIntervalMinutes: 0
     }
   }
 };
@@ -175,6 +207,28 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   app.get("/api/logs", async (req, res) => {
     const logs = await deps.getLogs();
     res.json(logs);
+  });
+
+  app.get("/api/publisher-history", async (req, res) => {
+    const raw = req.query.limit;
+    const str = Array.isArray(raw) ? raw[0] : raw;
+    const n = str !== undefined ? Number(str) : 40;
+    const limit = Number.isInteger(n) && n >= 1 && n <= 200 ? n : 40;
+    const entries = await readPublisherHistory(limit);
+    res.json(entries);
+  });
+
+  app.get("/api/analytics/competitors", async (req, res) => {
+    const parsed = parseAnalyticsQuery({
+      query: req.query as Record<string, string | string[] | undefined>
+    });
+    if ("error" in parsed) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    const logs = await deps.getLogs();
+    const payload = buildCompetitorAnalyticsPayload(logs, parsed);
+    res.json(payload);
   });
 
   app.get("/api/competitor-stats", async (req, res) => {
@@ -359,6 +413,9 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       trendAdaptiveEnabled: true,
       trendWindowDays: 7,
       trendRecalibrationDays: 7,
+      scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
+      scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
+      targetPublishIntervalMinutes: 0,
       running: false
     };
     const payload: ControlPanelResponse = {
@@ -410,6 +467,9 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       trendAdaptiveEnabled: true,
       trendWindowDays: 7,
       trendRecalibrationDays: 7,
+      scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
+      scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
+      targetPublishIntervalMinutes: 0,
       running: false
     };
     const payload: ControlPanelResponse = {
@@ -438,7 +498,10 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
       activeHoursMultiplier: 0.8,
       trendAdaptiveEnabled: true,
       trendWindowDays: 7,
-      trendRecalibrationDays: 7
+      trendRecalibrationDays: 7,
+      scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
+      scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
+      targetPublishIntervalMinutes: 0
     },
     { ...PRESET_CONFIG.balanced.autoPublisher, baseIntervalMinutes: Math.max(1, intervalMinutes) }
   );
@@ -484,8 +547,12 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
       multiplier *= controls.activeHoursMultiplier;
     }
     multiplier *= await recalcTrendFactor();
-    const effective = controls.baseIntervalMinutes * multiplier;
-    return clampInt(effective, 1, 1440);
+    let effective = clampInt(controls.baseIntervalMinutes * multiplier, 1, 1440);
+    if (controls.targetPublishIntervalMinutes > 0) {
+      const t = controls.targetPublishIntervalMinutes;
+      effective = clampInt(Math.round(effective * 0.5 + t * 0.5), 1, 1440);
+    }
+    return effective;
   };
 
   const tick = async () => {
@@ -511,7 +578,13 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
     if (timer) {
       clearTimeout(timer);
     }
-    const nextMinutes = await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes);
+    const baseMinutes = await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes);
+    const nextMinutes = applyScheduleJitter(
+      baseMinutes,
+      controls.scheduleJitterPercent,
+      controls.scheduleJitterMode,
+      Math.random
+    );
     timer = setTimeout(() => {
       void (async () => {
         await tick();

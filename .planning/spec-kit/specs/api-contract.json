@@ -4,9 +4,21 @@
   "routes": [
     {
       "method": "GET",
+      "path": "/publisher-history",
+      "description": "Recent auto/manual publisher run outcomes with ISO timestamps",
+      "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/publisherHistoryArray"
+    },
+    {
+      "method": "GET",
       "path": "/logs",
       "description": "Fetch ordered activity logs",
       "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/activityLogArray"
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/competitors",
+      "description": "Snapshot-based competitor EDA: time series, summary, heatmap, bot-likeness heuristics",
+      "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/competitorAnalyticsPayload"
     },
     {
       "method": "GET",

@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import type { ActivityLog, Post } from './contracts/models.js';
 import { ENV } from './config/env.js';
+import { appendPublisherHistoryEntry } from './lib/publisherHistory.js';
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
 import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval-polyfill.js';
 
@@ -533,6 +534,48 @@ async function saveLog(log: ActivityLog) {
   await fs.writeFile(LOG_FILE, JSON.stringify(logs.slice(0, 300), null, 2));
 }
 
+/** Prefer board `title` on date cells for HH:mm; else show board text; else observation time (Korean locale). */
+function formatLastPostTimestampDisplay(dateText: string, dateTitleAttr: string, capturedAtIso: string): string {
+  const title = dateTitleAttr?.trim() ?? '';
+  const text = dateText?.trim() ?? '';
+
+  const timeInTitle = title.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+  if (timeInTitle) {
+    const ymd = title.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (ymd) {
+      return `${ymd[1]}-${ymd[2]}-${ymd[3]} ${timeInTitle[1]}`;
+    }
+    const slash = title.match(/(\d{2}\/\d{2}\/\d{2,4})/);
+    if (slash) {
+      return `${slash[1]} ${timeInTitle[1]}`;
+    }
+    if (text && !/\d{1,2}:\d{2}/.test(text)) {
+      return `${text} ${timeInTitle[1]}`;
+    }
+    return timeInTitle[1];
+  }
+
+  if (/\d{1,2}:\d{2}/.test(text)) {
+    return text;
+  }
+
+  const obs = new Date(capturedAtIso);
+  const timeStr = obs.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  if (text && text !== 'N/A') {
+    return `${text} · observed ${timeStr}`;
+  }
+  return `observed ${timeStr}`;
+}
+
+async function recordPublisherRun(force: boolean, success: boolean, message: string): Promise<void> {
+  await appendPublisherHistoryEntry({
+    at: new Date().toISOString(),
+    success,
+    force,
+    message: message.slice(0, 500)
+  }).catch(() => null);
+}
+
 export async function runObserver() {
   if (!observerControls.enabled) {
     const log: ActivityLog = {
@@ -619,6 +662,7 @@ export async function runObserver() {
         title: string;
         author: string;
         date: string;
+        dateTitle: string;
         views: number;
         parseConfidence: number;
         isNotice: boolean;
@@ -652,11 +696,18 @@ export async function runObserver() {
         }
 
         let date = '';
+        let dateTitle = '';
         let dateConfidence = 0;
         for (let i = 0; i < dateSelectors.length; i++) {
-          const value = tr.querySelector(dateSelectors[i])?.textContent?.trim() || '';
+          const el = tr.querySelector(dateSelectors[i]) as HTMLElement | null;
+          const value = el?.textContent?.trim() || '';
           if (value) {
             date = value;
+            dateTitle = el?.getAttribute('title')?.trim() || '';
+            if (!dateTitle) {
+              const nobr = el.querySelector('nobr');
+              dateTitle = nobr?.getAttribute('title')?.trim() || '';
+            }
             dateConfidence = i === 0 ? 1 : 0.75;
             break;
           }
@@ -680,6 +731,7 @@ export async function runObserver() {
           title,
           author,
           date,
+          dateTitle,
           views,
           parseConfidence,
           isNotice:
@@ -733,10 +785,13 @@ export async function runObserver() {
       isNotice
     }));
 
+    const capturedAtIso = new Date().toISOString();
     const log: ActivityLog = {
-      timestamp: new Date().toISOString(),
+      timestamp: capturedAtIso,
       current_gap_count: gap,
-      last_post_timestamp: lastPost?.date || 'N/A',
+      last_post_timestamp: lastPost
+        ? formatLastPostTimestampDisplay(lastPost.date, lastPost.dateTitle ?? '', capturedAtIso)
+        : 'N/A',
       top_competitor_names: competitors,
       view_count_of_last_post: lastPost?.views || 0,
       status,
@@ -774,29 +829,34 @@ export async function runObserver() {
 
 export async function runPublisher(force: boolean = false) {
   let log: ActivityLog | undefined;
+  const finish = async (success: boolean, message: string, outLog?: ActivityLog) => {
+    await recordPublisherRun(force, success, message);
+    return { success, message, log: outLog };
+  };
+
   try {
     const policy = await loadObserverPolicy();
     log = await runObserver();
-    
+
     if (log.status === 'error') {
-      return { success: false, message: log.error || '[Observer] Observer failed', log };
+      return await finish(false, log.error || '[Observer] Observer failed', log);
     }
 
     if (force && !ENV.MANUAL_OVERRIDE_ENABLED) {
-      return {
-        success: false,
-        message: '[Publisher] Manual override is disabled by environment policy (MANUAL_OVERRIDE_ENABLED=false)',
+      return await finish(
+        false,
+        '[Publisher] Manual override is disabled by environment policy (MANUAL_OVERRIDE_ENABLED=false)',
         log
-      };
+      );
     }
 
     if (!force && log.status !== 'safe') {
       console.log('Gap is too small. Skipping publication.');
-      return {
-        success: false,
-        message: log.error || '[Publisher] Gap is too small to publish (safety / gap policy)',
+      return await finish(
+        false,
+        log.error || '[Publisher] Gap is too small to publish (safety / gap policy)',
         log
-      };
+      );
     }
 
     const debugDir = publisherDebugRunDir();
@@ -955,7 +1015,7 @@ export async function runPublisher(force: boolean = false) {
       const submitBtn = page.locator('#ok_button, input[value="작성완료"], button:has-text("작성완료")');
       if (ENV.DRY_RUN_MODE) {
         console.log('Dry-run mode enabled. Submit click intentionally skipped.');
-        return { success: true, message: 'Publication simulated successfully (DRY_RUN_MODE=true)', log };
+        return await finish(true, 'Publication simulated successfully (DRY_RUN_MODE=true)', log);
       }
 
       await submitBtn.waitFor({ state: 'attached', timeout: BOT_MAX_WAIT_MS });
@@ -969,11 +1029,11 @@ export async function runPublisher(force: boolean = false) {
       ]);
       await publisherDebugScreenshot(page, debugDir, '06-success');
       console.log('Draft loaded, verified, and submitted.');
-      return {
-        success: true,
-        message: `Publication submitted successfully (verified redirect to ${page.url()})`,
+      return await finish(
+        true,
+        `Publication submitted successfully (verified redirect to ${page.url()})`,
         log
-      };
+      );
     } catch (innerErr) {
       await publisherFailureScreenshot(page, debugDir);
       throw innerErr;
@@ -986,6 +1046,6 @@ export async function runPublisher(force: boolean = false) {
     }
   } catch (error: any) {
     console.error('Publisher Error:', error);
-    return { success: false, message: `[Publisher] ${String(error?.message ?? error)}`, log };
+    return await finish(false, `[Publisher] ${String(error?.message ?? error)}`, log);
   }
 }

@@ -5,7 +5,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createApp, startScheduler } from "../../server.ts";
 import { validateRuntimeContracts } from "../../config/runtime-validation.ts";
-import type { ActivityLog } from "../../contracts/models.ts";
+import type { ActivityLog, Post } from "../../contracts/models.ts";
+import { applyScheduleJitter } from "../../lib/scheduleJitter.ts";
 
 type BotDeps = NonNullable<Parameters<typeof createApp>[0]>;
 
@@ -350,6 +351,115 @@ test("POST /api/control-panel updates publisher.draftItemIndex", async () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ publisher: { draftItemIndex: 1 } })
     });
+  });
+});
+
+function analyticsFixtureLogs(): ActivityLog[] {
+  const p0: Post = { title: "A", author: "alpha", date: "10:00", views: 5, isNotice: false };
+  const t0 = "2026-02-01T10:00:00.000Z";
+  const t1 = "2026-02-01T14:00:00.000Z";
+  return [
+    { ...createLog("safe"), timestamp: t0, all_posts: [p0] },
+    {
+      ...createLog("safe"),
+      timestamp: t1,
+      all_posts: [
+        p0,
+        { title: "B", author: "beta", date: "12:00", views: 1, isNotice: false }
+      ]
+    }
+  ];
+}
+
+test("GET /api/analytics/competitors returns EDA payload", async () => {
+  const logs = analyticsFixtureLogs();
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    getLogs: async () => logs
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const from = encodeURIComponent("2026-02-01T00:00:00.000Z");
+    const to = encodeURIComponent("2026-02-10T23:59:59.999Z");
+    const res = await fetch(`${baseUrl}/api/analytics/competitors?from=${from}&to=${to}&bucket=day`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      dataHealth: { snapshotCount: number };
+      timeSeries: unknown[];
+      seriesAuthors: string[];
+      summary: { author: string }[];
+      heatmap: { mode: string; cells: unknown[] };
+      botSignals: { author: string; heuristicTier: string }[];
+      disclaimer: string;
+    };
+    assert.ok(body.dataHealth);
+    assert.equal(body.dataHealth.snapshotCount, 2);
+    assert.ok(Array.isArray(body.timeSeries));
+    assert.ok(Array.isArray(body.summary));
+    const beta = body.summary.find((s) => s.author === "beta");
+    assert.ok(beta);
+    assert.ok(Array.isArray(body.botSignals));
+    assert.ok(body.disclaimer.length > 10);
+  });
+});
+
+test("GET /api/analytics/competitors rejects invalid range", async () => {
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    getLogs: async () => []
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const res = await fetch(
+      `${baseUrl}/api/analytics/competitors?from=${encodeURIComponent("2026-06-10T00:00:00.000Z")}&to=${encodeURIComponent("2026-01-01T00:00:00.000Z")}`
+    );
+    assert.equal(res.status, 400);
+  });
+});
+
+test("applyScheduleJitter respects bounds for uniform mode", async () => {
+  assert.equal(applyScheduleJitter(60, 10, "uniform", () => 0), 54);
+  assert.equal(applyScheduleJitter(60, 10, "uniform", () => 1 - Number.EPSILON), 66);
+  assert.equal(applyScheduleJitter(60, 20, "none", () => 0.5), 60);
+});
+
+test("GET /api/publisher-history returns an array", async () => {
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    getLogs: async () => [createLog("safe")]
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/api/publisher-history`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.ok(Array.isArray(body));
+  });
+});
+
+test("GET /api/control-panel includes schedule jitter fields", async () => {
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    getLogs: async () => [createLog("safe")]
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/api/control-panel`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      autoPublisher: {
+        scheduleJitterPercent: number;
+        scheduleJitterMode: string;
+        targetPublishIntervalMinutes: number;
+      };
+    };
+    assert.equal(typeof body.autoPublisher.scheduleJitterPercent, "number");
+    assert.ok(body.autoPublisher.scheduleJitterMode === "none" || body.autoPublisher.scheduleJitterMode === "uniform");
+    assert.equal(typeof body.autoPublisher.targetPublishIntervalMinutes, "number");
   });
 });
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   ShieldCheck, 
   ShieldAlert, 
@@ -25,7 +26,14 @@ import {
   Cell
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
-import type { ActivityLog, BoardStats, CompetitorStat, DraftItem, TrendInsights } from '../contracts/models';
+import type {
+  ActivityLog,
+  BoardStats,
+  CompetitorStat,
+  DraftItem,
+  PublisherHistoryEntry,
+  TrendInsights
+} from '../contracts/models';
 
 /** API errors may already include `[Observer]` / `[Publisher]`; strip one leading tag for readable banner text. */
 function stripTaggedErrorPrefix(text: string) {
@@ -52,6 +60,10 @@ type AutoPublisherControlState = {
   trendAdaptiveEnabled: boolean;
   trendWindowDays: number;
   trendRecalibrationDays: number;
+  scheduleJitterPercent: number;
+  scheduleJitterMode: 'none' | 'uniform';
+  /** 0 = disabled; blended with trend-based interval when > 0. */
+  targetPublishIntervalMinutes: number;
   running: boolean;
 };
 
@@ -91,6 +103,9 @@ const DEFAULT_CONTROL_PANEL: ControlPanelState = {
     trendAdaptiveEnabled: true,
     trendWindowDays: 7,
     trendRecalibrationDays: 7,
+    scheduleJitterPercent: 15,
+    scheduleJitterMode: 'uniform',
+    targetPublishIntervalMinutes: 0,
     running: false
   }
 };
@@ -108,6 +123,7 @@ export default function App() {
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error', text: string, log?: ActivityLog } | null>(null);
 
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
+  const [publisherHistory, setPublisherHistory] = useState<PublisherHistoryEntry[]>([]);
   const [controlPanel, setControlPanel] = useState<ControlPanelState>(DEFAULT_CONTROL_PANEL);
   const [controlSaving, setControlSaving] = useState(false);
 
@@ -175,6 +191,18 @@ export default function App() {
     }
   };
 
+  const fetchPublisherHistory = async () => {
+    try {
+      const response = await fetch('/api/publisher-history?limit=30');
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setPublisherHistory(data as PublisherHistoryEntry[]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch publisher history:', error);
+    }
+  };
+
   const fetchControlPanel = async () => {
     try {
       const response = await fetch('/api/control-panel');
@@ -196,11 +224,13 @@ export default function App() {
     fetchDrafts();
     fetchStats();
     fetchControlPanel();
+    fetchPublisherHistory();
     const interval = setInterval(() => {
       fetchLogs();
       fetchDrafts();
       fetchStats();
       fetchControlPanel();
+      fetchPublisherHistory();
     }, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -261,6 +291,7 @@ export default function App() {
       if (data.success) {
         setActionMessage({ type: 'success', text: `${label} — ${data.message}`, log: data.log });
         fetchLogs();
+        fetchPublisherHistory();
       } else {
         const detail = stripTaggedErrorPrefix(data.error || data.message || 'Publisher failed.');
         setActionMessage({ type: 'error', text: `${label} — ${detail}`, log: data.log });
@@ -294,6 +325,12 @@ export default function App() {
             <h1 className="text-xl font-bold tracking-tight uppercase italic">Ppomppu OTT Bot</h1>
           </div>
           <div className="flex items-center gap-4">
+            <Link
+              to="/analytics"
+              className="px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-sm font-medium"
+            >
+              Competitor EDA
+            </Link>
             <button 
               onClick={runObserver}
               disabled={loading}
@@ -348,14 +385,37 @@ export default function App() {
               <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">Last Post Stats</h2>
               <Clock className="w-4 h-4 opacity-30" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-3">
               <div className="space-y-1">
-                <p className="text-xs opacity-40">Timestamp</p>
-                <p className="text-xl font-mono">{latestLog?.last_post_timestamp || '--:--:--'}</p>
+                <p className="text-xs opacity-40">Last post (board + observed time)</p>
+                <p className="text-base sm:text-lg font-mono leading-snug break-words">
+                  {latestLog?.last_post_timestamp || '—'}
+                </p>
+                <p className="text-[10px] opacity-35 leading-relaxed">
+                  Uses list date cell tooltip when present; otherwise appends observer clock (local). Not the same as publish
+                  time.
+                </p>
               </div>
-              <div className="space-y-1">
-                <p className="text-xs opacity-40">View Count</p>
-                <p className="text-xl font-mono">{latestLog?.view_count_of_last_post || 0}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs opacity-40">View Count</p>
+                  <p className="text-xl font-mono">{latestLog?.view_count_of_last_post || 0}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs opacity-40">Observer snapshot</p>
+                  <p className="text-sm font-mono opacity-90">
+                    {latestLog?.timestamp
+                      ? new Date(latestLog.timestamp).toLocaleString(undefined, {
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          hour12: false
+                        })
+                      : '—'}
+                  </p>
+                </div>
               </div>
             </div>
             <div className="pt-4 border-t border-white/5">
@@ -366,6 +426,43 @@ export default function App() {
                     {name}
                   </span>
                 ))}
+              </div>
+            </div>
+            <div className="pt-4 border-t border-white/5">
+              <p className="text-xs opacity-40 mb-2">Publisher runs (auto + manual)</p>
+              <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                {publisherHistory.length === 0 ? (
+                  <p className="text-[10px] opacity-35">No runs recorded yet.</p>
+                ) : (
+                  publisherHistory.map((row, i) => (
+                    <div
+                      key={`${row.at}-${i}`}
+                      className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[10px] border-b border-white/5 pb-1.5"
+                    >
+                      <span className="font-mono text-orange-300/90 shrink-0">
+                        {new Date(row.at).toLocaleString(undefined, {
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          hour12: false
+                        })}
+                      </span>
+                      <span
+                        className={
+                          row.success ? 'text-emerald-400/90 font-bold uppercase' : 'text-red-400/90 font-bold uppercase'
+                        }
+                      >
+                        {row.success ? 'ok' : 'fail'}
+                      </span>
+                      {row.force && (
+                        <span className="text-[9px] uppercase opacity-50 border border-white/15 px-1 rounded">manual</span>
+                      )}
+                      <span className="opacity-60 break-all">{stripTaggedErrorPrefix(row.message)}</span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </motion.div>
@@ -816,6 +913,65 @@ export default function App() {
                   />
                 </div>
               </div>
+              <label className="block text-xs opacity-60">Schedule jitter (±% around effective interval)</label>
+              <input
+                type="number"
+                min={0}
+                max={50}
+                value={controlPanel.autoPublisher.scheduleJitterPercent}
+                onChange={(e) =>
+                  setControlPanel((current) => ({
+                    ...current,
+                    autoPublisher: {
+                      ...current.autoPublisher,
+                      scheduleJitterPercent: Math.max(0, Math.min(50, Number(e.target.value) || 0))
+                    }
+                  }))
+                }
+                className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+              />
+              <label className="block text-xs opacity-60">Jitter mode</label>
+              <select
+                value={controlPanel.autoPublisher.scheduleJitterMode}
+                onChange={(e) =>
+                  setControlPanel((current) => ({
+                    ...current,
+                    autoPublisher: {
+                      ...current.autoPublisher,
+                      scheduleJitterMode: e.target.value === 'none' ? 'none' : 'uniform'
+                    }
+                  }))
+                }
+                className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+              >
+                <option value="uniform">Uniform random slack</option>
+                <option value="none">None (fixed interval)</option>
+              </select>
+              <p className="text-[10px] opacity-40">
+                Actual delay between auto-publisher runs varies within ±% of the computed effective interval (quiet/active/trend
+                multipliers still apply first).
+              </p>
+              <label className="block text-xs opacity-60">Target publish interval (minutes, 0 = off)</label>
+              <input
+                type="number"
+                min={0}
+                max={1440}
+                value={controlPanel.autoPublisher.targetPublishIntervalMinutes}
+                onChange={(e) =>
+                  setControlPanel((current) => ({
+                    ...current,
+                    autoPublisher: {
+                      ...current.autoPublisher,
+                      targetPublishIntervalMinutes: Math.max(0, Math.min(1440, Number(e.target.value) || 0))
+                    }
+                  }))
+                }
+                className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+              />
+              <p className="text-[10px] opacity-40">
+                When set, blends 50/50 with the trend-adjusted effective interval so you can bias toward a desired cadence while
+                still reacting to how fast new competitor posts appear (trend adaptive must stay on for the dynamic part).
+              </p>
             </div>
           </div>
 

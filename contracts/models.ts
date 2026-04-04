@@ -36,6 +36,14 @@ export interface DraftItem {
   id: string;
 }
 
+/** Append-only log of auto/manual publisher runs (see artifacts/publisher-history.json). */
+export interface PublisherHistoryEntry {
+  at: string;
+  success: boolean;
+  force: boolean;
+  message: string;
+}
+
 export type TrendConfidenceReason =
   | "insufficient_snapshots"
   | "insufficient_pairs"

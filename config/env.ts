@@ -29,6 +29,10 @@ type EnvConfig = {
   PUBLISHER_DEBUG_TRACE: boolean;
   /** Max wait after submit for redirect to board list/view URL (separate from generic bot waits). */
   PUBLISHER_POST_SUBMIT_WAIT_MS: number;
+  /** Default ±% jitter for auto-publisher schedule interval (0–50). */
+  SCHEDULER_JITTER_PERCENT: number;
+  /** Default schedule jitter mode: none | uniform around effective interval. */
+  SCHEDULER_JITTER_MODE: "none" | "uniform";
 };
 
 function requiredString(name: string): string {
@@ -81,6 +85,13 @@ function optionalString(name: string, fallback: string): string {
   return raw && raw.length > 0 ? raw : fallback;
 }
 
+function optionalJitterMode(name: string, fallback: "none" | "uniform"): "none" | "uniform" {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) return fallback;
+  if (raw === "none" || raw === "uniform") return raw;
+  throw new Error(`[ENV] ${name} must be "none" or "uniform"`);
+}
+
 function buildEnv(): EnvConfig {
   const projectRoot = requiredString("PROJECT_ROOT");
   if (!path.isAbsolute(projectRoot)) {
@@ -120,6 +131,8 @@ function buildEnv(): EnvConfig {
     PUBLISHER_DEBUG_SCREENSHOTS: optionalBool("PUBLISHER_DEBUG_SCREENSHOTS", false),
     PUBLISHER_DEBUG_TRACE: optionalBool("PUBLISHER_DEBUG_TRACE", false),
     PUBLISHER_POST_SUBMIT_WAIT_MS: optionalInt("PUBLISHER_POST_SUBMIT_WAIT_MS", 20000, 5000, 120000),
+    SCHEDULER_JITTER_PERCENT: optionalInt("SCHEDULER_JITTER_PERCENT", 15, 0, 50),
+    SCHEDULER_JITTER_MODE: optionalJitterMode("SCHEDULER_JITTER_MODE", "uniform"),
   };
 }
 
