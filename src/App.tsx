@@ -55,9 +55,15 @@ type AutoPublisherControlState = {
   running: boolean;
 };
 
+type PublisherControlState = {
+  /** 1-based item in the saved-drafts table (preview rows between items are skipped automatically). */
+  draftItemIndex: number;
+};
+
 type ControlPanelState = {
   preset: 'balanced' | 'night-safe' | 'day-aggressive';
   observer: ObserverControlState;
+  publisher: PublisherControlState;
   autoPublisher: AutoPublisherControlState;
 };
 
@@ -68,6 +74,9 @@ const DEFAULT_CONTROL_PANEL: ControlPanelState = {
     minPreVisitDelayMs: 0,
     maxPreVisitDelayMs: 0,
     minIntervalBetweenRunsMs: 0
+  },
+  publisher: {
+    draftItemIndex: 1
   },
   autoPublisher: {
     enabled: true,
@@ -170,7 +179,13 @@ export default function App() {
     try {
       const response = await fetch('/api/control-panel');
       const data = await response.json();
-      setControlPanel(data);
+      setControlPanel({
+        ...DEFAULT_CONTROL_PANEL,
+        ...data,
+        observer: { ...DEFAULT_CONTROL_PANEL.observer, ...data.observer },
+        publisher: { ...DEFAULT_CONTROL_PANEL.publisher, ...data.publisher },
+        autoPublisher: { ...DEFAULT_CONTROL_PANEL.autoPublisher, ...data.autoPublisher }
+      });
     } catch (error) {
       console.error('Failed to fetch control panel:', error);
     }
@@ -199,7 +214,13 @@ export default function App() {
         body: JSON.stringify(controlPanel)
       });
       const data = await response.json();
-      setControlPanel(data);
+      setControlPanel({
+        ...DEFAULT_CONTROL_PANEL,
+        ...data,
+        observer: { ...DEFAULT_CONTROL_PANEL.observer, ...data.observer },
+        publisher: { ...DEFAULT_CONTROL_PANEL.publisher, ...data.publisher },
+        autoPublisher: { ...DEFAULT_CONTROL_PANEL.autoPublisher, ...data.autoPublisher }
+      });
       setActionMessage({ type: 'success', text: 'Control panel settings saved.' });
     } catch (error) {
       setActionMessage({ type: 'error', text: 'Control panel save failed (network/API error).' });
@@ -796,6 +817,32 @@ export default function App() {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider opacity-60">Publisher — saved drafts</p>
+            <p className="text-[10px] opacity-50 leading-relaxed">
+              The drafts list alternates each saved post with an empty &quot;Preview&quot; row. Item 1 = first data row, item 2 =
+              third <code className="text-orange-400/90">tr</code>, etc. The configured row must still match the required draft
+              title guard server-side.
+            </p>
+            <label className="block text-xs opacity-60">Draft item number (1-based)</label>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={controlPanel.publisher.draftItemIndex}
+              onChange={(e) =>
+                setControlPanel((current) => ({
+                  ...current,
+                  publisher: {
+                    ...current.publisher,
+                    draftItemIndex: Math.max(1, Math.min(50, Number(e.target.value) || 1))
+                  }
+                }))
+              }
+              className="w-full max-w-xs px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+            />
           </div>
 
           <div className="flex items-center justify-end">

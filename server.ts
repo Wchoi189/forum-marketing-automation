@@ -3,7 +3,15 @@ import path from "path";
 import cors from "cors";
 import { pathToFileURL } from "url";
 import { createServer as createViteServer } from "vite";
-import { getLogs, getObserverControls, runObserver, runPublisher, setObserverControls } from "./bot.js";
+import {
+  getLogs,
+  getObserverControls,
+  getPublisherControls,
+  runObserver,
+  runPublisher,
+  setObserverControls,
+  setPublisherControls
+} from "./bot.js";
 import { ENV } from "./config/env.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
 import { buildTrendInsightsPayload, computeTurnoverAnalysis, trendMultiplierFromAvgRate } from "./lib/trendInsights.js";
@@ -21,6 +29,7 @@ type SchedulerController = ReturnType<typeof startScheduler>;
 type ControlPanelResponse = {
   preset: "balanced" | "night-safe" | "day-aggressive";
   observer: ReturnType<typeof getObserverControls>;
+  publisher: ReturnType<typeof getPublisherControls>;
   autoPublisher: {
     enabled: boolean;
     baseIntervalMinutes: number;
@@ -355,6 +364,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     const payload: ControlPanelResponse = {
       preset: scheduler?.getPreset() ?? "balanced",
       observer: getObserverControls(),
+      publisher: getPublisherControls(),
       autoPublisher: autoPublisherState
     };
     res.json(payload);
@@ -364,10 +374,14 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     const body = (req.body ?? {}) as {
       preset?: ControlPanelPreset;
       observer?: Partial<ReturnType<typeof getObserverControls>>;
+      publisher?: Partial<ReturnType<typeof getPublisherControls>>;
       autoPublisher?: Partial<AutoPublisherControls> & { enabled?: boolean };
     };
 
     let observer = setObserverControls(body.observer ?? {});
+    if (body.publisher && typeof body.publisher === "object") {
+      setPublisherControls(body.publisher);
+    }
 
     if (scheduler && body.preset && PRESET_CONFIG[body.preset]) {
       const presetConfig = PRESET_CONFIG[body.preset];
@@ -401,6 +415,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     const payload: ControlPanelResponse = {
       preset: scheduler?.getPreset() ?? "balanced",
       observer,
+      publisher: getPublisherControls(),
       autoPublisher: autoPublisherState
     };
     res.json(payload);

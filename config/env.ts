@@ -27,6 +27,8 @@ type EnvConfig = {
   PUBLISHER_DEBUG_SCREENSHOTS: boolean;
   /** Playwright trace.zip (open with `npx playwright show-trace <path>`). */
   PUBLISHER_DEBUG_TRACE: boolean;
+  /** Max wait after submit for redirect to board list/view URL (separate from generic bot waits). */
+  PUBLISHER_POST_SUBMIT_WAIT_MS: number;
 };
 
 function requiredString(name: string): string {
@@ -117,6 +119,7 @@ function buildEnv(): EnvConfig {
     MCP_PARSER_MAX_STORED_SNAPSHOTS: optionalInt("MCP_PARSER_MAX_STORED_SNAPSHOTS", 200, 10, 1000),
     PUBLISHER_DEBUG_SCREENSHOTS: optionalBool("PUBLISHER_DEBUG_SCREENSHOTS", false),
     PUBLISHER_DEBUG_TRACE: optionalBool("PUBLISHER_DEBUG_TRACE", false),
+    PUBLISHER_POST_SUBMIT_WAIT_MS: optionalInt("PUBLISHER_POST_SUBMIT_WAIT_MS", 20000, 5000, 120000),
   };
 }
 

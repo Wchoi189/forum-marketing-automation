@@ -272,6 +272,87 @@ test("GET /api/trend-insights trendAdaptiveEnabled=false forces multiplier 1", a
   });
 });
 
+test("isPublishSuccessUrl accepts final view/list URLs and rejects write_ok interim", async () => {
+  const { isPublishSuccessUrl } = await import("../../bot.js");
+  const boardId = "gonggu";
+
+  assert.equal(
+    isPublishSuccessUrl("https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201742&page=1", boardId),
+    true
+  );
+  assert.equal(isPublishSuccessUrl("https://www.ppomppu.co.kr/zboard/zboard.php?id=gonggu", boardId), true);
+
+  assert.equal(
+    isPublishSuccessUrl(
+      "https://www.ppomppu.co.kr/zboard/unlimit_write_ok.php?id=gonggu&no=201742",
+      boardId
+    ),
+    false
+  );
+
+  assert.equal(
+    isPublishSuccessUrl("https://www.ppomppu.co.kr/zboard/view.php?id=other&no=1", boardId),
+    false
+  );
+  assert.equal(
+    isPublishSuccessUrl("https://www.ppomppu.co.kr/zboard/write.php?id=gonggu", boardId),
+    false
+  );
+});
+
+test("GET /api/control-panel includes publisher.draftItemIndex", async () => {
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    getLogs: async () => [createLog("safe")]
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/api/control-panel`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { publisher?: { draftItemIndex?: number } };
+    assert.ok(body.publisher);
+    assert.equal(typeof body.publisher?.draftItemIndex, "number");
+    assert.ok(body.publisher!.draftItemIndex >= 1);
+  });
+});
+
+test("POST /api/control-panel updates publisher.draftItemIndex", async () => {
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    getLogs: async () => [createLog("safe")]
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const reset = await fetch(`${baseUrl}/api/control-panel`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ publisher: { draftItemIndex: 1 } })
+    });
+    assert.equal(reset.status, 200);
+
+    const patch = await fetch(`${baseUrl}/api/control-panel`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ publisher: { draftItemIndex: 3 } })
+    });
+    assert.equal(patch.status, 200);
+    const patched = (await patch.json()) as { publisher: { draftItemIndex: number } };
+    assert.equal(patched.publisher.draftItemIndex, 3);
+
+    const getRes = await fetch(`${baseUrl}/api/control-panel`);
+    const body = (await getRes.json()) as { publisher: { draftItemIndex: number } };
+    assert.equal(body.publisher.draftItemIndex, 3);
+
+    await fetch(`${baseUrl}/api/control-panel`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ publisher: { draftItemIndex: 1 } })
+    });
+  });
+});
+
 test("runtime validation fails when workflow fixture violates schema", async () => {
   const workflowPath = path.join(
     process.env.PROJECT_ROOT || "/parent/marketing-automation",

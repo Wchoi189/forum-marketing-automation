@@ -90,6 +90,15 @@ const observerControls: ObserverControls = {
   minIntervalBetweenRunsMs: 0
 };
 
+export type PublisherControls = {
+  /** 1-based saved-draft item row (alternating item / preview rows use offset automatically). */
+  draftItemIndex: number;
+};
+
+const publisherControls: PublisherControls = {
+  draftItemIndex: 1
+};
+
 let observerRunning = false;
 let lastObserverRunStartedAt = 0;
 
@@ -138,6 +147,20 @@ export function setObserverControls(next: Partial<ObserverControls>): ObserverCo
   return getObserverControls();
 }
 
+export function getPublisherControls(): PublisherControls {
+  return { ...publisherControls };
+}
+
+export function setPublisherControls(next: Partial<PublisherControls>): PublisherControls {
+  publisherControls.draftItemIndex = clampInt(
+    next.draftItemIndex,
+    publisherControls.draftItemIndex,
+    1,
+    50
+  );
+  return getPublisherControls();
+}
+
 async function readPlanningJson<T>(relativePath: string): Promise<T> {
   const filePath = path.join(ENV.PROJECT_ROOT, '.planning', 'spec-kit', relativePath);
   const content = await fs.readFile(filePath, 'utf-8');
@@ -170,7 +193,7 @@ function boardIdFromEntryUrl(boardUrl: string): string {
 }
 
 /** Post-submit landing page for this Zboard (list or view), not the compose screen. */
-function isPublishSuccessUrl(href: string, boardId: string): boolean {
+export function isPublishSuccessUrl(href: string, boardId: string): boolean {
   let u: URL;
   try {
     u = new URL(href);
@@ -180,10 +203,63 @@ function isPublishSuccessUrl(href: string, boardId: string): boolean {
   if (u.searchParams.get('id') !== boardId) return false;
   if (u.searchParams.get('page') === 'write') return false;
   if (/write\.php/i.test(u.pathname)) return false;
-  if (u.searchParams.has('no')) return true;
+  // Interim "ok" page after submit — must not count as success until real list/view.
+  if (/write_ok\.php/i.test(u.pathname)) return false;
   if (u.pathname.includes('zboard.php')) return true;
   if (u.pathname.includes('view.php')) return true;
+  if (u.searchParams.has('no')) return true;
   return false;
+}
+
+/**
+ * After submit, wait until main frame URL is a final board list/view (not compose / write_ok).
+ * Uses domcontentloaded so slow full "load" on the destination cannot false-timeout the waiter.
+ */
+async function waitForPublishLandingUrl(page: import('playwright').Page, boardId: string, timeoutMs: number): Promise<void> {
+  const navigatedUrls: string[] = [];
+  const onNav = (frame: import('playwright').Frame) => {
+    if (frame === page.mainFrame()) {
+      try {
+        navigatedUrls.push(frame.url());
+      } catch {
+        navigatedUrls.push('(url_unavailable)');
+      }
+    }
+  };
+  page.on('framenavigated', onNav);
+  const tailChain = () => navigatedUrls.slice(-12).join(' -> ');
+  try {
+    await page.waitForURL((u) => isPublishSuccessUrl(u.href, boardId), {
+      timeout: timeoutMs,
+      waitUntil: 'domcontentloaded'
+    });
+  } catch (firstErr) {
+    let href = '';
+    try {
+      href = page.url();
+    } catch {
+      href = '(url_unavailable)';
+    }
+    if (isPublishSuccessUrl(href, boardId)) {
+      return;
+    }
+    await page.waitForTimeout(400).catch(() => null);
+    try {
+      href = page.url();
+    } catch {
+      href = '(url_unavailable)';
+    }
+    if (isPublishSuccessUrl(href, boardId)) {
+      return;
+    }
+    const base =
+      firstErr instanceof Error && /timeout/i.test(firstErr.message)
+        ? `PUBLISHER_POST_SUBMIT_TIMEOUT: no final list/view within ${timeoutMs}ms (boardId=${boardId})`
+        : `PUBLISHER_POST_SUBMIT_VERIFY_FAILED: ${String((firstErr as Error)?.message ?? firstErr)}`;
+    throw new Error(`${base} | lastUrl="${href}" | mainFrameNavTail="${tailChain()}"`);
+  } finally {
+    page.off('framenavigated', onNav);
+  }
 }
 
 async function loadObserverPolicy(): Promise<ObserverPolicy> {
@@ -786,15 +862,34 @@ export async function runPublisher(force: boolean = false) {
       await draftBtn.click();
       await publisherDebugScreenshot(page, debugDir, '03-drafts');
 
-      // The drafts appear in a popup or modal. We need to find the specific one.
-      // Logic: Find the draft titled `[OTT/멤버십] [SharePlan] 끝까지 관리된 유튜브/코세라 프리미엄 (가입 완료 후 결제)`
-      // Select the most recent one.
+      // Drafts modal: each saved item is followed by a "Preview" row — pick item N via 0-based tr index (N-1)*2.
+      const { draftItemIndex } = getPublisherControls();
+      const zeroBasedTr = (draftItemIndex - 1) * 2;
+
       await page.waitForSelector('.popup_layer, .modal', { timeout: BOT_MAX_WAIT_MS }).catch(() => {});
-      
-      const draftRow = page.locator(`tr:has-text("${REQUIRED_DRAFT_TITLE}")`).first();
-      
-      if ((await draftRow.count()) === 0) {
-        throw new Error('Draft not found');
+
+      const draftModal = page.locator('.popup_layer:visible').last();
+      await draftModal.waitFor({ state: 'visible', timeout: BOT_MAX_WAIT_MS }).catch(() => {});
+
+      let draftRows = draftModal.locator('table tbody tr');
+      if ((await draftRows.count()) === 0) {
+        const fallbackModal = page.locator('.modal:visible').last();
+        draftRows = fallbackModal.locator('table tbody tr');
+      }
+
+      const rowCount = await draftRows.count();
+      if (zeroBasedTr >= rowCount) {
+        throw new Error(
+          `PUBLISHER_DRAFT_ROW_MISSING: draftItemIndex=${draftItemIndex} needs tbody tr index ${zeroBasedTr} (1-based row ${zeroBasedTr + 1}) but table has ${rowCount} row(s)`
+        );
+      }
+
+      const draftRow = draftRows.nth(zeroBasedTr);
+      const rowText = (await draftRow.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+      if (!rowText.includes(REQUIRED_DRAFT_TITLE)) {
+        throw new Error(
+          `PUBLISHER_DRAFT_TITLE_MISMATCH: draftItemIndex=${draftItemIndex} row must contain required title; rowPreview="${rowText.slice(0, 220)}"`
+        );
       }
 
       // Step 3: Load draft — table row may open a second Tempas modal; real confirm is button.btn_set_tempas.
@@ -865,9 +960,9 @@ export async function runPublisher(force: boolean = false) {
 
       await submitBtn.waitFor({ state: 'attached', timeout: BOT_MAX_WAIT_MS });
       const boardId = boardIdFromEntryUrl(policy.boardUrl);
-      // Native click + wait until navigation lands on list/view (not compose). Rejects if site shows error and stays on write.
+      // Native click + wait until navigation lands on list/view (not compose / write_ok interim).
       await Promise.all([
-        page.waitForURL((u) => isPublishSuccessUrl(u.href, boardId), { timeout: BOT_MAX_WAIT_MS }),
+        waitForPublishLandingUrl(page, boardId, ENV.PUBLISHER_POST_SUBMIT_WAIT_MS),
         submitBtn.evaluate((el: HTMLInputElement | HTMLButtonElement) => {
           el.click();
         })
