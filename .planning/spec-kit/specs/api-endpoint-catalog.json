@@ -1,0 +1,80 @@
+{
+  "spec_id": "api-endpoint-catalog-v1",
+  "purpose": "Human-readable API index with semantic intent and UI consumers.",
+  "base_path": "/api",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/logs",
+      "intent": "Expose observer snapshots for safety state and diagnostics.",
+      "consumed_by": ["/"],
+      "failure_mode": "Return empty array on no history."
+    },
+    {
+      "method": "GET",
+      "path": "/publisher-history",
+      "intent": "Expose outcome trail of publisher runs (auto/manual).",
+      "consumed_by": ["/"]
+    },
+    {
+      "method": "GET",
+      "path": "/competitor-stats",
+      "intent": "Provide short-window competitor ranking metrics.",
+      "consumed_by": ["/"]
+    },
+    {
+      "method": "GET",
+      "path": "/board-stats",
+      "intent": "Provide turnover and share-of-voice indicators.",
+      "consumed_by": ["/"]
+    },
+    {
+      "method": "GET",
+      "path": "/trend-insights",
+      "intent": "Provide scheduling guidance using activity trends.",
+      "consumed_by": ["/"]
+    },
+    {
+      "method": "GET",
+      "path": "/drafts",
+      "intent": "Provide draft visibility for operator confidence.",
+      "consumed_by": ["/"]
+    },
+    {
+      "method": "POST",
+      "path": "/run-observer",
+      "intent": "Trigger observer run and return fail-closed status.",
+      "consumed_by": ["/"],
+      "failure_mode": "500 with observer-tagged error payload."
+    },
+    {
+      "method": "POST",
+      "path": "/run-publisher",
+      "intent": "Trigger publish sequence with optional force override.",
+      "consumed_by": ["/"],
+      "failure_mode": "500 when policy or post-submit verification fails."
+    },
+    {
+      "method": "GET",
+      "path": "/control-panel",
+      "intent": "Read effective runtime controls and scheduler state.",
+      "consumed_by": ["/"]
+    },
+    {
+      "method": "POST",
+      "path": "/control-panel",
+      "intent": "Update observer/publisher/scheduler controls with guardrails.",
+      "consumed_by": ["/"]
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/competitors",
+      "intent": "Return analytic payload for competitor EDA workflows.",
+      "consumed_by": ["/analytics"]
+    }
+  ],
+  "alignment_notes": [
+    "This catalog complements api-contract.json; api-contract remains schema-authoritative.",
+    "When adding/removing endpoints, update both files in the same change."
+  ]
+}

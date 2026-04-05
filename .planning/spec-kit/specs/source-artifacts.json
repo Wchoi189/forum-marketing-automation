@@ -1,5 +1,8 @@
 {
   "artifact_set_id": "ppomppu-source-artifacts-v1",
+  "purpose": "Register non-code source inputs used to derive project contracts and workflows.",
+  "design_intent": "Preserve provenance for planning assumptions and audit traceability.",
+  "change_impact": "Artifact updates may require contract or policy revalidation.",
   "generated_at": "2026-03-31T00:00:00Z",
   "artifacts": [
     {

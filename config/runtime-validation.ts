@@ -173,6 +173,32 @@ export async function validateRuntimeContracts(): Promise<void> {
 
   const routes = (apiContract.routes ?? []) as JsonObject[];
   assert(Array.isArray(routes) && routes.length > 0, 'api-contract.json routes must contain at least one route');
+  const routeKey = (method: string, path: string) => `${method.toUpperCase()} ${path}`;
+  const routeKeys = new Set(
+    routes
+      .map((r) => {
+        const method = typeof r.method === 'string' ? r.method : '';
+        const routePath = typeof r.path === 'string' ? r.path : '';
+        return method && routePath ? routeKey(method, routePath) : '';
+      })
+      .filter(Boolean)
+  );
+  const requiredApiRouteKeys = [
+    'GET /publisher-history',
+    'GET /logs',
+    'GET /analytics/competitors',
+    'GET /competitor-stats',
+    'GET /board-stats',
+    'GET /trend-insights',
+    'GET /drafts',
+    'POST /run-observer',
+    'POST /run-publisher',
+    'GET /control-panel',
+    'POST /control-panel'
+  ];
+  for (const requiredRoute of requiredApiRouteKeys) {
+    assert(routeKeys.has(requiredRoute), `api-contract.json missing required route: ${requiredRoute}`);
+  }
   for (const route of routes) {
     const responseSchemaRef = route.response_schema_ref;
     assert(

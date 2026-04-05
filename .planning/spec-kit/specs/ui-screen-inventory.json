@@ -1,0 +1,46 @@
+{
+  "spec_id": "ui-screen-inventory-v1",
+  "purpose": "Declarative inventory of screen regions, semantics, and primary user decisions.",
+  "screens": [
+    {
+      "screen_id": "dashboard_current",
+      "route": "/",
+      "primary_decision": "Should we publish now or wait?",
+      "regions": [
+        { "id": "safety_status", "meaning": "Current publish safety state from latest observer snapshot." },
+        { "id": "last_post_stats", "meaning": "Operational context of last observed board state." },
+        { "id": "trend_insights", "meaning": "Traffic dynamics and interval guidance." },
+        { "id": "runtime_control_panel", "meaning": "Operator policy controls for observer and scheduler." },
+        { "id": "competitor_intelligence", "meaning": "Weekly competitor positioning snapshot." },
+        { "id": "activity_history", "meaning": "Timeline of observer outcomes and diagnostics." },
+        { "id": "draft_status", "meaning": "Draft readiness and publication preconditions." }
+      ],
+      "data_dependencies": [
+        "/api/logs",
+        "/api/board-stats",
+        "/api/competitor-stats",
+        "/api/trend-insights",
+        "/api/control-panel",
+        "/api/publisher-history",
+        "/api/drafts"
+      ],
+      "decomposition_priority": "high"
+    },
+    {
+      "screen_id": "analytics_competitors",
+      "route": "/analytics",
+      "primary_decision": "Who drives board activity and when?",
+      "regions": [
+        { "id": "filters", "meaning": "Query and data quality boundaries." },
+        { "id": "new_posts_series", "meaning": "Volume and timing across selected bucket." },
+        { "id": "summary_table", "meaning": "Comparable author output metrics." },
+        { "id": "activity_heatmap", "meaning": "Circadian activity pattern distribution." },
+        { "id": "bot_heuristics", "meaning": "Risk signals requiring human interpretation." }
+      ],
+      "data_dependencies": [
+        "/api/analytics/competitors"
+      ],
+      "decomposition_priority": "medium"
+    }
+  ]
+}

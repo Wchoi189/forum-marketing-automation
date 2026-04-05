@@ -1,5 +1,8 @@
 {
   "contract_id": "express-api-v1",
+  "purpose": "Declare API surface and schema references for UI and automation consumers.",
+  "design_intent": "Keep endpoint behavior contract-first and detectable under drift.",
+  "change_impact": "Route/schema changes must be coordinated with server handlers, UI fetchers, and tests.",
   "base_path": "/api",
   "routes": [
     {
@@ -57,6 +60,19 @@
       "description": "Trigger publisher module with optional force override",
       "request_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/publisherRunRequest",
       "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/publisherRunResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/control-panel",
+      "description": "Fetch effective observer, publisher, and scheduler controls",
+      "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/controlPanelResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/control-panel",
+      "description": "Update observer, publisher, and scheduler controls",
+      "request_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/controlPanelRequest",
+      "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/controlPanelResponse"
     }
   ]
 }

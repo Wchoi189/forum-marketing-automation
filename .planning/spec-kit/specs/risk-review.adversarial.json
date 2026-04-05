@@ -1,5 +1,8 @@
 {
   "review_id": "adversarial-review-v1",
+  "purpose": "Capture misuse and operational abuse risks with required mitigations.",
+  "design_intent": "Keep threat assumptions explicit so safeguards survive refactors.",
+  "change_impact": "Risk model updates affect security posture and policy enforcement priorities.",
   "focus": "operational_and_misuse_risks",
   "risks": [
     {

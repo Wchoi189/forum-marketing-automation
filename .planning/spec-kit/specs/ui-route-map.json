@@ -1,0 +1,49 @@
+{
+  "spec_id": "ui-route-map-v1",
+  "purpose": "Thin-copy map of UI routes for external review and redesign planning.",
+  "design_intent": "Move from a single overgrown dashboard to a page-oriented SaaS layout with a persistent app shell.",
+  "app_shell_target": {
+    "left_navigation": true,
+    "top_bar": true,
+    "content_region": "route_outlet"
+  },
+  "current_routes": [
+    {
+      "path": "/",
+      "name": "Dashboard",
+      "status": "active",
+      "current_role": "monolithic_control_surface",
+      "main_capabilities": [
+        "observer_and_publisher_actions",
+        "runtime_control_panel",
+        "trend_and_competitor_views",
+        "logs_and_draft_status"
+      ],
+      "risk_note": "High coupling due to many concerns in one page."
+    },
+    {
+      "path": "/analytics",
+      "name": "Competitor EDA",
+      "status": "active",
+      "current_role": "analytics_workspace",
+      "main_capabilities": [
+        "time_series",
+        "heatmap",
+        "summary_table",
+        "bot_likeness_heuristics"
+      ],
+      "risk_note": "Good page boundary; reusable charts can be extracted."
+    }
+  ],
+  "target_routes": [
+    { "path": "/overview", "name": "Overview", "source": "/" },
+    { "path": "/operations", "name": "Operations", "source": "/" },
+    { "path": "/controls", "name": "Runtime Controls", "source": "/" },
+    { "path": "/publisher-runs", "name": "Publisher Runs", "source": "/" },
+    { "path": "/analytics", "name": "Competitor EDA", "source": "/analytics" }
+  ],
+  "notes": [
+    "Phase 1 keeps API contracts stable and focuses on UI decomposition.",
+    "Navigation labels should map to user decisions, not implementation terms."
+  ]
+}

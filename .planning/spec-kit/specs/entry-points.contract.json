@@ -1,5 +1,8 @@
 {
   "contract_id": "entry-points-v1",
+  "purpose": "Declare allowed runtime entry points and mandatory execution metadata.",
+  "design_intent": "Prevent implicit flows by forcing explicit trigger/mode/precondition declarations.",
+  "change_impact": "Entry-point changes affect API invocations, scheduler ticks, and audit traceability.",
   "required_entry_fields": [
     "name",
     "trigger",

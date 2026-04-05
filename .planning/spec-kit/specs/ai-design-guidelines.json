@@ -1,0 +1,27 @@
+{
+  "spec_id": "ai-design-guidelines-v1",
+  "purpose": "Compact guidelines for semantic specs, SaaS-style UI design, and AI-assisted implementation.",
+  "semantic_spec_rules": [
+    "Each spec must include purpose, design_intent, and change_impact in short form.",
+    "Prefer structured fields over long prose; include why, not just what.",
+    "For every critical workflow, document the failure_prevention_reason."
+  ],
+  "ui_design_principles": [
+    "One page, one primary operator decision.",
+    "Use persistent left navigation for capability discovery and context retention.",
+    "Separate data orchestration from rendering components.",
+    "Use progressive disclosure: show core KPIs first, advanced controls second.",
+    "Keep dangerous actions explicit, gated, and reversible when possible."
+  ],
+  "ai_friendly_dev_guidelines": [
+    "Use feature-slice structure: route, hook, API client, UI components, tests.",
+    "Keep contracts as source of truth and update specs in the same commit scope.",
+    "Write acceptance criteria as checklist-style JSON fields for machine execution.",
+    "Constrain AI changes with boundary files (contracts, module-boundaries, route-map).",
+    "Avoid over-documentation: 5-10 high-signal fields per spec are preferred."
+  ],
+  "change_impact": {
+    "who_benefits": ["external_reviewers", "ai_agents", "future_maintainers"],
+    "expected_result": "Faster audits, safer refactors, and better autonomous planning with less context drift."
+  }
+}

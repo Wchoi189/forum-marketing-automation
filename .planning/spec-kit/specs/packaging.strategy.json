@@ -1,5 +1,8 @@
 {
   "strategy_id": "packaging-strategy-v1",
+  "purpose": "Describe current delivery mode and bounded path to desktop packaging.",
+  "design_intent": "Delay packaging complexity until distribution goals justify added surface area.",
+  "change_impact": "Packaging changes affect deployment workflow, path handling, and runtime assumptions.",
   "current_stack": "node-react-playwright",
   "mvp_mode": {
     "distribution": "local_node_app",

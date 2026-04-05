@@ -131,6 +131,125 @@
         "log": { "$ref": "#/definitions/activityLog" }
       }
     },
+    "observerControls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "minPreVisitDelayMs",
+        "maxPreVisitDelayMs",
+        "minIntervalBetweenRunsMs"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minPreVisitDelayMs": { "type": "integer", "minimum": 0, "maximum": 120000 },
+        "maxPreVisitDelayMs": { "type": "integer", "minimum": 0, "maximum": 120000 },
+        "minIntervalBetweenRunsMs": { "type": "integer", "minimum": 0, "maximum": 3600000 }
+      }
+    },
+    "publisherControls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["draftItemIndex"],
+      "properties": {
+        "draftItemIndex": { "type": "integer", "minimum": 1, "maximum": 50 }
+      }
+    },
+    "autoPublisherControls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "baseIntervalMinutes",
+        "effectiveIntervalMinutes",
+        "quietHoursStart",
+        "quietHoursEnd",
+        "quietHoursMultiplier",
+        "activeHoursStart",
+        "activeHoursEnd",
+        "activeHoursMultiplier",
+        "trendAdaptiveEnabled",
+        "trendWindowDays",
+        "trendRecalibrationDays",
+        "scheduleJitterPercent",
+        "scheduleJitterMode",
+        "targetPublishIntervalMinutes",
+        "running"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "baseIntervalMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 },
+        "effectiveIntervalMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 },
+        "quietHoursStart": { "type": "integer", "minimum": 0, "maximum": 23 },
+        "quietHoursEnd": { "type": "integer", "minimum": 0, "maximum": 23 },
+        "quietHoursMultiplier": { "type": "number", "minimum": 0.2, "maximum": 5 },
+        "activeHoursStart": { "type": "integer", "minimum": 0, "maximum": 23 },
+        "activeHoursEnd": { "type": "integer", "minimum": 0, "maximum": 23 },
+        "activeHoursMultiplier": { "type": "number", "minimum": 0.2, "maximum": 5 },
+        "trendAdaptiveEnabled": { "type": "boolean" },
+        "trendWindowDays": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "trendRecalibrationDays": { "type": "integer", "minimum": 1, "maximum": 30 },
+        "scheduleJitterPercent": { "type": "integer", "minimum": 0, "maximum": 50 },
+        "scheduleJitterMode": { "type": "string", "enum": ["none", "uniform"] },
+        "targetPublishIntervalMinutes": { "type": "integer", "minimum": 0, "maximum": 1440 },
+        "running": { "type": "boolean" }
+      }
+    },
+    "controlPanelResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preset", "observer", "publisher", "autoPublisher"],
+      "properties": {
+        "preset": { "type": "string", "enum": ["balanced", "night-safe", "day-aggressive"] },
+        "observer": { "$ref": "#/definitions/observerControls" },
+        "publisher": { "$ref": "#/definitions/publisherControls" },
+        "autoPublisher": { "$ref": "#/definitions/autoPublisherControls" }
+      }
+    },
+    "controlPanelRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preset": { "type": "string", "enum": ["balanced", "night-safe", "day-aggressive"] },
+        "observer": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minPreVisitDelayMs": { "type": "integer" },
+            "maxPreVisitDelayMs": { "type": "integer" },
+            "minIntervalBetweenRunsMs": { "type": "integer" }
+          }
+        },
+        "publisher": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "draftItemIndex": { "type": "integer" }
+          }
+        },
+        "autoPublisher": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "baseIntervalMinutes": { "type": "integer" },
+            "quietHoursStart": { "type": "integer" },
+            "quietHoursEnd": { "type": "integer" },
+            "quietHoursMultiplier": { "type": "number" },
+            "activeHoursStart": { "type": "integer" },
+            "activeHoursEnd": { "type": "integer" },
+            "activeHoursMultiplier": { "type": "number" },
+            "trendAdaptiveEnabled": { "type": "boolean" },
+            "trendWindowDays": { "type": "integer" },
+            "trendRecalibrationDays": { "type": "integer" },
+            "scheduleJitterPercent": { "type": "integer" },
+            "scheduleJitterMode": { "type": "string", "enum": ["none", "uniform"] },
+            "targetPublishIntervalMinutes": { "type": "integer" }
+          }
+        }
+      }
+    },
     "trendHourlyBucket": {
       "type": "object",
       "additionalProperties": false,

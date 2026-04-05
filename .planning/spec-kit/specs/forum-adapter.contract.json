@@ -1,5 +1,8 @@
 {
   "contract_id": "forum-adapter-v1",
+  "purpose": "Define adapter boundary between core engine and forum-specific DOM behavior.",
+  "design_intent": "Keep site selectors and interaction volatility isolated from core decision logic.",
+  "change_impact": "Adapter contract changes can break observer/publisher compatibility across forums.",
   "interface_name": "ForumAdapter",
   "required_methods": [
     {

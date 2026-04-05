@@ -1,5 +1,8 @@
 {
   "ruleset_id": "observer-publisher-rules-v1",
+  "purpose": "Define policy gates that decide publish, delay, or manual review outcomes.",
+  "design_intent": "Encode safe automation behavior as explicit conditions, not hidden code assumptions.",
+  "change_impact": "Rule updates directly influence publish eligibility and operational risk profile.",
   "scope": "ppomppu-gonggu-v1",
   "observer_rules": {
     "author_match_mode": "contains_case_insensitive",

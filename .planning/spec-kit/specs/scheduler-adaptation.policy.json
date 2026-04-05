@@ -1,5 +1,8 @@
 {
   "policy_id": "scheduler-adaptation-v1",
+  "purpose": "Define how scheduler intervals adapt using trend signals and control-panel precedence.",
+  "design_intent": "Keep cadence changes bounded, predictable, and operator-overridable.",
+  "change_impact": "Policy updates can materially change publish frequency and exposure risk.",
   "analytics_contract_ref": "analytics-trend.contract.json",
   "precedence": [
     "manual_override_force_on_publish",

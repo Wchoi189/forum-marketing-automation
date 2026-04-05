@@ -7,14 +7,15 @@ scope:
 principles:
   - spec_first
   - contracts_over_prose
+  - semantic_intent_required
   - strict_validation
   - multi_forum_ready
 constraints:
   docs:
-    audience: ai_only
+    audience: ai_primary_with_reviewer_pack
     formats:
       preferred: [json, yaml]
-      allowed_markdown: constraints_only
+      allowed_markdown: constraints_and_short_references
     forbid:
       - tutorials
       - user_manuals
@@ -47,3 +48,6 @@ governance:
 ---
 
 This file defines non-user-facing constraints for the Ppomppu automation project.
+
+Semantic intent is required for autonomy: each contract set should explain why it exists,
+what decision it protects, and what failure it prevents. Keep this short and structured.

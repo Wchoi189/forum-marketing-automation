@@ -1,5 +1,8 @@
 {
   "review_id": "edge-case-review-v1",
+  "purpose": "Track operational edge cases that require explicit guards in implementation.",
+  "design_intent": "Pre-commit known weak spots so automation fails safely under drift.",
+  "change_impact": "Findings guide guardrail priorities and targeted regression test additions.",
   "method": "edge-case-hunter",
   "findings": [
     {

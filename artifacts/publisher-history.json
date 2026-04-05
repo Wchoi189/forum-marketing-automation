@@ -1,5 +1,71 @@
 [
   {
+    "at": "2026-04-05T10:50:05.355Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201882&page=1&slave=off)"
+  },
+  {
+    "at": "2026-04-05T10:32:48.386Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)"
+  },
+  {
+    "at": "2026-04-05T10:31:51.988Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)"
+  },
+  {
+    "at": "2026-04-05T10:31:42.542Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)"
+  },
+  {
+    "at": "2026-04-05T10:30:52.326Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)"
+  },
+  {
+    "at": "2026-04-05T10:29:04.445Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201875&page=1&slave=off)"
+  },
+  {
+    "at": "2026-04-05T10:21:44.684Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)"
+  },
+  {
+    "at": "2026-04-05T09:56:35.173Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201869&page=1&slave=off)"
+  },
+  {
+    "at": "2026-04-05T08:14:24.904Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)"
+  },
+  {
+    "at": "2026-04-05T08:06:43.061Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201853&page=1&slave=off)"
+  },
+  {
+    "at": "2026-04-05T07:16:44.336Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201843&page=1&slave=off)"
+  },
+  {
     "at": "2026-04-04T18:30:53.851Z",
     "success": true,
     "force": false,

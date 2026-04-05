@@ -10,7 +10,13 @@
       "id": "planning_ai_only",
       "path": ".planning/spec-kit",
       "allowed_formats": ["json", "yaml", "md", "txt"],
-      "notes": "markdown limited to constraints and short references"
+      "notes": "ai-primary docs with a compact reviewer pack; markdown limited to constraints and short references"
+    },
+    {
+      "id": "planning_semantic_specs",
+      "path": ".planning/spec-kit/specs",
+      "allowed_formats": ["json", "md"],
+      "notes": "each spec should include intent fields (purpose/design_intent/change_impact) with concise semantics"
     },
     {
       "id": "agent_state_container",

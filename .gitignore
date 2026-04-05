@@ -1,3 +1,33 @@
 # Ppomppu OTT Bot Activity Log
 activity_log.json
 ppomppu_profile/
+# Bot / local runtime (project-specific)
+activity_log.json
+ppomppu_profile/
+
+# Dependencies & build
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Secrets (redundant with many global gitignores; safe to keep)
+.env
+.env.*
+!.env.example
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Optional: generated publisher artifacts (adjust if you version some paths)
+artifacts/publisher-runs/

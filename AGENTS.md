@@ -7,6 +7,14 @@ This project runs a Playwright-based observer/publisher workflow for the Ppomppu
 - Preserve contract alignment between runtime code and spec-kit manifests.
 - Avoid silent regressions in publisher steps (draft load, modal confirm, submit, redirect verification).
 
+## Semantic Spec Goals
+- Keep specs machine-readable and semantically meaningful.
+- Every major spec should state:
+  - `purpose` (why this spec exists),
+  - `design_intent` (what decision it protects),
+  - `change_impact` (who/what is affected by changes).
+- Prefer concise structured fields over long prose.
+
 ## Environment Variable Ground Rules
 - Canonical runtime parsing/validation lives in `config/env.ts`.
 - Canonical contract list lives in `.agent/contracts/env.contract.json`.
@@ -33,6 +41,17 @@ This project runs a Playwright-based observer/publisher workflow for the Ppomppu
 - Prefer stable class/text combinations and scoped locators over absolute XPath.
 - Use XPath only as a scoped fallback when sibling relationships are the only reliable signal.
 - Keep locators resilient to duplicated labels in list rows/modals.
+
+## UI Refactor Guidelines
+- Target a SaaS-style app shell with persistent left navigation and route-driven pages.
+- Use "one page, one primary decision" to reduce dashboard sprawl.
+- Keep data orchestration in hooks/containers and rendering in presentational components.
+- Preserve existing API behavior during UI decomposition unless explicitly changing contracts.
+
+## AI-Friendly Development Guidelines
+- Use feature-slice changes (route + state + API usage + tests + spec update).
+- Update reviewer-pack docs in `.planning/spec-kit/specs/` with runtime-facing changes.
+- Favor deterministic acceptance criteria and explicit failure behavior over vague narratives.
 
 ## Regression Prevention Checklist (Agents)
 - Run `npm run lint` after code edits.

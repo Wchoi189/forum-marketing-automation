@@ -3,7 +3,7 @@
   "project_id": "ppomppu-ott-bot",
   "architecture_id": "ppomppu-ott-bot-arch-v1",
   "runtime_stack": {
-    "frontend": "react18+vite+tailwind+motion+recharts",
+    "frontend": "react19+vite+tailwind+motion+recharts",
     "backend": "express+tsx",
     "bot": "playwright+node",
     "storage": "json-file"

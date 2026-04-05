@@ -10,6 +10,11 @@
     { "id": "T-007", "name": "Define shared data model contract", "status": "done" },
     { "id": "T-008", "name": "Define env variable contract and schema", "status": "done" },
     { "id": "T-009", "name": "Define execution loop and handover template", "status": "done" },
-    { "id": "T-010", "name": "Create integration test plan", "status": "done" }
+    { "id": "T-010", "name": "Create integration test plan", "status": "done" },
+    { "id": "T-011", "name": "Add semantic reviewer-pack specs", "status": "done" },
+    { "id": "T-012", "name": "Add UI route/screen/module planning docs", "status": "done" },
+    { "id": "T-013", "name": "Integrate AI-friendly design guidelines into docs", "status": "done" },
+    { "id": "T-014", "name": "Standardize semantic intent fields across legacy specs", "status": "done" },
+    { "id": "T-015", "name": "Add autonomy workflow pro tips document", "status": "done" }
   ]
 }

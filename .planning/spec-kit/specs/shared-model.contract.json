@@ -1,5 +1,8 @@
 {
   "contract_id": "shared-model-v1",
+  "purpose": "Declare shared domain model set used across bot, API, and UI boundaries.",
+  "design_intent": "Preserve a single semantic model vocabulary across runtime layers.",
+  "change_impact": "Model list/policy changes can cascade into contracts, serializers, and UI assumptions.",
   "canonical_source": ".agent/contracts/activity-log.contract.json",
   "typescript_targets": [
     "bot.ts",
@@ -11,7 +14,10 @@
     "ActivityLog",
     "CompetitorStat",
     "BoardStats",
-    "DraftItem"
+    "DraftItem",
+    "PublisherHistoryEntry",
+    "TrendInsights",
+    "ControlPanelResponse"
   ],
   "policy": {
     "single_source_of_truth": true,

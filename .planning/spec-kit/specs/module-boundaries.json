@@ -1,0 +1,45 @@
+{
+  "spec_id": "module-boundaries-v1",
+  "purpose": "Describe module responsibilities and dependency boundaries for safer refactors.",
+  "modules": [
+    {
+      "module_id": "ui_app",
+      "paths": ["src/"],
+      "responsibility": "Render operator UI and interact with API contracts.",
+      "allowed_dependencies": ["contracts/*", "browser_fetch_api"],
+      "forbidden_dependencies": ["playwright_runtime", "filesystem_direct_write"]
+    },
+    {
+      "module_id": "api_server",
+      "paths": ["server.ts"],
+      "responsibility": "Expose HTTP endpoints and orchestrate bot/analytics services.",
+      "allowed_dependencies": ["bot_runtime", "lib/*", "config/*", "contracts/*"]
+    },
+    {
+      "module_id": "bot_runtime",
+      "paths": ["bot.ts"],
+      "responsibility": "Execute observer and publisher automation with fail-closed guards.",
+      "allowed_dependencies": ["playwright", "config/*", "lib/parser/*", "contracts/*", "planning_specs_readonly"]
+    },
+    {
+      "module_id": "analytics_lib",
+      "paths": ["lib/competitorAnalytics.ts", "lib/trendInsights.ts"],
+      "responsibility": "Transform activity logs into analytics payloads and guidance.",
+      "allowed_dependencies": ["contracts/*"]
+    },
+    {
+      "module_id": "contracts_and_validation",
+      "paths": [".agent/contracts/", ".planning/spec-kit/manifest/schemas/", "config/runtime-validation.ts"],
+      "responsibility": "Define and validate runtime and data contracts."
+    }
+  ],
+  "modularity_assessment": {
+    "ui": "low_to_medium",
+    "backend": "medium_to_high",
+    "contracts": "high"
+  },
+  "refactor_policy": [
+    "Prefer extracting by feature slice: route + state + API clients + presentational components.",
+    "Preserve fail-closed automation and contract validation during UI refactors."
+  ]
+}

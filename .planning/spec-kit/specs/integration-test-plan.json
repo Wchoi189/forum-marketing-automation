@@ -1,5 +1,8 @@
 {
   "plan_id": "integration-test-plan-v1",
+  "purpose": "Define cross-layer regression checks for bot, API, and UI contract behavior.",
+  "design_intent": "Catch contract drift and fail-closed regressions before release.",
+  "change_impact": "Scenario updates influence release confidence and test coverage boundaries.",
   "scope": "bot_to_api_to_ui",
   "scenarios": [
     {

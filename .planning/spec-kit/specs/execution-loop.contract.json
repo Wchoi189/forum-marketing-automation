@@ -1,5 +1,8 @@
 {
   "contract_id": "execution-loop-v1",
+  "purpose": "Define deterministic runtime orchestration from trigger to persisted outcome.",
+  "design_intent": "Keep automation fail-closed with explicit state transitions and guarded publishing.",
+  "change_impact": "Changes alter scheduler/API behavior and should be reviewed against decision rules and tests.",
   "run_context": {
     "required_fields": [
       "run_id",

@@ -1,5 +1,8 @@
 {
   "contract_id": "workflow-import-v1",
+  "purpose": "Constrain workflow manifest imports to known-safe structure and lifecycle states.",
+  "design_intent": "Block malformed workflow configs before runtime to reduce policy drift.",
+  "change_impact": "Import contract changes affect manifest onboarding and startup validation behavior.",
   "supported_formats": ["json"],
   "validation_schema": "../manifest/schemas/workflow.schema.json",
   "workflow_required_fields": [

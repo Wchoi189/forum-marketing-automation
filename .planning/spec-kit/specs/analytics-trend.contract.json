@@ -1,5 +1,8 @@
 {
   "contract_id": "analytics-trend-v1",
+  "purpose": "Specify trend analytics derivation from activity logs and confidence semantics.",
+  "design_intent": "Make scheduler guidance explainable through stable, contract-defined metrics.",
+  "change_impact": "Metric or confidence changes alter interval recommendations and operator interpretation.",
   "data_source": "activity_log",
   "window": {
     "query_param": "windowDays",

@@ -1,0 +1,46 @@
+{
+  "spec_id": "ui-refactor-backlog-v1",
+  "purpose": "Small, semantics-first backlog for transitioning to a SaaS-like multi-page layout.",
+  "principles": [
+    "Keep behavior stable while changing layout and ownership boundaries.",
+    "Prioritize decision clarity over feature density per screen.",
+    "Refactor incrementally with route-level milestones."
+  ],
+  "work_items": [
+    {
+      "id": "UI-001",
+      "title": "Introduce app shell with left navigation",
+      "outcome": "Persistent left nav + top bar + route content area.",
+      "risk": "low",
+      "depends_on": []
+    },
+    {
+      "id": "UI-002",
+      "title": "Split dashboard monolith into route-focused pages",
+      "outcome": "Overview/Operations/Controls/Publisher Runs routes with clear ownership.",
+      "risk": "medium",
+      "depends_on": ["UI-001"]
+    },
+    {
+      "id": "UI-003",
+      "title": "Extract data-fetch hooks per domain",
+      "outcome": "Independent hooks for logs, controls, trend, and competitor data.",
+      "risk": "medium",
+      "depends_on": ["UI-002"]
+    },
+    {
+      "id": "UI-004",
+      "title": "Define design tokens and shared primitives",
+      "outcome": "Consistent spacing, typography, and action states across pages.",
+      "risk": "low",
+      "depends_on": ["UI-001"]
+    },
+    {
+      "id": "UI-005",
+      "title": "Add route-level acceptance checks",
+      "outcome": "Each page has explicit data, action, and fallback expectations.",
+      "risk": "low",
+      "depends_on": ["UI-002", "UI-003"]
+    }
+  ]
+}
