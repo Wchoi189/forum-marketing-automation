@@ -15,6 +15,7 @@
     "CompetitorStat",
     "BoardStats",
     "DraftItem",
+    "PublisherRunDecision",
     "PublisherHistoryEntry",
     "TrendInsights",
     "ControlPanelResponse"

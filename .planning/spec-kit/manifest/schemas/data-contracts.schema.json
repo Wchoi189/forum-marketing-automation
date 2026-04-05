@@ -41,7 +41,8 @@
           "type": "array",
           "items": { "$ref": "#/definitions/post" }
         },
-        "error": { "type": "string" }
+        "error": { "type": "string" },
+        "gap_threshold_min": { "type": "integer", "minimum": 1, "maximum": 50 }
       }
     },
     "activityLogArray": {
@@ -84,7 +85,20 @@
         "at": { "type": "string", "format": "date-time" },
         "success": { "type": "boolean" },
         "force": { "type": "boolean" },
-        "message": { "type": "string" }
+        "message": { "type": "string" },
+        "runId": { "type": "string", "minLength": 1 },
+        "artifactDir": { "type": ["string", "null"] },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "gap_policy",
+            "observer_error",
+            "manual_override_disabled",
+            "published_verified",
+            "dry_run",
+            "publisher_error"
+          ]
+        }
       }
     },
     "publisherHistoryArray": {
@@ -128,7 +142,20 @@
         "success": { "type": "boolean" },
         "message": { "type": "string" },
         "error": { "type": "string" },
-        "log": { "$ref": "#/definitions/activityLog" }
+        "log": { "$ref": "#/definitions/activityLog" },
+        "runId": { "type": "string", "minLength": 1 },
+        "artifactDir": { "type": ["string", "null"] },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "gap_policy",
+            "observer_error",
+            "manual_override_disabled",
+            "published_verified",
+            "dry_run",
+            "publisher_error"
+          ]
+        }
       }
     },
     "observerControls": {
@@ -144,7 +171,19 @@
         "enabled": { "type": "boolean" },
         "minPreVisitDelayMs": { "type": "integer", "minimum": 0, "maximum": 120000 },
         "maxPreVisitDelayMs": { "type": "integer", "minimum": 0, "maximum": 120000 },
-        "minIntervalBetweenRunsMs": { "type": "integer", "minimum": 0, "maximum": 3600000 }
+        "minIntervalBetweenRunsMs": { "type": "integer", "minimum": 0, "maximum": 3600000 },
+        "gapThresholdMin": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "description": "Effective minimum gap (posts) after persisted/env/spec precedence."
+        },
+        "gapPersistedOverride": {
+          "description": "File-persisted override; null means use env (if set) then spec baseline.",
+          "oneOf": [{ "type": "integer", "minimum": 1, "maximum": 50 }, { "type": "null" }]
+        },
+        "gapThresholdSpecBaseline": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "gapUsesEnvOverride": { "type": "boolean" }
       }
     },
     "publisherControls": {
@@ -218,7 +257,11 @@
             "enabled": { "type": "boolean" },
             "minPreVisitDelayMs": { "type": "integer" },
             "maxPreVisitDelayMs": { "type": "integer" },
-            "minIntervalBetweenRunsMs": { "type": "integer" }
+            "minIntervalBetweenRunsMs": { "type": "integer" },
+            "gapPersistedOverride": {
+              "description": "Set to integer to persist; null clears file override.",
+              "oneOf": [{ "type": "integer", "minimum": 1, "maximum": 50 }, { "type": "null" }]
+            }
           }
         },
         "publisher": {

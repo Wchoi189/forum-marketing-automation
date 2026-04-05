@@ -1,11 +1,23 @@
 import { chromium, type BrowserContext, type BrowserContextOptions } from 'playwright';
+import { randomUUID } from 'node:crypto';
 import fs from 'fs/promises';
 import path from 'path';
-import type { ActivityLog, Post } from './contracts/models.js';
+import type { ActivityLog, Post, PublisherRunDecision } from './contracts/models.js';
 import { ENV } from './config/env.js';
 import { appendPublisherHistoryEntry } from './lib/publisherHistory.js';
+import { readRuntimeGapPersistedOverride, writeRuntimeGapPersistedOverride } from './lib/runtimeControls.js';
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
 import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval-polyfill.js';
+
+export type PublisherRunResult = {
+  success: boolean;
+  message: string;
+  log?: ActivityLog;
+  runId: string;
+  decision: PublisherRunDecision;
+  /** Project-relative artifact dir when publisher entered browser flow; null on gap-policy skip etc. */
+  artifactDir: string | null;
+};
 
 const USER_DATA_DIR = ENV.BOT_PROFILE_DIR;
 const LOG_FILE = ENV.ACTIVITY_LOG_PATH;
@@ -70,7 +82,15 @@ type DecisionRules = {
   };
 };
 
-let observerPolicyPromise: Promise<ObserverPolicy> | null = null;
+type ObserverPolicyBase = {
+  boardUrl: string;
+  authorMatch: string;
+  specGapThresholdMin: number;
+  parseConfidenceMin: number;
+  excludeNoticeRows: boolean;
+};
+
+let observerPolicyBasePromise: Promise<ObserverPolicyBase> | null = null;
 let previousBoardSnapshot: ProjectedSnapshot | null = null;
 
 type ParserSignal = {
@@ -85,6 +105,14 @@ export type ObserverControls = {
   minPreVisitDelayMs: number;
   maxPreVisitDelayMs: number;
   minIntervalBetweenRunsMs: number;
+};
+
+/** Observer pacing plus resolved gap policy (for control panel / API). */
+export type ObserverControlsWithGap = ObserverControls & {
+  gapThresholdMin: number;
+  gapPersistedOverride: number | null;
+  gapThresholdSpecBaseline: number;
+  gapUsesEnvOverride: boolean;
 };
 
 const observerControls: ObserverControls = {
@@ -266,67 +294,107 @@ async function waitForPublishLandingUrl(page: import('playwright').Page, boardId
   }
 }
 
-async function loadObserverPolicy(): Promise<ObserverPolicy> {
-  if (observerPolicyPromise) {
-    return observerPolicyPromise;
+async function loadObserverPolicyBase(): Promise<ObserverPolicyBase> {
+  if (!observerPolicyBasePromise) {
+    observerPolicyBasePromise = (async () => {
+      const [workflow, decisionRules] = await Promise.all([
+        readPlanningJson<WorkflowManifest>('manifest/workflow.ppomppu-gonggu-v1.json'),
+        readPlanningJson<DecisionRules>('specs/decision-rules.json')
+      ]);
+
+      const workflowRules = workflow.observer_rules;
+      const decisionObserverRules = decisionRules.observer_rules;
+      assertPolicy(Boolean(workflowRules), 'workflow observer_rules are missing');
+      assertPolicy(Boolean(decisionObserverRules), 'decision-rules observer_rules are missing');
+
+      const boardUrl = workflow.entry_url;
+      assertPolicy(typeof boardUrl === 'string' && boardUrl.length > 0, 'workflow.entry_url must be a non-empty string');
+
+      const workflowAuthorMatch = workflowRules?.author_match;
+      const decisionAuthorMatch = decisionObserverRules?.author_match_value;
+      assertPolicy(typeof workflowAuthorMatch === 'string' && workflowAuthorMatch.length > 0, 'workflow observer_rules.author_match must be a non-empty string');
+      assertPolicy(typeof decisionAuthorMatch === 'string' && decisionAuthorMatch.length > 0, 'decision-rules observer_rules.author_match_value must be a non-empty string');
+      assertPolicy(
+        workflowAuthorMatch.trim().toLowerCase() === decisionAuthorMatch.trim().toLowerCase(),
+        'author_match values differ between workflow and decision-rules contracts'
+      );
+
+      const workflowGapThreshold = toInt(workflowRules?.gap_threshold_min, 'workflow observer_rules.gap_threshold_min');
+      const decisionGapThreshold = toInt(decisionObserverRules?.gap_threshold_min, 'decision-rules observer_rules.gap_threshold_min');
+      assertPolicy(
+        workflowGapThreshold === decisionGapThreshold,
+        'gap_threshold_min differs between workflow and decision-rules contracts'
+      );
+
+      const workflowParseConfidence = toNumber(workflowRules?.parse_confidence_min, 'workflow observer_rules.parse_confidence_min');
+      const decisionParseConfidence = toNumber(decisionObserverRules?.parse_confidence_min, 'decision-rules observer_rules.parse_confidence_min');
+      assertPolicy(
+        workflowParseConfidence === decisionParseConfidence,
+        'parse_confidence_min differs between workflow and decision-rules contracts'
+      );
+
+      const workflowExcludeNotice = workflowRules?.exclude_notice_rows;
+      const decisionExcludeNotice = decisionObserverRules?.notice_rows_excluded;
+      assertPolicy(typeof workflowExcludeNotice === 'boolean', 'workflow observer_rules.exclude_notice_rows must be boolean');
+      assertPolicy(typeof decisionExcludeNotice === 'boolean', 'decision-rules observer_rules.notice_rows_excluded must be boolean');
+      assertPolicy(
+        workflowExcludeNotice === decisionExcludeNotice,
+        'notice-row exclusion policy differs between workflow and decision-rules contracts'
+      );
+
+      return {
+        boardUrl,
+        authorMatch: workflowAuthorMatch,
+        specGapThresholdMin: workflowGapThreshold,
+        parseConfidenceMin: workflowParseConfidence,
+        excludeNoticeRows: workflowExcludeNotice
+      };
+    })();
   }
+  return observerPolicyBasePromise;
+}
 
-  observerPolicyPromise = (async () => {
-    const [workflow, decisionRules] = await Promise.all([
-      readPlanningJson<WorkflowManifest>('manifest/workflow.ppomppu-gonggu-v1.json'),
-      readPlanningJson<DecisionRules>('specs/decision-rules.json')
-    ]);
+/** Precedence: persisted file → explicit env var → spec baseline. */
+async function resolveEffectiveGapThresholdMin(specGap: number): Promise<number> {
+  const persisted = await readRuntimeGapPersistedOverride();
+  if (persisted !== null) {
+    return Math.max(1, Math.min(50, persisted));
+  }
+  const raw = process.env.OBSERVER_GAP_THRESHOLD;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    return ENV.OBSERVER_GAP_THRESHOLD;
+  }
+  return specGap;
+}
 
-    const workflowRules = workflow.observer_rules;
-    const decisionObserverRules = decisionRules.observer_rules;
-    assertPolicy(Boolean(workflowRules), 'workflow observer_rules are missing');
-    assertPolicy(Boolean(decisionObserverRules), 'decision-rules observer_rules are missing');
+async function loadObserverPolicy(): Promise<ObserverPolicy> {
+  const base = await loadObserverPolicyBase();
+  const gapThresholdMin = await resolveEffectiveGapThresholdMin(base.specGapThresholdMin);
+  return {
+    boardUrl: base.boardUrl,
+    authorMatch: base.authorMatch,
+    gapThresholdMin,
+    parseConfidenceMin: base.parseConfidenceMin,
+    excludeNoticeRows: base.excludeNoticeRows
+  };
+}
 
-    const boardUrl = workflow.entry_url;
-    assertPolicy(typeof boardUrl === 'string' && boardUrl.length > 0, 'workflow.entry_url must be a non-empty string');
+export async function getObserverControlsWithGap(): Promise<ObserverControlsWithGap> {
+  const base = await loadObserverPolicyBase();
+  const persisted = await readRuntimeGapPersistedOverride();
+  const effective = await resolveEffectiveGapThresholdMin(base.specGapThresholdMin);
+  const raw = process.env.OBSERVER_GAP_THRESHOLD;
+  return {
+    ...getObserverControls(),
+    gapThresholdMin: effective,
+    gapPersistedOverride: persisted,
+    gapThresholdSpecBaseline: base.specGapThresholdMin,
+    gapUsesEnvOverride: typeof raw === 'string' && raw.trim() !== ''
+  };
+}
 
-    const workflowAuthorMatch = workflowRules?.author_match;
-    const decisionAuthorMatch = decisionObserverRules?.author_match_value;
-    assertPolicy(typeof workflowAuthorMatch === 'string' && workflowAuthorMatch.length > 0, 'workflow observer_rules.author_match must be a non-empty string');
-    assertPolicy(typeof decisionAuthorMatch === 'string' && decisionAuthorMatch.length > 0, 'decision-rules observer_rules.author_match_value must be a non-empty string');
-    assertPolicy(
-      workflowAuthorMatch.trim().toLowerCase() === decisionAuthorMatch.trim().toLowerCase(),
-      'author_match values differ between workflow and decision-rules contracts'
-    );
-
-    const workflowGapThreshold = toInt(workflowRules?.gap_threshold_min, 'workflow observer_rules.gap_threshold_min');
-    const decisionGapThreshold = toInt(decisionObserverRules?.gap_threshold_min, 'decision-rules observer_rules.gap_threshold_min');
-    assertPolicy(
-      workflowGapThreshold === decisionGapThreshold,
-      'gap_threshold_min differs between workflow and decision-rules contracts'
-    );
-
-    const workflowParseConfidence = toNumber(workflowRules?.parse_confidence_min, 'workflow observer_rules.parse_confidence_min');
-    const decisionParseConfidence = toNumber(decisionObserverRules?.parse_confidence_min, 'decision-rules observer_rules.parse_confidence_min');
-    assertPolicy(
-      workflowParseConfidence === decisionParseConfidence,
-      'parse_confidence_min differs between workflow and decision-rules contracts'
-    );
-
-    const workflowExcludeNotice = workflowRules?.exclude_notice_rows;
-    const decisionExcludeNotice = decisionObserverRules?.notice_rows_excluded;
-    assertPolicy(typeof workflowExcludeNotice === 'boolean', 'workflow observer_rules.exclude_notice_rows must be boolean');
-    assertPolicy(typeof decisionExcludeNotice === 'boolean', 'decision-rules observer_rules.notice_rows_excluded must be boolean');
-    assertPolicy(
-      workflowExcludeNotice === decisionExcludeNotice,
-      'notice-row exclusion policy differs between workflow and decision-rules contracts'
-    );
-
-    return {
-      boardUrl,
-      authorMatch: workflowAuthorMatch,
-      gapThresholdMin: workflowGapThreshold,
-      parseConfidenceMin: workflowParseConfidence,
-      excludeNoticeRows: workflowExcludeNotice
-    };
-  })();
-
-  return observerPolicyPromise;
+export async function persistGapThresholdPersistedOverride(value: number | null): Promise<void> {
+  await writeRuntimeGapPersistedOverride(value);
 }
 
 async function getBoardDiagnostics(page: import('playwright').Page) {
@@ -433,10 +501,10 @@ function combinedConfidence(legacyConfidence: number, parserConfidence: number):
   return Number(Math.min(legacyConfidence, parserConfidence).toFixed(2));
 }
 
-function publisherDebugRunDir(): string | null {
+/** Stable per-run directory name for correlating publisher-history with screenshots/traces. */
+function publisherArtifactDirForRun(runId: string): string | null {
   if (!ENV.PUBLISHER_DEBUG_SCREENSHOTS && !ENV.PUBLISHER_DEBUG_TRACE) return null;
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return path.join(ENV.PROJECT_ROOT, 'artifacts', 'publisher-runs', stamp);
+  return path.join(ENV.PROJECT_ROOT, 'artifacts', 'publisher-runs', runId);
 }
 
 async function publisherDebugScreenshot(
@@ -570,12 +638,26 @@ function formatLastPostTimestampDisplay(dateText: string, dateTitleAttr: string,
   return `observed ${timeStr}`;
 }
 
-async function recordPublisherRun(force: boolean, success: boolean, message: string): Promise<void> {
+async function recordPublisherRun(entry: {
+  force: boolean;
+  success: boolean;
+  message: string;
+  runId: string;
+  artifactDir: string | null;
+  decision: PublisherRunDecision;
+}): Promise<void> {
+  const rel =
+    entry.artifactDir === null || entry.artifactDir === undefined
+      ? null
+      : path.relative(ENV.PROJECT_ROOT, entry.artifactDir).replace(/\\/g, '/');
   await appendPublisherHistoryEntry({
     at: new Date().toISOString(),
-    success,
-    force,
-    message: message.slice(0, 500)
+    success: entry.success,
+    force: entry.force,
+    message: entry.message.slice(0, 500),
+    runId: entry.runId,
+    artifactDir: rel,
+    decision: entry.decision
   }).catch(() => null);
 }
 
@@ -792,6 +874,7 @@ export async function runObserver() {
     const log: ActivityLog = {
       timestamp: capturedAtIso,
       current_gap_count: gap,
+      gap_threshold_min: policy.gapThresholdMin,
       last_post_timestamp: lastPost
         ? formatLastPostTimestampDisplay(lastPost.date, lastPost.dateTitle ?? '', capturedAtIso)
         : 'N/A',
@@ -830,11 +913,31 @@ export async function runObserver() {
   }
 }
 
-export async function runPublisher(force: boolean = false) {
+export async function runPublisher(force: boolean = false): Promise<PublisherRunResult> {
+  const runId = randomUUID();
   let log: ActivityLog | undefined;
-  const finish = async (success: boolean, message: string, outLog?: ActivityLog) => {
-    await recordPublisherRun(force, success, message);
-    return { success, message, log: outLog };
+  let debugDir: string | null = null;
+
+  const finish = async (
+    success: boolean,
+    message: string,
+    decision: PublisherRunDecision,
+    outLog?: ActivityLog
+  ) => {
+    const artifactAbs = debugDir;
+    await recordPublisherRun({
+      force,
+      success,
+      message,
+      runId,
+      artifactDir: artifactAbs,
+      decision
+    });
+    const artifactRel =
+      artifactAbs === null || artifactAbs === undefined
+        ? null
+        : path.relative(ENV.PROJECT_ROOT, artifactAbs).replace(/\\/g, '/');
+    return { success, message, log: outLog, runId, decision, artifactDir: artifactRel };
   };
 
   try {
@@ -842,27 +945,33 @@ export async function runPublisher(force: boolean = false) {
     log = await runObserver();
 
     if (log.status === 'error') {
-      return await finish(false, log.error || '[Observer] Observer failed', log);
+      return await finish(false, log.error || '[Observer] Observer failed', 'observer_error', log);
     }
 
     if (force && !ENV.MANUAL_OVERRIDE_ENABLED) {
       return await finish(
         false,
         '[Publisher] Manual override is disabled by environment policy (MANUAL_OVERRIDE_ENABLED=false)',
+        'manual_override_disabled',
         log
       );
     }
 
     if (!force && log.status !== 'safe') {
-      console.log('Gap is too small. Skipping publication.');
+      const gap = log.current_gap_count;
+      const need = policy.gapThresholdMin;
+      console.log(
+        `[Publisher] runId=${runId} gap_policy skip current_gap=${gap} need>=${need} force=${force} parseUnsafe=${Boolean(log.error)}`
+      );
       return await finish(
         false,
         log.error || '[Publisher] Gap is too small to publish (safety / gap policy)',
+        'gap_policy',
         log
       );
     }
 
-    const debugDir = publisherDebugRunDir();
+    debugDir = publisherArtifactDirForRun(runId);
     let traceStarted = false;
     const context = await chromium.launchPersistentContext(USER_DATA_DIR, {
       headless: ENV.BROWSER_HEADLESS,
@@ -1067,7 +1176,7 @@ export async function runPublisher(force: boolean = false) {
       const submitBtn = page.locator('#ok_button, input[value="작성완료"], button:has-text("작성완료")');
       if (ENV.DRY_RUN_MODE) {
         console.log('Dry-run mode enabled. Submit click intentionally skipped.');
-        return await finish(true, 'Publication simulated successfully (DRY_RUN_MODE=true)', log);
+        return await finish(true, 'Publication simulated successfully (DRY_RUN_MODE=true)', 'dry_run', log);
       }
 
       await submitBtn.waitFor({ state: 'attached', timeout: BOT_MAX_WAIT_MS });
@@ -1084,6 +1193,7 @@ export async function runPublisher(force: boolean = false) {
       return await finish(
         true,
         `Publication submitted successfully (verified redirect to ${page.url()})`,
+        'published_verified',
         log
       );
     } catch (innerErr) {
@@ -1098,6 +1208,6 @@ export async function runPublisher(force: boolean = false) {
     }
   } catch (error: any) {
     console.error('Publisher Error:', error);
-    return await finish(false, `[Publisher] ${String(error?.message ?? error)}`, log);
+    return await finish(false, `[Publisher] ${String(error?.message ?? error)}`, 'publisher_error', log);
   }
 }

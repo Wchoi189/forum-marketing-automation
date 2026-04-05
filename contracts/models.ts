@@ -11,6 +11,8 @@ export interface Post {
 export interface ActivityLog {
   timestamp: string;
   current_gap_count: number;
+  /** Effective minimum gap (posts) used for this observer snapshot when present. */
+  gap_threshold_min?: number;
   last_post_timestamp: string;
   top_competitor_names: string[];
   view_count_of_last_post: number;
@@ -36,12 +38,26 @@ export interface DraftItem {
   id: string;
 }
 
+/** Outcome classification for publisher history / operator triage. */
+export type PublisherRunDecision =
+  | "gap_policy"
+  | "observer_error"
+  | "manual_override_disabled"
+  | "published_verified"
+  | "dry_run"
+  | "publisher_error";
+
 /** Append-only log of auto/manual publisher runs (see artifacts/publisher-history.json). */
 export interface PublisherHistoryEntry {
   at: string;
   success: boolean;
   force: boolean;
   message: string;
+  /** Correlates one UI/API invocation with artifacts and logs. */
+  runId?: string;
+  /** Project-relative artifact directory when browser publisher ran (e.g. artifacts/publisher-runs/<runId>). */
+  artifactDir?: string | null;
+  decision?: PublisherRunDecision;
 }
 
 export type TrendConfidenceReason =

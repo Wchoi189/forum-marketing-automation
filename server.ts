@@ -5,12 +5,14 @@ import { pathToFileURL } from "url";
 import { createServer as createViteServer } from "vite";
 import {
   getLogs,
-  getObserverControls,
+  getObserverControlsWithGap,
   getPublisherControls,
+  persistGapThresholdPersistedOverride,
   runObserver,
   runPublisher,
   setObserverControls,
-  setPublisherControls
+  setPublisherControls,
+  type ObserverControlsWithGap
 } from "./bot.js";
 import { ENV } from "./config/env.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
@@ -31,7 +33,7 @@ type SchedulerController = ReturnType<typeof startScheduler>;
 
 type ControlPanelResponse = {
   preset: "balanced" | "night-safe" | "day-aggressive";
-  observer: ReturnType<typeof getObserverControls>;
+  observer: ObserverControlsWithGap;
   publisher: ReturnType<typeof getPublisherControls>;
   autoPublisher: {
     enabled: boolean;
@@ -384,7 +386,10 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
           force: Boolean(force),
           message: result.message,
           error: result.message,
-          log: result.log
+          log: result.log,
+          runId: result.runId,
+          decision: result.decision,
+          artifactDir: result.artifactDir
         });
       } else {
         res.json({ ...result, action: 'publisher', force: Boolean(force) });
@@ -420,7 +425,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     };
     const payload: ControlPanelResponse = {
       preset: scheduler?.getPreset() ?? "balanced",
-      observer: getObserverControls(),
+      observer: await getObserverControlsWithGap(),
       publisher: getPublisherControls(),
       autoPublisher: autoPublisherState
     };
@@ -430,19 +435,40 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   app.post("/api/control-panel", async (req, res) => {
     const body = (req.body ?? {}) as {
       preset?: ControlPanelPreset;
-      observer?: Partial<ReturnType<typeof getObserverControls>>;
+      observer?: Partial<ObserverControlsWithGap>;
       publisher?: Partial<ReturnType<typeof getPublisherControls>>;
       autoPublisher?: Partial<AutoPublisherControls> & { enabled?: boolean };
     };
 
-    let observer = setObserverControls(body.observer ?? {});
+    const rawObserver = body.observer ?? {};
+    const gapPersistedOverride = (rawObserver as { gapPersistedOverride?: number | null }).gapPersistedOverride;
+    const observerPacing: Parameters<typeof setObserverControls>[0] = { ...rawObserver };
+    delete (observerPacing as { gapPersistedOverride?: unknown }).gapPersistedOverride;
+    delete (observerPacing as { gapThresholdMin?: unknown }).gapThresholdMin;
+    delete (observerPacing as { gapThresholdSpecBaseline?: unknown }).gapThresholdSpecBaseline;
+    delete (observerPacing as { gapUsesEnvOverride?: unknown }).gapUsesEnvOverride;
+
+    if (Object.prototype.hasOwnProperty.call(rawObserver, "gapPersistedOverride")) {
+      const v = gapPersistedOverride;
+      if (v !== null && (typeof v !== "number" || !Number.isInteger(v))) {
+        res.status(400).json({ error: "gapPersistedOverride must be an integer 1–50 or null" });
+        return;
+      }
+      if (v !== null && (v < 1 || v > 50)) {
+        res.status(400).json({ error: "gapPersistedOverride must be an integer 1–50 or null" });
+        return;
+      }
+      await persistGapThresholdPersistedOverride(v === null ? null : v);
+    }
+
+    setObserverControls(observerPacing);
     if (body.publisher && typeof body.publisher === "object") {
       setPublisherControls(body.publisher);
     }
 
     if (scheduler && body.preset && PRESET_CONFIG[body.preset]) {
       const presetConfig = PRESET_CONFIG[body.preset];
-      observer = setObserverControls({ ...presetConfig.observer, ...(body.observer ?? {}) });
+      setObserverControls({ ...presetConfig.observer, ...observerPacing });
       scheduler.applyPreset(body.preset);
       scheduler.setControls(presetConfig.autoPublisher);
     }
@@ -474,7 +500,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     };
     const payload: ControlPanelResponse = {
       preset: scheduler?.getPreset() ?? "balanced",
-      observer,
+      observer: await getObserverControlsWithGap(),
       publisher: getPublisherControls(),
       autoPublisher: autoPublisherState
     };

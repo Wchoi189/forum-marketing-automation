@@ -10,6 +10,30 @@ import { applyScheduleJitter } from "../../lib/scheduleJitter.ts";
 
 type BotDeps = NonNullable<Parameters<typeof createApp>[0]>;
 
+const MOCK_RUN_ID = "00000000-0000-4000-8000-000000000099";
+
+function mockPublisherSuccess(log: ActivityLog) {
+  return {
+    success: true,
+    message: "ok",
+    log,
+    runId: MOCK_RUN_ID,
+    decision: "published_verified" as const,
+    artifactDir: null as string | null
+  };
+}
+
+function mockPublisherFailure(message: string, log: ActivityLog, decision: "gap_policy" | "publisher_error" = "gap_policy") {
+  return {
+    success: false,
+    message,
+    log,
+    runId: MOCK_RUN_ID,
+    decision,
+    artifactDir: null as string | null
+  };
+}
+
 function createLog(status: "safe" | "unsafe" | "error", error?: string): ActivityLog {
   return {
     timestamp: new Date().toISOString(),
@@ -53,13 +77,16 @@ function assertActivityLogShape(log: ActivityLog): void {
   assert.equal(typeof log.view_count_of_last_post, "number");
   assert.ok(["safe", "unsafe", "error"].includes(log.status));
   assert.ok(Array.isArray(log.all_posts));
+  if (log.gap_threshold_min !== undefined) {
+    assert.equal(typeof log.gap_threshold_min, "number");
+  }
 }
 
 test("POST /api/run-observer returns contract-aligned success payload", async () => {
   const observerLog = createLog("safe");
   const deps: BotDeps = {
     runObserver: async () => observerLog,
-    runPublisher: async () => ({ success: true, message: "ok", log: observerLog }),
+    runPublisher: async () => mockPublisherSuccess(observerLog),
     getLogs: async () => [observerLog]
   };
 
@@ -81,9 +108,8 @@ test("POST /api/run-publisher blocks unsafe non-force path", async () => {
     runPublisher: async (force?: boolean) => {
       capturedForce = Boolean(force);
       return {
-        success: false,
-        message: "[Publisher] Gap is too small to publish (safety / gap policy)",
-        log: unsafeLog
+        ...mockPublisherFailure("[Publisher] Gap is too small to publish (safety / gap policy)", unsafeLog, "gap_policy"),
+        runId: "00000000-0000-4000-8000-000000000001"
       };
     },
     getLogs: async () => [unsafeLog]
@@ -102,6 +128,8 @@ test("POST /api/run-publisher blocks unsafe non-force path", async () => {
     assert.match(String(body.error), /\[Publisher\].*Gap/);
     assert.equal(capturedForce, false);
     assertActivityLogShape(body.log as ActivityLog);
+    assert.equal(body.runId, "00000000-0000-4000-8000-000000000001");
+    assert.equal(body.decision, "gap_policy");
   });
 });
 
@@ -110,11 +138,7 @@ test("POST /api/run-publisher preserves low-confidence manual-review message", a
   const unsafeLog = createLog("unsafe", manualReviewMessage);
   const deps: BotDeps = {
     runObserver: async () => unsafeLog,
-    runPublisher: async () => ({
-      success: false,
-      message: manualReviewMessage,
-      log: unsafeLog
-    }),
+    runPublisher: async () => mockPublisherFailure(manualReviewMessage, unsafeLog, "gap_policy"),
     getLogs: async () => [unsafeLog]
   };
 
@@ -141,7 +165,14 @@ test("POST /api/run-publisher supports manual override force path", async () => 
     runObserver: async () => unsafeLog,
     runPublisher: async (force?: boolean) => {
       capturedForce = Boolean(force);
-      return { success: true, message: "Publication simulated successfully (DRY_RUN_MODE=true)", log: unsafeLog };
+      return {
+        success: true,
+        message: "Publication simulated successfully (DRY_RUN_MODE=true)",
+        log: unsafeLog,
+        runId: MOCK_RUN_ID,
+        decision: "dry_run" as const,
+        artifactDir: null
+      };
     },
     getLogs: async () => [unsafeLog]
   };
@@ -174,7 +205,7 @@ test("scheduler uses lock to avoid overlapping runs", async () => {
     runPublisher: async () => {
       runCount += 1;
       await blocker;
-      return { success: true, message: "ok", log: safeLog };
+      return mockPublisherSuccess(safeLog);
     },
     getLogs: async () => [safeLog]
   };
@@ -234,7 +265,7 @@ test("GET /api/trend-insights returns contract-shaped payload", async () => {
   const logs = trendLogsSteadyRate();
   const deps: BotDeps = {
     runObserver: async () => createLog("safe"),
-    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
     getLogs: async () => logs
   };
 
@@ -259,7 +290,7 @@ test("GET /api/trend-insights trendAdaptiveEnabled=false forces multiplier 1", a
   const logs = trendLogsSteadyRate();
   const deps: BotDeps = {
     runObserver: async () => createLog("safe"),
-    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
     getLogs: async () => logs
   };
 
@@ -304,7 +335,7 @@ test("isPublishSuccessUrl accepts final view/list URLs and rejects write_ok inte
 test("GET /api/control-panel includes publisher.draftItemIndex", async () => {
   const deps: BotDeps = {
     runObserver: async () => createLog("safe"),
-    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
     getLogs: async () => [createLog("safe")]
   };
 
@@ -321,7 +352,7 @@ test("GET /api/control-panel includes publisher.draftItemIndex", async () => {
 test("POST /api/control-panel updates publisher.draftItemIndex", async () => {
   const deps: BotDeps = {
     runObserver: async () => createLog("safe"),
-    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
     getLogs: async () => [createLog("safe")]
   };
 
@@ -375,7 +406,7 @@ test("GET /api/analytics/competitors returns EDA payload", async () => {
   const logs = analyticsFixtureLogs();
   const deps: BotDeps = {
     runObserver: async () => createLog("safe"),
-    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
     getLogs: async () => logs
   };
 
@@ -407,7 +438,7 @@ test("GET /api/analytics/competitors returns EDA payload", async () => {
 test("GET /api/analytics/competitors rejects invalid range", async () => {
   const deps: BotDeps = {
     runObserver: async () => createLog("safe"),
-    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
     getLogs: async () => []
   };
 
@@ -428,7 +459,7 @@ test("applyScheduleJitter respects bounds for uniform mode", async () => {
 test("GET /api/publisher-history returns an array", async () => {
   const deps: BotDeps = {
     runObserver: async () => createLog("safe"),
-    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
     getLogs: async () => [createLog("safe")]
   };
 
@@ -443,7 +474,7 @@ test("GET /api/publisher-history returns an array", async () => {
 test("GET /api/control-panel includes schedule jitter fields", async () => {
   const deps: BotDeps = {
     runObserver: async () => createLog("safe"),
-    runPublisher: async () => ({ success: true, message: "ok", log: createLog("safe") }),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
     getLogs: async () => [createLog("safe")]
   };
 
@@ -451,16 +482,92 @@ test("GET /api/control-panel includes schedule jitter fields", async () => {
     const res = await fetch(`${baseUrl}/api/control-panel`);
     assert.equal(res.status, 200);
     const body = (await res.json()) as {
+      observer: {
+        gapThresholdMin: number;
+        gapPersistedOverride: number | null;
+        gapThresholdSpecBaseline: number;
+        gapUsesEnvOverride: boolean;
+      };
       autoPublisher: {
         scheduleJitterPercent: number;
         scheduleJitterMode: string;
         targetPublishIntervalMinutes: number;
       };
     };
+    assert.equal(typeof body.observer.gapThresholdMin, "number");
+    assert.ok(body.observer.gapPersistedOverride === null || typeof body.observer.gapPersistedOverride === "number");
+    assert.equal(typeof body.observer.gapThresholdSpecBaseline, "number");
+    assert.equal(typeof body.observer.gapUsesEnvOverride, "boolean");
     assert.equal(typeof body.autoPublisher.scheduleJitterPercent, "number");
     assert.ok(body.autoPublisher.scheduleJitterMode === "none" || body.autoPublisher.scheduleJitterMode === "uniform");
     assert.equal(typeof body.autoPublisher.targetPublishIntervalMinutes, "number");
   });
+});
+
+test("POST /api/control-panel persists gapPersistedOverride and GET reflects it", async () => {
+  const root = process.env.PROJECT_ROOT || "/parent/marketing-automation";
+  const rcPath = path.join(root, "artifacts", "runtime-controls.json");
+  let hadFile = false;
+  let prior = "";
+  try {
+    prior = await fs.readFile(rcPath, "utf-8");
+    hadFile = true;
+  } catch {
+    hadFile = false;
+  }
+
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
+    getLogs: async () => [createLog("safe")]
+  };
+
+  try {
+    await withServer(deps, async (baseUrl) => {
+      const get0 = await fetch(`${baseUrl}/api/control-panel`);
+      assert.equal(get0.status, 200);
+      const before = (await get0.json()) as Record<string, unknown>;
+
+      const post = await fetch(`${baseUrl}/api/control-panel`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          preset: before.preset,
+          observer: { ...(before.observer as object), gapPersistedOverride: 9 },
+          publisher: before.publisher,
+          autoPublisher: before.autoPublisher
+        })
+      });
+      assert.equal(post.status, 200);
+      const after = (await post.json()) as {
+        observer: { gapPersistedOverride: number | null; gapThresholdMin: number };
+      };
+      assert.equal(after.observer.gapPersistedOverride, 9);
+      assert.equal(after.observer.gapThresholdMin, 9);
+
+      const get1 = await fetch(`${baseUrl}/api/control-panel`);
+      const roundTrip = (await get1.json()) as { observer: { gapPersistedOverride: number | null } };
+      assert.equal(roundTrip.observer.gapPersistedOverride, 9);
+
+      const clear = await fetch(`${baseUrl}/api/control-panel`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          preset: before.preset,
+          observer: { ...(before.observer as object), gapPersistedOverride: null },
+          publisher: before.publisher,
+          autoPublisher: before.autoPublisher
+        })
+      });
+      assert.equal(clear.status, 200);
+    });
+  } finally {
+    if (hadFile) {
+      await fs.writeFile(rcPath, prior, "utf-8");
+    } else {
+      await fs.rm(rcPath, { force: true }).catch(() => null);
+    }
+  }
 });
 
 test("runtime validation fails when workflow fixture violates schema", async () => {

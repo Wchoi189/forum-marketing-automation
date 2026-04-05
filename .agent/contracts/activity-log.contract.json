@@ -40,7 +40,8 @@
           "type": "array",
           "items": { "$ref": "#/definitions/post" }
         },
-        "error": { "type": "string" }
+        "error": { "type": "string" },
+        "gap_threshold_min": { "type": "integer", "minimum": 1, "maximum": 50 }
       }
     }
   }

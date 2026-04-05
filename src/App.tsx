@@ -45,6 +45,12 @@ type ObserverControlState = {
   minPreVisitDelayMs: number;
   maxPreVisitDelayMs: number;
   minIntervalBetweenRunsMs: number;
+  /** Effective minimum gap (posts) after persisted → env → spec precedence. */
+  gapThresholdMin: number;
+  /** File-persisted override; null = use env (if set) then spec baseline. */
+  gapPersistedOverride: number | null;
+  gapThresholdSpecBaseline: number;
+  gapUsesEnvOverride: boolean;
 };
 
 type AutoPublisherControlState = {
@@ -79,13 +85,87 @@ type ControlPanelState = {
   autoPublisher: AutoPublisherControlState;
 };
 
+function gapPolicySourceLabel(o: ObserverControlState): string {
+  if (o.gapPersistedOverride !== null) return 'persisted file';
+  if (o.gapUsesEnvOverride) return 'env';
+  return 'spec';
+}
+
+/** Keep pacing/scheduler numbers aligned with `server.ts` PRESET_CONFIG (observer + baseInterval math). */
+function applyRuntimePreset(preset: ControlPanelState['preset'], current: ControlPanelState): ControlPanelState {
+  const base = current.autoPublisher.baseIntervalMinutes;
+  const pacing =
+    preset === 'balanced'
+      ? { enabled: true, minPreVisitDelayMs: 2000, maxPreVisitDelayMs: 7000, minIntervalBetweenRunsMs: 30000 }
+      : preset === 'night-safe'
+        ? { enabled: true, minPreVisitDelayMs: 5000, maxPreVisitDelayMs: 12000, minIntervalBetweenRunsMs: 60000 }
+        : { enabled: true, minPreVisitDelayMs: 1000, maxPreVisitDelayMs: 4000, minIntervalBetweenRunsMs: 15000 };
+
+  const autoPatch =
+    preset === 'balanced'
+      ? {
+          baseIntervalMinutes: base,
+          quietHoursStart: 3,
+          quietHoursEnd: 5,
+          quietHoursMultiplier: 1.8,
+          activeHoursStart: 8,
+          activeHoursEnd: 23,
+          activeHoursMultiplier: 0.8,
+          trendAdaptiveEnabled: true,
+          trendWindowDays: 7,
+          trendRecalibrationDays: 7
+        }
+      : preset === 'night-safe'
+        ? {
+            baseIntervalMinutes: Math.max(45, base),
+            quietHoursStart: 2,
+            quietHoursEnd: 6,
+            quietHoursMultiplier: 2.2,
+            activeHoursStart: 9,
+            activeHoursEnd: 22,
+            activeHoursMultiplier: 0.9,
+            trendAdaptiveEnabled: true,
+            trendWindowDays: 14,
+            trendRecalibrationDays: 14
+          }
+        : {
+            baseIntervalMinutes: Math.max(20, Math.round(base * 0.7)),
+            quietHoursStart: 3,
+            quietHoursEnd: 5,
+            quietHoursMultiplier: 1.6,
+            activeHoursStart: 9,
+            activeHoursEnd: 23,
+            activeHoursMultiplier: 0.6,
+            trendAdaptiveEnabled: true,
+            trendWindowDays: 7,
+            trendRecalibrationDays: 7
+          };
+
+  return {
+    ...current,
+    preset,
+    observer: {
+      ...pacing,
+      gapThresholdMin: current.observer.gapThresholdMin,
+      gapPersistedOverride: current.observer.gapPersistedOverride,
+      gapThresholdSpecBaseline: current.observer.gapThresholdSpecBaseline,
+      gapUsesEnvOverride: current.observer.gapUsesEnvOverride
+    },
+    autoPublisher: { ...current.autoPublisher, ...autoPatch }
+  };
+}
+
 const DEFAULT_CONTROL_PANEL: ControlPanelState = {
   preset: 'balanced',
   observer: {
     enabled: true,
     minPreVisitDelayMs: 0,
     maxPreVisitDelayMs: 0,
-    minIntervalBetweenRunsMs: 0
+    minIntervalBetweenRunsMs: 0,
+    gapThresholdMin: 5,
+    gapPersistedOverride: null,
+    gapThresholdSpecBaseline: 5,
+    gapUsesEnvOverride: false
   },
   publisher: {
     draftItemIndex: 1
@@ -288,13 +368,17 @@ export default function App() {
       });
       const data = await response.json();
       const label = force ? 'Publisher (manual override)' : 'Publisher (scheduled-style / auto)';
+      const runHint =
+        typeof data.runId === 'string' && data.runId.length > 0 ? ` runId=${data.runId}` : '';
       if (data.success) {
-        setActionMessage({ type: 'success', text: `${label} — ${data.message}`, log: data.log });
+        setActionMessage({ type: 'success', text: `${label} — ${data.message}${runHint}`, log: data.log });
         fetchLogs();
         fetchPublisherHistory();
       } else {
         const detail = stripTaggedErrorPrefix(data.error || data.message || 'Publisher failed.');
-        setActionMessage({ type: 'error', text: `${label} — ${detail}`, log: data.log });
+        setActionMessage({ type: 'error', text: `${label} — ${detail}${runHint}`, log: data.log });
+        fetchLogs();
+        fetchPublisherHistory();
       }
     } catch (error) {
       const label = force ? 'Publisher (manual override)' : 'Publisher (scheduled-style / auto)';
@@ -306,6 +390,7 @@ export default function App() {
 
   const latestLog = logs[0];
   const isSafe = latestLog?.status === 'safe';
+  const minGapRequired = latestLog?.gap_threshold_min ?? controlPanel.observer.gapThresholdMin;
 
   const chartData = [...logs].reverse().map(log => ({
     time: new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -368,8 +453,12 @@ export default function App() {
               <p className={`text-3xl font-black uppercase italic ${isSafe ? 'text-green-500' : 'text-red-500'}`}>
                 {latestLog ? (isSafe ? 'Safe Zone' : 'Danger Zone') : 'No Data'}
               </p>
-              <p className="text-xs opacity-40 mt-2">
-                Current Gap: <span className="font-bold text-white">{latestLog?.current_gap_count || 0} posts</span>
+              <p className="text-xs opacity-40 mt-2 max-w-[14rem] mx-auto leading-relaxed">
+                Current Gap:{' '}
+                <span className="font-bold text-white">{latestLog?.current_gap_count ?? 0} posts</span>
+                <br />
+                Min required:{' '}
+                <span className="font-bold text-white">{minGapRequired}</span> ({gapPolicySourceLabel(controlPanel.observer)})
               </p>
             </div>
           </motion.div>
@@ -456,6 +545,16 @@ export default function App() {
                       >
                         {row.success ? 'ok' : 'fail'}
                       </span>
+                      {row.decision && (
+                        <span className="text-[9px] uppercase opacity-50 border border-white/15 px-1 rounded shrink-0">
+                          {row.decision.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                      {row.runId && (
+                        <span className="font-mono text-[9px] opacity-40 shrink-0" title={row.runId}>
+                          {row.runId.slice(0, 8)}…
+                        </span>
+                      )}
                       {row.force && (
                         <span className="text-[9px] uppercase opacity-50 border border-white/15 px-1 rounded">manual</span>
                       )}
@@ -510,7 +609,7 @@ export default function App() {
               <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">System Messages</h2>
               <AlertCircle className="w-4 h-4 opacity-30" />
             </div>
-            <div className="flex-1 flex items-center justify-center py-4">
+            <div className="flex-1 flex items-center justify-center py-4 min-h-0">
               <AnimatePresence mode="wait">
                 {actionMessage ? (
                   <motion.div
@@ -518,7 +617,7 @@ export default function App() {
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
-                    className={`w-full text-center p-4 rounded-2xl border ${actionMessage.type === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}
+                    className={`w-full max-h-40 overflow-y-auto text-left break-words p-4 rounded-2xl border ${actionMessage.type === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}
                   >
                     <p className="text-sm font-medium mb-2">{actionMessage.text}</p>
                     {actionMessage.type === 'error' && actionMessage.log && (
@@ -633,10 +732,9 @@ export default function App() {
             <select
               value={controlPanel.preset}
               onChange={(e) =>
-                setControlPanel((current) => ({
-                  ...current,
-                  preset: e.target.value as ControlPanelState['preset']
-                }))
+                setControlPanel((current) =>
+                  applyRuntimePreset(e.target.value as ControlPanelState['preset'], current)
+                )
               }
               className="px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
             >
@@ -711,6 +809,39 @@ export default function App() {
                 }
                 className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
               />
+              <div className="pt-2 border-t border-white/10 space-y-2">
+                <p className="text-[10px] opacity-50 uppercase tracking-wider">Gap policy (publish safety)</p>
+                <p className="text-[11px] opacity-45">
+                  Effective min gap: <span className="text-white font-mono">{controlPanel.observer.gapThresholdMin}</span>{' '}
+                  posts · Spec baseline:{' '}
+                  <span className="text-white font-mono">{controlPanel.observer.gapThresholdSpecBaseline}</span> · Source:{' '}
+                  <span className="text-orange-300/90">{gapPolicySourceLabel(controlPanel.observer)}</span>
+                </p>
+                <label className="block text-xs opacity-60">
+                  File override (empty = env/spec chain; Apply to persist)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  placeholder={`e.g. ${controlPanel.observer.gapThresholdMin}`}
+                  value={controlPanel.observer.gapPersistedOverride ?? ''}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setControlPanel((current) => ({
+                      ...current,
+                      observer: {
+                        ...current.observer,
+                        gapPersistedOverride:
+                          raw === ''
+                            ? null
+                            : Math.max(1, Math.min(50, Math.round(Number(raw)) || 1))
+                      }
+                    }));
+                  }}
+                  className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
+                />
+              </div>
             </div>
 
             <div className="space-y-4 p-4 rounded-2xl bg-white/5 border border-white/10">
