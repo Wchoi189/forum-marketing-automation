@@ -1,0 +1,90 @@
+{
+  "handover_id": "handover-20260407-1200",
+  "timestamp_utc": "2026-04-07T12:00:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "gpt-5.3-codex",
+  "target_agent": "gpt-5.3-codex",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "implementation",
+  "objective": "Implement multi-session spec-driven AWS remote operations package with contracts, runbooks, runtime templates, CI/CD workflow, and acceptance loop artifacts.",
+  "status": "completed",
+  "decisions_locked": [
+    "spec_first",
+    "contracts_over_prose",
+    "ssm_primary_access",
+    "break_glass_ssh_disabled_by_default",
+    "github_oidc_keyless_deploy",
+    "fail_closed_runtime_startup_on_missing_required_env"
+  ],
+  "spec_kit_updates": {
+    "new_specs": [
+      ".planning/spec-kit/specs/remote-ops.access.contract.json",
+      ".planning/spec-kit/specs/remote-ops.runtime.contract.json",
+      ".planning/spec-kit/specs/remote-ops.deploy.contract.json",
+      ".planning/spec-kit/specs/remote-ops.observability.contract.json",
+      ".planning/spec-kit/specs/remote-ops.acceptance.plan.json"
+    ],
+    "updated_specs": [
+      ".planning/spec-kit/tasks/implementation.tasks.json",
+      ".planning/spec-kit/manifest/project.manifest.json"
+    ]
+  },
+  "current_state": {
+    "completed": [
+      "EC2 hardened baseline runbook with IAM, security group, runtime, and service-user constraints",
+      "SSM-first access runbook with optional zero-trust layer and break-glass SSH policy",
+      "Systemd unit template, SSM env bootstrap script, health check script, and artifact cleanup script",
+      "GitHub Actions OIDC deploy workflow with release bundle upload and SSM-driven deploy command",
+      "Deploy rollback and runtime/observability runbooks",
+      "CloudWatch agent log collection template and alarm response runbook"
+    ],
+    "gaps": [
+      "AWS account-side IAM role trust and policy resources must be created/applied in target account",
+      "EC2 host provisioning and script permission setup must be executed on the target instance",
+      "Live staging drill for alarms and rollback remains to be executed"
+    ]
+  },
+  "acceptance_criteria": [
+    "Remote-ops contracts and acceptance plan are present and linked in project manifest/taskset",
+    "Runbooks and templates exist for access, runtime, deploy, rollback, and observability",
+    "CI deploy path is keyless and uses GitHub OIDC role assumption",
+    "Session handover and state index point to this implementation state"
+  ],
+  "constraints": [
+    "No credentials or secret values committed to repository artifacts",
+    "Publisher fail-closed behavior remains unchanged",
+    "Break-glass SSH remains temporary and audited only"
+  ],
+  "next_actions": [
+    "Provision AWS IAM OIDC trust role and bind least-privilege policies for deploy and SSM commands",
+    "Install systemd unit and scripts on EC2 host, then verify /api/health startup checks",
+    "Run deploy-aws workflow in staging and validate rollback script under controlled failure",
+    "Add CloudWatch alarms in target account and perform alarm fire drill"
+  ],
+  "artifacts_touched": [
+    ".planning/spec-kit/specs/remote-ops.access.contract.json",
+    ".planning/spec-kit/specs/remote-ops.runtime.contract.json",
+    ".planning/spec-kit/specs/remote-ops.deploy.contract.json",
+    ".planning/spec-kit/specs/remote-ops.observability.contract.json",
+    ".planning/spec-kit/specs/remote-ops.acceptance.plan.json",
+    ".planning/spec-kit/tasks/implementation.tasks.json",
+    ".planning/spec-kit/manifest/project.manifest.json",
+    "README.md",
+    "ops/aws/ec2-baseline.md",
+    "ops/aws/remote-access-runbook.md",
+    "ops/systemd/marketing-automation.service",
+    "ops/systemd/load-env-from-ssm.sh",
+    "ops/systemd/healthcheck.sh",
+    "ops/systemd/cleanup-artifacts.sh",
+    "ops/systemd/README.md",
+    "ops/deploy/deploy-release.sh",
+    "ops/deploy/rollback-release.sh",
+    "ops/deploy/README.md",
+    ".github/workflows/deploy-aws.yml",
+    "ops/observability/cloudwatch-agent-config.json",
+    "ops/observability/alarms-runbook.md",
+    ".agent/session-handovers/handover-20260407-1200.json",
+    ".agent/state/state.index.json"
+  ]
+}
