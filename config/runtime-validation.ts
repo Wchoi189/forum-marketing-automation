@@ -5,6 +5,10 @@ import addFormats from 'ajv-formats';
 import { ENV } from './env.js';
 
 type JsonObject = Record<string, unknown>;
+type PlaybookStep = {
+  action?: unknown;
+  expected_text?: unknown;
+};
 
 const PLANNING_ROOT = path.join(ENV.PROJECT_ROOT, '.planning', 'spec-kit');
 const MANIFEST_ROOT = path.join(PLANNING_ROOT, 'manifest');
@@ -63,6 +67,7 @@ export async function validateRuntimeContracts(): Promise<void> {
   const projectManifestSchemaPath = path.join(SCHEMA_ROOT, 'project.manifest.schema.json');
   const envSchemaPath = path.join(SCHEMA_ROOT, 'env.schema.json');
   const workflowSchemaPath = path.join(SCHEMA_ROOT, 'workflow.schema.json');
+  const playbookSchemaPath = path.join(SCHEMA_ROOT, 'playbook.schema.json');
   const dataContractsSchemaPath = path.join(SCHEMA_ROOT, 'data-contracts.schema.json');
   const projectManifestPath = path.join(MANIFEST_ROOT, 'project.manifest.json');
   const executionLoopContractPath = path.join(SPECS_ROOT, 'execution-loop.contract.json');
@@ -74,6 +79,7 @@ export async function validateRuntimeContracts(): Promise<void> {
     projectManifestSchema,
     envSchema,
     workflowSchema,
+    playbookSchema,
     dataContractsSchema,
     projectManifest,
     executionLoopContract,
@@ -84,6 +90,7 @@ export async function validateRuntimeContracts(): Promise<void> {
     readJson(projectManifestSchemaPath),
     readJson(envSchemaPath),
     readJson(workflowSchemaPath),
+    readJson(playbookSchemaPath),
     readJson(dataContractsSchemaPath),
     readJson(projectManifestPath),
     readJson(executionLoopContractPath),
@@ -148,6 +155,10 @@ export async function validateRuntimeContracts(): Promise<void> {
     const workflowDefinition = await readJson(workflowFilePath);
     validateOrThrow(ajv, workflowSchema, workflowDefinition, `workflow.${workflowId}.json`);
     assert(workflowDefinition.workflow_id === workflowId, `workflow.${workflowId}.json workflow_id must match registry id`);
+    const playbookFilePath = path.join(MANIFEST_ROOT, `playbook.${workflowId}.json`);
+    const playbookDefinition = await readJson(playbookFilePath);
+    validateOrThrow(ajv, playbookSchema, playbookDefinition, `playbook.${workflowId}.json`);
+    assert(playbookDefinition.workflow_id === workflowId, `playbook.${workflowId}.json workflow_id must match registry id`);
 
     const publisherSequence = (workflowDefinition.publisher_sequence ?? []) as JsonObject[];
     assert(Array.isArray(publisherSequence) && publisherSequence.length > 0, `workflow.${workflowId}.json publisher_sequence must not be empty`);
@@ -159,6 +170,15 @@ export async function validateRuntimeContracts(): Promise<void> {
     assert(actions.has('verify_text'), `workflow.${workflowId}.json publisher_sequence must include verify_text action`);
     assert(actions.has('select'), `workflow.${workflowId}.json publisher_sequence must include select action`);
     assert(actions.has('submit'), `workflow.${workflowId}.json publisher_sequence must include submit action`);
+    const playbookSteps = (playbookDefinition.steps ?? []) as PlaybookStep[];
+    const playbookActions = new Set(
+      playbookSteps
+        .map((step) => (typeof step.action === 'string' ? step.action : ''))
+        .filter(Boolean)
+    );
+    assert(playbookActions.has('verify_text'), `playbook.${workflowId}.json steps must include verify_text action`);
+    assert(playbookActions.has('select'), `playbook.${workflowId}.json steps must include select action`);
+    assert(playbookActions.has('submit'), `playbook.${workflowId}.json steps must include submit action`);
 
     const publisherGuards = (decisionRules.publisher_guards ?? {}) as JsonObject;
     const requiredBodyText = publisherGuards.require_body_contains;
@@ -167,6 +187,11 @@ export async function validateRuntimeContracts(): Promise<void> {
       assert(
         Boolean(verifyStep) && verifyStep?.expected_text === requiredBodyText,
         `workflow.${workflowId}.json verify_text expected_text must match decision-rules require_body_contains`
+      );
+      const playbookVerifyStep = playbookSteps.find((step) => step.action === 'verify_text');
+      assert(
+        Boolean(playbookVerifyStep) && playbookVerifyStep?.expected_text === requiredBodyText,
+        `playbook.${workflowId}.json verify_text expected_text must match decision-rules require_body_contains`
       );
     }
   }

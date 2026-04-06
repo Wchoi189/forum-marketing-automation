@@ -589,3 +589,51 @@ test("runtime validation fails when workflow fixture violates schema", async () 
     await fs.writeFile(workflowPath, original);
   }
 });
+
+test("runtime validation fails when playbook fixture violates schema", async () => {
+  const playbookPath = path.join(
+    process.env.PROJECT_ROOT || "/parent/marketing-automation",
+    ".planning/spec-kit/manifest/playbook.ppomppu-gonggu-v1.json"
+  );
+  const original = await fs.readFile(playbookPath, "utf-8");
+  try {
+    const broken = JSON.parse(original) as Record<string, unknown>;
+    broken.steps = "invalid";
+    await fs.writeFile(playbookPath, JSON.stringify(broken, null, 2));
+    await assert.rejects(() => validateRuntimeContracts(), /playbook\.ppomppu-gonggu-v1\.json schema mismatch/);
+  } finally {
+    await fs.writeFile(playbookPath, original);
+  }
+});
+
+test("runtime validation fails when playbook workflow_id mismatches registry", async () => {
+  const playbookPath = path.join(
+    process.env.PROJECT_ROOT || "/parent/marketing-automation",
+    ".planning/spec-kit/manifest/playbook.ppomppu-gonggu-v1.json"
+  );
+  const original = await fs.readFile(playbookPath, "utf-8");
+  try {
+    const broken = JSON.parse(original) as Record<string, unknown>;
+    broken.workflow_id = "other-workflow";
+    await fs.writeFile(playbookPath, JSON.stringify(broken, null, 2));
+    await assert.rejects(() => validateRuntimeContracts(), /playbook\.ppomppu-gonggu-v1\.json workflow_id must match registry id/);
+  } finally {
+    await fs.writeFile(playbookPath, original);
+  }
+});
+
+test("runtime validation fails when playbook misses submit semantics", async () => {
+  const playbookPath = path.join(
+    process.env.PROJECT_ROOT || "/parent/marketing-automation",
+    ".planning/spec-kit/manifest/playbook.ppomppu-gonggu-v1.json"
+  );
+  const original = await fs.readFile(playbookPath, "utf-8");
+  try {
+    const broken = JSON.parse(original) as { steps?: Array<{ action?: string }> };
+    broken.steps = (broken.steps ?? []).filter((s) => s.action !== "submit");
+    await fs.writeFile(playbookPath, JSON.stringify(broken, null, 2));
+    await assert.rejects(() => validateRuntimeContracts(), /steps must include submit action/);
+  } finally {
+    await fs.writeFile(playbookPath, original);
+  }
+});

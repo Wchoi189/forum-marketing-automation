@@ -5,6 +5,7 @@ import path from 'path';
 import type { ActivityLog, Post, PublisherRunDecision } from './contracts/models.js';
 import { ENV } from './config/env.js';
 import { appendPublisherHistoryEntry } from './lib/publisherHistory.js';
+import { runPublisherPlaybook, type PublisherPlaybook } from './lib/playbookRunner.js';
 import { readRuntimeGapPersistedOverride, writeRuntimeGapPersistedOverride } from './lib/runtimeControls.js';
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
 import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval-polyfill.js';
@@ -21,10 +22,6 @@ export type PublisherRunResult = {
 
 const USER_DATA_DIR = ENV.BOT_PROFILE_DIR;
 const LOG_FILE = ENV.ACTIVITY_LOG_PATH;
-const REQUIRED_DRAFT_TITLE =
-  '[OTT/멤버십] [SharePlan] 끝까지 관리된 유튜브/코세라 프리미엄 (가입 완료 후 결제)';
-const REQUIRED_BODY_TEXT = '회원 모집 안내';
-const REQUIRED_CATEGORY_LABEL = '유튜브';
 const BOARD_ROW_SELECTOR = 'tr.list0, tr.list1, tr.common-list0, tr.common-list1, tr.list_notice';
 
 /** Reduces trivial AutomationControlled / headless flags; sites may still block by IP or advanced WAF. */
@@ -32,9 +29,6 @@ const CHROMIUM_LAUNCH_ARGS = ['--disable-blink-features=AutomationControlled'] a
 
 /** Upper bound for Playwright navigation/locator/URL waits in this module. */
 const BOT_MAX_WAIT_MS = 3000;
-
-/** Drafts modal can load after click; wrong `.popup_layer` index is a common false-empty. */
-const PUBLISHER_DRAFT_MODAL_WAIT_MS = Math.max(BOT_MAX_WAIT_MS, 20000);
 
 function sharedBrowserContextOptions(): BrowserContextOptions {
   return {
@@ -197,6 +191,18 @@ async function readPlanningJson<T>(relativePath: string): Promise<T> {
   const filePath = path.join(ENV.PROJECT_ROOT, '.planning', 'spec-kit', relativePath);
   const content = await fs.readFile(filePath, 'utf-8');
   return JSON.parse(content) as T;
+}
+
+async function loadPublisherPlaybook(workflowId: string): Promise<PublisherPlaybook> {
+  const playbook = await readPlanningJson<PublisherPlaybook>(`manifest/playbook.${workflowId}.json`);
+  if (playbook.workflow_id !== workflowId) {
+    throw new Error(`PUBLISHER_PLAYBOOK_INVALID: workflow_id mismatch (${playbook.workflow_id} != ${workflowId})`);
+  }
+  const actions = new Set(playbook.steps.map((s) => s.action));
+  if (!actions.has('verify_text') || !actions.has('select') || !actions.has('submit')) {
+    throw new Error('PUBLISHER_PLAYBOOK_INVALID: required actions verify_text/select/submit missing');
+  }
+  return playbook;
 }
 
 function assertPolicy(condition: unknown, message: string): asserts condition {
@@ -1021,172 +1027,35 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
       }
 
       await publisherDebugScreenshot(page, debugDir, '01-board');
+      const workflowId = 'ppomppu-gonggu-v1';
+      const playbook = await loadPublisherPlaybook(workflowId);
+      const nonSubmitSteps = playbook.steps.filter((s) => s.action !== 'submit');
+      const submitSteps = playbook.steps.filter((s) => s.action === 'submit');
+      if (submitSteps.length === 0) {
+        throw new Error('PUBLISHER_PLAYBOOK_INVALID: submit step missing');
+      }
 
-      // Step 1: Access Writing Interface
-      // Find "글쓰기" button. Usually an <a> tag with text or image
-      const writeBtn = page.locator('a:has-text("글쓰기")').first();
-      await writeBtn.click();
-      await publisherDebugScreenshot(page, debugDir, '02-write');
-
-      // Step 2: Retrieve Draft
-      // Click "임시저장된 게시글"
-      const draftBtn = page.locator('input[value="임시저장된 게시글"], button:has-text("임시저장된 게시글")');
-      await draftBtn.click();
-      await publisherDebugScreenshot(page, debugDir, '03-drafts');
-
-      // Drafts modal: each saved item is followed by a "Preview" row — pick item N via 0-based tr index (N-1)*2.
-      const { draftItemIndex } = getPublisherControls();
-      const zeroBasedTr = (draftItemIndex - 1) * 2;
-
-      // Do not rely on `.popup_layer` — production markup often uses other wrappers; the modal still shows
-      // the drafts grid (제목 / 등록일). Wait for that table, then resolve a shell that includes footer "닫기"
-      // so preview-bar XPath stays under the same card as the grid.
-      const draftsListTable = page
-        .locator('table')
-        .filter({ has: page.locator('th').filter({ hasText: '제목' }) })
-        .filter({ has: page.locator('th').filter({ hasText: '등록일' }) })
-        .first();
-
-      await draftsListTable.waitFor({ state: 'visible', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS });
-
-      const shellByCard = draftsListTable.locator(
-        'xpath=ancestor::div[contains(., "임시저장된 게시글") and contains(., "닫기")][1]'
+      await runPublisherPlaybook(
+        page,
+        { ...playbook, steps: nonSubmitSteps },
+        { boardEntryUrl: policy.boardUrl }
       );
-      const shellByTitle = draftsListTable.locator('xpath=ancestor::div[contains(., "임시저장된 게시글")][1]');
-
-      let draftModal: import('playwright').Locator = draftsListTable;
-      if ((await shellByCard.count()) > 0) {
-        draftModal = shellByCard.first();
-      } else if ((await shellByTitle.count()) > 0) {
-        draftModal = shellByTitle.first();
-      }
-      await draftModal.waitFor({ state: 'attached', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS });
-
-      const tableDataRows = (root: import('playwright').Locator) =>
-        root.locator('table tr').filter({ has: page.locator('td') });
-
-      let draftRows = draftsListTable.locator('tbody tr').filter({ has: page.locator('td') });
-      if ((await draftRows.count()) === 0) {
-        draftRows = tableDataRows(draftsListTable);
-      }
-      if ((await draftRows.count()) === 0) {
-        const loose = page
-          .locator('div:visible')
-          .filter({ hasText: '임시저장된 게시글' })
-          .filter({ has: page.locator('table tr') })
-          .first();
-        await loose.waitFor({ state: 'visible', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS }).catch(() => null);
-        draftRows = tableDataRows(loose);
-      }
-
-      await draftRows
-        .first()
-        .waitFor({ state: 'attached', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS })
-        .catch(() => null);
-
-      const rowCount = await draftRows.count();
-      // Ppomppu modal table: item 1 = tbody/tr[1], preview = tr[2], item 2 = tr[3], … → tr[2*index-1] (1-based XPath).
-      // Scoped `.//...` under the drafts modal — do not use /html/body/div[14] (index shifts between sessions).
-      const trXPathOneBased = draftItemIndex * 2 - 1;
-      const tbodyTrCount = await draftsListTable.locator('tbody tr').count();
-
-      let draftRow: import('playwright').Locator;
-      if (tbodyTrCount > 0 && trXPathOneBased <= tbodyTrCount) {
-        draftRow = draftsListTable.locator(`xpath=.//tbody/tr[${trXPathOneBased}]`).first();
-        await draftRow.waitFor({ state: 'attached', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS });
-      } else if (zeroBasedTr < rowCount) {
-        draftRow = draftRows.nth(zeroBasedTr);
-      } else {
-        throw new Error(
-          `PUBLISHER_DRAFT_ROW_MISSING: draftItemIndex=${draftItemIndex} needs tbody tr[${trXPathOneBased}] (0-based filtered index ${zeroBasedTr}) but tbody has ${tbodyTrCount} tr, filtered data rows=${rowCount}`
-        );
-      }
-      const rowText = (await draftRow.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
-      if (!rowText.includes(REQUIRED_DRAFT_TITLE)) {
-        throw new Error(
-          `PUBLISHER_DRAFT_TITLE_MISMATCH: draftItemIndex=${draftItemIndex} row must contain required title; rowPreview="${rowText.slice(0, 220)}"`
-        );
-      }
-
-      // Step 3: Load draft — table row may open a second Tempas modal; real confirm is button.btn_set_tempas.
-      const loadBtnInRow = draftRow.locator('a:has-text("불러오기"), button:has-text("불러오기")').first();
-      if ((await loadBtnInRow.count()) > 0) {
-        await loadBtnInRow.click();
-      } else {
-        await draftRow.click();
-      }
-
-      // After row click, preview bar appears — wait first, then match your DOM: div/div[2]/div[2]/button[1] under the same modal (no /html/body/div[14]).
-      const closePreviewBtn = page.locator('button.btn_preview_close').last();
-      await closePreviewBtn.waitFor({ state: 'visible', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS });
-
-      const confirmByModalXPath = draftModal.locator('xpath=.//div/div[2]/div[2]/button[1]');
-      let confirmDraftLoadBtn: import('playwright').Locator;
-      const xpathCandidate = confirmByModalXPath.first();
-      if ((await confirmByModalXPath.count()) > 0 && (await xpathCandidate.isVisible().catch(() => false))) {
-        confirmDraftLoadBtn = xpathCandidate;
-      } else {
-        let sib = closePreviewBtn.locator('xpath=preceding-sibling::button[contains(@class,"btn_set_tempas")]');
-        if ((await sib.count()) === 0) {
-          sib = closePreviewBtn.locator('xpath=following-sibling::button[contains(@class,"btn_set_tempas")]');
-        }
-        if ((await sib.count()) === 0) {
-          sib = page.locator('button.btn_set_tempas').filter({ hasText: '불러오기' }).last();
-        }
-        confirmDraftLoadBtn = sib;
-      }
-      await confirmDraftLoadBtn.waitFor({ state: 'visible', timeout: PUBLISHER_DRAFT_MODAL_WAIT_MS });
-      await confirmDraftLoadBtn.click();
-
-      // Wait for editor to load
-      await page.waitForTimeout(2000);
-      await publisherDebugScreenshot(page, debugDir, '04-editor');
-
-      // Verify required text is in editor body
-      // Ppomppu uses a custom editor, often an iframe or a textarea
-      const content = await page.content();
-      if (!content.includes(REQUIRED_BODY_TEXT)) {
-        // Check inside iframes if necessary
-        const frames = page.frames();
-        let found = false;
-        for (const frame of frames) {
-          const frameContent = await frame.content();
-          if (frameContent.includes(REQUIRED_BODY_TEXT)) {
-            found = true;
-            break;
-          }
-        }
-        if (!found) throw new Error(`Verification failed: "${REQUIRED_BODY_TEXT}" not found in editor`);
-      }
-
-      // Step 4: Categorize
-      // Set OTT category dropdown to "유튜브"
-      // The selector might be a <select> or a custom dropdown
-      const categorySelect = page.locator('select[name="category"], select#category');
-      if (await categorySelect.count() > 0) {
-        const selected = await categorySelect.selectOption({ label: REQUIRED_CATEGORY_LABEL });
-        if (selected.length === 0) {
-          throw new Error(`Category selection failed: "${REQUIRED_CATEGORY_LABEL}" option missing`);
-        }
-      }
-
       await publisherDebugScreenshot(page, debugDir, '05-before-submit');
 
-      // Step 5: Publish
-      const submitBtn = page.locator('#ok_button, input[value="작성완료"], button:has-text("작성완료")');
       if (ENV.DRY_RUN_MODE) {
         console.log('Dry-run mode enabled. Submit click intentionally skipped.');
         return await finish(true, 'Publication simulated successfully (DRY_RUN_MODE=true)', 'dry_run', log);
       }
 
-      await submitBtn.waitFor({ state: 'attached', timeout: BOT_MAX_WAIT_MS });
       const boardId = boardIdFromEntryUrl(policy.boardUrl);
-      // Native click + wait until navigation lands on list/view (not compose / write_ok interim).
+      // Submit step is playbook-driven; success still requires list/view landing URL verification.
       await Promise.all([
         waitForPublishLandingUrl(page, boardId, ENV.PUBLISHER_POST_SUBMIT_WAIT_MS),
-        submitBtn.evaluate((el: HTMLInputElement | HTMLButtonElement) => {
-          el.click();
-        })
+        runPublisherPlaybook(
+          page,
+          { ...playbook, steps: submitSteps },
+          { boardEntryUrl: policy.boardUrl }
+        )
       ]);
       await publisherDebugScreenshot(page, debugDir, '06-success');
       console.log('Draft loaded, verified, and submitted.');

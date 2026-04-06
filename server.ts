@@ -466,6 +466,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       setPublisherControls(body.publisher);
     }
 
+    const hasPreset = Boolean(scheduler && body.preset && PRESET_CONFIG[body.preset]);
     if (scheduler && body.preset && PRESET_CONFIG[body.preset]) {
       const presetConfig = PRESET_CONFIG[body.preset];
       setObserverControls({ ...presetConfig.observer, ...observerPacing });
@@ -474,10 +475,13 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     }
 
     if (scheduler && body.autoPublisher) {
+      // Preset wins scheduler numeric controls; only explicit enabled toggle may be layered after preset.
       if (Object.prototype.hasOwnProperty.call(body.autoPublisher, "enabled")) {
         scheduler.setEnabled(Boolean(body.autoPublisher.enabled));
       }
-      scheduler.setControls(body.autoPublisher);
+      if (!hasPreset) {
+        scheduler.setControls(body.autoPublisher);
+      }
     }
 
     const autoPublisherState = (scheduler ? await scheduler.getState() : null) ?? {

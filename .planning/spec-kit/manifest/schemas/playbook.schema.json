@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shareplan.local/schemas/playbook.schema.json",
+  "title": "Publisher Playbook",
+  "type": "object",
+  "required": ["playbook_version", "workflow_id", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "playbook_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workflow_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selector_profile": {
+      "type": "string",
+      "enum": ["playwright"]
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["step_id", "action"],
+        "additionalProperties": false,
+        "properties": {
+          "step_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "action": {
+            "type": "string",
+            "enum": ["navigate", "click", "change", "select", "submit", "verify_text"]
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "selector": {
+            "type": "string",
+            "minLength": 1
+          },
+          "selectors": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1
+            },
+            "minItems": 1
+          },
+          "value": {
+            "type": "string"
+          },
+          "expected_text": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "action": { "const": "navigate" } }
+            },
+            "then": {
+              "anyOf": [{ "required": ["url"] }, { "required": [] }]
+            }
+          },
+          {
+            "if": {
+              "properties": { "action": { "const": "verify_text" } }
+            },
+            "then": {
+              "required": ["expected_text"]
+            }
+          },
+          {
+            "if": {
+              "properties": { "action": { "const": "submit" } }
+            },
+            "then": {
+              "anyOf": [{ "required": ["selector"] }, { "required": ["selectors"] }]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

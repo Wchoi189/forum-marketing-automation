@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { 
   ShieldCheck, 
   ShieldAlert, 
@@ -195,6 +195,11 @@ function isSharePlanAuthor(author: string) {
 }
 
 export default function App() {
+  const location = useLocation();
+  const onOverview = location.pathname === '/' || location.pathname === '/overview';
+  const onOperations = location.pathname === '/operations';
+  const onControls = location.pathname === '/controls';
+  const onPublisherRuns = location.pathname === '/publisher-runs';
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [competitorStats, setCompetitorStats] = useState<CompetitorStat[]>([]);
   const [boardStats, setBoardStats] = useState<BoardStats | null>(null);
@@ -206,6 +211,8 @@ export default function App() {
   const [publisherHistory, setPublisherHistory] = useState<PublisherHistoryEntry[]>([]);
   const [controlPanel, setControlPanel] = useState<ControlPanelState>(DEFAULT_CONTROL_PANEL);
   const [controlSaving, setControlSaving] = useState(false);
+  const [controlDirty, setControlDirty] = useState(false);
+  const [controlPanelSection, setControlPanelSection] = useState<'observer' | 'scheduler' | 'publisher'>('observer');
 
   const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
 
@@ -287,12 +294,30 @@ export default function App() {
     try {
       const response = await fetch('/api/control-panel');
       const data = await response.json();
-      setControlPanel({
+      const nextState: ControlPanelState = {
         ...DEFAULT_CONTROL_PANEL,
         ...data,
         observer: { ...DEFAULT_CONTROL_PANEL.observer, ...data.observer },
         publisher: { ...DEFAULT_CONTROL_PANEL.publisher, ...data.publisher },
         autoPublisher: { ...DEFAULT_CONTROL_PANEL.autoPublisher, ...data.autoPublisher }
+      };
+      setControlPanel((current) => {
+        if (!controlDirty) return nextState;
+        // While user edits form values, only merge non-form status fields from polling.
+        return {
+          ...current,
+          observer: {
+            ...current.observer,
+            gapThresholdMin: nextState.observer.gapThresholdMin,
+            gapThresholdSpecBaseline: nextState.observer.gapThresholdSpecBaseline,
+            gapUsesEnvOverride: nextState.observer.gapUsesEnvOverride
+          },
+          autoPublisher: {
+            ...current.autoPublisher,
+            running: nextState.autoPublisher.running,
+            effectiveIntervalMinutes: nextState.autoPublisher.effectiveIntervalMinutes
+          }
+        };
       });
     } catch (error) {
       console.error('Failed to fetch control panel:', error);
@@ -331,6 +356,7 @@ export default function App() {
         publisher: { ...DEFAULT_CONTROL_PANEL.publisher, ...data.publisher },
         autoPublisher: { ...DEFAULT_CONTROL_PANEL.autoPublisher, ...data.autoPublisher }
       });
+      setControlDirty(false);
       setActionMessage({ type: 'success', text: 'Control panel settings saved.' });
     } catch (error) {
       setActionMessage({ type: 'error', text: 'Control panel save failed (network/API error).' });
@@ -399,7 +425,32 @@ export default function App() {
   }));
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans selection:bg-orange-500/30">
+    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans selection:bg-orange-500/30 flex">
+      <aside className="w-56 shrink-0 border-r border-white/10 bg-black/40 p-4 hidden lg:block">
+        <div className="text-xs uppercase tracking-widest opacity-40 mb-3">Navigation</div>
+        <nav className="space-y-2">
+          {[
+            { to: '/overview', label: 'Overview' },
+            { to: '/operations', label: 'Operations' },
+            { to: '/controls', label: 'Controls' },
+            { to: '/publisher-runs', label: 'Publisher Runs' },
+            { to: '/analytics', label: 'Competitor EDA' }
+          ].map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `block px-3 py-2 rounded-lg text-sm border transition-all ${
+                  isActive ? 'bg-orange-600/20 border-orange-500/40 text-orange-200' : 'border-white/10 hover:bg-white/5'
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+      </aside>
+      <div className="flex-1 min-w-0">
       {/* Header */}
       <header className="border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -437,30 +488,31 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {onOverview && (
+        <>
         {/* Top Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Safety Gauge */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`p-8 rounded-3xl border ${isSafe ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5'} flex flex-col items-center justify-center text-center space-y-4`}
+            className={`p-5 rounded-3xl border ${isSafe ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5'} flex flex-col justify-center space-y-3`}
           >
-            <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isSafe ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
-              {isSafe ? <ShieldCheck className="w-10 h-10" /> : <ShieldAlert className="w-10 h-10" />}
-            </div>
-            <div>
-              <h2 className="text-sm font-medium opacity-50 uppercase tracking-widest mb-1">Safety Status</h2>
-              <p className={`text-3xl font-black uppercase italic ${isSafe ? 'text-green-500' : 'text-red-500'}`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSafe ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                {isSafe ? <ShieldCheck className="w-6 h-6" /> : <ShieldAlert className="w-6 h-6" />}
+              </div>
+              <div>
+                <h2 className="text-[10px] font-medium opacity-50 uppercase tracking-widest">Safety Status</h2>
+                <p className={`text-xl font-black uppercase italic ${isSafe ? 'text-green-500' : 'text-red-500'}`}>
                 {latestLog ? (isSafe ? 'Safe Zone' : 'Danger Zone') : 'No Data'}
-              </p>
-              <p className="text-xs opacity-40 mt-2 max-w-[14rem] mx-auto leading-relaxed">
-                Current Gap:{' '}
-                <span className="font-bold text-white">{latestLog?.current_gap_count ?? 0} posts</span>
-                <br />
-                Min required:{' '}
-                <span className="font-bold text-white">{minGapRequired}</span> ({gapPolicySourceLabel(controlPanel.observer)})
-              </p>
+                </p>
+              </div>
             </div>
+            <p className="text-xs opacity-55 leading-relaxed">
+              Gap <span className="font-bold text-white">{latestLog?.current_gap_count ?? 0}</span> / Min{' '}
+              <span className="font-bold text-white">{minGapRequired}</span> ({gapPolicySourceLabel(controlPanel.observer)})
+            </p>
           </motion.div>
 
           {/* Last Post Info */}
@@ -558,6 +610,22 @@ export default function App() {
                       {row.force && (
                         <span className="text-[9px] uppercase opacity-50 border border-white/15 px-1 rounded">manual</span>
                       )}
+                      {row.artifactDir && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard?.writeText(row.artifactDir ?? '');
+                            setActionMessage({
+                              type: 'success',
+                              text: `Copied artifact path: ${row.artifactDir}`
+                            });
+                          }}
+                          className="text-[9px] uppercase opacity-70 border border-white/20 px-1 rounded hover:opacity-100"
+                          title={row.artifactDir}
+                        >
+                          copy artifactDir
+                        </button>
+                      )}
                       <span className="opacity-60 break-all">{stripTaggedErrorPrefix(row.message)}</span>
                     </div>
                   ))
@@ -643,7 +711,11 @@ export default function App() {
             </button>
           </motion.div>
         </div>
+        </>
+        )}
 
+        {onOverview && (
+        <>
         {/* Trend insights (Spec-kit: analytics-trend + scheduler-adaptation policy) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -713,18 +785,64 @@ export default function App() {
             <p className="text-sm opacity-40 italic">Loading trend insights…</p>
           )}
         </motion.div>
+        </>
+        )}
 
+        {onPublisherRuns && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-8 rounded-3xl border border-white/10 bg-white/5 space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">Publisher Runs</h2>
+              <button
+                type="button"
+                onClick={fetchPublisherHistory}
+                className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[10px] uppercase tracking-widest hover:bg-white/10"
+              >
+                Refresh
+              </button>
+            </div>
+            <div className="space-y-2">
+              {publisherHistory.length === 0 ? (
+                <p className="text-sm opacity-50">No publisher runs recorded yet.</p>
+              ) : (
+                publisherHistory.map((row, i) => (
+                  <div key={`${row.at}-${i}`} className="p-3 rounded-xl border border-white/10 bg-black/20 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono opacity-70">{new Date(row.at).toLocaleString()}</span>
+                      <span className={row.success ? 'text-emerald-400 font-bold uppercase' : 'text-red-400 font-bold uppercase'}>
+                        {row.success ? 'ok' : 'fail'}
+                      </span>
+                      {row.decision && <span className="opacity-60 uppercase">{row.decision.replace(/_/g, ' ')}</span>}
+                      {row.artifactDir && <span className="font-mono opacity-50">{row.artifactDir}</span>}
+                    </div>
+                    <div className="opacity-75 mt-1">{stripTaggedErrorPrefix(row.message)}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {onControls && (
+        <>
         {/* Runtime Control Panel */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="p-8 rounded-3xl border border-white/10 bg-white/5 space-y-6"
+          onChangeCapture={() => setControlDirty(true)}
         >
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">Runtime Control Panel</h2>
-            <span className="text-[10px] opacity-40 uppercase tracking-widest">
-              Scheduler: {controlPanel.autoPublisher.enabled ? 'Enabled' : 'Paused'} / {controlPanel.autoPublisher.running ? 'Running' : 'Idle'} / Effective {controlPanel.autoPublisher.effectiveIntervalMinutes}m
-            </span>
+            <div className="text-right">
+              <span className="block text-[10px] opacity-40 uppercase tracking-widest">
+                Scheduler: {controlPanel.autoPublisher.enabled ? 'Enabled' : 'Paused'} / {controlPanel.autoPublisher.running ? 'Running' : 'Idle'} / Effective {controlPanel.autoPublisher.effectiveIntervalMinutes}m
+              </span>
+              {controlDirty && <span className="block text-[10px] text-amber-300/80">Unsaved local edits</span>}
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -745,8 +863,24 @@ export default function App() {
             <span className="text-[10px] opacity-40">Preset updates both observer pacing and scheduler cadence.</span>
           </div>
 
+          <div className="flex items-center gap-2">
+            {(['observer', 'scheduler', 'publisher'] as const).map((section) => (
+              <button
+                key={section}
+                type="button"
+                onClick={() => setControlPanelSection(section)}
+                className={`px-3 py-1.5 rounded-full text-[10px] uppercase tracking-widest border transition-all ${
+                  controlPanelSection === section ? 'bg-orange-600 border-orange-500 text-white' : 'bg-white/5 border-white/10 opacity-70 hover:opacity-100'
+                }`}
+              >
+                {section}
+              </button>
+            ))}
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="space-y-4 p-4 rounded-2xl bg-white/5 border border-white/10">
+            {controlPanelSection === 'observer' && (
+            <div className="space-y-4 p-4 rounded-2xl bg-white/5 border border-white/10 lg:col-span-2">
               <p className="text-[11px] font-bold uppercase tracking-wider opacity-60">Observer Pacing</p>
               <label className="flex items-center justify-between text-sm">
                 <span>Observer enabled</span>
@@ -843,8 +977,10 @@ export default function App() {
                 />
               </div>
             </div>
+            )}
 
-            <div className="space-y-4 p-4 rounded-2xl bg-white/5 border border-white/10">
+            {controlPanelSection === 'scheduler' && (
+            <div className="space-y-4 p-4 rounded-2xl bg-white/5 border border-white/10 lg:col-span-2">
               <p className="text-[11px] font-bold uppercase tracking-wider opacity-60">Auto-Publisher Scheduler</p>
               <label className="flex items-center justify-between text-sm">
                 <span>Auto-publisher enabled</span>
@@ -1104,8 +1240,10 @@ export default function App() {
                 still reacting to how fast new competitor posts appear (trend adaptive must stay on for the dynamic part).
               </p>
             </div>
+            )}
           </div>
 
+          {controlPanelSection === 'publisher' && (
           <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
             <p className="text-[11px] font-bold uppercase tracking-wider opacity-60">Publisher — saved drafts</p>
             <p className="text-[10px] opacity-50 leading-relaxed">
@@ -1131,6 +1269,7 @@ export default function App() {
               className="w-full max-w-xs px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm"
             />
           </div>
+          )}
 
           <div className="flex items-center justify-end">
             <button
@@ -1142,7 +1281,11 @@ export default function App() {
             </button>
           </div>
         </motion.div>
+        </>
+        )}
 
+        {onOperations && (
+        <>
         {/* Competitor Intelligence */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -1338,6 +1481,8 @@ export default function App() {
             ))}
           </div>
         </motion.div>
+        </>
+        )}
       </main>
 
       {/* Log Details Modal */}
@@ -1438,6 +1583,7 @@ export default function App() {
           border-radius: 10px;
         }
       `}</style>
+      </div>
     </div>
   );
 }

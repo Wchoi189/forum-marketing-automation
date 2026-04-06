@@ -1,0 +1,42 @@
+{
+  "playbook_version": "1.0.0",
+  "workflow_id": "ppomppu-gonggu-v1",
+  "selector_profile": "playwright",
+  "steps": [
+    {
+      "step_id": "navigate-board",
+      "action": "navigate"
+    },
+    {
+      "step_id": "click-write",
+      "action": "click",
+      "selectors": [["a:has-text(\"글쓰기\")"]]
+    },
+    {
+      "step_id": "open-saved-drafts",
+      "action": "click",
+      "selectors": [["input[value=\"임시저장된 게시글\"]"], ["button:has-text(\"임시저장된 게시글\")"]]
+    },
+    {
+      "step_id": "confirm-load-draft-modal",
+      "action": "click",
+      "selectors": [["button.btn_set_tempas:has-text(\"불러오기\")"]]
+    },
+    {
+      "step_id": "verify-required-body",
+      "action": "verify_text",
+      "expected_text": "회원 모집 안내"
+    },
+    {
+      "step_id": "set-youtube-category",
+      "action": "select",
+      "selectors": [["select[name=\"category\"]"], ["select#category"]],
+      "value": "유튜브"
+    },
+    {
+      "step_id": "submit-post",
+      "action": "submit",
+      "selectors": [["input[value=\"작성완료\"]"], ["button:has-text(\"작성완료\")"]]
+    }
+  ]
+}
