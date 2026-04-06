@@ -31,3 +31,5 @@ Thumbs.db
 
 # Optional: generated publisher artifacts (adjust if you version some paths)
 artifacts/publisher-runs/
+!.planning/spec-kit/
+!.agent/

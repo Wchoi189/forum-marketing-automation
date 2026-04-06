@@ -1,0 +1,35 @@
+const { chromium } = require('playwright');
+
+(async () => {
+  const browser = await chromium.launch({ headless: false });
+  // Uncomment to load saved auth state:
+  // const context = await browser.newContext({
+  //   storageState: 'storageState.json'
+  // });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  await page.goto('https://www.ppomppu.co.kr/');
+  await page.click('[data-id="today_issue"]');
+  await page.click('[data-id="best"]');
+  await page.click('[data-id="all"]');
+  await page.click('text=OTT/멤버십');
+  await page.goto('https://www.ppomppu.co.kr/zboard/zboard.php?id=gonggu');
+  await page.goto('https://www.ppomppu.co.kr/zboard/zboard.php?id=gonggu');
+  await page.click('text=글쓰기');
+  await page.goto('https://www.ppomppu.co.kr/zboard/write.php?id=gonggu&page=1&divpage=39&mode=write');
+  await page.goto('https://www.ppomppu.co.kr/zboard/write.php?id=gonggu&page=1&divpage=39&mode=write');
+  await page.click('text=임시저장된 게시글');
+  await page.fill('#secret_num1', 'c');
+  await page.click('td');
+  await page.click('text=불러오기');
+  await page.click('#category');
+  await page.click('#category');
+  await page.fill('#category', '3');
+
+
+  // Add assertions here
+  // await expect(page).toHaveTitle('Expected Title');
+
+  await browser.close();
+})();

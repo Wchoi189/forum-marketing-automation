@@ -1,0 +1,403 @@
+{
+    "title": "ppompu",
+    "steps": [
+        {
+            "type": "setViewport",
+            "width": 2324,
+            "height": 1331,
+            "deviceScaleFactor": 1,
+            "isMobile": false,
+            "hasTouch": false,
+            "isLandscape": false
+        },
+        {
+            "type": "navigate",
+            "url": "https://www.ppomppu.co.kr/",
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://www.ppomppu.co.kr/",
+                    "title": "뽐뿌 - 사람이 좋아 함께하는 곳"
+                }
+            ]
+        },
+        {
+            "type": "navigate",
+            "url": "https://www.ppomppu.co.kr/",
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://www.ppomppu.co.kr/",
+                    "title": ""
+                }
+            ]
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "div.right > div:nth-of-type(1) img"
+                ],
+                [
+                    "xpath//html/body/div[1]/div[2]/div[3]/div[2]/div[1]/p/a/img"
+                ],
+                [
+                    "pierce/div.right > div:nth-of-type(1) img"
+                ]
+            ],
+            "offsetY": 27.920135498046875,
+            "offsetX": 57.375,
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://www.ppomppu.co.kr/zboard/login.php",
+                    "title": "사람이 좋아 함께하는 곳.. 뽐뿌!"
+                }
+            ]
+        },
+        {
+            "type": "change",
+            "value": "${ENV.PPOMPPU_USER_ID}",
+            "selectors": [
+                [
+                    "aria/아이디 입력"
+                ],
+                [
+                    "#user_id"
+                ],
+                [
+                    "xpath///*[@id=\"user_id\"]"
+                ],
+                [
+                    "pierce/#user_id"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "change",
+            "value": "${ENV.PPOMPPU_USER_PW}",
+            "selectors": [
+                [
+                    "aria/비밀번호 입력"
+                ],
+                [
+                    "#password"
+                ],
+                [
+                    "xpath///*[@id=\"password\"]"
+                ],
+                [
+                    "pierce/#password"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/로그인",
+                    "aria/[role=\"generic\"]"
+                ],
+                [
+                    "ul > a span"
+                ],
+                [
+                    "xpath///*[@id=\"zb_login\"]/ul/a/li/span"
+                ],
+                [
+                    "pierce/ul > a span"
+                ]
+            ],
+            "offsetY": 25.3992919921875,
+            "offsetX": 8.270751953125,
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://www.ppomppu.co.kr/zboard/login.php#none",
+                    "title": "사람이 좋아 함께하는 곳.. 뽐뿌!"
+                }
+            ]
+        },
+        {
+            "type": "change",
+            "value": "c",
+            "selectors": [
+                [
+                    "#secret_num1"
+                ],
+                [
+                    "xpath///*[@id=\"secret_num1\"]"
+                ],
+                [
+                    "pierce/#secret_num1"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/장터"
+                ],
+                [
+                    "li.menu06 > a"
+                ],
+                [
+                    "xpath//html/body/div[6]/div[2]/div[2]/div[2]/ul/li[7]/a"
+                ],
+                [
+                    "pierce/li.menu06 > a"
+                ]
+            ],
+            "offsetY": 12.024299621582031,
+            "offsetX": 46.6666259765625,
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://www.ppomppu.co.kr/recent_main_article.php?type=market",
+                    "title": "뽐뿌 - 사람이 좋아 함께하는 곳"
+                }
+            ]
+        },
+        {
+            "type": "change",
+            "value": "c",
+            "selectors": [
+                [
+                    "#secret_num1"
+                ],
+                [
+                    "xpath///*[@id=\"secret_num1\"]"
+                ],
+                [
+                    "pierce/#secret_num1"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/OTT/멤버십 "
+                ],
+                [
+                    "ul:nth-of-type(4) > li.board01_title > a"
+                ],
+                [
+                    "xpath///*[@id=\"bbs_wrap1\"]/div[2]/ul[4]/li[1]/a"
+                ],
+                [
+                    "pierce/ul:nth-of-type(4) > li.board01_title > a"
+                ]
+            ],
+            "offsetY": 16.87841796875,
+            "offsetX": 45.7777099609375,
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://ads.pubmatic.com/AdServer/js/user_sync.html?kdntuid=1&p=156701",
+                    "title": "뽐뿌 - OTT/멤버십"
+                }
+            ]
+        },
+        {
+            "type": "change",
+            "value": "c",
+            "selectors": [
+                [
+                    "#secret_num1"
+                ],
+                [
+                    "xpath///*[@id=\"secret_num1\"]"
+                ],
+                [
+                    "pierce/#secret_num1"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/전체 넷플릭스 유튜브 디즈니플러스 웨이브 티빙 네이버 MS365 닌텐도 기타 거래완료 글쓰기",
+                    "aria/글쓰기"
+                ],
+                [
+                    "table:nth-of-type(1) div > a"
+                ],
+                [
+                    "xpath//html/body/div[6]/div[2]/div[3]/div/table[1]/tbody/tr/td/div/a"
+                ],
+                [
+                    "pierce/table:nth-of-type(1) div > a"
+                ]
+            ],
+            "offsetY": 9.11456298828125,
+            "offsetX": 39.9443359375,
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://www.ppomppu.co.kr/zboard/write.php?id=gonggu&page=1&divpage=39&mode=write",
+                    "title": "뽐뿌 - OTT/멤버십"
+                }
+            ]
+        },
+        {
+            "type": "change",
+            "value": "c",
+            "selectors": [
+                [
+                    "#secret_num1"
+                ],
+                [
+                    "xpath///*[@id=\"secret_num1\"]"
+                ],
+                [
+                    "pierce/#secret_num1"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/임시저장된 게시글"
+                ],
+                [
+                    "table:nth-of-type(2) button"
+                ],
+                [
+                    "xpath///*[@id={}]/table/tbody/tr/td/table[2]/tbody/tr[3]/td/button"
+                ],
+                [
+                    "pierce/table:nth-of-type(2) button"
+                ],
+                [
+                    "text/임시저장된 게시글"
+                ]
+            ],
+            "offsetY": 16.131927490234375,
+            "offsetX": 58.767333984375
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "tr:nth-of-type(1) > td.subject"
+                ],
+                [
+                    "xpath//html/body/div[14]/div/div[1]/div[2]/table/tbody/tr[1]/td[1]"
+                ],
+                [
+                    "pierce/tr:nth-of-type(1) > td.subject"
+                ]
+            ],
+            "offsetY": 12.33331298828125,
+            "offsetX": 252.44439697265625
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/불러오기"
+                ],
+                [
+                    "div.tempas-preview button.btn_set_tempas"
+                ],
+                [
+                    "xpath//html/body/div[14]/div/div[2]/div[2]/button[1]"
+                ],
+                [
+                    "pierce/div.tempas-preview button.btn_set_tempas"
+                ]
+            ],
+            "offsetY": 9.032958984375,
+            "offsetX": 36.861083984375
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/넷플릭스",
+                    "aria/[role=\"combobox\"]"
+                ],
+                [
+                    "#category"
+                ],
+                [
+                    "xpath///*[@id=\"category\"]"
+                ],
+                [
+                    "pierce/#category"
+                ]
+            ],
+            "offsetY": 10.1180419921875,
+            "offsetX": 79.77777099609375
+        },
+        {
+            "type": "change",
+            "value": "3",
+            "selectors": [
+                [
+                    "aria/유튜브",
+                    "aria/[role=\"combobox\"]"
+                ],
+                [
+                    "#category"
+                ],
+                [
+                    "xpath///*[@id=\"category\"]"
+                ],
+                [
+                    "pierce/#category"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/작성완료[role=\"button\"]"
+                ],
+                [
+                    "#ok_button"
+                ],
+                [
+                    "xpath///*[@id=\"ok_button\"]"
+                ],
+                [
+                    "pierce/#ok_button"
+                ],
+                [
+                    "text/작성완료"
+                ]
+            ],
+            "offsetY": 36.45831298828125,
+            "offsetX": 29.7777099609375,
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://www.ppomppu.co.kr/zboard/unlimit_write_ok.php",
+                    "title": ""
+                }
+            ]
+        }
+    ]
+}

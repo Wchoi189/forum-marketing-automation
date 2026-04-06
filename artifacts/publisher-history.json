@@ -1,5 +1,191 @@
 [
   {
+    "at": "2026-04-06T16:04:34.969Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)",
+    "runId": "210c3848-5679-4d6f-8e71-70e4d7ac77be",
+    "artifactDir": null,
+    "decision": "gap_policy"
+  },
+  {
+    "at": "2026-04-06T14:46:47.101Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202067&page=1&slave=off)",
+    "runId": "59b8c825-24cd-4292-9a51-c25b3540b280",
+    "artifactDir": "artifacts/publisher-runs/59b8c825-24cd-4292-9a51-c25b3540b280",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-06T13:49:25.045Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)",
+    "runId": "f2aa6bdb-3039-40db-baa0-d6c040058827",
+    "artifactDir": null,
+    "decision": "gap_policy"
+  },
+  {
+    "at": "2026-04-06T13:24:19.141Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)",
+    "runId": "c47a5336-547a-4505-97b0-beae3177c0e4",
+    "artifactDir": null,
+    "decision": "gap_policy"
+  },
+  {
+    "at": "2026-04-06T12:51:20.073Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202057&page=1&slave=off)",
+    "runId": "5f1ab799-507d-44c3-8f8a-c78d236986b1",
+    "artifactDir": "artifacts/publisher-runs/5f1ab799-507d-44c3-8f8a-c78d236986b1",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-06T11:54:25.380Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202048&page=1&slave=off)",
+    "runId": "ae3e4d4e-6965-4e0c-9d7f-8e0136faa6a9",
+    "artifactDir": "artifacts/publisher-runs/ae3e4d4e-6965-4e0c-9d7f-8e0136faa6a9",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-06T10:51:33.541Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202038&page=1&slave=off)",
+    "runId": "f3348fd0-34d7-4b9c-9bff-0534d64dd2f6",
+    "artifactDir": "artifacts/publisher-runs/f3348fd0-34d7-4b9c-9bff-0534d64dd2f6",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-06T09:52:53.228Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202030&page=1&slave=off)",
+    "runId": "a258ba06-1938-4a38-8c13-97022280955f",
+    "artifactDir": "artifacts/publisher-runs/a258ba06-1938-4a38-8c13-97022280955f",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-06T08:47:43.895Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202018&page=1&slave=off)",
+    "runId": "493106bd-e81d-4c50-b84a-1058783b1c75",
+    "artifactDir": "artifacts/publisher-runs/493106bd-e81d-4c50-b84a-1058783b1c75",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-06T07:50:34.410Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202008&page=1&slave=off)",
+    "runId": "6a5fc4a1-4db4-4917-995d-d1270e2525a4",
+    "artifactDir": "artifacts/publisher-runs/6a5fc4a1-4db4-4917-995d-d1270e2525a4",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-06T06:41:23.988Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202000&page=1&slave=off)",
+    "runId": "f5cae59a-486e-4e4a-8c98-7a2b9a67cc39",
+    "artifactDir": "artifacts/publisher-runs/f5cae59a-486e-4e4a-8c98-7a2b9a67cc39",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-06T05:45:09.453Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201989&page=1&slave=off)",
+    "runId": "9eea6c4f-26e9-43a2-bd52-d6de94a7ab62",
+    "artifactDir": "artifacts/publisher-runs/9eea6c4f-26e9-43a2-bd52-d6de94a7ab62",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-06T04:37:52.985Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)",
+    "runId": "dc6dd08b-df08-4ca3-b8ed-62f62ead54ed",
+    "artifactDir": null,
+    "decision": "gap_policy"
+  },
+  {
+    "at": "2026-04-06T04:34:53.002Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)",
+    "runId": "e845b4bd-747d-4c4c-94e1-426f5c7e3c3f",
+    "artifactDir": null,
+    "decision": "gap_policy"
+  },
+  {
+    "at": "2026-04-06T04:25:10.937Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201972&page=1&slave=off)",
+    "runId": "f34bdd5d-4558-4486-a0e5-62834ddb021f",
+    "artifactDir": "artifacts/publisher-runs/f34bdd5d-4558-4486-a0e5-62834ddb021f",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-06T03:27:55.290Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201956&page=1&slave=off)",
+    "runId": "489f8384-b0ac-4d1b-80b8-8bdd433d6b09",
+    "artifactDir": "artifacts/publisher-runs/489f8384-b0ac-4d1b-80b8-8bdd433d6b09",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-05T16:44:16.054Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201915&page=1&slave=off)"
+  },
+  {
+    "at": "2026-04-05T15:43:53.098Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201908&page=1&slave=off)"
+  },
+  {
+    "at": "2026-04-05T14:25:46.267Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)"
+  },
+  {
+    "at": "2026-04-05T13:31:58.636Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201899&page=1&slave=off)"
+  },
+  {
+    "at": "2026-04-05T12:32:49.957Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)"
+  },
+  {
+    "at": "2026-04-05T12:07:56.993Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)"
+  },
+  {
+    "at": "2026-04-05T11:49:15.097Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201889&page=1&slave=off)"
+  },
+  {
     "at": "2026-04-05T10:50:05.355Z",
     "success": true,
     "force": false,
