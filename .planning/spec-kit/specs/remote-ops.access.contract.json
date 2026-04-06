@@ -1,0 +1,63 @@
+{
+  "contract_id": "remote-ops-access-v1",
+  "purpose": "Define a secure, repeatable operator access model for AWS-hosted runtime management.",
+  "design_intent": "Prefer identity-based control plane access over network-exposed host access to reduce attack surface.",
+  "change_impact": "Access model changes affect IAM policy scope, runbooks, incident response, and operator onboarding.",
+  "scope": "aws_ec2_runtime_ops",
+  "access_planes": {
+    "primary_admin_access": {
+      "channel": "aws_ssm_session_manager",
+      "requires_inbound_ssh": false,
+      "required_iam_permissions": [
+        "ssm:StartSession",
+        "ssm:TerminateSession",
+        "ssm:ResumeSession",
+        "ec2:DescribeInstances"
+      ]
+    },
+    "optional_zero_trust_web_access": {
+      "enabled": true,
+      "providers": ["tailscale", "cloudflare_access"],
+      "purpose": "policy_gated_admin_or_dashboard_access"
+    },
+    "break_glass_ssh": {
+      "default_state": "disabled",
+      "allowed_when": [
+        "ssm_unavailable",
+        "platform_incident_declared"
+      ],
+      "requirements": [
+        "temporary_security_group_rule",
+        "source_ip_allowlist_single_operator",
+        "key_only_authentication",
+        "time_boxed_access_window",
+        "incident_audit_log_entry"
+      ]
+    }
+  },
+  "host_baseline": {
+    "instance_profile_must_include": [
+      "AmazonSSMManagedInstanceCore",
+      "CloudWatchAgentServerPolicy"
+    ],
+    "service_user": {
+      "name": "marketing-automation",
+      "shell": "/usr/sbin/nologin",
+      "home": "/opt/marketing-automation"
+    },
+    "security_group_policy": {
+      "ingress_default": "deny_all",
+      "allow_public_ports": [80, 443],
+      "allow_ssh_port_22": "disabled_by_default"
+    }
+  },
+  "secrets_policy": {
+    "source_of_truth": ["aws_ssm_parameter_store", "aws_secrets_manager"],
+    "forbidden": ["repo_plaintext_secrets", "artifact_embedded_secrets", "ci_log_secret_echo"]
+  },
+  "verification_gates": [
+    "ssm_login_succeeds_without_ssh",
+    "security_group_has_no_port_22_when_normal",
+    "service_user_owns_runtime_directories"
+  ]
+}

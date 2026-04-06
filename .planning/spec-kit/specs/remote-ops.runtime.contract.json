@@ -1,0 +1,48 @@
+{
+  "contract_id": "remote-ops-runtime-v1",
+  "purpose": "Define deterministic runtime process behavior on EC2 with systemd supervision and explicit env loading.",
+  "design_intent": "Keep runtime startup reproducible and fail-closed under missing prerequisites or invalid env.",
+  "change_impact": "Runtime contract updates affect deploy scripts, service units, incident triage, and restart semantics.",
+  "runtime_layout": {
+    "app_root": "/opt/marketing-automation",
+    "release_root": "/opt/marketing-automation/releases",
+    "current_symlink": "/opt/marketing-automation/current",
+    "shared_root": "/opt/marketing-automation/shared",
+    "artifact_root": "/opt/marketing-automation/shared/artifacts"
+  },
+  "service_model": {
+    "service_name": "marketing-automation.service",
+    "init_system": "systemd",
+    "restart_policy": {
+      "strategy": "on-failure",
+      "restart_sec": 5,
+      "start_limit_interval_sec": 300,
+      "start_limit_burst": 5
+    },
+    "health_checks": {
+      "endpoint": "/api/health",
+      "required_on_deploy": true,
+      "timeout_seconds": 30
+    }
+  },
+  "env_loading": {
+    "source": "aws_ssm_parameter_store",
+    "bootstrap_script": "ops/systemd/load-env-from-ssm.sh",
+    "forbidden": ["dotenv_in_production_repo_root", "inline_secret_in_service_unit"],
+    "required_checks": ["required_keys_present", "no_empty_required_values"]
+  },
+  "artifact_retention": {
+    "publisher_runs_retention_days": 30,
+    "debug_trace_retention_days": 14,
+    "error_screenshot_retention_days": 14,
+    "cleanup_schedule": "daily"
+  },
+  "failure_mode": {
+    "default_behavior": "fail_closed",
+    "required_debug_artifacts": [
+      "error_png_when_page_exists",
+      "step_screenshots_when_enabled",
+      "trace_zip_when_enabled"
+    ]
+  }
+}

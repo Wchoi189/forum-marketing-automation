@@ -100,6 +100,24 @@ test("POST /api/run-observer returns contract-aligned success payload", async ()
   });
 });
 
+test("GET /api/health returns ok payload", async () => {
+  const safeLog = createLog("safe");
+  const deps: BotDeps = {
+    runObserver: async () => safeLog,
+    runPublisher: async () => mockPublisherSuccess(safeLog),
+    getLogs: async () => [safeLog]
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/api/health`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { ok?: unknown; service?: unknown; timestamp?: unknown };
+    assert.equal(body.ok, true);
+    assert.equal(body.service, "marketing-automation");
+    assert.equal(typeof body.timestamp, "string");
+  });
+});
+
 test("POST /api/run-publisher blocks unsafe non-force path", async () => {
   const unsafeLog = createLog("unsafe");
   let capturedForce = false;

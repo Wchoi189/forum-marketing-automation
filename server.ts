@@ -206,6 +206,14 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   app.use(express.json());
 
   // API Routes
+  app.get("/api/health", (req, res) => {
+    res.json({
+      ok: true,
+      service: "marketing-automation",
+      timestamp: new Date().toISOString()
+    });
+  });
+
   app.get("/api/logs", async (req, res) => {
     const logs = await deps.getLogs();
     res.json(logs);

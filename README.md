@@ -31,6 +31,30 @@ Node + Playwright automation bot for observing and posting to the Ppomppu OTT bo
   - `npm run test:integration` — Express API contracts (uses env vars on the command line; loads `.env` if present)
   - `npm run test:mcp:parser` — Parser MCP server tools (`page_outline`, `subtree`, `interactive_elements`, `snapshot_diff`) against synthetic HTML
 
+## AWS Remote Ops (Spec-Driven)
+
+- Spec contracts:
+  - `.planning/spec-kit/specs/remote-ops.access.contract.json`
+  - `.planning/spec-kit/specs/remote-ops.runtime.contract.json`
+  - `.planning/spec-kit/specs/remote-ops.deploy.contract.json`
+  - `.planning/spec-kit/specs/remote-ops.observability.contract.json`
+  - `.planning/spec-kit/specs/remote-ops.acceptance.plan.json`
+- Taskset:
+  - `.planning/spec-kit/tasks/implementation.tasks.json` (`remote_ops_taskset`)
+- Operational templates and runbooks:
+  - `ops/aws/ec2-baseline.md`
+  - `ops/aws/remote-access-runbook.md`
+  - `ops/systemd/marketing-automation.service`
+  - `ops/systemd/load-env-from-ssm.sh`
+  - `ops/systemd/cleanup-artifacts.sh`
+  - `ops/deploy/deploy-release.sh`
+  - `ops/deploy/rollback-release.sh`
+  - `.github/workflows/deploy-aws.yml`
+  - `ops/observability/cloudwatch-agent-config.json`
+  - `ops/observability/alarms-runbook.md`
+
+Execution loop per session: `spec_update -> task_selection -> implement_slice -> verify_gates -> handover_write`.
+
 ### Auditing `ReferenceError: __name is not defined` in the observer
 TypeScript can emit `__name(...)` inside functions serialized for `page.evaluate`. The browser does not provide that helper.
 

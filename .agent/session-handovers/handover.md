@@ -4,19 +4,19 @@ overview: Set up a professional AWS VPS deployment and remote management workflo
 todos:
   - id: ec2-baseline-design
     content: Define hardened EC2 baseline (IAM role, security group, runtime prerequisites, service user layout).
-    status: pending
+    status: completed
   - id: remote-access-model
     content: Standardize on Session Manager primary access and optional zero-trust tunnel; document break-glass SSH policy.
-    status: pending
+    status: completed
   - id: runtime-ops-packaging
     content: Define systemd service model, environment secret loading, artifact retention, and health check/restart behavior.
-    status: pending
+    status: completed
   - id: cicd-deploy-model
     content: Design CI/CD deploy flow using GitHub OIDC -> AWS role with safe rollout and rollback.
-    status: pending
+    status: completed
   - id: handover-update
     content: Prepare next session handover payload with objective, completed items, pending remote-ops tasks, and acceptance criteria.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -81,7 +81,7 @@ deployRole --> ec2Host
 - Update state index reference if this repo workflow requires it.
 
 ## Concrete next actions for the next coding session
-- Add infra/runbook docs under repo (deploy, SSM access, break-glass procedure).
-- Add systemd unit + env loading script templates.
-- Add deploy workflow (GitHub Actions + AWS OIDC role usage).
-- Add handover file capturing finished work, pending items, and acceptance checks for remote ops readiness.
+- Execute AWS account provisioning steps for IAM OIDC trust + least privilege deploy role.
+- Install service unit/scripts on EC2 and validate health endpoint + restart behavior.
+- Run one staged deployment with intentional rollback drill and capture outcomes in next handover.
+- Enable CloudWatch alarms and run one incident simulation for triage readiness.

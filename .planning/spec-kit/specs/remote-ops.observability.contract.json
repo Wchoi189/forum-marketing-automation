@@ -1,0 +1,50 @@
+{
+  "contract_id": "remote-ops-observability-v1",
+  "purpose": "Define operational telemetry, alarms, and forensic artifacts for AWS-hosted runtime support.",
+  "design_intent": "Shorten detection and triage time with predictable logs, bounded retention, and failure evidence.",
+  "change_impact": "Observability contract changes alter on-call response quality, cloud cost profile, and incident audits.",
+  "logging": {
+    "primary_sink": "cloudwatch_logs",
+    "streams": [
+      "/marketing-automation/app",
+      "/marketing-automation/systemd",
+      "/marketing-automation/publisher"
+    ],
+    "retention_days": 30
+  },
+  "alerts": [
+    {
+      "id": "service_down",
+      "signal": "systemd_unit_inactive_or_failed",
+      "severity": "high"
+    },
+    {
+      "id": "restart_loop",
+      "signal": "restart_count_above_threshold",
+      "severity": "high"
+    },
+    {
+      "id": "publisher_error_rate",
+      "signal": "publisher_failure_ratio_above_threshold",
+      "severity": "medium"
+    }
+  ],
+  "forensics": {
+    "required_on_failure": [
+      "error_png_if_page_exists",
+      "trace_zip_when_enabled",
+      "run_log_json"
+    ],
+    "artifact_root": "/opt/marketing-automation/shared/artifacts/publisher-runs"
+  },
+  "retention_controls": {
+    "artifact_cleanup_enabled": true,
+    "retention_policy_source": "ops/systemd/cleanup-artifacts.sh",
+    "minimum_retention_days": 7
+  },
+  "verification_gates": [
+    "cloudwatch_log_delivery_confirmed",
+    "alerts_fire_in_staging_drill",
+    "forensic_artifacts_present_on_failure"
+  ]
+}

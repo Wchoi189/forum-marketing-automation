@@ -16,5 +16,54 @@
     { "id": "T-013", "name": "Integrate AI-friendly design guidelines into docs", "status": "done" },
     { "id": "T-014", "name": "Standardize semantic intent fields across legacy specs", "status": "done" },
     { "id": "T-015", "name": "Add autonomy workflow pro tips document", "status": "done" }
-  ]
+  ],
+  "remote_ops_taskset": {
+    "taskset_id": "remote-ops-aws-v1",
+    "owner": "session-driven",
+    "execution_loop": [
+      "spec_update",
+      "task_selection",
+      "implement_slice",
+      "verify_gates",
+      "handover_write"
+    ],
+    "tasks": [
+      {
+        "id": "R-001",
+        "session": "S0",
+        "name": "Define hardened EC2 baseline and access contracts",
+        "status": "done"
+      },
+      {
+        "id": "R-002",
+        "session": "S1",
+        "name": "Document SSM-first remote access and break-glass SSH policy",
+        "status": "done"
+      },
+      {
+        "id": "R-003",
+        "session": "S2",
+        "name": "Add runtime systemd templates and env bootstrap scripts",
+        "status": "done"
+      },
+      {
+        "id": "R-004",
+        "session": "S3",
+        "name": "Implement GitHub OIDC deploy workflow with rollback scripts",
+        "status": "done"
+      },
+      {
+        "id": "R-005",
+        "session": "S4",
+        "name": "Define observability config and artifact retention controls",
+        "status": "done"
+      },
+      {
+        "id": "R-006",
+        "session": "S5",
+        "name": "Write final session handover with acceptance outcomes",
+        "status": "done"
+      }
+    ]
+  }
 }

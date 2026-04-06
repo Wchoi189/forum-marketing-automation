@@ -1,0 +1,74 @@
+name: deploy-aws
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment name
+        required: true
+        default: prod
+      instance_id:
+        description: EC2 instance ID managed by SSM
+        required: true
+      s3_bucket:
+        description: S3 bucket for release artifacts
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:integration
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build release bundle
+        run: |
+          mkdir -p release
+          tar -czf release/marketing-automation.tar.gz \
+            --exclude .git \
+            --exclude node_modules \
+            --exclude artifacts \
+            .
+      - name: Configure AWS credentials from OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Upload bundle to S3
+        run: |
+          release_key="releases/${{ github.sha }}.tar.gz"
+          aws s3 cp release/marketing-automation.tar.gz "s3://${{ inputs.s3_bucket }}/${release_key}"
+          echo "RELEASE_KEY=${release_key}" >> "$GITHUB_ENV"
+      - name: Deploy via SSM command
+        run: |
+          aws ssm send-command \
+            --instance-ids "${{ inputs.instance_id }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy marketing-automation ${GITHUB_SHA}" \
+            --parameters commands='[
+              "set -euo pipefail",
+              "mkdir -p /tmp/marketing-automation-release",
+              "aws s3 cp s3://${{ inputs.s3_bucket }}/${{ env.RELEASE_KEY }} /tmp/marketing-automation-release/release.tar.gz",
+              "bash /opt/marketing-automation/current/ops/deploy/deploy-release.sh /tmp/marketing-automation-release/release.tar.gz"
+            ]'

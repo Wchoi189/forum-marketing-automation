@@ -77,6 +77,18 @@
       },
       "required": ["activity_log", "env"]
     },
+    "ops_contracts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "access": { "type": "string" },
+        "runtime": { "type": "string" },
+        "deploy": { "type": "string" },
+        "observability": { "type": "string" },
+        "acceptance": { "type": "string" }
+      },
+      "required": ["access", "runtime", "deploy", "observability", "acceptance"]
+    },
     "execution_loop": {
       "type": "object",
       "additionalProperties": false,

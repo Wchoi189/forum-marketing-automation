@@ -21,6 +21,13 @@
     "activity_log": ".agent/contracts/activity-log.contract.json",
     "env": "./schemas/env.schema.json"
   },
+  "ops_contracts": {
+    "access": "../specs/remote-ops.access.contract.json",
+    "runtime": "../specs/remote-ops.runtime.contract.json",
+    "deploy": "../specs/remote-ops.deploy.contract.json",
+    "observability": "../specs/remote-ops.observability.contract.json",
+    "acceptance": "../specs/remote-ops.acceptance.plan.json"
+  },
   "execution_loop": {
     "id": "observe-validate-decide-publish-persist-expose-refresh",
     "steps": [

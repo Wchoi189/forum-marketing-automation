@@ -1,0 +1,27 @@
+[Unit]
+Description=Marketing Automation App Service
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=marketing-automation
+Group=marketing-automation
+WorkingDirectory=/opt/marketing-automation/current
+ExecStartPre=/opt/marketing-automation/current/ops/systemd/load-env-from-ssm.sh
+ExecStart=/usr/bin/env bash -lc '/usr/bin/npm run dev'
+ExecStartPost=/opt/marketing-automation/current/ops/systemd/healthcheck.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=120
+TimeoutStopSec=30
+EnvironmentFile=-/opt/marketing-automation/shared/env/runtime.env
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

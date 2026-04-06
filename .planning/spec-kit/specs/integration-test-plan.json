@@ -69,6 +69,16 @@
         "trendMultiplier == 1",
         "confidenceReason == adaptive_disabled"
       ]
+    },
+    {
+      "id": "IT-007",
+      "name": "Runtime health endpoint",
+      "steps": ["GET /api/health"],
+      "assertions": [
+        "response.ok == true",
+        "response.service == marketing-automation",
+        "response.timestamp is ISO datetime string"
+      ]
     }
   ]
 }

@@ -1,0 +1,72 @@
+{
+  "plan_id": "remote-ops-acceptance-v1",
+  "purpose": "Define cross-session acceptance checks for secure AWS remote operations rollout.",
+  "design_intent": "Require objective evidence for each ops capability before declaring rollout complete.",
+  "change_impact": "Acceptance changes affect release criteria, handover readiness, and operational sign-off.",
+  "sessions": [
+    {
+      "session_id": "S0",
+      "name": "spec_framing_risk_lock",
+      "required_outputs": [
+        "remote-ops.access.contract.json",
+        "remote-ops.runtime.contract.json",
+        "remote-ops.deploy.contract.json",
+        "remote-ops.observability.contract.json",
+        "implementation.tasks.json_remote_ops_taskset"
+      ],
+      "acceptance_checks": [
+        "all_specs_include_intent_fields",
+        "taskset_tracks_status_with_no_implicit_progress"
+      ]
+    },
+    {
+      "session_id": "S1",
+      "name": "access_plane",
+      "acceptance_checks": [
+        "ssm_login_works_without_port_22",
+        "break_glass_runbook_documents_enable_and_revoke_steps"
+      ]
+    },
+    {
+      "session_id": "S2",
+      "name": "runtime_plane",
+      "acceptance_checks": [
+        "systemd_unit_starts_under_service_user",
+        "env_bootstrap_fails_closed_when_required_param_missing",
+        "health_check_script_reports_ready_state"
+      ]
+    },
+    {
+      "session_id": "S3",
+      "name": "deploy_plane",
+      "acceptance_checks": [
+        "github_oidc_role_assumption_configured",
+        "deploy_pipeline_runs_lint_and_integration_tests",
+        "rollback_script_restores_previous_release"
+      ]
+    },
+    {
+      "session_id": "S4",
+      "name": "observability_plane",
+      "acceptance_checks": [
+        "cloudwatch_logs_streaming_confirmed",
+        "alarms_defined_for_down_restartloop_errorrate",
+        "artifact_cleanup_policy_documented"
+      ]
+    },
+    {
+      "session_id": "S5",
+      "name": "hardening_handover",
+      "acceptance_checks": [
+        "full_acceptance_loop_executed",
+        "handover_json_written_with_completed_and_remaining_risks"
+      ]
+    }
+  ],
+  "global_exit_criteria": [
+    "lint_and_integration_gates_green",
+    "ssm_primary_access_confirmed",
+    "oidc_keyless_deploy_path_documented_and_exercised",
+    "final_handover_captures_next_operator_actions"
+  ]
+}

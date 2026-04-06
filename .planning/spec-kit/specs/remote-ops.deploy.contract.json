@@ -1,0 +1,40 @@
+{
+  "contract_id": "remote-ops-deploy-v1",
+  "purpose": "Define CI/CD deployment flow from GitHub Actions to EC2 using short-lived AWS credentials.",
+  "design_intent": "Keep deploys auditable, deterministic, and reversible without long-lived cloud credentials.",
+  "change_impact": "Deploy contract changes affect release safety gates, IAM trust, rollback behavior, and release velocity.",
+  "pipeline": {
+    "orchestrator": "github_actions",
+    "trigger": ["workflow_dispatch", "push_main_optional"],
+    "quality_gates": ["npm_run_lint", "npm_run_test_integration"],
+    "auth_model": {
+      "provider": "github_oidc",
+      "assume_role": "aws_iam_role",
+      "forbidden": ["static_aws_access_key_secrets"]
+    }
+  },
+  "release_strategy": {
+    "mode": "atomic_release_directory",
+    "steps": [
+      "upload_release_bundle",
+      "extract_to_timestamped_release_dir",
+      "switch_current_symlink",
+      "restart_systemd_service",
+      "run_smoke_check"
+    ],
+    "rollback": {
+      "trigger_on": ["smoke_check_failed", "service_not_healthy_after_restart"],
+      "action": "switch_symlink_to_previous_release_and_restart"
+    }
+  },
+  "required_artifacts": [
+    "ops/deploy/deploy-release.sh",
+    "ops/deploy/rollback-release.sh",
+    ".github/workflows/deploy-aws.yml"
+  ],
+  "verification_gates": [
+    "oidc_role_assumption_successful",
+    "service_healthy_post_deploy",
+    "rollback_path_tested"
+  ]
+}
