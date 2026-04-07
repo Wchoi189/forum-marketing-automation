@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "tsx server.ts",
     "mcp:parser": "tsx mcp/parser-server.ts",
+    "playbook:from-recorder": "node scripts/convert-recorder-to-playbook.mjs",
+    "workflow:template": "node scripts/create-workflow-template.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",

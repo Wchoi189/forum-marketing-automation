@@ -9,10 +9,30 @@ function getDraftIndex(runtime: PlaybookRuntimeContext): number {
 
 function getDraftModalRoot(page: Page): Locator {
   return page
+    .locator('.popup_layer:visible, .layer_popup:visible, .pop_layer:visible, [class*="layer_popup"]:visible, [class*="pop_layer"]:visible')
+    .filter({ hasText: "임시저장된 게시글" })
+    .filter({ has: page.locator("table") })
+    .first();
+}
+
+function getDraftModalFallbackRoot(page: Page): Locator {
+  return page
     .locator("div")
     .filter({ hasText: "임시저장된 게시글" })
     .filter({ has: page.locator("button:has-text('닫기')") })
     .first();
+}
+
+async function resolveVisibleDraftModalRoot(page: Page): Promise<Locator | null> {
+  const primary = getDraftModalRoot(page);
+  await primary.waitFor({ state: "visible", timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS }).catch(() => null);
+  if (await primary.isVisible().catch(() => false)) return primary;
+
+  const fallback = getDraftModalFallbackRoot(page);
+  await fallback.waitFor({ state: "visible", timeout: 1500 }).catch(() => null);
+  if (await fallback.isVisible().catch(() => false)) return fallback;
+
+  return null;
 }
 
 async function resolveDraftRow(modalRoot: Locator, page: Page, draftIndex: number): Promise<Locator | null> {
@@ -82,10 +102,8 @@ export async function confirmLoadDraftFromModal(
   stepId: string
 ): Promise<void> {
   const draftIndex = getDraftIndex(runtime);
-  const modalRoot = getDraftModalRoot(page);
-  const modalVisible = await modalRoot.isVisible().catch(() => false);
-
-  if (!modalVisible) {
+  const modalRoot = await resolveVisibleDraftModalRoot(page);
+  if (!modalRoot) {
     throw new Error(`[Playbook] ${stepId}: no matching selector candidate`);
   }
 

@@ -156,6 +156,9 @@ function createDraftModalPage(state: DraftModalMockState) {
     filter: () => modalRoot,
     first: () => ({
       isVisible: async () => state.modalVisible,
+      waitFor: async () => {
+        if (!state.modalVisible) throw new Error("modal not visible");
+      },
       locator: (selector: string) => {
         if (selector === "table tr") return rowLocator;
         if (selector === 'button:has-text("불러오기")') return previewLoadButton;
@@ -167,7 +170,13 @@ function createDraftModalPage(state: DraftModalMockState) {
 
   return {
     locator: (selector: string) => {
-      if (selector === "div") return modalRoot;
+      if (
+        selector === "div" ||
+        selector.includes(".popup_layer:visible") ||
+        selector.includes('[class*="layer_popup"]:visible')
+      ) {
+        return modalRoot;
+      }
       if (selector === "td") return {};
       if (selector === "div.tempas-preview") {
         return {
