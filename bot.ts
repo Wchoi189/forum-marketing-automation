@@ -894,6 +894,9 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
 
     debugDir = publisherArtifactDirForRun();
     let traceStarted = false;
+    /** When tracing ran: persist zip on failure or when success-path sampling hits. */
+    let persistPublisherTraceZip = false;
+    let publisherBrowserFlowFailed = false;
     const context = await chromium.launchPersistentContext(USER_DATA_DIR, {
       headless: ENV.BROWSER_HEADLESS,
       args: [...CHROMIUM_LAUNCH_ARGS],
@@ -963,14 +966,33 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
       } else {
         logger.info({ event: LOG_EVENT.publisherSubmitCompleted, runId, decision: flow.decision, status: 'success' }, 'Draft loaded, verified, and submitted.');
       }
+      const samplePct = ENV.PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT;
+      persistPublisherTraceZip =
+        samplePct > 0 && Math.random() * 100 < samplePct;
       return await finish(true, flow.message, flow.decision, log);
     } catch (innerErr) {
+      publisherBrowserFlowFailed = true;
+      persistPublisherTraceZip = true;
       await publisherFailureScreenshot(page, debugDir);
       throw innerErr;
     } finally {
       if (traceStarted && debugDir) {
-        await context.tracing.stop({ path: path.join(debugDir, 'trace.zip') }).catch(() => null);
-        logger.info({ event: LOG_EVENT.publisherArtifactsTrace, runId, tracePath: path.join(debugDir, 'trace.zip') }, '[Publisher] debug trace');
+        const tracePath = path.join(debugDir, 'trace.zip');
+        if (publisherBrowserFlowFailed || persistPublisherTraceZip) {
+          await context.tracing.stop({ path: tracePath }).catch(() => null);
+          logger.info({ event: LOG_EVENT.publisherArtifactsTrace, runId, tracePath }, '[Publisher] debug trace');
+        } else {
+          await context.tracing.stop().catch(() => null);
+          logger.debug(
+            {
+              event: LOG_EVENT.publisherArtifactsTraceDiscarded,
+              runId,
+              reason: 'success_not_sampled',
+              traceSuccessSamplePercent: ENV.PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT
+            },
+            '[Publisher] trace discarded (success not sampled)'
+          );
+        }
       }
       await context.close();
     }

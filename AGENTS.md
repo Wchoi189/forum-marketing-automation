@@ -32,10 +32,12 @@ This project runs a Playwright-based observer/publisher workflow for the Ppomppu
 ## Debug Artifact Workflow
 - Optional env toggles:
   - `PUBLISHER_DEBUG_SCREENSHOTS=true` for step screenshots.
-  - `PUBLISHER_DEBUG_TRACE=true` for Playwright trace zip.
-- Artifacts are stored under `artifacts/publisher-runs/<timestamp>/`.
+  - `PUBLISHER_DEBUG_TRACE=true` to record a Playwright trace for the publisher browser session.
+  - `PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT` (0–100): when tracing is enabled, fraction of **successful** runs that persist `trace.zip`. Failures always persist the trace. Use `100` for legacy "save every trace" behavior; default `0` is failure-only persistence.
+- Artifacts are stored under `artifacts/publisher-runs/<timestamp>/` (and `artifacts/publisher-runs/failures/<timestamp>/error.png` when no run dir was allocated).
 - On publisher failure, always capture `error.png` when a page exists.
 - For trace replay: `npx playwright show-trace <path-to-trace.zip>`.
+- Escalation: temporarily set `PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT=100` (and optionally `LOG_LEVEL=debug` to see `publisher.artifacts.trace.discarded` when sampling skips success traces).
 
 ## Selector Strategy
 - Prefer stable class/text combinations and scoped locators over absolute XPath.

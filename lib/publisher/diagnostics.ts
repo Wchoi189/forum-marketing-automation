@@ -5,7 +5,11 @@ import type { Page } from 'playwright';
 import { ENV } from '../../config/env.js';
 import { logger } from '../logger.js';
 
-/** Timestamp-based per-run directory for readable artifact chronology. */
+/**
+ * Timestamp-based per-run directory for readable artifact chronology.
+ * Allocated when step screenshots or Playwright tracing may write under `publisher-runs/<ts>/`
+ * (traces may be discarded on success when sampling skips persistence; the dir still holds optional screenshots).
+ */
 export function publisherArtifactDirForRun(): string | null {
   if (!ENV.PUBLISHER_DEBUG_SCREENSHOTS && !ENV.PUBLISHER_DEBUG_TRACE) return null;
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');

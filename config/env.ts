@@ -27,6 +27,11 @@ type EnvConfig = {
   PUBLISHER_DEBUG_SCREENSHOTS: boolean;
   /** Playwright trace.zip (open with `npx playwright show-trace <path>`). */
   PUBLISHER_DEBUG_TRACE: boolean;
+  /**
+   * When tracing is enabled, percent of successful publisher runs that persist `trace.zip` (0–100).
+   * Failures always persist the trace when `PUBLISHER_DEBUG_TRACE=true`. Use 100 to match legacy "trace every run" behavior.
+   */
+  PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT: number;
   /** Max wait after submit for redirect to board list/view URL (separate from generic bot waits). */
   PUBLISHER_POST_SUBMIT_WAIT_MS: number;
   /** Default ±% jitter for auto-publisher schedule interval (0–50). */
@@ -130,6 +135,7 @@ function buildEnv(): EnvConfig {
     MCP_PARSER_MAX_STORED_SNAPSHOTS: optionalInt("MCP_PARSER_MAX_STORED_SNAPSHOTS", 200, 10, 1000),
     PUBLISHER_DEBUG_SCREENSHOTS: optionalBool("PUBLISHER_DEBUG_SCREENSHOTS", false),
     PUBLISHER_DEBUG_TRACE: optionalBool("PUBLISHER_DEBUG_TRACE", false),
+    PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT: optionalInt("PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT", 0, 0, 100),
     PUBLISHER_POST_SUBMIT_WAIT_MS: optionalInt("PUBLISHER_POST_SUBMIT_WAIT_MS", 20000, 5000, 120000),
     SCHEDULER_JITTER_PERCENT: optionalInt("SCHEDULER_JITTER_PERCENT", 15, 0, 50),
     SCHEDULER_JITTER_MODE: optionalJitterMode("SCHEDULER_JITTER_MODE", "uniform"),

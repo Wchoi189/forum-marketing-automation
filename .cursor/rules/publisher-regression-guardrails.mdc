@@ -11,7 +11,7 @@ alwaysApply: true
 - Keep waits bounded (`BOT_MAX_WAIT_MS`) and avoid unbounded retries.
 - Preserve debug artifact capture for triage:
   - Step screenshots when `PUBLISHER_DEBUG_SCREENSHOTS=true`
-  - Trace zip when `PUBLISHER_DEBUG_TRACE=true`
+  - Trace zip when `PUBLISHER_DEBUG_TRACE=true` (failures persist always; successes use `PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT`)
   - `error.png` on publisher failure when page exists
 - After publisher flow edits, run `npm run lint` and `npm run test:integration`.
 

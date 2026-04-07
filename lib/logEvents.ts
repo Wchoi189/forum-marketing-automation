@@ -11,6 +11,7 @@ export const LOG_EVENT = {
   publisherSubmitSkipped: 'publisher.submit.skipped',
   publisherArtifactsDir: 'publisher.artifacts.dir',
   publisherArtifactsTrace: 'publisher.artifacts.trace',
+  publisherArtifactsTraceDiscarded: 'publisher.artifacts.trace.discarded',
   schedulerStarted: 'scheduler.started',
   schedulerTickStarted: 'scheduler.tick.started',
   schedulerTickSkipped: 'scheduler.tick.skipped',

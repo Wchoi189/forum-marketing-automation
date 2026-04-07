@@ -23,8 +23,9 @@
 - Add cron (or systemd timer) for retention cleanup:
   - `0 3 * * * /opt/marketing-automation/current/ops/systemd/cleanup-artifacts.sh`
 - Defaults:
-  - Publisher run directories: 30 days.
-  - Trace zip files: 14 days.
+  - Publisher run directories: 30 days (`PUBLISHER_RETENTION_DAYS`).
+  - Trace zip files under `publisher-runs/**/trace.zip`: 14 days (`PUBLISHER_RUNS_TRACE_ZIP_RETENTION_DAYS`, falls back to `TRACE_RETENTION_DAYS`).
+  - Legacy `artifacts/traces/*.zip`: 14 days (`TRACE_RETENTION_DAYS`).
 
 ## Fail-closed behavior
 
