@@ -323,7 +323,7 @@ test("GET /api/trend-insights trendAdaptiveEnabled=false forces multiplier 1", a
 });
 
 test("isPublishSuccessUrl accepts final view/list URLs and rejects write_ok interim", async () => {
-  const { isPublishSuccessUrl } = await import("../../bot.js");
+  const { isPublishSuccessUrl } = await import("../../lib/publisher/ui/submit.js");
   const boardId = "gonggu";
 
   assert.equal(
