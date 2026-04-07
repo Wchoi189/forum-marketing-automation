@@ -17,6 +17,8 @@ import {
 import { ENV } from "./config/env.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
 import { buildCompetitorAnalyticsPayload, parseAnalyticsQuery } from "./lib/competitorAnalytics.js";
+import { logger } from "./lib/logger.js";
+import { LOG_EVENT } from "./lib/logEvents.js";
 import { readPublisherHistory } from "./lib/publisherHistory.js";
 import { applyScheduleJitter, type ScheduleJitterMode } from "./lib/scheduleJitter.js";
 import { buildTrendInsightsPayload, computeTurnoverAnalysis, trendMultiplierFromAvgRate } from "./lib/trendInsights.js";
@@ -74,6 +76,12 @@ type AutoPublisherControls = {
   scheduleJitterMode: ScheduleJitterMode;
   targetPublishIntervalMinutes: number;
 };
+
+function extractErrorCode(input: unknown): string {
+  const message = String((input as { message?: unknown })?.message ?? input ?? "").trim();
+  const matched = message.match(/^([A-Z0-9_]+):/);
+  return matched ? matched[1] : "UNCLASSIFIED_ERROR";
+}
 
 function isHourInRange(hour: number, start: number, end: number): boolean {
   if (start === end) return true;
@@ -347,6 +355,10 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       res.json(payload);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
+      logger.error(
+        { event: LOG_EVENT.apiTrendInsightsFailed, status: "error", errorCode: extractErrorCode(error), err: error },
+        "Trend insights request failed"
+      );
       res.status(500).json({ error: `[TrendInsights] ${message}` });
     }
   });
@@ -370,11 +382,19 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     try {
       const log = await deps.runObserver();
       if (log.status === 'error') {
+        logger.error(
+          { event: LOG_EVENT.apiRunObserverFailed, status: "error", errorCode: extractErrorCode(log.error), error: log.error },
+          "run-observer returned error status"
+        );
         res.status(500).json({ success: false, action: 'observer', error: log.error, log });
       } else {
         res.json({ success: true, action: 'observer', log });
       }
     } catch (error: any) {
+      logger.error(
+        { event: LOG_EVENT.apiRunObserverFailed, status: "error", errorCode: extractErrorCode(error), err: error },
+        "run-observer request failed"
+      );
       res.status(500).json({
         success: false,
         action: 'observer',
@@ -388,6 +408,17 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     try {
       const result = await deps.runPublisher(force);
       if (!result.success) {
+        logger.error(
+          {
+            event: LOG_EVENT.apiRunPublisherFailed,
+            status: "error",
+            runId: result.runId,
+            decision: result.decision,
+            errorCode: extractErrorCode(result.message),
+            error: result.message
+          },
+          "run-publisher returned unsuccessful result"
+        );
         res.status(500).json({
           success: false,
           action: 'publisher',
@@ -403,6 +434,10 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
         res.json({ ...result, action: 'publisher', force: Boolean(force) });
       }
     } catch (error: any) {
+      logger.error(
+        { event: LOG_EVENT.apiRunPublisherFailed, status: "error", errorCode: extractErrorCode(error), force: Boolean(req.body?.force), err: error },
+        "run-publisher request failed"
+      );
       res.status(500).json({
         success: false,
         action: 'publisher',
@@ -459,10 +494,18 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     if (Object.prototype.hasOwnProperty.call(rawObserver, "gapPersistedOverride")) {
       const v = gapPersistedOverride;
       if (v !== null && (typeof v !== "number" || !Number.isInteger(v))) {
+        logger.warn(
+          { event: LOG_EVENT.apiControlPanelValidationFailed, status: "error", field: "gapPersistedOverride", reason: "not_integer_or_null", value: v },
+          "Control panel validation failed"
+        );
         res.status(400).json({ error: "gapPersistedOverride must be an integer 1–50 or null" });
         return;
       }
       if (v !== null && (v < 1 || v > 50)) {
+        logger.warn(
+          { event: LOG_EVENT.apiControlPanelValidationFailed, status: "error", field: "gapPersistedOverride", reason: "out_of_range", value: v },
+          "Control panel validation failed"
+        );
         res.status(400).json({ error: "gapPersistedOverride must be an integer 1–50 or null" });
         return;
       }
@@ -598,16 +641,19 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
       return;
     }
     if (running) {
-      console.warn("[Scheduler] Tick skipped because previous run is still active.");
+      logger.warn({ event: LOG_EVENT.schedulerTickSkipped, status: "skip", reason: "already_running" }, "[Scheduler] Tick skipped because previous run is still active.");
       return;
     }
 
     running = true;
+    const tickStartedAt = Date.now();
     try {
+      logger.info({ event: LOG_EVENT.schedulerTickStarted }, "[Scheduler] Tick started");
       await deps.runPublisher(false);
     } catch (error: any) {
-      console.error("[Scheduler] Tick failed:", error.message);
+      logger.error({ event: LOG_EVENT.schedulerTickFailed, status: "error", error: String(error?.message ?? error) }, "[Scheduler] Tick failed");
     } finally {
+      logger.info({ event: LOG_EVENT.schedulerTickFinished, status: "ok", durationMs: Date.now() - tickStartedAt }, "[Scheduler] Tick finished");
       running = false;
     }
   };
@@ -623,6 +669,7 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
       controls.scheduleJitterMode,
       Math.random
     );
+    logger.info({ event: LOG_EVENT.schedulerNextScheduled, nextMinutes, baseMinutes, jitterPercent: controls.scheduleJitterPercent, jitterMode: controls.scheduleJitterMode }, "[Scheduler] Next tick scheduled");
     timer = setTimeout(() => {
       void (async () => {
         await tick();
@@ -632,7 +679,7 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
   };
   void scheduleNext();
 
-  console.log(`[Scheduler] Started with interval ${controls.baseIntervalMinutes} minute(s).`);
+  logger.info({ event: LOG_EVENT.schedulerStarted, baseIntervalMinutes: controls.baseIntervalMinutes }, `[Scheduler] Started with interval ${controls.baseIntervalMinutes} minute(s).`);
 
   return {
     stop: () => {
@@ -695,7 +742,7 @@ export async function startServer() {
 
   const PORT = ENV.PORT;
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    logger.info({ event: LOG_EVENT.serverStarted, port: PORT, host: "0.0.0.0" }, `Server running on http://localhost:${PORT}`);
   });
 
 }

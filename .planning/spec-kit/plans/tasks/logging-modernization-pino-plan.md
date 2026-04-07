@@ -37,7 +37,9 @@
 ### Status
 - [x] Add core event envelope fields to observer/publisher logs (`event`, `status`, `durationMs`, `errorCode` where applicable).
 - [x] Add publisher `runId` correlation across start/skip/finish/failure events.
-- [ ] Normalize remaining runtime modules to the same event taxonomy.
+- [x] Normalize scheduler/server runtime logs to the same event taxonomy.
+- [x] Add shared typed event-name constants (`lib/logEvents.ts`) to reduce naming drift.
+- [x] Normalize API-route-level error and validation logs to the same event taxonomy.
 
 ### Scope
 - Define event names and common fields:

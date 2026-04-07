@@ -16,6 +16,7 @@ import { readRuntimeGapPersistedOverride, writeRuntimeGapPersistedOverride } fro
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
 import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval-polyfill.js';
 import { logger } from './lib/logger.js';
+import { LOG_EVENT } from './lib/logEvents.js';
 
 export type PublisherRunResult = {
   success: boolean;
@@ -567,7 +568,7 @@ export async function runObserver() {
     };
     await saveLog(log);
     logger.warn(
-      { event: 'observer.run.skipped', status: 'error', errorCode: 'OBSERVER_PAUSED', durationMs: Date.now() - observerStartedAt },
+      { event: LOG_EVENT.observerRunSkipped, status: 'error', errorCode: 'OBSERVER_PAUSED', durationMs: Date.now() - observerStartedAt },
       'Observer skipped because controls are disabled'
     );
     return log;
@@ -586,7 +587,7 @@ export async function runObserver() {
     };
     await saveLog(log);
     logger.warn(
-      { event: 'observer.run.skipped', status: 'error', errorCode: 'OBSERVER_ALREADY_RUNNING', durationMs: Date.now() - observerStartedAt },
+      { event: LOG_EVENT.observerRunSkipped, status: 'error', errorCode: 'OBSERVER_ALREADY_RUNNING', durationMs: Date.now() - observerStartedAt },
       'Observer skipped because another run is active'
     );
     return log;
@@ -614,7 +615,7 @@ export async function runObserver() {
     const page = await context.newPage();
 
     const policy = await loadObserverPolicy();
-    logger.info({ event: 'observer.run.started', boardUrl: policy.boardUrl }, 'Running Observer');
+    logger.info({ event: LOG_EVENT.observerRunStarted, boardUrl: policy.boardUrl }, 'Running Observer');
     const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: BOT_MAX_WAIT_MS });
     const statusCode = response?.status() ?? 0;
     const diagnostics = await getBoardDiagnostics(page);
@@ -792,7 +793,7 @@ export async function runObserver() {
     await saveLog(log);
     logger.info(
       {
-        event: 'observer.run.finished',
+        event: LOG_EVENT.observerRunFinished,
         status: log.status,
         currentGap: log.current_gap_count,
         gapThresholdMin: log.gap_threshold_min ?? null,
@@ -803,7 +804,7 @@ export async function runObserver() {
     return log;
   } catch (error: any) {
     logger.error(
-      { event: 'observer.run.failed', status: 'error', errorCode: extractErrorCode(error), durationMs: Date.now() - observerStartedAt, err: error },
+      { event: LOG_EVENT.observerRunFailed, status: 'error', errorCode: extractErrorCode(error), durationMs: Date.now() - observerStartedAt, err: error },
       'Observer Error'
     );
     const log: ActivityLog = {
@@ -853,7 +854,7 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
         : path.relative(ENV.PROJECT_ROOT, artifactAbs).replace(/\\/g, '/');
     const durationMs = Date.now() - publisherStartedAt;
     logger.info(
-      { event: 'publisher.run.finished', runId, decision, status: success ? 'success' : 'error', durationMs, force, artifactDir: artifactRel },
+      { event: LOG_EVENT.publisherRunFinished, runId, decision, status: success ? 'success' : 'error', durationMs, force, artifactDir: artifactRel },
       'Publisher run completed'
     );
     return { success, message, log: outLog, runId, decision, artifactDir: artifactRel };
@@ -880,7 +881,7 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
       const gap = log.current_gap_count;
       const need = policy.gapThresholdMin;
       logger.info(
-        { event: 'publisher.run.skipped', runId, decision: 'gap_policy', status: 'unsafe', currentGap: gap, requiredGap: need, force, parseUnsafe: Boolean(log.error) },
+        { event: LOG_EVENT.publisherRunSkipped, runId, decision: 'gap_policy', status: 'unsafe', currentGap: gap, requiredGap: need, force, parseUnsafe: Boolean(log.error) },
         '[Publisher] gap_policy skip'
       );
       return await finish(
@@ -910,9 +911,9 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
     let page: import('playwright').Page | null = null;
     try {
       page = await context.newPage();
-      logger.info({ event: 'publisher.run.started', runId, boardUrl: policy.boardUrl, force }, 'Running Publisher');
+      logger.info({ event: LOG_EVENT.publisherRunStarted, runId, boardUrl: policy.boardUrl, force }, 'Running Publisher');
       if (debugDir) {
-        logger.info({ event: 'publisher.artifacts.dir', runId, debugDir }, '[Publisher] debug artifacts dir');
+        logger.info({ event: LOG_EVENT.publisherArtifactsDir, runId, debugDir }, '[Publisher] debug artifacts dir');
       }
       const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: BOT_MAX_WAIT_MS });
       const statusCode = response?.status() ?? 0;
@@ -958,9 +959,9 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
         }
       });
       if (flow.decision === 'dry_run') {
-        logger.info({ event: 'publisher.submit.skipped', runId, decision: flow.decision, status: 'success' }, 'Dry-run mode enabled. Submit click intentionally skipped.');
+        logger.info({ event: LOG_EVENT.publisherSubmitSkipped, runId, decision: flow.decision, status: 'success' }, 'Dry-run mode enabled. Submit click intentionally skipped.');
       } else {
-        logger.info({ event: 'publisher.submit.completed', runId, decision: flow.decision, status: 'success' }, 'Draft loaded, verified, and submitted.');
+        logger.info({ event: LOG_EVENT.publisherSubmitCompleted, runId, decision: flow.decision, status: 'success' }, 'Draft loaded, verified, and submitted.');
       }
       return await finish(true, flow.message, flow.decision, log);
     } catch (innerErr) {
@@ -969,13 +970,13 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
     } finally {
       if (traceStarted && debugDir) {
         await context.tracing.stop({ path: path.join(debugDir, 'trace.zip') }).catch(() => null);
-        logger.info({ event: 'publisher.artifacts.trace', runId, tracePath: path.join(debugDir, 'trace.zip') }, '[Publisher] debug trace');
+        logger.info({ event: LOG_EVENT.publisherArtifactsTrace, runId, tracePath: path.join(debugDir, 'trace.zip') }, '[Publisher] debug trace');
       }
       await context.close();
     }
   } catch (error: any) {
     logger.error(
-      { event: 'publisher.run.failed', runId, status: 'error', errorCode: extractErrorCode(error), durationMs: Date.now() - publisherStartedAt, err: error },
+      { event: LOG_EVENT.publisherRunFailed, runId, status: 'error', errorCode: extractErrorCode(error), durationMs: Date.now() - publisherStartedAt, err: error },
       'Publisher Error'
     );
     return await finish(false, `[Publisher] ${String(error?.message ?? error)}`, 'publisher_error', log);
