@@ -2,6 +2,8 @@ import type { Locator, Page } from "playwright";
 
 import { DEFAULT_VERIFY_TEXT_TIMEOUT_MS, PLAYBOOK_LOCATOR_TIMEOUT_MS } from "./publisher/core/timeouts.js";
 import { resolveFirstVisibleLocator } from "./publisher/ui/selectorResolver.js";
+import { confirmLoadDraftFromModal } from "./publisher/ui/draftModal.js";
+import { clickSubmitButton } from "./publisher/ui/submit.js";
 
 export type PlaybookAction = "navigate" | "click" | "change" | "select" | "submit" | "verify_text";
 
@@ -72,90 +74,8 @@ export async function runPublisherPlaybook(
     }
 
     if (step.step_id === "confirm-load-draft-modal") {
-        const draftIndex = Math.max(1, Math.floor(runtime.draftItemIndex ?? 1));
-        const modalRoot = page
-          .locator("div")
-          .filter({ hasText: "임시저장된 게시글" })
-          .filter({ has: page.locator("button:has-text('닫기')") })
-          .first();
-        const modalVisible = await modalRoot.isVisible().catch(() => false);
-        const rowLocator = modalRoot.locator("table tr").filter({ has: page.locator("td") });
-        const rowCount = await rowLocator.count().catch(() => 0);
-        if (modalVisible && rowCount >= draftIndex) {
-          const targetRow = rowLocator.nth(draftIndex - 1);
-          const rowCell = targetRow.locator("td").first();
-          const rowTarget = targetRow
-            .locator("a,button,td")
-            .first();
-          await rowTarget.click();
-          // Row click selects a draft for *preview*; the real confirm is 불러오기 in tempas-preview (step intent).
-          // Without it, body.freeze stays and 닫기 alone may not match site behavior.
-          const draftModalShell = page
-            .locator("div")
-            .filter({ has: page.locator('button:has-text("불러오기")') })
-            .filter({ has: page.locator('button:has-text("닫기")') })
-            .first();
-          const previewRoot = page.locator("div.tempas-preview").last();
-          await previewRoot.waitFor({ state: "visible", timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS }).catch(() => null);
-          const previewLoadBtn = previewRoot.locator('button:has-text("불러오기")').first();
-          if ((await previewLoadBtn.count().catch(() => 0)) > 0) {
-            await previewLoadBtn
-              .click({ noWaitAfter: true, force: true, timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS })
-              .catch(async () => {
-                await draftModalShell
-                  .locator('button:has-text("불러오기")')
-                  .first()
-                  .click({ noWaitAfter: true, force: true, timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS });
-              });
-          }
-          await page
-            .waitForFunction(() => !document.body.classList.contains("freeze"), {
-              timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS
-            })
-            .catch(() => null);
-          const closeBtn = draftModalShell.locator('button:has-text("닫기")').first();
-          if (await page.evaluate(() => document.body.classList.contains("freeze"))) {
-            if (await closeBtn.isVisible().catch(() => false)) {
-              // tempas-preview .btn-area can sit above 닫기 and intercept pointer events (Playwright log).
-              await closeBtn.click({
-                noWaitAfter: true,
-                force: true,
-                timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS
-              });
-              await page
-                .waitForFunction(() => !document.body.classList.contains("freeze"), {
-                  timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS
-                })
-                .catch(() => null);
-            }
-            if (await page.evaluate(() => document.body.classList.contains("freeze"))) {
-              await page
-                .locator("button.btn-tempas-close")
-                .first()
-                .evaluate((el) => (el as HTMLElement).click());
-              await page
-                .waitForFunction(() => !document.body.classList.contains("freeze"), {
-                  timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS
-                })
-                .catch(() => null);
-            }
-            if (await page.evaluate(() => document.body.classList.contains("freeze"))) {
-              await page.keyboard.press("Escape");
-              await page
-                .waitForFunction(() => !document.body.classList.contains("freeze"), {
-                  timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS
-                })
-                .catch(() => null);
-            }
-            if (await page.evaluate(() => document.body.classList.contains("freeze"))) {
-              throw new Error(
-                `[Playbook] confirm-load-draft-modal: draft preview modal still open (body.freeze after close)`
-              );
-            }
-          }
-          continue;
-        }
-      throw new Error(`[Playbook] ${step.step_id}: no matching selector candidate`);
+      await confirmLoadDraftFromModal(page, runtime, step.step_id);
+      continue;
     }
 
     const resolvedVisible = await resolveFirstVisibleLocator(page, step);
@@ -178,7 +98,7 @@ export async function runPublisherPlaybook(
     if (step.action === "submit") {
       // Do not wait for navigation here: bot.ts runs waitForPublishLandingUrl in parallel; waiting
       // in both places can block click() until nav-timeout (~30s) while the URL waiter fails first.
-      await locator.click({ noWaitAfter: true, timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS });
+      await clickSubmitButton(locator);
       continue;
     }
 

@@ -1,5 +1,356 @@
 [
   {
+    "at": "2026-04-07T10:55:55.506Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate",
+    "runId": "621ebe3b-802a-4da7-bd70-cd24a4bf67d8",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T10-55-34-408Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T10:26:19.662Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate",
+    "runId": "9f754668-6e54-449c-a5d8-a3ee16819c7d",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T10-25-51-821Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T09:57:49.613Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)",
+    "runId": "5dcd37ff-063b-4991-8b0f-2c4ccc5972f0",
+    "artifactDir": null,
+    "decision": "gap_policy"
+  },
+  {
+    "at": "2026-04-07T09:45:25.740Z",
+    "success": true,
+    "force": true,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202165&page=1&slave=off)",
+    "runId": "ecf588de-e49b-4276-93aa-2385a618abb3",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T09-44-23-768Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T09:31:07.409Z",
+    "success": false,
+    "force": true,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate",
+    "runId": "b6324c00-9875-478f-a573-7ec0c5ca3ca9",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T09-30-41-949Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T09:28:12.640Z",
+    "success": true,
+    "force": true,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202161&page=1&slave=off)",
+    "runId": "8b38e47b-0428-4a91-b4cc-500b8a54dc6b",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T09-27-16-285Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T09:25:58.659Z",
+    "success": false,
+    "force": true,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate",
+    "runId": "bb6c0570-efde-4073-9974-534bab9664c9",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T09-25-21-874Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T09:21:56.291Z",
+    "success": true,
+    "force": true,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202159&page=1&slave=off)",
+    "runId": "1a301a0f-b956-4d95-885e-efd5791c95a5",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T09-21-18-554Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T09:02:16.037Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate",
+    "runId": "0fd14a10-53e3-41b3-9d72-b8761e37f47e",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T09-01-53-330Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T08:08:36.381Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate",
+    "runId": "4ea51715-8f0a-4f34-9868-6e5f0f1c54e4",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T08-08-11-425Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T07:14:25.979Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)",
+    "runId": "430b7f11-151a-42c6-83ea-a0a80fcdf619",
+    "artifactDir": null,
+    "decision": "gap_policy"
+  },
+  {
+    "at": "2026-04-07T06:49:51.619Z",
+    "success": true,
+    "force": true,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202139&page=1&slave=off)",
+    "runId": "d663116f-dcd9-400e-b0f0-35b5caf97b17",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T06-49-02-885Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T06:42:39.801Z",
+    "success": true,
+    "force": true,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202136&page=1&slave=off)",
+    "runId": "fd71f1d5-2fcd-496b-88a6-ce35ed7bf58a",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T06-41-58-928Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T06:22:36.001Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202134&page=1&slave=off)",
+    "runId": "4b0f607e-a4c2-4706-bb89-bcce456ea81c",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T06-21-55-724Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T05:18:05.144Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202123&page=1&slave=off)",
+    "runId": "28fe1f55-94df-4c4d-8109-5ba4f89b0493",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T05-17-25-158Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T04:15:59.543Z",
+    "success": false,
+    "force": true,
+    "message": "[Publisher] PUBLISHER_POST_SUBMIT_TIMEOUT: no final list/view within 20000ms (boardId=gonggu) | lastUrl=\"https://www.ppomppu.co.kr/zboard/unlimit_write_ok.php\" | mainFrameNavTail=\"https://www.ppomppu.co.kr/zboard/unlimit_write_ok.php\"",
+    "runId": "87dffec2-8629-4ce7-ae34-5b46c4b6e547",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T04-15-03-443Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T04:14:07.783Z",
+    "success": true,
+    "force": true,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202117&page=1&slave=off)",
+    "runId": "89ec099b-496c-4bec-b6db-e4c7174eb2b9",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T04-13-28-440Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T04:13:19.056Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)",
+    "runId": "bb3ace94-dd76-41e6-a5c6-a53c72daab0c",
+    "artifactDir": null,
+    "decision": "gap_policy"
+  },
+  {
+    "at": "2026-04-07T04:12:37.753Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202116&page=1&slave=off)",
+    "runId": "0ab48036-f09d-4d44-bb8a-061473c94b83",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T04-12-04-839Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T04:08:27.870Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] PUBLISHER_POST_SUBMIT_TIMEOUT: no final list/view within 20000ms (boardId=gonggu) | lastUrl=\"https://www.ppomppu.co.kr/zboard/write.php?id=gonggu&page=1&divpage=39&mode=write\" | mainFrameNavTail=\"\"",
+    "runId": "d4049af5-4297-4551-9d4f-76f3e0d8d633",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T04-07-06-480Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T04:06:30.222Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('div').filter({ has: locator('button:has-text(\"불러오기\")') }).filter({ has: locator('button:has-text(\"닫기\")') }).first().locator('button:has-text(\"닫기\")').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" class=\"btn-tempas-close\">닫기</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and ",
+    "runId": "816e11aa-a689-43a1-9b24-56731adc1923",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T04-05-21-482Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T04:05:07.523Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('div').filter({ has: locator('button:has-text(\"불러오기\")') }).filter({ has: locator('button:has-text(\"닫기\")') }).first().locator('button:has-text(\"닫기\")').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" class=\"btn-tempas-close\">닫기</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and ",
+    "runId": "117500bb-3ad0-49d7-ad87-39f36f3a2e15",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T04-04-03-437Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T04:02:23.013Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] PUBLISHER_POST_SUBMIT_TIMEOUT: no final list/view within 20000ms (boardId=gonggu) | lastUrl=\"https://www.ppomppu.co.kr/zboard/write.php?id=gonggu&page=1&divpage=39&mode=write\" | mainFrameNavTail=\"\"",
+    "runId": "2115ec4c-cbc9-4365-8c52-45d4fd1bb88f",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T04-01-37-465Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:57:30.316Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] PUBLISHER_POST_SUBMIT_TIMEOUT: no final list/view within 20000ms (boardId=gonggu) | lastUrl=\"https://www.ppomppu.co.kr/zboard/write.php?id=gonggu&page=1&divpage=39&mode=write\" | mainFrameNavTail=\"\"",
+    "runId": "1a989345-75b2-415c-b386-e0c9ccc8b590",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-56-30-151Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:54:49.837Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] PUBLISHER_POST_SUBMIT_TIMEOUT: no final list/view within 20000ms (boardId=gonggu) | lastUrl=\"https://www.ppomppu.co.kr/zboard/write.php?id=gonggu&page=1&divpage=39&mode=write\" | mainFrameNavTail=\"\"",
+    "runId": "3dd3c361-881a-477f-a3c1-9370532dca68",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-54-03-126Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:50:57.951Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] verify-required-body: expected text not found: 회원 모집 안내",
+    "runId": "72a068d6-8ed9-4d73-9aab-e13ed17a81c1",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-50-34-101Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:47:52.100Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate",
+    "runId": "f252ca38-606f-4061-8c84-fd4b24da97bd",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-47-24-741Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:43:58.877Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate",
+    "runId": "c3dda383-cc35-4ccd-8270-db0ddaa3bc3e",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-43-33-035Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:40:46.833Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate",
+    "runId": "f2602e79-7f2e-4bfd-897e-c1f7e9959b67",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-40-15-651Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:37:25.828Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate for draftItemIndex=1",
+    "runId": "f053cff7-133a-4032-b2dc-5af2b93dea9a",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-36-52-554Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:33:33.367Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate for draftItemIndex=1",
+    "runId": "be02e6ce-a575-4d9e-8daa-532c5f63336c",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-33-03-581Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:30:54.717Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate for draftItemIndex=1",
+    "runId": "87aee5a5-4867-4d62-b6dc-97b9236578b7",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-30-23-403Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:28:25.023Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate for draftItemIndex=1",
+    "runId": "6ae83e99-65a2-43dc-af7d-f23ae4f1dcd6",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-27-54-279Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:26:00.004Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button.btn_set_tempas:has-text(\"불러오기\")').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-no=\"748735\" class=\"btn_set_tempas\">불러오기</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for elemen",
+    "runId": "2edd6b51-01df-4b1c-ab3d-8d39795ff1d8",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-25-02-193Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:21:38.415Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button.btn_set_tempas:has-text(\"불러오기\")').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-no=\"748735\" class=\"btn_set_tempas\">불러오기</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for elemen",
+    "runId": "5296f977-51ef-4f3e-a9b0-0ea92cf0b408",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-20-40-853Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:14:34.191Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button.btn_set_tempas:has-text(\"불러오기\")').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-no=\"748735\" class=\"btn_set_tempas\">불러오기</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for elemen",
+    "runId": "526e0942-1c8a-4104-9ea6-3ff41c9f14a7",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T03-13-43-348Z",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T03:06:48.089Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate",
+    "runId": "0db0b878-f528-4683-9200-1dfbcfa30b47",
+    "artifactDir": "artifacts/publisher-runs/0db0b878-f528-4683-9200-1dfbcfa30b47",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-07T02:38:58.584Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate",
+    "runId": "8c5fbbd7-941b-4d68-8793-47b525ce068c",
+    "artifactDir": "artifacts/publisher-runs/8c5fbbd7-941b-4d68-8793-47b525ce068c",
+    "decision": "publisher_error"
+  },
+  {
+    "at": "2026-04-06T17:17:14.870Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)",
+    "runId": "70294e8c-ff18-42e8-a790-d6aa37c1b62b",
+    "artifactDir": null,
+    "decision": "gap_policy"
+  },
+  {
     "at": "2026-04-06T16:04:34.969Z",
     "success": false,
     "force": false,

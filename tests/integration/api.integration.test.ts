@@ -360,6 +360,99 @@ test("isPublishSuccessUrl accepts final view/list URLs and rejects write_ok inte
   );
 });
 
+test("waitForPublishLandingUrl accepts late redirect after waiter timeout via retry buffer", async () => {
+  const { waitForPublishLandingUrl } = await import("../../lib/publisher/ui/submit.js");
+
+  const listeners: Array<(frame: { url: () => string }) => void> = [];
+  let currentUrl = "https://www.ppomppu.co.kr/zboard/unlimit_write_ok.php?id=gonggu&no=201742";
+  let callCount = 0;
+
+  const page = {
+    mainFrame: () => ({ __main: true }),
+    on: (_event: string, handler: (frame: { url: () => string }) => void) => {
+      listeners.push(handler);
+    },
+    off: (_event: string, handler: (frame: { url: () => string }) => void) => {
+      const idx = listeners.indexOf(handler);
+      if (idx >= 0) listeners.splice(idx, 1);
+    },
+    waitForURL: async () => {
+      callCount += 1;
+      throw new Error("Timeout 5ms exceeded");
+    },
+    waitForTimeout: async () => {
+      currentUrl = "https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=201742&page=1";
+      for (const handler of listeners) {
+        handler({ url: () => currentUrl });
+      }
+    },
+    url: () => currentUrl
+  };
+
+  await assert.doesNotReject(() => waitForPublishLandingUrl(page as never, "gonggu", 5));
+  assert.equal(callCount, 1);
+});
+
+test("waitForPublishLandingUrl fails closed on wrong landing board URL", async () => {
+  const { waitForPublishLandingUrl } = await import("../../lib/publisher/ui/submit.js");
+
+  const listeners: Array<(frame: { url: () => string }) => void> = [];
+  let currentUrl = "https://www.ppomppu.co.kr/zboard/unlimit_write_ok.php?id=gonggu&no=201742";
+
+  const page = {
+    mainFrame: () => ({ __main: true }),
+    on: (_event: string, handler: (frame: { url: () => string }) => void) => {
+      listeners.push(handler);
+    },
+    off: (_event: string, handler: (frame: { url: () => string }) => void) => {
+      const idx = listeners.indexOf(handler);
+      if (idx >= 0) listeners.splice(idx, 1);
+    },
+    waitForURL: async () => {
+      currentUrl = "https://www.ppomppu.co.kr/zboard/view.php?id=other&no=201742&page=1";
+      for (const handler of listeners) {
+        handler({ url: () => currentUrl });
+      }
+      throw new Error("Timeout 5ms exceeded");
+    },
+    waitForTimeout: async () => undefined,
+    url: () => currentUrl
+  };
+
+  await assert.rejects(
+    () => waitForPublishLandingUrl(page as never, "gonggu", 5),
+    /PUBLISHER_POST_SUBMIT_TIMEOUT.*boardId=gonggu/
+  );
+});
+
+test("waitForPublishLandingUrl timeout path includes last URL diagnostics", async () => {
+  const { waitForPublishLandingUrl } = await import("../../lib/publisher/ui/submit.js");
+
+  const listeners: Array<(frame: { url: () => string }) => void> = [];
+  let currentUrl = "https://www.ppomppu.co.kr/zboard/unlimit_write_ok.php?id=gonggu&no=201742";
+
+  const page = {
+    mainFrame: () => ({ __main: true }),
+    on: (_event: string, handler: (frame: { url: () => string }) => void) => {
+      listeners.push(handler);
+    },
+    off: (_event: string, handler: (frame: { url: () => string }) => void) => {
+      const idx = listeners.indexOf(handler);
+      if (idx >= 0) listeners.splice(idx, 1);
+    },
+    waitForURL: async () => {
+      throw new Error("Timeout 5ms exceeded");
+    },
+    waitForTimeout: async () => undefined,
+    url: () => currentUrl
+  };
+
+  await assert.rejects(
+    () => waitForPublishLandingUrl(page as never, "gonggu", 5),
+    /PUBLISHER_POST_SUBMIT_TIMEOUT: no final list\/view within 5ms.*lastUrl="https:\/\/www\.ppomppu\.co\.kr\/zboard\/unlimit_write_ok\.php\?id=gonggu&no=201742"/
+  );
+});
+
 test("GET /api/control-panel includes publisher.draftItemIndex", async () => {
   const deps: BotDeps = {
     runObserver: async () => createLog("safe"),

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { runPublisherPlaybook, type PublisherPlaybook } from "../../lib/playbookRunner.ts";
+import { confirmLoadDraftFromModal } from "../../lib/publisher/ui/draftModal.ts";
 
 type FakeState = {
   selectors: Record<string, number>;
@@ -94,5 +95,152 @@ test("playbook runner fails closed on unsupported action", async () => {
   await assert.rejects(
     () => runPublisherPlaybook(fakePage(state) as never, playbook, { boardEntryUrl: "https://example.com" }),
     /unsupported action/
+  );
+});
+
+type DraftModalMockState = {
+  freeze: boolean;
+  modalVisible: boolean;
+  rowCount: number;
+  previewLoadButtonCount: number;
+  closeButtonVisible: boolean;
+  closeButtonClearsFreeze: boolean;
+  fallbackCloseClearsFreeze: boolean;
+  escapeClearsFreeze: boolean;
+};
+
+function createDraftModalPage(state: DraftModalMockState) {
+  const closeButton = {
+    first: () => ({
+      isVisible: async () => state.closeButtonVisible,
+      click: async () => {
+        if (state.closeButtonClearsFreeze) state.freeze = false;
+      }
+    })
+  };
+  const fallbackCloseButton = {
+    first: () => ({
+      evaluate: async (fn: (el: unknown) => void) => {
+        fn({ click: () => null });
+        if (state.fallbackCloseClearsFreeze) state.freeze = false;
+      }
+    })
+  };
+  const previewLoadButton = {
+    first: () => ({
+      count: async () => state.previewLoadButtonCount,
+      click: async () => undefined
+    })
+  };
+
+  const rowLocator = {
+    filter: () => rowLocator,
+    count: async () => state.rowCount,
+    nth: (_index: number) => ({
+      locator: (selector: string) => {
+        if (selector === "a,button,td") {
+          return {
+            first: () => ({
+              click: async () => undefined
+            })
+          };
+        }
+        return {
+          first: () => ({})
+        };
+      }
+    })
+  };
+
+  const modalRoot = {
+    filter: () => modalRoot,
+    first: () => ({
+      isVisible: async () => state.modalVisible,
+      locator: (selector: string) => {
+        if (selector === "table tr") return rowLocator;
+        if (selector === 'button:has-text("불러오기")') return previewLoadButton;
+        if (selector === 'button:has-text("닫기")') return closeButton;
+        return { first: () => ({ count: async () => 0 }) };
+      }
+    })
+  };
+
+  return {
+    locator: (selector: string) => {
+      if (selector === "div") return modalRoot;
+      if (selector === "td") return {};
+      if (selector === "div.tempas-preview") {
+        return {
+          last: () => ({
+            waitFor: async () => undefined,
+            locator: (innerSelector: string) =>
+              innerSelector === 'button:has-text("불러오기")' ? previewLoadButton : { first: () => ({}) }
+          })
+        };
+      }
+      if (selector === "button.btn-tempas-close") return fallbackCloseButton;
+      return {
+        first: () => ({})
+      };
+    },
+    evaluate: async (fn: () => unknown) => {
+      const fnText = String(fn);
+      if (fnText.includes("document.body.classList.contains(\"freeze\")")) {
+        return state.freeze;
+      }
+      return undefined;
+    },
+    waitForFunction: async () => {
+      if (state.freeze) throw new Error("still frozen");
+    },
+    keyboard: {
+      press: async (key: string) => {
+        if (key === "Escape" && state.escapeClearsFreeze) state.freeze = false;
+      }
+    }
+  };
+}
+
+test("confirm-load-draft-modal clears freeze through close lifecycle", async () => {
+  const page = createDraftModalPage({
+    freeze: true,
+    modalVisible: true,
+    rowCount: 2,
+    previewLoadButtonCount: 1,
+    closeButtonVisible: true,
+    closeButtonClearsFreeze: true,
+    fallbackCloseClearsFreeze: false,
+    escapeClearsFreeze: false
+  });
+
+  await assert.doesNotReject(() =>
+    confirmLoadDraftFromModal(
+      page as never,
+      { boardEntryUrl: "https://example.com", draftItemIndex: 2 },
+      "confirm-load-draft-modal"
+    )
+  );
+});
+
+test("confirm-load-draft-modal fails closed when freeze persists after fallbacks", async () => {
+  const page = createDraftModalPage({
+    freeze: true,
+    modalVisible: true,
+    rowCount: 1,
+    previewLoadButtonCount: 1,
+    closeButtonVisible: true,
+    closeButtonClearsFreeze: false,
+    fallbackCloseClearsFreeze: false,
+    escapeClearsFreeze: false
+  });
+
+  await assert.rejects(
+    () =>
+      confirmLoadDraftFromModal(
+        page as never,
+        { boardEntryUrl: "https://example.com", draftItemIndex: 1 },
+        "confirm-load-draft-modal"
+      ),
+    /draft preview modal still open/
   );
 });

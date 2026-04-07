@@ -6,10 +6,16 @@ import type { ActivityLog, Post, PublisherRunDecision } from './contracts/models
 import { ENV } from './config/env.js';
 import { appendPublisherHistoryEntry } from './lib/publisherHistory.js';
 import { BOT_MAX_WAIT_MS } from './lib/publisher/core/timeouts.js';
+import {
+  publisherArtifactDirForRun,
+  publisherDebugScreenshot,
+  publisherFailureScreenshot
+} from './lib/publisher/diagnostics.js';
 import { runPublisherFlow } from './lib/publisher/flow/runPublisherFlow.js';
 import { readRuntimeGapPersistedOverride, writeRuntimeGapPersistedOverride } from './lib/runtimeControls.js';
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
 import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval-polyfill.js';
+import { logger } from './lib/logger.js';
 
 export type PublisherRunResult = {
   success: boolean;
@@ -132,6 +138,12 @@ const PARSER_OPTIONS = {
   maxTotalNodes: 750,
   maxTextLengthPerNode: 200
 } as const;
+
+function extractErrorCode(input: unknown): string {
+  const message = String((input as { message?: unknown })?.message ?? input ?? '').trim();
+  const matched = message.match(/^([A-Z0-9_]+):/);
+  return matched ? matched[1] : 'UNCLASSIFIED_ERROR';
+}
 
 function clampInt(value: unknown, fallback: number, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
@@ -414,41 +426,6 @@ function combinedConfidence(legacyConfidence: number, parserConfidence: number):
   return Number(Math.min(legacyConfidence, parserConfidence).toFixed(2));
 }
 
-/** Timestamp-based per-run directory for readable artifact chronology. */
-function publisherArtifactDirForRun(): string | null {
-  if (!ENV.PUBLISHER_DEBUG_SCREENSHOTS && !ENV.PUBLISHER_DEBUG_TRACE) return null;
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return path.join(ENV.PROJECT_ROOT, 'artifacts', 'publisher-runs', timestamp);
-}
-
-async function publisherDebugScreenshot(
-  page: import('playwright').Page,
-  runDir: string | null,
-  label: string
-): Promise<void> {
-  if (!runDir || !ENV.PUBLISHER_DEBUG_SCREENSHOTS) return;
-  await fs.mkdir(runDir, { recursive: true });
-  const safe = label.replace(/[^a-z0-9_-]+/gi, '_');
-  const file = path.join(runDir, `${safe}.png`);
-  await page.screenshot({ path: file, fullPage: true }).catch(() => null);
-  console.log(`[Publisher] debug screenshot ${file}`);
-}
-
-/** Always written on publisher failure (when a page exists), even if step screenshots are off. */
-async function publisherFailureScreenshot(
-  page: import('playwright').Page | null,
-  preferredDir: string | null
-): Promise<void> {
-  if (!page) return;
-  const dir =
-    preferredDir ??
-    path.join(ENV.PROJECT_ROOT, 'artifacts', 'publisher-runs', 'failures', new Date().toISOString().replace(/[:.]/g, '-'));
-  await fs.mkdir(dir, { recursive: true });
-  const file = path.join(dir, 'error.png');
-  await page.screenshot({ path: file, fullPage: true }).catch(() => null);
-  console.log(`[Publisher] failure screenshot ${file}`);
-}
-
 async function captureBoardRowRegionArtifact(
   page: import('playwright').Page,
   reason: string,
@@ -576,6 +553,7 @@ async function recordPublisherRun(entry: {
 }
 
 export async function runObserver() {
+  const observerStartedAt = Date.now();
   if (!observerControls.enabled) {
     const log: ActivityLog = {
       timestamp: new Date().toISOString(),
@@ -588,6 +566,10 @@ export async function runObserver() {
       error: '[Observer] Observer is paused by control panel'
     };
     await saveLog(log);
+    logger.warn(
+      { event: 'observer.run.skipped', status: 'error', errorCode: 'OBSERVER_PAUSED', durationMs: Date.now() - observerStartedAt },
+      'Observer skipped because controls are disabled'
+    );
     return log;
   }
 
@@ -603,6 +585,10 @@ export async function runObserver() {
       error: '[Observer] Observer run already in progress'
     };
     await saveLog(log);
+    logger.warn(
+      { event: 'observer.run.skipped', status: 'error', errorCode: 'OBSERVER_ALREADY_RUNNING', durationMs: Date.now() - observerStartedAt },
+      'Observer skipped because another run is active'
+    );
     return log;
   }
   observerRunning = true;
@@ -628,7 +614,7 @@ export async function runObserver() {
     const page = await context.newPage();
 
     const policy = await loadObserverPolicy();
-    console.log('Running Observer...');
+    logger.info({ event: 'observer.run.started', boardUrl: policy.boardUrl }, 'Running Observer');
     const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: BOT_MAX_WAIT_MS });
     const statusCode = response?.status() ?? 0;
     const diagnostics = await getBoardDiagnostics(page);
@@ -804,9 +790,22 @@ export async function runObserver() {
     };
 
     await saveLog(log);
+    logger.info(
+      {
+        event: 'observer.run.finished',
+        status: log.status,
+        currentGap: log.current_gap_count,
+        gapThresholdMin: log.gap_threshold_min ?? null,
+        durationMs: Date.now() - observerStartedAt
+      },
+      'Observer run completed'
+    );
     return log;
   } catch (error: any) {
-    console.error('Observer Error:', error);
+    logger.error(
+      { event: 'observer.run.failed', status: 'error', errorCode: extractErrorCode(error), durationMs: Date.now() - observerStartedAt, err: error },
+      'Observer Error'
+    );
     const log: ActivityLog = {
       timestamp: new Date().toISOString(),
       current_gap_count: 0,
@@ -829,6 +828,7 @@ export async function runObserver() {
 
 export async function runPublisher(force: boolean = false): Promise<PublisherRunResult> {
   const runId = randomUUID();
+  const publisherStartedAt = Date.now();
   let log: ActivityLog | undefined;
   let debugDir: string | null = null;
 
@@ -851,6 +851,11 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
       artifactAbs === null || artifactAbs === undefined
         ? null
         : path.relative(ENV.PROJECT_ROOT, artifactAbs).replace(/\\/g, '/');
+    const durationMs = Date.now() - publisherStartedAt;
+    logger.info(
+      { event: 'publisher.run.finished', runId, decision, status: success ? 'success' : 'error', durationMs, force, artifactDir: artifactRel },
+      'Publisher run completed'
+    );
     return { success, message, log: outLog, runId, decision, artifactDir: artifactRel };
   };
 
@@ -874,8 +879,9 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
     if (!force && log.status !== 'safe') {
       const gap = log.current_gap_count;
       const need = policy.gapThresholdMin;
-      console.log(
-        `[Publisher] runId=${runId} gap_policy skip current_gap=${gap} need>=${need} force=${force} parseUnsafe=${Boolean(log.error)}`
+      logger.info(
+        { event: 'publisher.run.skipped', runId, decision: 'gap_policy', status: 'unsafe', currentGap: gap, requiredGap: need, force, parseUnsafe: Boolean(log.error) },
+        '[Publisher] gap_policy skip'
       );
       return await finish(
         false,
@@ -904,9 +910,9 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
     let page: import('playwright').Page | null = null;
     try {
       page = await context.newPage();
-      console.log('Running Publisher...');
+      logger.info({ event: 'publisher.run.started', runId, boardUrl: policy.boardUrl, force }, 'Running Publisher');
       if (debugDir) {
-        console.log(`[Publisher] debug artifacts dir ${debugDir}`);
+        logger.info({ event: 'publisher.artifacts.dir', runId, debugDir }, '[Publisher] debug artifacts dir');
       }
       const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: BOT_MAX_WAIT_MS });
       const statusCode = response?.status() ?? 0;
@@ -952,9 +958,9 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
         }
       });
       if (flow.decision === 'dry_run') {
-        console.log('Dry-run mode enabled. Submit click intentionally skipped.');
+        logger.info({ event: 'publisher.submit.skipped', runId, decision: flow.decision, status: 'success' }, 'Dry-run mode enabled. Submit click intentionally skipped.');
       } else {
-        console.log('Draft loaded, verified, and submitted.');
+        logger.info({ event: 'publisher.submit.completed', runId, decision: flow.decision, status: 'success' }, 'Draft loaded, verified, and submitted.');
       }
       return await finish(true, flow.message, flow.decision, log);
     } catch (innerErr) {
@@ -963,12 +969,15 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
     } finally {
       if (traceStarted && debugDir) {
         await context.tracing.stop({ path: path.join(debugDir, 'trace.zip') }).catch(() => null);
-        console.log(`[Publisher] debug trace ${path.join(debugDir, 'trace.zip')}`);
+        logger.info({ event: 'publisher.artifacts.trace', runId, tracePath: path.join(debugDir, 'trace.zip') }, '[Publisher] debug trace');
       }
       await context.close();
     }
   } catch (error: any) {
-    console.error('Publisher Error:', error);
+    logger.error(
+      { event: 'publisher.run.failed', runId, status: 'error', errorCode: extractErrorCode(error), durationMs: Date.now() - publisherStartedAt, err: error },
+      'Publisher Error'
+    );
     return await finish(false, `[Publisher] ${String(error?.message ?? error)}`, 'publisher_error', log);
   }
 }
