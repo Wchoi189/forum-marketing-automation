@@ -72,6 +72,12 @@
 ---
 
 ## Phase 4 - Storage Model Upgrade (JSONL + Parquet)
+### Status
+- [x] Introduce append-only JSONL event stream for publisher runtime history (`artifacts/publisher-history/YYYY-MM-DD.jsonl`).
+- [x] Keep API compatibility by reading JSONL first with fallback to legacy `artifacts/publisher-history.json`.
+- [x] Add ETL script to convert JSONL to parquet datasets (`runs.parquet`, `errors.parquet`, optional `posts.parquet`).
+- [x] Wire parquet ETL into scheduled ops/retention workflow (`ops/systemd/cleanup-artifacts.sh`).
+
 ### Scope
 - Introduce append-only JSONL event stream for runtime logs.
 - Build ETL script:
@@ -87,6 +93,12 @@
 ---
 
 ## Phase 5 - Retention, Governance, and Ops
+### Status
+- [x] Expand cleanup policy to include JSONL and parquet retention windows.
+- [x] Add trace retention policy split by outcome/severity.
+- [x] Add operator docs for debug escalation, trace replay, and parquet querying (`ops/systemd/README.md`).
+- [x] Confirm Phase 5 acceptance criteria are satisfied and documented.
+
 ### Scope
 - Expand cleanup policy to include:
   - JSONL retention windows
@@ -100,6 +112,10 @@
 ### Acceptance Criteria
 - Retention policy is explicit, automated, and environment-configurable.
 - Audit trail remains available for agreed windows.
+
+### Acceptance Status
+- [x] Retention policy is explicit, automated, and environment-configurable (`ops/systemd/cleanup-artifacts.sh`, `ops/systemd/README.md`).
+- [x] Audit trail remains available for agreed windows via differentiated retention (failure/severe traces, success traces, JSONL, parquet).
 
 ---
 

@@ -47,7 +47,7 @@ export type PublisherRunDecision =
   | "dry_run"
   | "publisher_error";
 
-/** Append-only log of auto/manual publisher runs (see artifacts/publisher-history.json). */
+/** Append-only log of auto/manual publisher runs (see artifacts/publisher-history/*.jsonl). */
 export interface PublisherHistoryEntry {
   at: string;
   success: boolean;

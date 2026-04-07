@@ -8,6 +8,7 @@
     "mcp:parser": "tsx mcp/parser-server.ts",
     "playbook:from-recorder": "node scripts/convert-recorder-to-playbook.mjs",
     "workflow:template": "node scripts/create-workflow-template.mjs",
+    "publisher-history:parquet": "python3 scripts/publisher_history_jsonl_to_parquet.py",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
