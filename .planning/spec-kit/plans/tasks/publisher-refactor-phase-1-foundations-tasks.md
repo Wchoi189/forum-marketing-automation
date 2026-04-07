@@ -1,0 +1,18 @@
+# Phase 1 Task Checklist - Foundations
+
+Related sprint: [`/parent/marketing-automation/.planning/spec-kit/plans/sprints/publisher-refactor-sprint-1-foundations.md`](/parent/marketing-automation/.planning/spec-kit/plans/sprints/publisher-refactor-sprint-1-foundations.md)
+
+## Implementation Tasks
+- [ ] Inventory timeout constants and selector-resolution helpers currently embedded in runtime files.
+- [ ] Create `lib/publisher/core/timeouts.ts` and move timeout policy values without semantic changes.
+- [ ] Create `lib/publisher/ui/selectorResolver.ts` and move selector/actionability logic as-is.
+- [ ] Update call sites to import extracted modules while preserving execution order.
+- [ ] Keep old and new branches functionally equivalent before any cleanup simplification.
+
+## Regression Guards
+- [ ] Confirm no submit-flow or modal semantics changed in this phase.
+- [ ] Confirm fail-closed decisions remain at the same decision points.
+
+## Validation Gates
+- [ ] Run `npm run lint`.
+- [ ] Run `npm run test:integration`.
