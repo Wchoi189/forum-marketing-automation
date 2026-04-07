@@ -143,11 +143,15 @@ test("POST /api/run-publisher blocks unsafe non-force path", async () => {
     assert.equal(res.status, 500);
     const body = await res.json();
     assert.equal(body.success, false);
+    assert.equal(body.action, "publisher");
+    assert.equal(body.force, false);
+    assert.equal(typeof body.message, "string");
     assert.match(String(body.error), /\[Publisher\].*Gap/);
     assert.equal(capturedForce, false);
     assertActivityLogShape(body.log as ActivityLog);
     assert.equal(body.runId, "00000000-0000-4000-8000-000000000001");
     assert.equal(body.decision, "gap_policy");
+    assert.equal(body.artifactDir, null);
   });
 });
 
@@ -205,6 +209,12 @@ test("POST /api/run-publisher supports manual override force path", async () => 
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.equal(body.success, true);
+    assert.equal(body.action, "publisher");
+    assert.equal(body.force, true);
+    assert.equal(body.message, "Publication simulated successfully (DRY_RUN_MODE=true)");
+    assert.equal(body.runId, MOCK_RUN_ID);
+    assert.equal(body.decision, "dry_run");
+    assert.equal(body.artifactDir, null);
     assert.equal(capturedForce, true);
     assertActivityLogShape(body.log as ActivityLog);
   });

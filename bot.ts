@@ -5,9 +5,8 @@ import path from 'path';
 import type { ActivityLog, Post, PublisherRunDecision } from './contracts/models.js';
 import { ENV } from './config/env.js';
 import { appendPublisherHistoryEntry } from './lib/publisherHistory.js';
-import { runPublisherPlaybook, type PublisherPlaybook } from './lib/playbookRunner.js';
 import { BOT_MAX_WAIT_MS } from './lib/publisher/core/timeouts.js';
-import { isPublishSuccessUrl, waitForPublishLandingUrl } from './lib/publisher/ui/submit.js';
+import { runPublisherFlow } from './lib/publisher/flow/runPublisherFlow.js';
 import { readRuntimeGapPersistedOverride, writeRuntimeGapPersistedOverride } from './lib/runtimeControls.js';
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
 import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval-polyfill.js';
@@ -192,18 +191,6 @@ async function readPlanningJson<T>(relativePath: string): Promise<T> {
   return JSON.parse(content) as T;
 }
 
-async function loadPublisherPlaybook(workflowId: string): Promise<PublisherPlaybook> {
-  const playbook = await readPlanningJson<PublisherPlaybook>(`manifest/playbook.${workflowId}.json`);
-  if (playbook.workflow_id !== workflowId) {
-    throw new Error(`PUBLISHER_PLAYBOOK_INVALID: workflow_id mismatch (${playbook.workflow_id} != ${workflowId})`);
-  }
-  const actions = new Set(playbook.steps.map((s) => s.action));
-  if (!actions.has('verify_text') || !actions.has('select') || !actions.has('submit')) {
-    throw new Error('PUBLISHER_PLAYBOOK_INVALID: required actions verify_text/select/submit missing');
-  }
-  return playbook;
-}
-
 function assertPolicy(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(`[OBSERVER_POLICY] ${message}`);
@@ -218,15 +205,6 @@ function toInt(value: unknown, label: string): number {
 function toNumber(value: unknown, label: string): number {
   assertPolicy(typeof value === 'number' && Number.isFinite(value), `${label} must be a number`);
   return value;
-}
-
-function boardIdFromEntryUrl(boardUrl: string): string {
-  try {
-    const id = new URL(boardUrl).searchParams.get('id');
-    return id || 'gonggu';
-  } catch {
-    return 'gonggu';
-  }
 }
 
 async function loadObserverPolicyBase(): Promise<ObserverPolicyBase> {
@@ -957,51 +935,28 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
       }
 
       await publisherDebugScreenshot(page, debugDir, '01-board');
-      const workflowId = 'ppomppu-gonggu-v1';
-      const playbook = await loadPublisherPlaybook(workflowId);
-      const nonSubmitSteps = playbook.steps.filter((s) => s.action !== 'submit');
-      const submitSteps = playbook.steps.filter((s) => s.action === 'submit');
-      if (submitSteps.length === 0) {
-        throw new Error('PUBLISHER_PLAYBOOK_INVALID: submit step missing');
-      }
-      await runPublisherPlaybook(
+      const flow = await runPublisherFlow({
         page,
-        { ...playbook, steps: nonSubmitSteps },
-        {
+        runtime: {
           boardEntryUrl: policy.boardUrl,
           draftItemIndex: publisherControls.draftItemIndex,
           verifyTextTimeoutMs: ENV.PUBLISHER_POST_SUBMIT_WAIT_MS
+        },
+        postSubmitWaitMs: ENV.PUBLISHER_POST_SUBMIT_WAIT_MS,
+        dryRunMode: ENV.DRY_RUN_MODE,
+        onBeforeSubmit: async () => {
+          await publisherDebugScreenshot(page, debugDir, '05-before-submit');
+        },
+        onSuccess: async () => {
+          await publisherDebugScreenshot(page, debugDir, '06-success');
         }
-      );
-      await publisherDebugScreenshot(page, debugDir, '05-before-submit');
-
-      if (ENV.DRY_RUN_MODE) {
+      });
+      if (flow.decision === 'dry_run') {
         console.log('Dry-run mode enabled. Submit click intentionally skipped.');
-        return await finish(true, 'Publication simulated successfully (DRY_RUN_MODE=true)', 'dry_run', log);
+      } else {
+        console.log('Draft loaded, verified, and submitted.');
       }
-
-      const boardId = boardIdFromEntryUrl(policy.boardUrl);
-      // Submit step is playbook-driven; success still requires list/view landing URL verification.
-      await Promise.all([
-        waitForPublishLandingUrl(page, boardId, ENV.PUBLISHER_POST_SUBMIT_WAIT_MS),
-        runPublisherPlaybook(
-          page,
-          { ...playbook, steps: submitSteps },
-          {
-            boardEntryUrl: policy.boardUrl,
-            draftItemIndex: publisherControls.draftItemIndex,
-            verifyTextTimeoutMs: ENV.PUBLISHER_POST_SUBMIT_WAIT_MS
-          }
-        )
-      ]);
-      await publisherDebugScreenshot(page, debugDir, '06-success');
-      console.log('Draft loaded, verified, and submitted.');
-      return await finish(
-        true,
-        `Publication submitted successfully (verified redirect to ${page.url()})`,
-        'published_verified',
-        log
-      );
+      return await finish(true, flow.message, flow.decision, log);
     } catch (innerErr) {
       await publisherFailureScreenshot(page, debugDir);
       throw innerErr;
