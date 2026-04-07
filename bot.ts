@@ -507,10 +507,11 @@ function combinedConfidence(legacyConfidence: number, parserConfidence: number):
   return Number(Math.min(legacyConfidence, parserConfidence).toFixed(2));
 }
 
-/** Stable per-run directory name for correlating publisher-history with screenshots/traces. */
-function publisherArtifactDirForRun(runId: string): string | null {
+/** Timestamp-based per-run directory for readable artifact chronology. */
+function publisherArtifactDirForRun(): string | null {
   if (!ENV.PUBLISHER_DEBUG_SCREENSHOTS && !ENV.PUBLISHER_DEBUG_TRACE) return null;
-  return path.join(ENV.PROJECT_ROOT, 'artifacts', 'publisher-runs', runId);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  return path.join(ENV.PROJECT_ROOT, 'artifacts', 'publisher-runs', timestamp);
 }
 
 async function publisherDebugScreenshot(
@@ -977,7 +978,7 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
       );
     }
 
-    debugDir = publisherArtifactDirForRun(runId);
+    debugDir = publisherArtifactDirForRun();
     let traceStarted = false;
     const context = await chromium.launchPersistentContext(USER_DATA_DIR, {
       headless: ENV.BROWSER_HEADLESS,
@@ -1034,11 +1035,14 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
       if (submitSteps.length === 0) {
         throw new Error('PUBLISHER_PLAYBOOK_INVALID: submit step missing');
       }
-
       await runPublisherPlaybook(
         page,
         { ...playbook, steps: nonSubmitSteps },
-        { boardEntryUrl: policy.boardUrl }
+        {
+          boardEntryUrl: policy.boardUrl,
+          draftItemIndex: publisherControls.draftItemIndex,
+          verifyTextTimeoutMs: ENV.PUBLISHER_POST_SUBMIT_WAIT_MS
+        }
       );
       await publisherDebugScreenshot(page, debugDir, '05-before-submit');
 
@@ -1054,7 +1058,11 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
         runPublisherPlaybook(
           page,
           { ...playbook, steps: submitSteps },
-          { boardEntryUrl: policy.boardUrl }
+          {
+            boardEntryUrl: policy.boardUrl,
+            draftItemIndex: publisherControls.draftItemIndex,
+            verifyTextTimeoutMs: ENV.PUBLISHER_POST_SUBMIT_WAIT_MS
+          }
         )
       ]);
       await publisherDebugScreenshot(page, debugDir, '06-success');

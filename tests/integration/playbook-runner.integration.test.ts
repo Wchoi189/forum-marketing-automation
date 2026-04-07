@@ -11,16 +11,24 @@ type FakeState = {
 };
 
 function fakePage(state: FakeState) {
+  const makeGetByText = (text: string) => ({
+    first: () => ({
+      isVisible: async () => state.seenTexts.has(text),
+      waitFor: async (_opts?: { state?: string; timeout?: number }) => {
+        if (!state.seenTexts.has(text)) {
+          throw new Error("not visible");
+        }
+      }
+    })
+  });
   return {
     goto: async () => undefined,
-    getByText: (text: string) => ({
-      first: () => ({
-        isVisible: async () => state.seenTexts.has(text)
-      })
-    }),
+    getByText: (text: string) => makeGetByText(text),
+    frames: () => [{ getByText: (text: string) => makeGetByText(text) }],
     locator: (selector: string) => ({
       first: () => ({
         count: async () => state.selectors[selector] ?? 0,
+        isVisible: async () => (state.selectors[selector] ?? 0) > 0,
         click: async () => {
           state.clicked.push(selector);
         },

@@ -9,7 +9,7 @@
       "method": "GET",
       "path": "/health",
       "description": "Lightweight process health signal for runtime supervision checks",
-      "response_schema_ref": null
+      "response_schema_ref": "../manifest/schemas/data-contracts.schema.json#/definitions/healthResponse"
     },
     {
       "method": "GET",

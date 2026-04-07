@@ -55,7 +55,7 @@ export interface PublisherHistoryEntry {
   message: string;
   /** Correlates one UI/API invocation with artifacts and logs. */
   runId?: string;
-  /** Project-relative artifact directory when browser publisher ran (e.g. artifacts/publisher-runs/<runId>). */
+  /** Project-relative artifact directory when browser publisher ran (e.g. artifacts/publisher-runs/<timestamp>). */
   artifactDir?: string | null;
   decision?: PublisherRunDecision;
 }

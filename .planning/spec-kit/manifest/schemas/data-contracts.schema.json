@@ -49,6 +49,16 @@
       "type": "array",
       "items": { "$ref": "#/definitions/activityLog" }
     },
+    "healthResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "service", "timestamp"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "service": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
     "competitorStat": {
       "type": "object",
       "additionalProperties": false,

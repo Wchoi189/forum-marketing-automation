@@ -20,7 +20,12 @@
     {
       "step_id": "confirm-load-draft-modal",
       "action": "click",
-      "selectors": [["button.btn_set_tempas:has-text(\"불러오기\")"]]
+      "selectors": [
+        ["button.btn_set_tempas:has-text(\"불러오기\")"],
+        ["input.btn_set_tempas[value=\"불러오기\"]"],
+        ["button:has-text(\"불러오기\")"],
+        ["input[value=\"불러오기\"]"]
+      ]
     },
     {
       "step_id": "verify-required-body",
