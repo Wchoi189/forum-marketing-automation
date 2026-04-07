@@ -6,6 +6,7 @@ import type { ActivityLog, Post, PublisherRunDecision } from './contracts/models
 import { ENV } from './config/env.js';
 import { appendPublisherHistoryEntry } from './lib/publisherHistory.js';
 import { runPublisherPlaybook, type PublisherPlaybook } from './lib/playbookRunner.js';
+import { BOT_MAX_WAIT_MS, PUBLISHER_POST_SUBMIT_URL_RETRY_BUFFER_MS } from './lib/publisher/core/timeouts.js';
 import { readRuntimeGapPersistedOverride, writeRuntimeGapPersistedOverride } from './lib/runtimeControls.js';
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
 import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval-polyfill.js';
@@ -26,9 +27,6 @@ const BOARD_ROW_SELECTOR = 'tr.list0, tr.list1, tr.common-list0, tr.common-list1
 
 /** Reduces trivial AutomationControlled / headless flags; sites may still block by IP or advanced WAF. */
 const CHROMIUM_LAUNCH_ARGS = ['--disable-blink-features=AutomationControlled'] as const;
-
-/** Upper bound for Playwright navigation/locator/URL waits in this module. */
-const BOT_MAX_WAIT_MS = 3000;
 
 function sharedBrowserContextOptions(): BrowserContextOptions {
   return {
@@ -281,7 +279,7 @@ async function waitForPublishLandingUrl(page: import('playwright').Page, boardId
     if (isPublishSuccessUrl(href, boardId)) {
       return;
     }
-    await page.waitForTimeout(400).catch(() => null);
+    await page.waitForTimeout(PUBLISHER_POST_SUBMIT_URL_RETRY_BUFFER_MS).catch(() => null);
     try {
       href = page.url();
     } catch {

@@ -1,5 +1,7 @@
 import type { Locator, Page } from "playwright";
 
+import { DEFAULT_VERIFY_TEXT_TIMEOUT_MS, PLAYBOOK_LOCATOR_TIMEOUT_MS } from "./publisher/core/timeouts.js";
+
 export type PlaybookAction = "navigate" | "click" | "change" | "select" | "submit" | "verify_text";
 
 export type PlaybookStep = {
@@ -25,11 +27,6 @@ export type PlaybookRuntimeContext = {
   /** Upper bound for verify_text waits (draft body may load async / live in an iframe). */
   verifyTextTimeoutMs?: number;
 };
-
-const DEFAULT_VERIFY_TEXT_TIMEOUT_MS = 20_000;
-
-/** Playwright locator/action timeout for draft modal + submit (avoid default 30s). */
-const PLAYBOOK_LOCATOR_TIMEOUT_MS = 3000;
 
 async function waitForExpectedTextInAnyFrame(page: Page, text: string, timeoutMs: number): Promise<void> {
   const frames = page.frames();
