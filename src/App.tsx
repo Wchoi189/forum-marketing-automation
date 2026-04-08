@@ -71,6 +71,7 @@ type AutoPublisherControlState = {
   /** 0 = disabled; blended with trend-based interval when > 0. */
   targetPublishIntervalMinutes: number;
   running: boolean;
+  nextTickEta?: string | null;
 };
 
 type PublisherControlState = {
@@ -190,6 +191,8 @@ const DEFAULT_CONTROL_PANEL: ControlPanelState = {
   }
 };
 
+import PipelineCanvas from './PipelineCanvas';
+
 function isSharePlanAuthor(author: string) {
   return author.toLowerCase().includes('shareplan');
 }
@@ -204,6 +207,7 @@ export default function App() {
   const [competitorStats, setCompetitorStats] = useState<CompetitorStat[]>([]);
   const [boardStats, setBoardStats] = useState<BoardStats | null>(null);
   const [trendInsights, setTrendInsights] = useState<TrendInsights | null>(null);
+  const [playbookData, setPlaybookData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error', text: string, log?: ActivityLog } | null>(null);
 
@@ -324,12 +328,23 @@ export default function App() {
     }
   };
 
+  const fetchPlaybook = async () => {
+    try {
+      const response = await fetch('/api/playbook/ppomppu-gonggu-v1');
+      const data = await response.json();
+      setPlaybookData(data);
+    } catch (error) {
+      console.error('Failed to fetch playbook:', error);
+    }
+  };
+
   useEffect(() => {
     fetchLogs();
     fetchDrafts();
     fetchStats();
     fetchControlPanel();
     fetchPublisherHistory();
+    fetchPlaybook();
     const interval = setInterval(() => {
       fetchLogs();
       fetchDrafts();
@@ -416,6 +431,8 @@ export default function App() {
 
   const latestLog = logs[0];
   const isSafe = latestLog?.status === 'safe';
+  const isKnownUnsafe = latestLog?.status === 'unsafe';
+  const safetyUiState = latestLog ? (isSafe ? 'safe' : (isKnownUnsafe ? 'unsafe' : 'unknown')) : 'unknown';
   const minGapRequired = latestLog?.gap_threshold_min ?? controlPanel.observer.gapThresholdMin;
 
   const chartData = [...logs].reverse().map(log => ({
@@ -490,22 +507,63 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
         {onOverview && (
         <>
+        {/* Scheduler Status Strip */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 flex items-center justify-between text-sm">
+          <div className="flex items-center gap-3">
+            <span className={`w-2 h-2 rounded-full ${controlPanel?.autoPublisher.enabled ? 'bg-green-500' : 'bg-gray-500'}`} />
+            <span className="font-semibold text-white/80">
+              Scheduler: {controlPanel?.autoPublisher.enabled ? 'Armed' : 'Disarmed'}
+            </span>
+            {controlPanel?.autoPublisher.enabled && (
+              <span className="text-white/40">|</span>
+            )}
+            {controlPanel?.autoPublisher.enabled && (
+              <span className="text-white/60">
+                {controlPanel.autoPublisher.running ? 'Running' : 'Idle'}
+              </span>
+            )}
+            {controlPanel?.autoPublisher.enabled && controlPanel?.autoPublisher.nextTickEta && (
+              <>
+                <span className="text-white/40">|</span>
+                <span className="text-white/60">
+                  Next check: {new Date(controlPanel.autoPublisher.nextTickEta).toLocaleTimeString()}
+                </span>
+              </>
+            )}
+          </div>
+          <Link to="/controls" className="text-orange-500 hover:text-orange-400 font-medium">
+            Configure Timer
+          </Link>
+        </div>
+
         {/* Top Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Safety Gauge */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`p-5 rounded-3xl border ${isSafe ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5'} flex flex-col justify-center space-y-3`}
+            className={`p-5 rounded-3xl border ${
+              safetyUiState === 'safe' ? 'border-green-500/30 bg-green-500/5' : 
+              safetyUiState === 'unsafe' ? 'border-red-500/30 bg-red-500/5' : 
+              'border-gray-500/30 bg-gray-500/5'
+            } flex flex-col justify-center space-y-3`}
           >
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSafe ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
-                {isSafe ? <ShieldCheck className="w-6 h-6" /> : <ShieldAlert className="w-6 h-6" />}
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                safetyUiState === 'safe' ? 'bg-green-500/20 text-green-500' : 
+                safetyUiState === 'unsafe' ? 'bg-red-500/20 text-red-500' : 
+                'bg-gray-500/20 text-gray-500'
+              }`}>
+                {safetyUiState === 'safe' ? <ShieldCheck className="w-6 h-6" /> : <ShieldAlert className="w-6 h-6" />}
               </div>
               <div>
                 <h2 className="text-[10px] font-medium opacity-50 uppercase tracking-widest">Safety Status</h2>
-                <p className={`text-xl font-black uppercase italic ${isSafe ? 'text-green-500' : 'text-red-500'}`}>
-                {latestLog ? (isSafe ? 'Safe Zone' : 'Danger Zone') : 'No Data'}
+                <p className={`text-xl font-black uppercase italic ${
+                  safetyUiState === 'safe' ? 'text-green-500' : 
+                  safetyUiState === 'unsafe' ? 'text-red-500' : 
+                  'text-gray-500'
+                }`}>
+                {safetyUiState === 'safe' ? 'Safe Zone' : safetyUiState === 'unsafe' ? 'Danger Zone' : 'Unknown'}
                 </p>
               </div>
             </div>
@@ -704,11 +762,14 @@ export default function App() {
             </div>
             <button 
               onClick={() => runPublisher(false)}
-              disabled={loading || !isSafe}
+              disabled={loading || safetyUiState === 'unsafe'}
               className="w-full py-3 rounded-2xl bg-white text-black font-bold text-sm hover:bg-white/90 transition-all disabled:opacity-20"
             >
-              Run Auto-Publisher
+              Run publish now (scheduled rules)
             </button>
+            <p className="text-xs text-center opacity-50 mt-2">
+              To arm/disarm the timer, use Controls → Scheduler.
+            </p>
           </motion.div>
         </div>
         </>
@@ -785,6 +846,40 @@ export default function App() {
             <p className="text-sm opacity-40 italic">Loading trend insights…</p>
           )}
         </motion.div>
+
+        {/* Playbook Pipeline */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-8 rounded-3xl border border-blue-500/20 bg-blue-500/5 space-y-6"
+        >
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">Publishing Pipeline</h2>
+              <p className="text-[10px] opacity-40 mt-1 max-w-xl">
+                Static visualization of the current execution steps in the playbook. Live tracking will be added here in the future.
+              </p>
+            </div>
+            <div className="text-[10px] uppercase tracking-widest opacity-60">
+              <span className="px-2 py-1 rounded bg-blue-500/20 text-blue-400 font-medium">Standard Flow</span>
+            </div>
+          </div>
+          {playbookData?.steps ? (
+            <PipelineCanvas steps={playbookData.steps.map((s: { step_id: string }) => {
+              const status: 'active' | 'complete' | 'pending' = 
+                 s.step_id === 'navigate-board' ? 'active' : 'pending'; 
+              
+              return {
+                id: s.step_id, 
+                label: s.step_id.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+                status
+              };
+            })} />
+          ) : (
+            <p className="text-sm opacity-40 italic">Loading playbook data…</p>
+          )}
+        </motion.div>
+
         </>
         )}
 
