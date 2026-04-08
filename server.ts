@@ -1,4 +1,5 @@
 import express from "express";
+import fs from "fs";
 import path from "path";
 import cors from "cors";
 import { pathToFileURL } from "url";
@@ -55,6 +56,7 @@ type ControlPanelResponse = {
     /** 0 = off; otherwise blended with trend-based effective interval. */
     targetPublishIntervalMinutes: number;
     running: boolean;
+    nextTickEta?: string | null;
   };
 };
 
@@ -447,6 +449,27 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     }
   });
 
+  app.get("/api/playbook/:workflowId", async (req, res) => {
+    try {
+      const { workflowId } = req.params;
+      if (!/^[a-zA-Z0-9-]+$/.test(workflowId)) {
+        res.status(400).json({ error: "Invalid workflow ID" });
+        return;
+      }
+      const playbookPath = path.join(
+        ENV.PROJECT_ROOT,
+        ".planning/spec-kit/manifest",
+        `playbook.${workflowId}.json`
+      );
+      const content = await fs.promises.readFile(playbookPath, "utf-8");
+      const playbook = JSON.parse(content);
+      res.json(playbook);
+    } catch (error: any) {
+      logger.error({ event: "playbook_fetch_failed", error }, "Failed to fetch playbook");
+      res.status(500).json({ error: "Failed to load playbook" });
+    }
+  });
+
   app.get("/api/control-panel", async (req, res) => {
     const autoPublisherState = (scheduler ? await scheduler.getState() : null) ?? {
       enabled: true,
@@ -589,6 +612,7 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
   let timer: NodeJS.Timeout | null = null;
   let enabled = true;
   let running = false;
+  let nextTickEta: string | null = null;
   let lastTrendRecalculatedAt = 0;
   let trendFactor = 1;
 
@@ -669,9 +693,11 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
       controls.scheduleJitterMode,
       Math.random
     );
+    nextTickEta = new Date(Date.now() + nextMinutes * 60 * 1000).toISOString();
     logger.info({ event: LOG_EVENT.schedulerNextScheduled, nextMinutes, baseMinutes, jitterPercent: controls.scheduleJitterPercent, jitterMode: controls.scheduleJitterMode }, "[Scheduler] Next tick scheduled");
     timer = setTimeout(() => {
       void (async () => {
+        nextTickEta = null;
         await tick();
         await scheduleNext();
       })();
@@ -716,7 +742,8 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
       enabled,
       ...controls,
       effectiveIntervalMinutes: await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes),
-      running
+      running,
+      nextTickEta: enabled ? nextTickEta : null
     })
   };
 }

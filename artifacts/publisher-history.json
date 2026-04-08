@@ -1,5 +1,77 @@
 [
   {
+    "at": "2026-04-07T15:28:53.324Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202227&page=1&slave=off)",
+    "runId": "a5663926-c15d-4828-81e2-634918a300b5",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T15-28-17-630Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T14:41:49.400Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)",
+    "runId": "8ae24738-7967-4c1d-aa2b-6176e22d0cc2",
+    "artifactDir": null,
+    "decision": "gap_policy"
+  },
+  {
+    "at": "2026-04-07T14:30:02.205Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202219&page=1&slave=off)",
+    "runId": "6e3db59f-6562-4adb-b7c6-e1eceff8dfb9",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T14-29-26-599Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T13:22:34.712Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202207&page=1&slave=off)",
+    "runId": "def4f315-8acd-44dc-9c27-bcad152f5274",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T13-21-59-222Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T12:24:08.377Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] Gap is too small to publish (safety / gap policy)",
+    "runId": "246566f4-d9fe-46e6-884f-e321ece28f95",
+    "artifactDir": null,
+    "decision": "gap_policy"
+  },
+  {
+    "at": "2026-04-07T12:17:31.448Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202196&page=1&slave=off)",
+    "runId": "dc28990c-5d45-4c15-a74d-effad24a8ef8",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T12-16-53-328Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T11:30:03.321Z",
+    "success": true,
+    "force": false,
+    "message": "Publication submitted successfully (verified redirect to https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&no=202185&page=1&slave=off)",
+    "runId": "d9ecabd8-7e89-4f98-aa23-93755649d19e",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T11-29-31-452Z",
+    "decision": "published_verified"
+  },
+  {
+    "at": "2026-04-07T11:23:30.102Z",
+    "success": false,
+    "force": false,
+    "message": "[Publisher] [Playbook] confirm-load-draft-modal: no matching selector candidate",
+    "runId": "c0bcfe75-fe5d-46ac-9e9a-fd28a928c394",
+    "artifactDir": "artifacts/publisher-runs/2026-04-07T11-23-05-620Z",
+    "decision": "publisher_error"
+  },
+  {
     "at": "2026-04-07T10:55:55.506Z",
     "success": false,
     "force": false,
