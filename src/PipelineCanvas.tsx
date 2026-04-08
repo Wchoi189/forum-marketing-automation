@@ -6,40 +6,66 @@ import {
   Controls,
   Background,
   Position,
-  Handle
+  Handle,
+  MarkerType
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { motion } from 'motion/react';
+import { Compass, LogIn, UserCircle, PenTool, History, Upload } from 'lucide-react';
 
-export interface PipelineStep {
-  id: string;
-  label: string;
-  status: 'complete' | 'active' | 'pending';
+export type PipelineStepId = 'navigate' | 'login-page' | 'login' | 'write-post' | 'restore-draft' | 'publish' | 'standby' | 'complete';
+
+export interface PipelineCanvasProps {
+  currentStep: PipelineStepId;
 }
 
-const CustomNode = ({ data }: { data: PipelineStep }) => {
+const STAGES = [
+  { id: 'navigate', label: 'NAVIGATE', icon: Compass },
+  { id: 'login-page', label: 'LOGIN PAGE', icon: LogIn },
+  { id: 'login', label: 'LOGIN', icon: UserCircle },
+  { id: 'write-post', label: 'WRITE POST', icon: PenTool },
+  { id: 'restore-draft', label: 'RESTORE', icon: History },
+  { id: 'publish', label: 'PUBLISH', icon: Upload }
+];
+
+const CustomNode = ({ data }: { data: any }) => {
   const isComplete = data.status === 'complete';
   const isActive = data.status === 'active';
+  const Icon = data.icon;
 
   return (
-    <>
-      <Handle type="target" position={Position.Left} className="w-2 h-2 !bg-white/20 !border-white/10" />
+    <div className="flex flex-col items-center justify-center gap-3 w-28">
+      <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-[#2a2a2a] !border-white/10 !-ml-2" />
+      
+      {/* Icon Box */}
       <motion.div
-        className={`px-4 py-3 rounded-lg border-2 font-medium text-sm flex items-center justify-center min-w-[200px] text-center
-          ${isComplete ? 'bg-green-500/10 border-green-500/30 text-green-400' :
-            isActive ? 'bg-orange-500/10 border-orange-500/50 text-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.3)]' :
-            'bg-white/5 border-white/10 text-white/40'}
-        `}
+        className={`w-16 h-16 rounded-xl flex items-center justify-center border-2 transition-colors duration-300 relative z-10 ${
+          isComplete ? 'bg-[#2a2a2a] border-white/20 text-white/50' :
+          isActive ? 'bg-[#2a2a2a] border-orange-500 text-orange-400 z-20' :
+          'bg-[#1a1a1a] border-white/5 text-white/20'
+        }`}
         animate={isActive ? {
-          boxShadow: ['0 0 10px rgba(249,115,22,0.2)', '0 0 25px rgba(249,115,22,0.6)', '0 0 10px rgba(249,115,22,0.2)'],
-          borderColor: ['rgba(249,115,22,0.3)', 'rgba(249,115,22,0.8)', 'rgba(249,115,22,0.3)']
+          boxShadow: ['0 0 0px rgba(249,115,22,0)', '0 0 20px rgba(249,115,22,0.4)', '0 0 0px rgba(249,115,22,0)'],
+          borderColor: ['rgba(249,115,22,0.5)', 'rgba(249,115,22,1)', 'rgba(249,115,22,0.5)']
         } : {}}
         transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
       >
-        {data.label}
+        <Icon strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'w-8 h-8' : 'w-6 h-6'} />
       </motion.div>
-      <Handle type="source" position={Position.Right} className="w-2 h-2 !bg-white/20 !border-white/10" />
-    </>
+
+      {/* Label Pill */}
+      <div
+        className={`px-3 py-1.5 rounded-full border text-[9px] font-bold tracking-wider transition-colors duration-300 whitespace-nowrap min-w-[90px] text-center ${
+          isComplete ? 'bg-[#2a2a2a] border-white/20 text-white/60' :
+          isActive ? 'bg-[#2a2a2a] border-orange-500 text-orange-400' :
+          'bg-[#1a1a1a] border-white/5 text-white/30'
+        }`}
+      >
+        {data.label}
+      </div>
+
+      <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-[#2a2a2a] !border-white/10 !-mr-2" />
+    </div>
   );
 };
 
@@ -47,52 +73,65 @@ const nodeTypes = {
   custom: CustomNode,
 };
 
-export default function PipelineCanvas({ steps }: { steps: PipelineStep[] }) {
+export default function PipelineCanvas({ currentStep }: PipelineCanvasProps) {
+  const currentIndex = currentStep === 'standby' ? -1 : currentStep === 'complete' ? STAGES.length : STAGES.findIndex(s => s.id === currentStep);
+
   const nodes: Node[] = useMemo(() => {
-    return steps.map((step, index) => ({
-      id: step.id,
-      type: 'custom',
-      position: { x: index * 300, y: 50 }, // 300 horizontal spacing to prevent overlap
-      data: step,
-      draggable: false, // Override dragging at the node level
-    }));
-  }, [steps]);
+    return STAGES.map((step, index) => {
+      let status: 'complete' | 'active' | 'pending' = 'pending';
+      if (currentIndex >= 0 && index < currentIndex) status = 'complete';
+      if (index === currentIndex) status = 'active';
+
+      return {
+        id: step.id,
+        type: 'custom',
+        position: { x: index * 160, y: 100 }, // tighter spacing
+        data: { ...step, status },
+        draggable: false,
+      };
+    });
+  }, [currentIndex]);
 
   const edges: Edge[] = useMemo(() => {
-    return steps.slice(0, -1).map((step, index) => {
-      const nextStep = steps[index + 1];
-      const isAnimated = step.status === 'complete' && nextStep.status === 'active';
+    return STAGES.slice(0, -1).map((step, index) => {
+      const nextStep = STAGES[index + 1];
+      const isPast = currentIndex >= 0 && index < currentIndex;
+      const isAnimated = index === currentIndex;
+
       return {
         id: `e-${step.id}-${nextStep.id}`,
         source: step.id,
         target: nextStep.id,
-        animated: isAnimated || nextStep.status === 'active',
+        type: 'smoothstep',
+        animated: isAnimated,
         style: {
-          stroke: step.status === 'complete' ? 'rgba(34, 197, 94, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+          stroke: isPast ? 'rgba(255, 255, 255, 0.4)' : isAnimated ? 'rgba(249, 115, 22, 0.8)' : 'rgba(255, 255, 255, 0.1)',
           strokeWidth: 2,
         },
       };
     });
-  }, [steps]);
+  }, [currentIndex]);
 
   return (
-    <div className="w-full h-64 border border-white/10 rounded-2xl overflow-hidden bg-black/20">
+    <div className="w-full h-80 border border-white/10 rounded-2xl overflow-hidden bg-[#0d0d0d] shadow-inner">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
+        defaultViewport={{ x: 60, y: 30, zoom: 1 }}
+        minZoom={0.5}
+        maxZoom={1.5}
         proOptions={{ hideAttribution: true }}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
-        panOnDrag={false}
+        panOnDrag={true}
         zoomOnScroll={false}
         zoomOnPinch={false}
         panOnScroll={true}
       >
         <Background color="rgba(255,255,255,0.05)" gap={20} />
+        <Controls showInteractive={false} className="bg-[#1a1a1a] border-white/10 fill-white drop-shadow-md" />
       </ReactFlow>
     </div>
   );

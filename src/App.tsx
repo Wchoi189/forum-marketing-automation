@@ -191,7 +191,7 @@ const DEFAULT_CONTROL_PANEL: ControlPanelState = {
   }
 };
 
-import PipelineCanvas from './PipelineCanvas';
+import PipelineCanvas, { PipelineStepId } from './PipelineCanvas';
 
 function isSharePlanAuthor(author: string) {
   return author.toLowerCase().includes('shareplan');
@@ -219,6 +219,37 @@ export default function App() {
   const [controlPanelSection, setControlPanelSection] = useState<'observer' | 'scheduler' | 'publisher'>('observer');
 
   const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
+  const [showOverrideModal, setShowOverrideModal] = useState(false);
+
+  // Simulation State
+  const [simulationIndex, setSimulationIndex] = useState<number>(-1); // -1 = standby
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  const STAGES: PipelineStepId[] = ['navigate', 'login-page', 'login', 'write-post', 'restore-draft', 'publish'];
+
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    if (isSimulating && simulationIndex < STAGES.length) {
+      timeout = setTimeout(() => {
+        setSimulationIndex(prev => prev + 1);
+      }, 1500);
+    } else if (isSimulating && simulationIndex === STAGES.length) {
+      setIsSimulating(false);
+    }
+    return () => clearTimeout(timeout);
+  }, [isSimulating, simulationIndex]);
+
+  const currentStep = simulationIndex === -1 ? 'standby' : simulationIndex >= STAGES.length ? 'complete' : STAGES[simulationIndex];
+
+  const handleStartSimulation = () => {
+    setSimulationIndex(0);
+    setIsSimulating(true);
+  };
+
+  const handleResetSimulation = () => {
+    setSimulationIndex(-1);
+    setIsSimulating(false);
+  };
 
   type SortKey = 'author' | 'frequency' | 'avgViews';
   const [sortConfig, setSortConfig] = useState<{ key: SortKey, direction: 'asc' | 'desc' }>({ key: 'frequency', direction: 'desc' });
@@ -761,8 +792,8 @@ export default function App() {
               </AnimatePresence>
             </div>
             <button 
-              onClick={() => runPublisher(false)}
-              disabled={loading || safetyUiState === 'unsafe'}
+              onClick={() => safetyUiState === 'unsafe' ? setShowOverrideModal(true) : runPublisher(false)}
+              disabled={loading}
               className="w-full py-3 rounded-2xl bg-white text-black font-bold text-sm hover:bg-white/90 transition-all disabled:opacity-20"
             >
               Run publish now (scheduled rules)
@@ -855,29 +886,46 @@ export default function App() {
         >
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">Publishing Pipeline</h2>
-              <p className="text-[10px] opacity-40 mt-1 max-w-xl">
-                Static visualization of the current execution steps in the playbook. Live tracking will be added here in the future.
+              <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">Workflow Automation</h2>
+              <p className="text-[10px] items-center text-orange-400 mt-1 max-w-xl font-bold tracking-wider">
+                Workflow Reset
               </p>
             </div>
-            <div className="text-[10px] uppercase tracking-widest opacity-60">
-              <span className="px-2 py-1 rounded bg-blue-500/20 text-blue-400 font-medium">Standard Flow</span>
+            <div className="flex gap-4 text-[10px] uppercase tracking-widest font-bold">
+              <div className="flex flex-col items-end">
+                <span className="opacity-50">STATUS</span>
+                <span className={isSimulating ? "text-orange-400" : "text-white"}>{isSimulating ? "SIMULATING" : "IDLE"}</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="opacity-50">CURRENT ACTION</span>
+                <span className="text-white capitalize">{currentStep.replace('-', ' ')}</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="opacity-50">COMPLETION</span>
+                <span className="text-white">{Math.max(0, simulationIndex)} / {STAGES.length}</span>
+              </div>
             </div>
           </div>
-          {playbookData?.steps ? (
-            <PipelineCanvas steps={playbookData.steps.map((s: { step_id: string }) => {
-              const status: 'active' | 'complete' | 'pending' = 
-                 s.step_id === 'navigate-board' ? 'active' : 'pending'; 
-              
-              return {
-                id: s.step_id, 
-                label: s.step_id.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
-                status
-              };
-            })} />
-          ) : (
-            <p className="text-sm opacity-40 italic">Loading playbook data…</p>
-          )}
+          <div className="relative">
+            <PipelineCanvas currentStep={currentStep} />
+          </div>
+          
+          {/* Simulation Controls */}
+          <div className="flex gap-4 mt-6">
+            <button 
+              onClick={handleStartSimulation} 
+              disabled={isSimulating}
+              className="flex-1 py-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-white font-medium text-sm transition-all disabled:opacity-50"
+            >
+              Start Simulation
+            </button>
+            <button 
+              onClick={handleResetSimulation}
+              className="flex-1 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium text-sm transition-all"
+            >
+              Reset
+            </button>
+          </div>
         </motion.div>
 
         </>
@@ -1678,6 +1726,58 @@ export default function App() {
           border-radius: 10px;
         }
       `}</style>
+      
+      {/* Override Confirm Modal */}
+      <AnimatePresence>
+        {showOverrideModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-[#111] border border-white/10 rounded-3xl p-8 max-w-sm w-full shadow-2xl space-y-6"
+            >
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-16 h-16 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center">
+                  <ShieldAlert className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-bold tracking-tight text-white">Unsafe to Publish</h3>
+                <p className="text-sm opacity-60 leading-relaxed">
+                  The gap threshold policy indicates the board is too slow right now. Scheduled rules will skip execution and prevent publishing. 
+                </p>
+                <div className="w-full h-[1px] bg-white/10" />
+                <p className="text-sm opacity-60 font-semibold text-orange-400">
+                  If you really want to force a post out, use the Manual Override action.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowOverrideModal(false)}
+                  className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium text-sm transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowOverrideModal(false);
+                    runPublisher(true);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-orange-600 hover:bg-orange-500 shadow-lg shadow-orange-600/20 text-white font-bold text-sm transition-all flex items-center gap-2 justify-center"
+                >
+                  <Send className="w-4 h-4" />
+                  Force Override
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       </div>
     </div>
   );
