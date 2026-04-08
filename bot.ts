@@ -12,6 +12,7 @@ import {
   publisherFailureScreenshot
 } from './lib/publisher/diagnostics.js';
 import { runPublisherFlow } from './lib/publisher/flow/runPublisherFlow.js';
+import { setPublisherStep, setPublisherRunning, playbookStepToCanvasStep } from './lib/publisherStepStore.js';
 import { readRuntimeGapPersistedOverride, writeRuntimeGapPersistedOverride } from './lib/runtimeControls.js';
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
 import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval-polyfill.js';
@@ -833,12 +834,15 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
   let log: ActivityLog | undefined;
   let debugDir: string | null = null;
 
+  setPublisherRunning(true);
+
   const finish = async (
     success: boolean,
     message: string,
     decision: PublisherRunDecision,
     outLog?: ActivityLog
   ) => {
+    setPublisherRunning(false);
     const artifactAbs = debugDir;
     await recordPublisherRun({
       force,
@@ -918,6 +922,7 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
       if (debugDir) {
         logger.info({ event: LOG_EVENT.publisherArtifactsDir, runId, debugDir }, '[Publisher] debug artifacts dir');
       }
+      setPublisherStep('navigate');
       const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: BOT_MAX_WAIT_MS });
       const statusCode = response?.status() ?? 0;
       const diagnostics = await getBoardDiagnostics(page);
@@ -930,6 +935,7 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
         );
       }
       if (diagnostics.writeButtonCount === 0) {
+        setPublisherStep('login-page');
         const loginRecovered = diagnostics.loginPromptVisible
           ? await attemptPpomppuLoginFromBoard(page, policy.boardUrl).catch(() => false)
           : false;
@@ -954,6 +960,9 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
         },
         postSubmitWaitMs: ENV.PUBLISHER_POST_SUBMIT_WAIT_MS,
         dryRunMode: ENV.DRY_RUN_MODE,
+        onStepStart: (stepId) => {
+          setPublisherStep(playbookStepToCanvasStep(stepId));
+        },
         onBeforeSubmit: async () => {
           await publisherDebugScreenshot(page, debugDir, '05-before-submit');
         },

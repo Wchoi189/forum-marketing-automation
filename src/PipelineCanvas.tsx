@@ -118,6 +118,7 @@ export default function PipelineCanvas({ currentStep }: PipelineCanvasProps) {
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        colorMode="dark"
         defaultViewport={{ x: 60, y: 30, zoom: 1 }}
         minZoom={0.5}
         maxZoom={1.5}
@@ -131,7 +132,7 @@ export default function PipelineCanvas({ currentStep }: PipelineCanvasProps) {
         panOnScroll={true}
       >
         <Background color="rgba(255,255,255,0.05)" gap={20} />
-        <Controls showInteractive={false} className="bg-[#1a1a1a] border-white/10 fill-white drop-shadow-md" />
+        <Controls showInteractive={false} />
       </ReactFlow>
     </div>
   );

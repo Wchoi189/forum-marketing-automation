@@ -53,9 +53,11 @@ async function waitForExpectedTextInAnyFrame(page: Page, text: string, timeoutMs
 export async function runPublisherPlaybook(
   page: Page,
   playbook: PublisherPlaybook,
-  runtime: PlaybookRuntimeContext
+  runtime: PlaybookRuntimeContext,
+  onStepStart?: (stepId: string) => void
 ): Promise<void> {
   for (const step of playbook.steps) {
+    onStepStart?.(step.step_id);
     if (step.action === "navigate") {
       const target = step.url ?? runtime.boardEntryUrl;
       await page.goto(target, { waitUntil: "domcontentloaded" });

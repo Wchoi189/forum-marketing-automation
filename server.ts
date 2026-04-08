@@ -23,6 +23,7 @@ import { LOG_EVENT } from "./lib/logEvents.js";
 import { readPublisherHistory } from "./lib/publisherHistory.js";
 import { applyScheduleJitter, type ScheduleJitterMode } from "./lib/scheduleJitter.js";
 import { buildTrendInsightsPayload, computeTurnoverAnalysis, trendMultiplierFromAvgRate } from "./lib/trendInsights.js";
+import { getPublisherStatus } from "./lib/publisherStepStore.js";
 
 type BotDeps = {
   runObserver: typeof runObserver;
@@ -403,6 +404,10 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
         error: `[Observer] ${String(error?.message ?? error)}`
       });
     }
+  });
+
+  app.get("/api/publisher-status", (_req, res) => {
+    res.json(getPublisherStatus());
   });
 
   app.post("/api/run-publisher", async (req, res) => {
