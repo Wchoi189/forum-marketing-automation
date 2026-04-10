@@ -810,6 +810,12 @@ export default function App() {
                   <span>Mult ×{trendInsights.trendMultiplier}</span>
                   <span>Conf {Math.round(trendInsights.confidence * 100)}%</span>
                   <span className="text-orange-300/90">{trendInsights.multiplierBand.replace(/_/g, ' ')}</span>
+                  <span className={
+                    trendInsights.sovFactor < 1 ? 'text-amber-300/90' :
+                    trendInsights.sovFactor > 1 ? 'text-emerald-300/90' : ''
+                  }>
+                    SoV {trendInsights.sovPercent}%
+                  </span>
                 </div>
               )}
             </div>
@@ -817,7 +823,7 @@ export default function App() {
             {trendInsights ? (
               <div className="space-y-4">
                 {/* Mini stats row above chart */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="rounded-xl border border-white/10 bg-black/20 p-3">
                     <p className="text-[10px] opacity-40 uppercase tracking-widest mb-1">Avg posts/hr</p>
                     <p className="text-xl font-mono font-bold">{trendInsights.avgNewPostsPerHour}</p>
@@ -829,6 +835,17 @@ export default function App() {
                   <div className="rounded-xl border border-white/10 bg-black/20 p-3">
                     <p className="text-[10px] opacity-40 uppercase tracking-widest mb-1">Advisory intervals</p>
                     <p className="text-sm font-mono">Q~{trendInsights.recommendedIntervalMinutesQuiet}m · A~{trendInsights.recommendedIntervalMinutesActive}m</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                    <p className="text-[10px] opacity-40 uppercase tracking-widest mb-1">Share of Voice</p>
+                    <p className={`text-xl font-mono font-bold ${
+                      trendInsights.sovFactor < 1 ? 'text-amber-400' :
+                      trendInsights.sovFactor > 1 ? 'text-emerald-400' : ''
+                    }`}>{trendInsights.sovPercent}%</p>
+                    <p className="text-[10px] opacity-50 mt-0.5">
+                      {trendInsights.sovFactor < 1 ? 'underrep · ×0.75' :
+                       trendInsights.sovFactor > 1 ? 'overrep · ×1.20' : 'neutral · ×1.00'}
+                    </p>
                   </div>
                 </div>
                 {/* Main bar chart */}

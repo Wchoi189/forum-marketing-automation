@@ -1,0 +1,101 @@
+{
+  "id": "scheduler-sov-multiplier-v1",
+  "title": "Scheduler Integration — Share-of-Voice Multiplier (Shape A)",
+  "parent": "scheduler-adaptation-v1",
+  "status": "draft",
+  "created": "2026-04-10",
+  "summary": "Add a second scheduler signal: a Share-of-Voice multiplier that blends with the existing turnover multiplier. Low SoV → shorter interval (publish more); high SoV → longer interval (slow down). Additive on top of the existing pipeline — does not replace the turnover factor.",
+
+  "risk": "MEDIUM — touches the live scheduler execution path. Clamp bounds and unit tests are mandatory before merge.",
+
+  "scope": {
+    "in": [
+      "New pure function shareOfVoiceMultiplierFromSoV(sovPercent: number): number in trendInsights.ts",
+      "New pure function computeShareOfVoice(logs, windowDays, ourAuthorSubstring): number in trendInsights.ts",
+      "TrendInsightsPayload extended with sovPercent and sovFactor fields",
+      "buildTrendInsightsPayload updated to accept ourAuthorSubstring option and compute both fields",
+      "server.ts recalcTrendFactor: blend trendFactor × sovFactor, clamp to combined bounds",
+      "GET /api/trend-insights response includes sovPercent and sovFactor",
+      "Unit tests for shareOfVoiceMultiplierFromSoV and computeShareOfVoice in tests/unit/trendInsights.test.ts"
+    ],
+    "out": [
+      "UI changes to expose sovFactor (deferred to sprint 2)",
+      "Per-author postsPerActiveDay → scheduler (Shape B)",
+      "Replacing the turnover multiplier entirely",
+      "Any changes to the gap threshold or runtimeControls.ts",
+      "New API endpoints"
+    ]
+  },
+
+  "sov_computation": {
+    "definition": "Average percentage of board posts that are ours across snapshots in the window",
+    "algorithm": "For each snapshot in the window with at least 1 post: compute (our_posts / total_posts) × 100. Return the arithmetic mean across all such snapshots. If no valid snapshots, return 0.",
+    "our_post_filter": "posts where author.toLowerCase().includes(ourAuthorSubstring.toLowerCase())",
+    "ourAuthorSubstring_source": "Passed from server.ts; read from ENV.OUR_AUTHOR_SUBSTRING (new optional env var, default 'shareplan')",
+    "fallback": "SoV = 0 when no snapshots in window → sovFactor = 1.0 (neutral)"
+  },
+
+  "sov_multiplier_table": [
+    { "condition": "sovPercent <= 5",  "sovFactor": 0.75, "rationale": "Underrepresented — increase cadence" },
+    { "condition": "sovPercent >= 20", "sovFactor": 1.20, "rationale": "Overrepresented — reduce cadence" },
+    { "condition": "otherwise",        "sovFactor": 1.00, "rationale": "Balanced range — no adjustment" }
+  ],
+
+  "blending": {
+    "formula": "combinedFactor = clamp(trendFactor × sovFactor, COMBINED_MULTIPLIER_MIN, COMBINED_MULTIPLIER_MAX)",
+    "COMBINED_MULTIPLIER_MIN": 0.5,
+    "COMBINED_MULTIPLIER_MAX": 2.0,
+    "note": "Each factor is individually valid (trendFactor already clamped to [0.65, 1.6] by TREND_MULTIPLIER_MIN/MAX). The product clamp prevents extreme compounding."
+  },
+
+  "scheduler_integration": {
+    "file": "server.ts",
+    "function": "recalcTrendFactor",
+    "change": "After computing trendFactor via trendMultiplierFromAvgRate, also call computeShareOfVoice + shareOfVoiceMultiplierFromSoV, then store clamp(trendFactor × sovFactor, 0.5, 2.0) as the cached trendFactor.",
+    "cache_key": "Existing lastTrendRecalculatedAt / trendRecalibrationDays — both factors recomputed on the same schedule. No separate recalibration timer.",
+    "fallback": "If computeShareOfVoice throws, log warning and use sovFactor = 1.0 (degrade gracefully to existing behaviour)."
+  },
+
+  "payload_changes": {
+    "type": "TrendInsightsPayload",
+    "new_fields": [
+      { "name": "sovPercent",  "type": "number", "description": "Mean share-of-voice % across window snapshots (0–100)" },
+      { "name": "sovFactor",   "type": "number", "description": "Scheduler multiplier derived from sovPercent (0.75, 1.0, or 1.20)" }
+    ],
+    "buildTrendInsightsPayload_signature_change": "Add ourAuthorSubstring: string = 'shareplan' to options object"
+  },
+
+  "env_vars": {
+    "OUR_AUTHOR_SUBSTRING": {
+      "default": "shareplan",
+      "effect": "Substring match used to identify our posts in board snapshots",
+      "location": "config/env.ts"
+    }
+  },
+
+  "test_cases": [
+    { "fn": "shareOfVoiceMultiplierFromSoV", "input": 0,   "expected": 0.75, "label": "zero SoV → publish more" },
+    { "fn": "shareOfVoiceMultiplierFromSoV", "input": 5,   "expected": 0.75, "label": "boundary 5%" },
+    { "fn": "shareOfVoiceMultiplierFromSoV", "input": 6,   "expected": 1.00, "label": "just above lower threshold" },
+    { "fn": "shareOfVoiceMultiplierFromSoV", "input": 15,  "expected": 1.00, "label": "mid range" },
+    { "fn": "shareOfVoiceMultiplierFromSoV", "input": 19,  "expected": 1.00, "label": "just below upper threshold" },
+    { "fn": "shareOfVoiceMultiplierFromSoV", "input": 20,  "expected": 1.20, "label": "boundary 20%" },
+    { "fn": "shareOfVoiceMultiplierFromSoV", "input": 50,  "expected": 1.20, "label": "high SoV → slow down" },
+    { "fn": "computeShareOfVoice", "scenario": "no_logs",              "expected": 0,    "label": "empty log → neutral" },
+    { "fn": "computeShareOfVoice", "scenario": "50pct_our_posts",      "expected": 50,   "label": "half posts ours" },
+    { "fn": "computeShareOfVoice", "scenario": "zero_our_posts",       "expected": 0,    "label": "none ours → floor multiplier" },
+    { "fn": "computeShareOfVoice", "scenario": "all_our_posts",        "expected": 100,  "label": "all ours → ceiling multiplier" },
+    { "fn": "computeShareOfVoice", "scenario": "outside_window",       "expected": 0,    "label": "logs outside window excluded" }
+  ],
+
+  "acceptance": [
+    "tsc --noEmit exits 0",
+    "All existing unit tests still pass",
+    "New trendInsights.test.ts cases pass for shareOfVoiceMultiplierFromSoV and computeShareOfVoice",
+    "GET /api/trend-insights response includes sovPercent and sovFactor fields",
+    "recalcTrendFactor returns clamp(trendFactor × sovFactor, 0.5, 2.0)",
+    "If OUR_AUTHOR_SUBSTRING env var absent, defaults to 'shareplan' — existing behaviour preserved",
+    "No changes to lib/competitorAnalytics.ts",
+    "No new API endpoints or files beyond tests/unit/trendInsights.test.ts"
+  ]
+}

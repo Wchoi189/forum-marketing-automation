@@ -96,4 +96,6 @@ export interface TrendInsights {
   hourlyProfile: TrendHourlyBucket[];
   explanation: string;
   precedenceNote: string;
+  sovPercent: number;
+  sovFactor: number;
 }

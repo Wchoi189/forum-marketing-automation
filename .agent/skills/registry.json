@@ -1,5 +1,26 @@
 {
   "registry_version": 1,
-  "skills": [],
-  "notes": "Reserved for future workflow-specific agent skills."
+  "skills": [
+    {
+      "id": "context-hygiene",
+      "name": "Context Hygiene",
+      "description": "Audit and prune stale planning artifacts, session handovers, and debug traces. Fails-closed on active specs/handovers.",
+      "triggers": ["context-hygiene", "cleanup-context", "prune-planning"],
+      "modes": {
+        "audit": "Scan and report candidates without deleting",
+        "prune": "Archive completed artifacts, delete regenerable debug files"
+      },
+      "safety": {
+        "never_delete": [
+          ".agent/session-handovers/handover.md",
+          ".planning/spec-kit/plans/tasks/session-handover-*.md (most recent by date)",
+          ".planning/spec-kit/specs/*.json (unless marked deferred AND >14 days old)",
+          "artifacts/publisher-runs/<today>/"
+        ],
+        "archive_before_delete": true,
+        "archive_path": ".planning/spec-kit/.completed/"
+      }
+    }
+  ],
+  "notes": "context-hygiene skill added 2026-04-10 per audit recommendation"
 }

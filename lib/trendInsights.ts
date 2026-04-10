@@ -4,6 +4,10 @@ import type { ActivityLog } from "../contracts/models.js";
 export const TREND_MULTIPLIER_MIN = 0.65;
 export const TREND_MULTIPLIER_MAX = 1.6;
 
+/** Clamp bounds for the combined trendFactor × sovFactor product. */
+export const COMBINED_MULTIPLIER_MIN = 0.5;
+export const COMBINED_MULTIPLIER_MAX = 2.0;
+
 const QUIET_HOURS_REF_MULTIPLIER = 1.8;
 const ACTIVE_HOURS_REF_MULTIPLIER = 0.8;
 
@@ -34,6 +38,8 @@ export type TrendInsightsPayload = {
   hourlyProfile: TrendHourlyBucket[];
   explanation: string;
   precedenceNote: string;
+  sovPercent: number;
+  sovFactor: number;
 };
 
 export type TurnoverAnalysis = {
@@ -129,15 +135,43 @@ export function computeTurnoverAnalysis(logs: ActivityLog[], windowDays: number)
   };
 }
 
+/** Maps share-of-voice percentage to a scheduler interval multiplier. */
+export function shareOfVoiceMultiplierFromSoV(sovPercent: number): number {
+  if (sovPercent <= 5) return 0.75;
+  if (sovPercent >= 20) return 1.20;
+  return 1.00;
+}
+
+/**
+ * Computes mean share-of-voice (%) across snapshots in the rolling window.
+ * Returns 0 when no valid snapshots exist.
+ */
+export function computeShareOfVoice(logs: ActivityLog[], windowDays: number, ourAuthorSubstring: string): number {
+  const cutoff = Date.now() - windowDays * 24 * 3600 * 1000;
+  const sub = ourAuthorSubstring.toLowerCase();
+  const snapshots = logs.filter(
+    (log) => Date.parse(log.timestamp) >= cutoff && Array.isArray(log.all_posts) && log.all_posts.length > 0
+  );
+  if (snapshots.length === 0) return 0;
+  const sovValues = snapshots.map((log) => {
+    const total = log.all_posts.length;
+    const ours = log.all_posts.filter((p) => p.author.toLowerCase().includes(sub)).length;
+    return (ours / total) * 100;
+  });
+  const mean = sovValues.reduce((a, b) => a + b, 0) / sovValues.length;
+  return Number(mean.toFixed(1));
+}
+
 export function buildTrendInsightsPayload(
   logs: ActivityLog[],
   options: {
     windowDays: number;
     referenceBaseIntervalMinutes: number;
     trendAdaptiveEnabled: boolean;
+    ourAuthorSubstring?: string;
   }
 ): TrendInsightsPayload {
-  const { windowDays, referenceBaseIntervalMinutes, trendAdaptiveEnabled } = options;
+  const { windowDays, referenceBaseIntervalMinutes, trendAdaptiveEnabled, ourAuthorSubstring = "shareplan" } = options;
   const analysis = computeTurnoverAnalysis(logs, windowDays);
 
   const precedenceNote =
@@ -193,6 +227,9 @@ export function buildTrendInsightsPayload(
     explanation = `Mean new-post rate ~${analysis.avgNewPostsPerHour} posts/hour (${multiplierBand.replace(/_/g, " ")}). Trend multiplier ${trendMultiplier} scales the effective scheduler interval (bounded ${TREND_MULTIPLIER_MIN}–${TREND_MULTIPLIER_MAX}). Volatility ${analysis.volatility} affects confidence.`;
   }
 
+  const sovPercent = computeShareOfVoice(logs, windowDays, ourAuthorSubstring);
+  const sovFactor = shareOfVoiceMultiplierFromSoV(sovPercent);
+
   return {
     windowDays,
     referenceBaseIntervalMinutes,
@@ -209,6 +246,8 @@ export function buildTrendInsightsPayload(
     recommendedIntervalMinutesActive,
     hourlyProfile: analysis.hourlyProfile,
     explanation,
-    precedenceNote
+    precedenceNote,
+    sovPercent,
+    sovFactor
   };
 }

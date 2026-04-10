@@ -62,6 +62,7 @@
 | `MANUAL_OVERRIDE_ENABLED` | `true` | Gates force-publish |
 | `PUBLISHER_DEBUG_SCREENSHOTS` | `false` | Saves step screenshots to `artifacts/` |
 | `PUBLISHER_DEBUG_TRACE` | `false` | Saves Playwright trace zip |
+| `OUR_AUTHOR_SUBSTRING` | `'shareplan'` | Substring matched (case-insensitive) to identify our posts for SoV computation |
 
 Full parsing in `config/env.ts`. Schema in `.planning/spec-kit/manifest/schemas/env.schema.json`.
 

@@ -22,7 +22,7 @@ import { logger } from "./lib/logger.js";
 import { LOG_EVENT } from "./lib/logEvents.js";
 import { readPublisherHistory } from "./lib/publisherHistory.js";
 import { applyScheduleJitter, type ScheduleJitterMode } from "./lib/scheduleJitter.js";
-import { buildTrendInsightsPayload, computeTurnoverAnalysis, trendMultiplierFromAvgRate } from "./lib/trendInsights.js";
+import { buildTrendInsightsPayload, computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoice, shareOfVoiceMultiplierFromSoV, COMBINED_MULTIPLIER_MIN, COMBINED_MULTIPLIER_MAX } from "./lib/trendInsights.js";
 import { getPublisherStatus } from "./lib/publisherStepStore.js";
 
 type BotDeps = {
@@ -353,7 +353,8 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       const payload = buildTrendInsightsPayload(logs, {
         windowDays,
         referenceBaseIntervalMinutes,
-        trendAdaptiveEnabled
+        trendAdaptiveEnabled,
+        ourAuthorSubstring: ENV.OUR_AUTHOR_SUBSTRING
       });
       res.json(payload);
     } catch (error: unknown) {
@@ -642,6 +643,15 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
     }
 
     trendFactor = trendMultiplierFromAvgRate(analysis.avgNewPostsPerHour);
+
+    let sovFactor = 1;
+    try {
+      const sovPercent = computeShareOfVoice(logs, controls.trendWindowDays, ENV.OUR_AUTHOR_SUBSTRING);
+      sovFactor = shareOfVoiceMultiplierFromSoV(sovPercent);
+    } catch (err) {
+      logger.warn({ event: "scheduler_sov_fallback", err }, "[Scheduler] SoV computation failed; using sovFactor=1");
+    }
+    trendFactor = Math.max(COMBINED_MULTIPLIER_MIN, Math.min(COMBINED_MULTIPLIER_MAX, trendFactor * sovFactor));
 
     lastTrendRecalculatedAt = now;
     return trendFactor;

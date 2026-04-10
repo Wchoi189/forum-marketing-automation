@@ -38,6 +38,8 @@ type EnvConfig = {
   SCHEDULER_JITTER_PERCENT: number;
   /** Default schedule jitter mode: none | uniform around effective interval. */
   SCHEDULER_JITTER_MODE: "none" | "uniform";
+  /** Substring used to identify our posts in board snapshots (case-insensitive includes match). */
+  OUR_AUTHOR_SUBSTRING: string;
 };
 
 function requiredString(name: string): string {
@@ -139,6 +141,7 @@ function buildEnv(): EnvConfig {
     PUBLISHER_POST_SUBMIT_WAIT_MS: optionalInt("PUBLISHER_POST_SUBMIT_WAIT_MS", 20000, 5000, 120000),
     SCHEDULER_JITTER_PERCENT: optionalInt("SCHEDULER_JITTER_PERCENT", 15, 0, 50),
     SCHEDULER_JITTER_MODE: optionalJitterMode("SCHEDULER_JITTER_MODE", "uniform"),
+    OUR_AUTHOR_SUBSTRING: optionalString("OUR_AUTHOR_SUBSTRING", "shareplan"),
   };
 }
 
