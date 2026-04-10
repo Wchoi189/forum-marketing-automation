@@ -29,8 +29,15 @@ import {
   callGrokAdvisor,
   getAdvisorCache,
   setAdvisorCache,
+  markAdvisorCacheApplied,
 } from "./lib/aiAdvisor.js";
 import { readPublisherHistory as readHistoryForAdvisor } from "./lib/publisherHistory.js";
+import {
+  classifyIntent,
+  buildStatusSummary,
+  extractIntervalMinutes,
+  extractGapThreshold,
+} from "./lib/nlWebhook.js";
 
 type BotDeps = {
   runObserver: typeof runObserver;
@@ -421,6 +428,37 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     }
   });
 
+  app.post("/api/apply-ai-recommendation", async (req, res) => {
+    const cached = getAdvisorCache();
+
+    if (!cached || !cached.result.ok) {
+      res.status(422).json({ error: "no_recommendation" });
+      return;
+    }
+
+    const ageMs = Date.now() - new Date(cached.cachedAt).getTime();
+    if (ageMs > 30 * 60 * 1000) {
+      res.status(422).json({ error: "recommendation_stale" });
+      return;
+    }
+
+    const { recommendedIntervalMinutes, recommendedGapThreshold } = cached.result.recommendation;
+
+    if (scheduler) {
+      scheduler.setControls({ baseIntervalMinutes: recommendedIntervalMinutes });
+    }
+    await persistGapThresholdPersistedOverride(recommendedGapThreshold);
+
+    markAdvisorCacheApplied();
+    const appliedAt = new Date().toISOString();
+
+    logger.info(
+      { event: "ai_advisor_applied", intervalMinutes: recommendedIntervalMinutes, gapThreshold: recommendedGapThreshold },
+      "AI recommendation applied to control panel"
+    );
+    res.json({ applied: true, intervalMinutes: recommendedIntervalMinutes, gapThreshold: recommendedGapThreshold, appliedAt });
+  });
+
   app.get("/api/drafts", (req, res) => {
     res.json([
       {
@@ -684,6 +722,200 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       autoPublisher: autoPublisherState
     };
     res.json(payload);
+  });
+
+  // ---------------------------------------------------------------------------
+  // POST /api/nl-command — natural language webhook
+  // ---------------------------------------------------------------------------
+
+  app.post("/api/nl-command", async (req, res) => {
+    // Kill-switch guard
+    if (!ENV.NL_WEBHOOK_ENABLED) {
+      res.status(503).json({ error: "nl_webhook_disabled" });
+      return;
+    }
+
+    // XAI key guard (classification requires it)
+    if (!ENV.XAI_API_KEY) {
+      res.status(503).json({ error: "xai_key_absent" });
+      return;
+    }
+
+    // Bearer token auth guard
+    if (ENV.NL_WEBHOOK_SECRET) {
+      const authHeader = req.headers["authorization"] ?? "";
+      const expected = `Bearer ${ENV.NL_WEBHOOK_SECRET}`;
+      if (authHeader !== expected) {
+        res.status(401).json({ error: "unauthorized" });
+        return;
+      }
+    }
+
+    // Body validation
+    const body = (req.body ?? {}) as { message?: unknown; source?: unknown; dry_run?: unknown };
+    if (typeof body.message !== "string" || body.message.trim() === "") {
+      res.status(400).json({ error: "message_required" });
+      return;
+    }
+
+    const message = body.message.trim();
+    const source = typeof body.source === "string" ? body.source : "unknown";
+    const dryRun = body.dry_run === true;
+
+    // Classify intent
+    const classification = await classifyIntent(message);
+    const { intent, extractedParams, confidence } = classification;
+
+    logger.info(
+      { event: "nl_command_received", source, intent, confidence, dryRun },
+      "[NL Webhook] Command received"
+    );
+
+    // Unknown intent guard
+    if (intent === "unknown") {
+      res.status(422).json({ error: "unknown_intent", reason: classification.reason });
+      return;
+    }
+
+    // Dry-run short-circuit
+    if (dryRun) {
+      const dispatchMap: Record<string, string> = {
+        pause_scheduler: "POST /api/control-panel",
+        resume_scheduler: "POST /api/control-panel",
+        force_publish: "POST /api/run-publisher",
+        set_interval: "POST /api/control-panel",
+        set_gap_threshold: "writeRuntimeGapPersistedOverride",
+        apply_ai_recommendation: "POST /api/apply-ai-recommendation",
+        status_query: "GET /api/control-panel + GET /api/trend-insights + GET /api/publisher-history",
+      };
+      res.json({
+        intent,
+        dispatched_to: dispatchMap[intent] ?? "unknown",
+        result: null,
+        dry_run: true,
+      });
+      return;
+    }
+
+    // Live dispatch
+    try {
+      let dispatchedTo: string;
+      let result: unknown;
+
+      switch (intent) {
+        case "pause_scheduler": {
+          if (scheduler) scheduler.setEnabled(false);
+          dispatchedTo = "POST /api/control-panel";
+          result = { schedulerEnabled: false };
+          break;
+        }
+
+        case "resume_scheduler": {
+          if (scheduler) scheduler.setEnabled(true);
+          dispatchedTo = "POST /api/control-panel";
+          result = { schedulerEnabled: true };
+          break;
+        }
+
+        case "force_publish": {
+          if (!ENV.MANUAL_OVERRIDE_ENABLED) {
+            res.status(422).json({ error: "force_publish_disabled", reason: "MANUAL_OVERRIDE_ENABLED is false" });
+            return;
+          }
+          dispatchedTo = "POST /api/run-publisher";
+          result = await deps.runPublisher(true);
+          break;
+        }
+
+        case "set_interval": {
+          const intervalMinutes = extractIntervalMinutes(extractedParams);
+          if (intervalMinutes === null) {
+            res.status(422).json({ error: "missing_param", reason: "intervalMinutes could not be extracted or is out of range (5–480)" });
+            return;
+          }
+          if (scheduler) scheduler.setControls({ baseIntervalMinutes: intervalMinutes });
+          dispatchedTo = "POST /api/control-panel";
+          result = { baseIntervalMinutes: intervalMinutes };
+          break;
+        }
+
+        case "set_gap_threshold": {
+          const gapThreshold = extractGapThreshold(extractedParams);
+          if (gapThreshold === null) {
+            res.status(422).json({ error: "missing_param", reason: "observerGapThresholdMin could not be extracted or is out of range (1–50)" });
+            return;
+          }
+          await persistGapThresholdPersistedOverride(gapThreshold);
+          dispatchedTo = "writeRuntimeGapPersistedOverride";
+          result = { observerGapThresholdMin: gapThreshold };
+          break;
+        }
+
+        case "apply_ai_recommendation": {
+          const cached = getAdvisorCache();
+          if (!cached || !cached.result.ok) {
+            res.status(422).json({ error: "no_recommendation" });
+            return;
+          }
+          const ageMs = Date.now() - new Date(cached.cachedAt).getTime();
+          if (ageMs > 30 * 60 * 1000) {
+            res.status(422).json({ error: "recommendation_stale" });
+            return;
+          }
+          const { recommendedIntervalMinutes, recommendedGapThreshold } = cached.result.recommendation;
+          if (scheduler) scheduler.setControls({ baseIntervalMinutes: recommendedIntervalMinutes });
+          await persistGapThresholdPersistedOverride(recommendedGapThreshold);
+          markAdvisorCacheApplied();
+          dispatchedTo = "POST /api/apply-ai-recommendation";
+          result = { applied: true, intervalMinutes: recommendedIntervalMinutes, gapThreshold: recommendedGapThreshold };
+          break;
+        }
+
+        case "status_query": {
+          const [logs, history, cpState] = await Promise.all([
+            deps.getLogs(),
+            readHistoryForAdvisor(5),
+            scheduler ? scheduler.getState() : null,
+          ]);
+          const trend = buildTrendInsightsPayload(logs, {
+            windowDays: cpState?.trendWindowDays ?? 7,
+            referenceBaseIntervalMinutes: cpState?.baseIntervalMinutes ?? ENV.RUN_INTERVAL_MINUTES,
+            trendAdaptiveEnabled: cpState?.trendAdaptiveEnabled ?? true,
+            ourAuthorSubstring: ENV.OUR_AUTHOR_SUBSTRING,
+          });
+          const advisorCache = getAdvisorCache();
+          const recommendation = advisorCache?.result.ok ? advisorCache.result.recommendation : null;
+          result = buildStatusSummary(
+            {
+              schedulerEnabled: cpState?.enabled ?? true,
+              baseIntervalMinutes: cpState?.baseIntervalMinutes ?? ENV.RUN_INTERVAL_MINUTES,
+            },
+            trend.multiplierBand,
+            trend.sovPercent,
+            history,
+            recommendation
+          );
+          dispatchedTo = "GET /api/control-panel + GET /api/trend-insights + GET /api/publisher-history";
+          break;
+        }
+
+        default: {
+          res.status(422).json({ error: "unknown_intent" });
+          return;
+        }
+      }
+
+      logger.info(
+        { event: "nl_command_dispatched", intent, dispatchedTo, dryRun: false },
+        "[NL Webhook] Command dispatched"
+      );
+
+      res.json({ intent, dispatched_to: dispatchedTo, result, dry_run: false });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error({ event: "nl_command_dispatch_error", intent, err }, "[NL Webhook] Dispatch failed");
+      res.status(503).json({ error: "dispatch_failed", reason: msg });
+    }
   });
 
   return app;

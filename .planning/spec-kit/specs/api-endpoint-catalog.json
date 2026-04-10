@@ -78,26 +78,24 @@
       "intent": "Return last cached Grok 4 scheduling recommendation. Read-only. Returns { recommendation: null } when XAI_API_KEY absent or advisor disabled.",
       "consumed_by": ["/controls"],
       "failure_mode": "Returns { recommendation: null, source: 'disabled' } when key absent. Never throws."
-    }
-  ],
-  "pending_additions": [
-    {
-      "method": "POST",
-      "path": "/api/apply-ai-recommendation",
-      "intent": "Apply cached AI recommendation to control-panel state. 422 if stale or absent.",
-      "spec_ref": "ai-advisor-v1.json",
-      "sprint": "ai-advisor-sprint-2",
-      "consumed_by": ["/controls"]
     },
     {
       "method": "POST",
-      "path": "/api/nl-command",
-      "intent": "Parse natural language instruction and dispatch to existing API endpoints.",
-      "spec_ref": "nl-webhook-v1.json",
-      "sprint": "ai-advisor-sprint-3",
-      "consumed_by": ["external webhooks"]
+      "path": "/apply-ai-recommendation",
+      "intent": "Apply cached AI recommendation to control-panel state. 422 if stale or absent.",
+      "consumed_by": ["/controls"],
+      "failure_mode": "422 with { error: 'no_recommendation' | 'recommendation_stale' } if cache missing or > 30 min old."
+    },
+    {
+      "method": "POST",
+      "path": "/nl-command",
+      "intent": "Parse a natural language instruction and dispatch to an existing API endpoint. Requires XAI_API_KEY for classification.",
+      "consumed_by": ["external webhooks (curl, Telegram, Discord)"],
+      "auth": "Optional bearer token via NL_WEBHOOK_SECRET env var.",
+      "failure_mode": "503 when NL_WEBHOOK_ENABLED=false or XAI_API_KEY absent. 401 on wrong token. 422 on unknown intent or missing extracted params. 400 on missing message field."
     }
   ],
+  "pending_additions": [],
   "alignment_notes": [
     "This catalog complements api-contract.json; api-contract remains schema-authoritative.",
     "When adding/removing endpoints, update both files in the same change.",

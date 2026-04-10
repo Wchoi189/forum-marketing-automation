@@ -59,7 +59,7 @@ export type AiAdvisorResult =
 // In-memory cache
 // ---------------------------------------------------------------------------
 
-let advisorCache: { result: AiAdvisorResult; cachedAt: string } | null = null;
+let advisorCache: { result: AiAdvisorResult; cachedAt: string; appliedAt?: string } | null = null;
 
 export function getAdvisorCache(): typeof advisorCache {
   return advisorCache;
@@ -67,6 +67,12 @@ export function getAdvisorCache(): typeof advisorCache {
 
 export function setAdvisorCache(r: AiAdvisorResult): void {
   advisorCache = { result: r, cachedAt: new Date().toISOString() };
+}
+
+export function markAdvisorCacheApplied(): void {
+  if (advisorCache) {
+    advisorCache = { ...advisorCache, appliedAt: new Date().toISOString() };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -187,7 +193,7 @@ export async function callGrokAdvisor(context: AiAdvisorInput): Promise<AiAdviso
 
   try {
     const body = JSON.stringify({
-      model: "grok-4",
+      model: "grok-4-1-fast-non-reasoning",
       temperature: 0,
       max_tokens: 512,
       response_format: { type: "json_object" },

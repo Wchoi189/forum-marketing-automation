@@ -12,7 +12,8 @@ import {
   stripTaggedErrorPrefix,
   gapPolicySourceLabel,
   applyRuntimePreset,
-  type ControlPanelState
+  type ControlPanelState,
+  type AiAdvisorOutput
 } from './lib/controlPanel';
 
 export default function App() {
@@ -151,34 +152,106 @@ function PublisherRunsPage({ app }: { app: UseAppDataReturn }) {
 
 function ControlsPage({ app }: { app: UseAppDataReturn }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-8 rounded-3xl border border-white/10 bg-white/5 space-y-6" onChangeCapture={() => app.setControlDirty(true)}>
-      <div className="flex items-center justify-between">
-        <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">Runtime Control Panel</h2>
-        <div className="text-right">
-          <span className="block text-[10px] opacity-40 uppercase tracking-widest">Scheduler: {app.controlPanel.autoPublisher.enabled ? 'Enabled' : 'Paused'} / {app.controlPanel.autoPublisher.running ? 'Running' : 'Idle'} / Effective {app.controlPanel.autoPublisher.effectiveIntervalMinutes}m</span>
-          {app.controlDirty && <span className="block text-[10px] text-amber-300/80">Unsaved local edits</span>}
+    <>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-8 rounded-3xl border border-white/10 bg-white/5 space-y-6" onChangeCapture={() => app.setControlDirty(true)}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">Runtime Control Panel</h2>
+          <div className="text-right">
+            <span className="block text-[10px] opacity-40 uppercase tracking-widest">Scheduler: {app.controlPanel.autoPublisher.enabled ? 'Enabled' : 'Paused'} / {app.controlPanel.autoPublisher.running ? 'Running' : 'Idle'} / Effective {app.controlPanel.autoPublisher.effectiveIntervalMinutes}m</span>
+            {app.controlDirty && <span className="block text-[10px] text-amber-300/80">Unsaved local edits</span>}
+          </div>
         </div>
+        <div className="flex items-center gap-3">
+          <label className="text-xs opacity-60 uppercase tracking-widest">Preset</label>
+          <select value={app.controlPanel.preset} onChange={(e) => app.setControlPanel((c) => applyRuntimePreset(e.target.value as ControlPanelState['preset'], c))} className="px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm">
+            <option value="balanced">Balanced</option><option value="night-safe">Night Safe</option><option value="day-aggressive">Day Aggressive</option>
+          </select>
+          <span className="text-[10px] opacity-40">Preset updates both observer pacing and scheduler cadence.</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {(['observer', 'scheduler', 'publisher'] as const).map((s) => (
+            <button key={s} type="button" onClick={() => app.setControlPanelSection(s)} className={`px-3 py-1.5 rounded-full text-[10px] uppercase tracking-widest border transition-all ${app.controlPanelSection === s ? 'bg-orange-600 border-orange-500 text-white' : 'bg-white/5 border-white/10 opacity-70 hover:opacity-100'}`}>{s}</button>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {app.controlPanelSection === 'observer' && <ObserverPanel app={app} />}
+          {app.controlPanelSection === 'scheduler' && <SchedulerPanel app={app} />}
+        </div>
+        {app.controlPanelSection === 'publisher' && <PublisherSettingsPanel app={app} />}
+        <div className="flex items-center justify-end">
+          <button onClick={app.saveControlPanel} disabled={app.controlSaving} className="px-4 py-2 rounded-full bg-orange-600 hover:bg-orange-500 transition-all text-sm font-bold disabled:opacity-50">{app.controlSaving ? 'Saving...' : 'Apply Controls'}</button>
+        </div>
+      </motion.div>
+      <AiAdvisorPanel app={app} />
+    </>
+  );
+}
+
+function AiAdvisorPanel({ app }: { app: UseAppDataReturn }) {
+  const { aiRec, aiRecBuiltAt, aiRecApplied, applyAiRecommendation, loading } = app;
+
+  const ageMinutes = aiRecBuiltAt ? Math.round((Date.now() - new Date(aiRecBuiltAt).getTime()) / 60000) : null;
+  const isStale = ageMinutes !== null && ageMinutes > 30;
+
+  const confidenceBadge: Record<AiAdvisorOutput['confidence'], string> = {
+    high: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
+    medium: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
+    low: 'text-gray-400 border-gray-500/30 bg-gray-500/10',
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="p-8 rounded-3xl border border-white/10 bg-white/5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">AI Advisor</h2>
+        {aiRec && (
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${confidenceBadge[aiRec.confidence]}`}>
+            {aiRec.confidence}
+          </span>
+        )}
       </div>
-      <div className="flex items-center gap-3">
-        <label className="text-xs opacity-60 uppercase tracking-widest">Preset</label>
-        <select value={app.controlPanel.preset} onChange={(e) => app.setControlPanel((c) => applyRuntimePreset(e.target.value as ControlPanelState['preset'], c))} className="px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm">
-          <option value="balanced">Balanced</option><option value="night-safe">Night Safe</option><option value="day-aggressive">Day Aggressive</option>
-        </select>
-        <span className="text-[10px] opacity-40">Preset updates both observer pacing and scheduler cadence.</span>
-      </div>
-      <div className="flex items-center gap-2">
-        {(['observer', 'scheduler', 'publisher'] as const).map((s) => (
-          <button key={s} type="button" onClick={() => app.setControlPanelSection(s)} className={`px-3 py-1.5 rounded-full text-[10px] uppercase tracking-widest border transition-all ${app.controlPanelSection === s ? 'bg-orange-600 border-orange-500 text-white' : 'bg-white/5 border-white/10 opacity-70 hover:opacity-100'}`}>{s}</button>
-        ))}
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {app.controlPanelSection === 'observer' && <ObserverPanel app={app} />}
-        {app.controlPanelSection === 'scheduler' && <SchedulerPanel app={app} />}
-      </div>
-      {app.controlPanelSection === 'publisher' && <PublisherSettingsPanel app={app} />}
-      <div className="flex items-center justify-end">
-        <button onClick={app.saveControlPanel} disabled={app.controlSaving} className="px-4 py-2 rounded-full bg-orange-600 hover:bg-orange-500 transition-all text-sm font-bold disabled:opacity-50">{app.controlSaving ? 'Saving...' : 'Apply Controls'}</button>
-      </div>
+
+      {aiRec ? (
+        <>
+          <div className="flex gap-8">
+            <div>
+              <p className="text-[10px] opacity-40 uppercase tracking-widest mb-1">Interval</p>
+              <p className="font-mono text-xl font-bold">{aiRec.recommendedIntervalMinutes} min</p>
+            </div>
+            <div>
+              <p className="text-[10px] opacity-40 uppercase tracking-widest mb-1">Gap</p>
+              <p className="font-mono text-xl font-bold">{aiRec.recommendedGapThreshold} posts</p>
+            </div>
+          </div>
+          <p className="text-sm opacity-70 leading-relaxed">{aiRec.reasoning}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {aiRec.signalsUsed.map((s) => (
+              <span key={s} className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] uppercase tracking-wider opacity-60">{s}</span>
+            ))}
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <div className="space-y-0.5">
+              {ageMinutes !== null && (
+                <p className="text-[10px] opacity-40">Built {ageMinutes} minute{ageMinutes !== 1 ? 's' : ''} ago</p>
+              )}
+              {isStale && (
+                <p className="text-[10px] text-amber-400/80">Stale — run observer to refresh</p>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {aiRecApplied && <span className="text-[10px] text-emerald-400/80 font-medium">Applied</span>}
+              <button
+                onClick={applyAiRecommendation}
+                disabled={isStale || loading}
+                className="px-4 py-2 rounded-full bg-orange-600 hover:bg-orange-500 transition-all text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Apply Recommendation
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <p className="text-sm opacity-50">AI advisor disabled — set XAI_API_KEY to enable</p>
+      )}
     </motion.div>
   );
 }

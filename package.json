@@ -16,7 +16,7 @@
     "test": "npm run lint && npm run test:unit && npm run test:integration && npm run test:mcp:parser",
     "test:unit": "tsx --test tests/unit/competitorAnalytics.test.ts",
     "test:mcp:parser": "tsx --test tests/integration/parser-mcp.integration.test.ts",
-    "test:integration": "PROJECT_ROOT=/parent/marketing-automation FORUM_PRIMARY_ID=ppomppu PPOMPPU_USER_ID=test-user PPOMPPU_USER_PW=test-pass BOT_PROFILE_DIR=/tmp/ppomppu-profile ACTIVITY_LOG_PATH=/tmp/activity-log.json tsx --test tests/integration/api.integration.test.ts tests/integration/playbook-runner.integration.test.ts"
+    "test:integration": "PROJECT_ROOT=/parent/marketing-automation FORUM_PRIMARY_ID=ppomppu PPOMPPU_USER_ID=test-user PPOMPPU_USER_PW=test-pass BOT_PROFILE_DIR=/tmp/ppomppu-profile ACTIVITY_LOG_PATH=/tmp/activity-log.json XAI_API_KEY=test-xai-key NL_WEBHOOK_SECRET=test-secret tsx --test tests/integration/api.integration.test.ts tests/integration/playbook-runner.integration.test.ts tests/integration/nlWebhook.test.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

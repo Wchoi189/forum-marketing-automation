@@ -67,6 +67,8 @@
 | `XAI_API_KEY` | _(absent)_ | Enables Grok 4 AI advisor. If absent, advisor endpoints return `null` recommendation |
 | `AI_ADVISOR_ENABLED` | `true` | Kill-switch for advisor without removing the API key |
 | `AI_ADVISOR_TIMEOUT_MS` | `8000` | Per-call timeout in ms (1000–30000). Advisor skips on timeout |
+| `NL_WEBHOOK_ENABLED` | `true` | Kill-switch for `/api/nl-command`. Returns 503 when false |
+| `NL_WEBHOOK_SECRET` | _(absent)_ | If set, requests must include `Authorization: Bearer <secret>` |
 
 Full parsing in `config/env.ts`. Schema in `.planning/spec-kit/manifest/schemas/env.schema.json`.
 

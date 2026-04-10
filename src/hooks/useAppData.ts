@@ -9,7 +9,8 @@ import {
   type CompetitorStat,
   type DraftItem,
   type PublisherHistoryEntry,
-  type TrendInsights
+  type TrendInsights,
+  type AiAdvisorOutput
 } from '../lib/controlPanel';
 
 type ActionMessage = { type: 'success' | 'error'; text: string; log?: ActivityLog } | null;
@@ -29,6 +30,9 @@ export interface UseAppDataReturn {
   controlSaving: boolean;
   controlDirty: boolean;
   controlPanelSection: 'observer' | 'scheduler' | 'publisher';
+  aiRec: AiAdvisorOutput | null;
+  aiRecBuiltAt: string | null;
+  aiRecApplied: boolean;
 
   // UI-only state
   selectedLog: ActivityLog | null;
@@ -54,6 +58,7 @@ export interface UseAppDataReturn {
   runPublisher: (force?: boolean) => Promise<void>;
   saveControlPanel: () => Promise<void>;
   silentRefreshObserver: () => void;
+  applyAiRecommendation: () => Promise<void>;
 }
 
 export function useAppData(): UseAppDataReturn {
@@ -74,6 +79,9 @@ export function useAppData(): UseAppDataReturn {
 
   const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
   const [showOverrideModal, setShowOverrideModal] = useState(false);
+  const [aiRec, setAiRec] = useState<AiAdvisorOutput | null>(null);
+  const [aiRecBuiltAt, setAiRecBuiltAt] = useState<string | null>(null);
+  const [aiRecApplied, setAiRecApplied] = useState(false);
 
   // Real publisher step — updated by polling /api/publisher-status during a run
   const [realPublisherStep, setRealPublisherStep] = useState<PipelineStepId | null>(null);
@@ -181,12 +189,33 @@ export function useAppData(): UseAppDataReturn {
     }
   }, []);
 
+  const fetchAiRecommendation = useCallback(async () => {
+    try {
+      const res = await fetch('/api/ai-recommendation');
+      const data = await res.json();
+      if (data.recommendation && data.recommendation.ok !== false) {
+        const rec = data.recommendation.recommendation ?? data.recommendation;
+        if (rec && typeof rec.recommendedIntervalMinutes === 'number') {
+          setAiRec(rec as AiAdvisorOutput);
+          setAiRecBuiltAt(data.contextBuiltAt ?? null);
+          setAiRecApplied(false);
+        } else {
+          setAiRec(null);
+        }
+      } else {
+        setAiRec(null);
+      }
+    } catch {
+      // ignore — UI shows null state gracefully
+    }
+  }, []);
+
   const silentRefreshObserver = useCallback(() => {
     fetch('/api/run-observer', { method: 'POST' })
       .then(r => r.json())
-      .then(() => { fetchLogs(); fetchStats(); })
+      .then(() => { fetchLogs(); fetchStats(); fetchAiRecommendation(); })
       .catch(() => {});
-  }, [fetchLogs, fetchStats]);
+  }, [fetchLogs, fetchStats, fetchAiRecommendation]);
 
   // 30-second polling interval
   useEffect(() => {
@@ -196,6 +225,7 @@ export function useAppData(): UseAppDataReturn {
     fetchControlPanel();
     fetchPublisherHistory();
     fetchPlaybook();
+    fetchAiRecommendation();
     silentRefreshObserver();
     const interval = setInterval(() => {
       fetchLogs();
@@ -205,7 +235,7 @@ export function useAppData(): UseAppDataReturn {
       fetchPublisherHistory();
     }, 30000);
     return () => clearInterval(interval);
-  }, [fetchLogs, fetchDrafts, fetchStats, fetchControlPanel, fetchPublisherHistory, fetchPlaybook, silentRefreshObserver]);
+  }, [fetchLogs, fetchDrafts, fetchStats, fetchControlPanel, fetchPublisherHistory, fetchPlaybook, fetchAiRecommendation, silentRefreshObserver]);
 
   // Publisher step polling
   const startPublisherPolling = useCallback(() => {
@@ -288,6 +318,25 @@ export function useAppData(): UseAppDataReturn {
     }
   }, [fetchLogs]);
 
+  const applyAiRecommendation = useCallback(async () => {
+    try {
+      const res = await fetch('/api/apply-ai-recommendation', { method: 'POST' });
+      if (res.ok) {
+        setAiRecApplied(true);
+        setActionMessage({ type: 'success', text: 'AI recommendation applied to control panel.' });
+        await fetchControlPanel();
+      } else {
+        const data = await res.json();
+        const reason = data.error === 'recommendation_stale'
+          ? 'Recommendation is stale — run observer to refresh.'
+          : 'No recommendation available.';
+        setActionMessage({ type: 'error', text: `AI advisor — ${reason}` });
+      }
+    } catch {
+      setActionMessage({ type: 'error', text: 'AI advisor — network error.' });
+    }
+  }, [fetchControlPanel]);
+
   const runPublisher = useCallback(async (force: boolean = false) => {
     setLoading(true);
     setRealPublisherStep(null);
@@ -325,6 +374,7 @@ export function useAppData(): UseAppDataReturn {
     logs, drafts, competitorStats, boardStats, trendInsights, publisherHistory,
     controlPanel, playbookData, loading, actionMessage, controlSaving, controlDirty,
     controlPanelSection,
+    aiRec, aiRecBuiltAt, aiRecApplied,
     // UI-only state
     selectedLog, showOverrideModal, realPublisherStep,
     // Setters
@@ -332,6 +382,7 @@ export function useAppData(): UseAppDataReturn {
     setShowOverrideModal, setActionMessage,
     // Actions
     fetchLogs, fetchDrafts, fetchStats, fetchControlPanel, fetchPublisherHistory,
-    fetchPlaybook, runObserver, runPublisher, saveControlPanel, silentRefreshObserver
+    fetchPlaybook, runObserver, runPublisher, saveControlPanel, silentRefreshObserver,
+    applyAiRecommendation
   };
 }

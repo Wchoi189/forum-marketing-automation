@@ -16,6 +16,15 @@ export type {
   TrendInsights
 };
 
+export type AiAdvisorOutput = {
+  recommendedIntervalMinutes: number;
+  recommendedGapThreshold: number;
+  reasoning: string;
+  confidence: 'high' | 'medium' | 'low';
+  signalsUsed: string[];
+  generatedAt: string;
+};
+
 /** API errors may already include `[Observer]` / `[Publisher]`; strip one leading tag for readable banner text. */
 export function stripTaggedErrorPrefix(text: string) {
   return text.replace(/^\[(Observer|Publisher)\]\s*/, '').trim();

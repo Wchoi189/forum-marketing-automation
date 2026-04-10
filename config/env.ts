@@ -46,6 +46,10 @@ type EnvConfig = {
   AI_ADVISOR_ENABLED: boolean;
   /** Per-call timeout in ms for Grok advisor. Advisor skips on timeout. */
   AI_ADVISOR_TIMEOUT_MS: number;
+  /** Kill-switch for /api/nl-command endpoint. Returns 503 when false. */
+  NL_WEBHOOK_ENABLED: boolean;
+  /** If set, requests to /api/nl-command must include Authorization: Bearer <secret>. */
+  NL_WEBHOOK_SECRET: string | null;
 };
 
 function requiredString(name: string): string {
@@ -156,6 +160,8 @@ function buildEnv(): EnvConfig {
     XAI_API_KEY: optionalStringOrNull("XAI_API_KEY"),
     AI_ADVISOR_ENABLED: optionalBool("AI_ADVISOR_ENABLED", true),
     AI_ADVISOR_TIMEOUT_MS: optionalInt("AI_ADVISOR_TIMEOUT_MS", 8000, 1000, 30000),
+    NL_WEBHOOK_ENABLED: optionalBool("NL_WEBHOOK_ENABLED", true),
+    NL_WEBHOOK_SECRET: optionalStringOrNull("NL_WEBHOOK_SECRET"),
   };
 }
 
