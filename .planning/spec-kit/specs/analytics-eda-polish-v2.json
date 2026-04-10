@@ -1,0 +1,101 @@
+{
+  "id": "analytics-eda-polish-v2",
+  "title": "Competitor EDA: UX Polish & Data Accuracy Fixes",
+  "type": "enhancement",
+  "version": "2",
+  "parent_spec": "analytics-eda-refactor-v1",
+  "purpose": "Close three UX gaps left open after the v1 refactor: (1) eliminate the ~500ms latency on author row click by filtering the heatmap client-side, (2) prevent avgViewsPerPost inflation from notice posts even when excludeNotices=false, (3) add a visible empty-state when a selected author has zero posts in the current range.",
+  "design_intent": "No layout changes. Incremental correctness improvements: faster interaction feedback, more accurate derived metric, safer zero-data state. Change impact is localized to lib/competitorAnalytics.ts and src/AnalyticsPage.tsx.",
+  "change_impact": "Modifies src/AnalyticsPage.tsx (client-side heatmap filter, empty-state) and lib/competitorAnalytics.ts (avgViewsPerPost notice exclusion). No changes to server.ts, scheduler, bot.ts, or publisher flow.",
+
+  "gaps_being_closed": [
+    {
+      "id": "G-001",
+      "title": "focusAuthor refetch latency",
+      "observed": "Clicking a row triggers a full API refetch. On a cold server this adds ~500ms of perceived latency between the click and the heatmap update.",
+      "root_cause": "selectedAuthor is included in queryUrl, causing useEffect to re-fire the full fetch. The heatmap is the only visual that needs per-author data; timeSeries and summary are always aggregate.",
+      "fix": "Split the data model into a persistent base fetch (no focusAuthor) and a derived client-side heatmap filter. The base fetch re-runs only when date/bucket/excludeNotices change. Row click filters heatmap cells in memory — no network round-trip.",
+      "failure_prevention_reason": "Eliminates a noticeable interaction lag that undermines the drill-down UX. Also removes unnecessary server load on every row click."
+    },
+    {
+      "id": "G-002",
+      "title": "avgViewsPerPost inflated by notice posts",
+      "observed": "When excludeNotices=false, notice posts (isNotice=true) are included in postsInRange but their views (often 0 or near-0) dilute the avgViewsPerPost calculation for authors who mix regular and notice posts.",
+      "root_cause": "avgViewsPerPost = Math.round(totalViews / postsInRange) uses all posts including notices.",
+      "fix": "Compute avgViewsPerPost using only non-notice events regardless of the excludeNotices query param. Add avgViewsPostCount (number of non-notice posts used for the denominator) to AuthorSummaryRow so the UI can show a footnote when it differs from postsInRange.",
+      "failure_prevention_reason": "Prevents misleading quality signal. An author with 10 regular posts (avg 50 views) and 5 notice posts (0 views) should show 50, not 33."
+    },
+    {
+      "id": "G-003",
+      "title": "No empty-state for single-author mode with zero posts",
+      "observed": "If a user selects an author and then changes the date range to a window where that author posted nothing, the timeline renders empty axes with no explanation.",
+      "root_cause": "No guard on selectedAuthor presence in timeSeries data. The existing empty check (timeSeries.length === 0) only covers the case where all authors have zero posts.",
+      "fix": "After author selection, check if any timeSeries bucket has a non-zero value for selectedAuthor. If all are zero, render an explanatory inline message instead of an empty chart: 'No posts from [author] in this range — select a different window or clear selection.'",
+      "failure_prevention_reason": "Prevents confusion where the user thinks the chart is broken or the data failed to load."
+    }
+  ],
+
+  "data_contract_changes": {
+    "AuthorSummaryRow": {
+      "additions": [
+        {
+          "field": "avgViewsPostCount",
+          "type": "number",
+          "description": "Number of non-notice posts used as the denominator for avgViewsPerPost. Equal to postsInRange when excludeNotices=true; may differ when excludeNotices=false.",
+          "why": "Allows the UI to signal when avgViewsPerPost is computed on a subset of posts."
+        }
+      ],
+      "changed": [
+        {
+          "field": "avgViewsPerPost",
+          "before": "Math.round(totalViews / postsInRange) — includes notice posts in denominator",
+          "after": "Math.round(nonNoticeViews / nonNoticePosts) — denominator is always non-notice posts only",
+          "why": "Fixes inflation bug regardless of query excludeNotices param."
+        }
+      ],
+      "unchanged": ["author", "postsInRange", "postsPerDay", "postsPerActiveDay", "activeDays", "totalViews", "rank"]
+    },
+    "focusAuthor_removal": {
+      "description": "focusAuthor query param is no longer sent by the frontend. The server still supports it for backward compatibility (no removal). Client derives the filtered heatmap from the base payload.",
+      "why": "Eliminates per-click network roundtrip."
+    }
+  },
+
+  "ui_behavior_changes": {
+    "heatmap_filter": {
+      "before": "queryUrl includes focusAuthor → full API refetch on row click",
+      "after": "Base fetch has no focusAuthor. On author select, heatmap cells are filtered in the browser from the full payload's heatmap data.",
+      "note": "The base payload still returns all-author aggregate heatmap. Client-side filter reproduces focusAuthor behavior using events already in the payload. Because the payload does not carry per-author raw events, the filter must be reconstructed from heatmap cells that have an author field — OR the server adds a per-author cell map to the payload.",
+      "implementation_choice": "Extend HeatmapCell with optional author field. Server populates author on each cell. Client filters cells by selectedAuthor on render. No new API endpoint needed."
+    },
+    "empty_state": {
+      "trigger": "selectedAuthor is set AND all timeSeries rows have 0 for selectedAuthor dataKey",
+      "render": "Inline notice replacing the LineChart: 'No posts from {selectedAuthor} in this range. Change the date range or clear the selection.'",
+      "style": "Same amber-tinted notice style used elsewhere in the page."
+    },
+    "avgViewsPerPost_footnote": {
+      "trigger": "row.avgViewsPostCount < row.postsInRange",
+      "render": "Superscript asterisk on the Avg Views/Post cell; footnote below table: '* Avg views computed on non-notice posts only.'",
+      "when_visible": "Only when excludeNotices=false and the author has a mix of notice and regular posts."
+    }
+  },
+
+  "acceptance_criteria": [
+    "Clicking an author row does NOT trigger a network request (verify in browser devtools: no XHR/fetch after initial load when only selectedAuthor changes)",
+    "Heatmap updates to reflect selected author immediately on row click without a loading flash",
+    "avgViewsPerPost for an author with 5 notice posts (0 views each) and 10 regular posts (50 avg views each) = 50, not 33",
+    "avgViewsPostCount field present on every AuthorSummaryRow; equals postsInRange when author has no notice posts",
+    "When selectedAuthor is set and has zero posts in the current range, the timeline is replaced by an inline explanatory message",
+    "When selectedAuthor has posts in range, behavior is identical to v1 (single orange line)",
+    "tsc --noEmit passes with zero errors",
+    "No changes to scheduler, bot.ts, publisher flow, or any non-analytics API endpoints"
+  ],
+
+  "out_of_scope": [
+    "Unit tests (tracked in analytics-eda-quality-v1)",
+    "Pagination (tracked in analytics-eda-quality-v1)",
+    "CSV/Parquet export (tracked in analytics-export-v1)",
+    "Scheduler/trend integration (separate track)",
+    "Any change to the server-side focusAuthor query param handling"
+  ]
+}

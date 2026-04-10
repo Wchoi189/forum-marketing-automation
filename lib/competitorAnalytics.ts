@@ -18,6 +18,7 @@ export type CompetitorAnalyticsQuery = {
   bucket: AnalyticsBucket;
   excludeNotices: boolean;
   authorFilter: string[] | null;
+  focusAuthor: string | null;
 };
 
 export type DataHealthStrip = {
@@ -33,7 +34,12 @@ export type AuthorSummaryRow = {
   author: string;
   postsInRange: number;
   postsPerDay: number;
+  postsPerActiveDay: number;
+  activeDays: number;
   totalViews: number;
+  avgViewsPerPost: number;
+  /** Number of non-notice posts used as the denominator for avgViewsPerPost. May be less than postsInRange when excludeNotices=false and the author has notice posts. */
+  avgViewsPostCount: number;
   rank: number;
 };
 
@@ -41,6 +47,7 @@ export type HeatmapCell = {
   dayOfWeek: number;
   hour: number;
   count: number;
+  author?: string;
 };
 
 export type HeatmapBlock = {
@@ -261,7 +268,7 @@ export function buildCompetitorAnalyticsPayload(
   logs: ActivityLog[],
   query: CompetitorAnalyticsQuery
 ): CompetitorAnalyticsPayload {
-  const { fromMs, toMs, bucket, excludeNotices, authorFilter } = query;
+  const { fromMs, toMs, bucket, excludeNotices, authorFilter, focusAuthor } = query;
 
   const sortedWindow = logs
     .filter((l) => {
@@ -292,9 +299,19 @@ export function buildCompetitorAnalyticsPayload(
 
   const authorTotals = new Map<string, number>();
   const authorViews = new Map<string, number>();
+  const authorNonNoticeViews = new Map<string, number>();
+  const authorNonNoticeCounts = new Map<string, number>();
+  const authorActiveDays = new Map<string, Set<string>>();
   for (const e of events) {
     authorTotals.set(e.author, (authorTotals.get(e.author) ?? 0) + 1);
     authorViews.set(e.author, (authorViews.get(e.author) ?? 0) + e.views);
+    if (!e.isNotice) {
+      authorNonNoticeViews.set(e.author, (authorNonNoticeViews.get(e.author) ?? 0) + e.views);
+      authorNonNoticeCounts.set(e.author, (authorNonNoticeCounts.get(e.author) ?? 0) + 1);
+    }
+    if (!authorActiveDays.has(e.author)) authorActiveDays.set(e.author, new Set());
+    const refMs = e.postDateParsedMs ?? e.firstSeenAtMs;
+    authorActiveDays.get(e.author)!.add(new Date(refMs).toISOString().slice(0, 10));
   }
 
   const topAuthors = [...authorTotals.entries()]
@@ -305,13 +322,23 @@ export function buildCompetitorAnalyticsPayload(
   const rangeDays = Math.max(1, (toMs - fromMs) / (24 * 60 * 60 * 1000));
 
   const summary: AuthorSummaryRow[] = [...authorTotals.entries()]
-    .map(([author, postsInRange]) => ({
-      author,
-      postsInRange,
-      postsPerDay: Number((postsInRange / rangeDays).toFixed(3)),
-      totalViews: authorViews.get(author) ?? 0,
-      rank: 0
-    }))
+    .map(([author, postsInRange]) => {
+      const activeDays = Math.max(1, authorActiveDays.get(author)?.size ?? 1);
+      const totalViews = authorViews.get(author) ?? 0;
+      const nonNoticeViews = authorNonNoticeViews.get(author) ?? 0;
+      const avgViewsPostCount = authorNonNoticeCounts.get(author) ?? 0;
+      return {
+        author,
+        postsInRange,
+        postsPerDay: Number((postsInRange / rangeDays).toFixed(3)),
+        postsPerActiveDay: Math.round((postsInRange / activeDays) * 10) / 10,
+        activeDays,
+        totalViews,
+        avgViewsPerPost: avgViewsPostCount > 0 ? Math.round(nonNoticeViews / avgViewsPostCount) : 0,
+        avgViewsPostCount,
+        rank: 0
+      };
+    })
     .sort((a, b) => b.postsInRange - a.postsInRange)
     .map((row, i) => ({ ...row, rank: i + 1 }));
 
@@ -346,33 +373,40 @@ export function buildCompetitorAnalyticsPayload(
   const seriesAuthors = [...topAuthors, "_other"];
 
   let parsedForHeat = 0;
-  const heatParsed = new Map<string, number>();
-  const heatSnap = new Map<string, number>();
+  // Keys: `${dow},${hour},${author}` — one entry per author per time slot
+  const heatParsed = new Map<string, { count: number; author: string }>();
+  const heatSnap = new Map<string, { count: number; author: string }>();
 
-  for (const e of events) {
+  const heatEvents = focusAuthor
+    ? events.filter((e) => e.author.trim().toLowerCase() === focusAuthor.trim().toLowerCase())
+    : events;
+
+  for (const e of heatEvents) {
     const refMs = e.postDateParsedMs ?? e.firstSeenAtMs;
     const d = new Date(refMs);
     const dow = d.getDay();
     const hour = d.getHours();
-    const k = `${dow},${hour}`;
+    const k = `${dow},${hour},${e.author}`;
     if (e.postDateParsedMs !== null) {
       parsedForHeat++;
-      heatParsed.set(k, (heatParsed.get(k) ?? 0) + 1);
+      const prev = heatParsed.get(k);
+      heatParsed.set(k, { count: (prev?.count ?? 0) + 1, author: e.author });
     }
     {
       const ds = new Date(e.firstSeenAtMs);
-      const ks = `${ds.getDay()},${ds.getHours()}`;
-      heatSnap.set(ks, (heatSnap.get(ks) ?? 0) + 1);
+      const ks = `${ds.getDay()},${ds.getHours()},${e.author}`;
+      const prev = heatSnap.get(ks);
+      heatSnap.set(ks, { count: (prev?.count ?? 0) + 1, author: e.author });
     }
   }
 
-  const useParsed = events.length > 0 && parsedForHeat / events.length >= 0.4;
+  const useParsed = heatEvents.length > 0 && parsedForHeat / heatEvents.length >= 0.4;
   const sourceMap = useParsed ? heatParsed : heatSnap;
   const heatmap: HeatmapBlock = {
     mode: useParsed ? "post_date_parsed" : "snapshot_hour_only",
-    cells: [...sourceMap.entries()].map(([k, count]) => {
-      const [dow, hour] = k.split(",").map(Number);
-      return { dayOfWeek: dow, hour, count };
+    cells: [...sourceMap.entries()].map(([k, { count, author }]) => {
+      const [dowStr, hourStr] = k.split(",");
+      return { dayOfWeek: Number(dowStr), hour: Number(hourStr), count, author };
     })
   };
 
@@ -411,7 +445,7 @@ export function parseAnalyticsQuery(req: {
   query: Record<string, string | string[] | undefined>;
 }): CompetitorAnalyticsQuery | { error: string } {
   const now = Date.now();
-  const defaultFrom = now - 30 * 24 * 60 * 60 * 1000;
+  const defaultFrom = now - 3 * 24 * 60 * 60 * 1000;
 
   const rawFrom = req.query.from;
   const rawTo = req.query.to;
@@ -445,5 +479,9 @@ export function parseAnalyticsQuery(req: {
           .filter(Boolean)
       : null;
 
-  return { fromMs, toMs, bucket, excludeNotices, authorFilter };
+  const rawFocus = req.query.focusAuthor;
+  const focusStr = Array.isArray(rawFocus) ? rawFocus[0] : rawFocus;
+  const focusAuthor = focusStr && focusStr.trim().length > 0 ? focusStr.trim() : null;
+
+  return { fromMs, toMs, bucket, excludeNotices, authorFilter, focusAuthor };
 }

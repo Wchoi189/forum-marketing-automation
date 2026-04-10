@@ -1,0 +1,148 @@
+{
+  "id": "analytics-eda-refactor-v1",
+  "title": "Competitor EDA: Data-to-Action Refactor",
+  "type": "feature",
+  "purpose": "Transform the Competitor EDA page from a raw-data dump into an operator-facing insight surface. Move from passive observation to a drill-down, human-readable analytics experience that informs posting decisions.",
+  "design_intent": "SaaS-style progressive disclosure: KPI summary at top, interactive summary table in the middle, charts that respond to selection, bot signals hidden behind an advanced toggle. One screen, one primary decision: 'who is dominant in my space right now, and when should I post?'",
+  "change_impact": "Modifies src/AnalyticsPage.tsx (full restructure), lib/competitorAnalytics.ts (data contract additions), and the AuthorSummaryRow type. No changes to scheduler, bot.ts, or publisher flow.",
+
+  "data_contract_changes": {
+    "AuthorSummaryRow": {
+      "additions": [
+        {
+          "field": "activeDays",
+          "type": "number",
+          "description": "Count of distinct calendar days on which the author published at least one post in the query range.",
+          "why": "Fixes postsPerDay dilution bug: dividing by calendar range instead of active days produces artificially low rates for authors who started posting recently."
+        },
+        {
+          "field": "postsPerActiveDay",
+          "type": "number",
+          "description": "postsInRange / activeDays, rounded to 1 decimal place. Primary display metric.",
+          "why": "1.1 posts/active-day is accurate and readable; 1.097 posts/calendar-day is misleading and unformatted."
+        },
+        {
+          "field": "avgViewsPerPost",
+          "type": "number",
+          "description": "Math.round(totalViews / postsInRange). Preferred display over totalViews sum.",
+          "why": "Total views are skewed by author tenure. Avg views/post measures content quality independent of posting volume."
+        }
+      ],
+      "keep": ["author", "postsInRange", "postsPerDay", "totalViews", "rank"],
+      "note": "postsPerDay (calendar-based) is retained for backward compatibility but should not be the primary display column."
+    },
+    "AuthorBotSignals": {
+      "no_changes": true,
+      "note": "Raw heuristic fields (interArrivalCv, hourEntropy, etc.) stay as-is. UI hides them behind a disclosure toggle; only heuristicTier is shown in the main table."
+    },
+    "focusAuthor_query_param": {
+      "description": "Optional `focusAuthor` query param on GET /api/analytics/competitors. When present, heatmap cells are filtered to that author's events only. timeSeries still shows all authors.",
+      "why": "Enables the drill-down pattern where clicking a row in the summary table refocuses the heatmap without a full page reload."
+    }
+  },
+
+  "ui_layout_spec": {
+    "hierarchy": [
+      {
+        "zone": "1-filters-bar",
+        "position": "inline at page top-right, below header",
+        "components": ["DateRangePicker (from/to)", "BucketSelect (hour/day/week)", "ExcludeNoticesToggle"],
+        "style": "Small, horizontal, no bounding box. Matches Vercel/PostHog inline filter pattern."
+      },
+      {
+        "zone": "2-kpi-row",
+        "position": "first content row, always visible",
+        "components": [
+          "KpiCard: Most Active Competitor (name + postsPerActiveDay)",
+          "KpiCard: Market Posts/Day (average across all authors in range)",
+          "KpiCard: Data Freshness (medianGapHours formatted as '18 min' or '2.4 h')"
+        ],
+        "style": "3-column grid of stat cards. Orange accent on values. No chart in this zone."
+      },
+      {
+        "zone": "3-summary-table",
+        "position": "below KPI row",
+        "columns": ["Rank", "Author", "Posts", "Posts/Active Day", "Avg Views/Post", "Bot Risk badge"],
+        "interactivity": "Clicking a row sets selectedAuthor state. Selected row highlighted. 'All' button deselects.",
+        "bot_risk_display": "Colored badge only: green=Low, amber=Medium, red=High. No raw floats.",
+        "style": "Clean table, no overflow scroll unless >10 rows."
+      },
+      {
+        "zone": "4-charts",
+        "position": "below summary table",
+        "behavior": "Charts filter to selectedAuthor when one is selected; show all authors (top 12) when none selected.",
+        "charts": [
+          {
+            "id": "posting-frequency-timeline",
+            "type": "LineChart",
+            "description": "New posts over time. When author selected: single line for that author. When All: _total line only (no spaghetti).",
+            "why": "Eliminates the 12-color spaghetti problem. User gets context first, then drills."
+          },
+          {
+            "id": "stacked-bar-share",
+            "type": "BarChart stacked",
+            "description": "Share of posts per bucket. Only shown in All mode (no author selected). Hidden when single author selected to avoid redundancy.",
+            "why": "Share-of-voice view is a market-level lens, not an author-level lens."
+          },
+          {
+            "id": "activity-heatmap",
+            "type": "Heatmap grid (existing)",
+            "description": "When author selected: filtered to that author's events. When All: aggregate of all events.",
+            "why": "Author-specific heatmap reveals their posting schedule pattern — actionable for timing competitive posts."
+          }
+        ]
+      },
+      {
+        "zone": "5-bot-signals-advanced",
+        "position": "bottom, collapsed by default",
+        "trigger": "Expand/collapse toggle labeled 'Advanced: Bot-Likeness Signals'",
+        "content": "Full existing bot signals table with raw heuristic columns (CV, entropy, uniformity, burst)",
+        "style": "Amber border retained to signal 'experimental' nature. Disclaimer text kept."
+      }
+    ]
+  },
+
+  "human_translation_rules": [
+    {
+      "raw": "postsPerDay (float, 3 decimal places)",
+      "display": "postsPerActiveDay rounded to 1 decimal (e.g. '1.1')",
+      "secondary": "If activeDays >= 7, also show weekly equivalent: '~7 posts/week'"
+    },
+    {
+      "raw": "totalViews (sum)",
+      "display": "avgViewsPerPost (integer, e.g. '37')",
+      "secondary": "Total views shown as tooltip or footnote only"
+    },
+    {
+      "raw": "medianGapHours (float)",
+      "display": "< 1h → format as minutes (e.g. '18 min'); >= 1h → '2.4 h'",
+      "secondary": "largeGapWarning shown as amber dot on freshness card"
+    },
+    {
+      "raw": "heuristicTier: low/medium/high",
+      "display": "Badge: Low (green), Medium (amber), High (red)",
+      "secondary": "Raw signals only in zone 5 advanced section"
+    }
+  ],
+
+  "acceptance_criteria": [
+    "postsPerActiveDay is computed as postsInRange / activeDays (not calendar range) and displayed rounded to 1 decimal",
+    "Selecting an author row in the summary table filters the heatmap and timeline chart to that author's events",
+    "When no author is selected, the timeline shows only the _total line (no per-author spaghetti)",
+    "Bot signals table is collapsed by default; raw heuristic floats are not visible without expanding",
+    "KPI row shows most active competitor, market avg posts/day, and data freshness on every load",
+    "Filters are inline controls (no large bordered section block)",
+    "avgViewsPerPost is shown in the summary table; totalViews sum is not a primary column",
+    "medianGapHours < 1 is displayed in minutes, >= 1 in hours with 1 decimal",
+    "lint passes with no new TypeScript errors",
+    "No changes to scheduler, bot.ts, publisher flow, or any non-analytics API endpoints"
+  ],
+
+  "out_of_scope": [
+    "Real-time streaming / WebSocket updates",
+    "Scheduler integration with competitor trend data",
+    "Unit test suite (tracked separately)",
+    "Pagination or virtualization for large author lists",
+    "Export to CSV/Parquet"
+  ]
+}

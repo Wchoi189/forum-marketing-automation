@@ -1,0 +1,60 @@
+{
+  "id": "analytics-export-v1",
+  "title": "Competitor EDA — CSV Export",
+  "parent": "analytics-eda-polish-v2",
+  "status": "active",
+  "created": "2026-04-10",
+  "summary": "Add a CSV export button to AnalyticsPage that downloads the current summary table as a .csv file. No new API endpoint required — data is derived client-side from payload.summary.",
+
+  "scope": {
+    "in": [
+      "Export button in the Competitors table header (Zone 3)",
+      "Client-side CSV generation from payload.summary",
+      "Filename encodes the active date range: competitors-{from}-{to}.csv",
+      "Blob + <a download> pattern — no server round-trip"
+    ],
+    "out": [
+      "Parquet export",
+      "Time-series or heatmap export",
+      "Server-side export endpoint",
+      "Bot signals export"
+    ]
+  },
+
+  "columns": [
+    { "header": "Rank",              "field": "rank" },
+    { "header": "Author",            "field": "author" },
+    { "header": "Posts",             "field": "postsInRange" },
+    { "header": "Active Days",       "field": "activeDays" },
+    { "header": "Posts/Active Day",  "field": "postsPerActiveDay" },
+    { "header": "Avg Views/Post",    "field": "avgViewsPerPost" },
+    { "header": "Avg Views Count",   "field": "avgViewsPostCount" }
+  ],
+
+  "ux": {
+    "button_location": "Competitors section header, right side (next to the 'All authors' clear link)",
+    "button_label": "Export CSV",
+    "button_icon": "Download (lucide-react)",
+    "button_disabled_when": "payload is null or payload.summary is empty",
+    "filename_pattern": "competitors-{from}-{to}.csv where from/to are the active YYYY-MM-DD filter values"
+  },
+
+  "csv_format": {
+    "delimiter": ",",
+    "line_ending": "\\n",
+    "header_row": true,
+    "encoding": "UTF-8",
+    "quoting": "quote fields containing commas or quotes; double-escape embedded quotes"
+  },
+
+  "acceptance": [
+    "Button renders in Zone 3 header when payload is loaded",
+    "Button is disabled/hidden when payload is null",
+    "Clicking downloads a file named competitors-{from}-{to}.csv",
+    "CSV has header row matching column spec",
+    "CSV rows match payload.summary in order",
+    "No new API endpoints or files added",
+    "tsc --noEmit passes",
+    "No changes to lib/competitorAnalytics.ts"
+  ]
+}

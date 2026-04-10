@@ -1,0 +1,76 @@
+{
+  "id": "analytics-eda-quality-v1",
+  "title": "Competitor EDA: Unit Test Coverage for Derivation Logic",
+  "type": "quality",
+  "version": "1",
+  "parent_spec": "analytics-eda-polish-v2",
+  "purpose": "Add unit tests for the three non-trivial derivation paths in buildCompetitorAnalyticsPayload: postsPerActiveDay (active-day deduplication), avgViewsPerPost (notice exclusion regardless of excludeNotices param), and focusAuthor heatmap filter (client-side author cell tagging). Also covers parseAnalyticsQuery validation paths.",
+  "design_intent": "Pure unit tests with no server, no file I/O, no env vars. Tests run via Node.js built-in test runner (tsx --test). Test data constructed inline as minimal ActivityLog arrays. No mocking framework required.",
+  "change_impact": "Adds tests/unit/competitorAnalytics.test.ts. Adds test:unit script to package.json. No changes to library or app code.",
+
+  "test_targets": [
+    {
+      "id": "T-001",
+      "function": "buildCompetitorAnalyticsPayload",
+      "path": "postsPerActiveDay",
+      "description": "Author with 3 posts on 2 distinct calendar days (via postDateParsedMs) should yield postsPerActiveDay=1.5 and activeDays=2.",
+      "why": "The activeDays deduplication uses postDateParsedMs ?? firstSeenAtMs to derive the calendar day. If the ISO date field parses, the date — not the snapshot time — determines the active day. A naive implementation using firstSeenAtMs only would overcount active days when multiple posts share a board date."
+    },
+    {
+      "id": "T-002",
+      "function": "buildCompetitorAnalyticsPayload",
+      "path": "avgViewsPerPost notice exclusion — mixed author",
+      "description": "Author with 5 notice posts (0 views) and 10 regular posts (50 views each): avgViewsPerPost=50, avgViewsPostCount=10, postsInRange=15. excludeNotices=false so all 15 posts appear in events.",
+      "why": "G-002 fix: avgViewsPerPost must use nonNotice denominator regardless of excludeNotices. Pre-fix formula (totalViews/postsInRange) would yield 33, not 50."
+    },
+    {
+      "id": "T-003",
+      "function": "buildCompetitorAnalyticsPayload",
+      "path": "avgViewsPerPost — no notices",
+      "description": "Author with only regular posts: avgViewsPostCount === postsInRange and avgViewsPerPost computed correctly. Confirms the baseline case is not broken by the fix.",
+      "why": "Regression guard: when there are no notice posts, avgViewsPostCount should equal postsInRange so the UI footnote is never shown."
+    },
+    {
+      "id": "T-004",
+      "function": "buildCompetitorAnalyticsPayload",
+      "path": "focusAuthor heatmap filter",
+      "description": "With two authors posting, focusAuthor=authorA → all heatmap cells carry author===authorA. With focusAuthor=null → cells from both authors present.",
+      "why": "G-001 fix: server tags each heatmap cell with its author. The cell.author field is what the client uses to filter in memory. If author tags are absent or wrong, the client-side filter silently produces an empty heatmap."
+    },
+    {
+      "id": "T-005",
+      "function": "parseAnalyticsQuery",
+      "path": "validation — error cases",
+      "description": "from > to returns {error}. Unparseable date string returns {error}. Valid params return a CompetitorAnalyticsQuery with correct types.",
+      "why": "Ensures the query parser is a complete gate — invalid input never reaches buildCompetitorAnalyticsPayload."
+    },
+    {
+      "id": "T-006",
+      "function": "parseAnalyticsQuery",
+      "path": "defaults — 3-day window",
+      "description": "No params → fromMs is within 1 second of (now - 3 days), bucket defaults to 'day', excludeNotices defaults to false.",
+      "why": "The 3-day default was changed from 30 in the v2 polish session. This test pins the regression surface."
+    }
+  ],
+
+  "test_helpers": {
+    "makeLog": "Helper that constructs a minimal valid ActivityLog with a timestamp and post list.",
+    "makeQuery": "Helper that builds a CompetitorAnalyticsQuery with sensible defaults, overridable per test.",
+    "eventSequence": "Pattern: pass an array of [{ts, posts}] snapshots; each consecutive pair generates new-post events for posts that appear in curr but not prev."
+  },
+
+  "acceptance_criteria": [
+    "All 6 test targets have at least one passing test case",
+    "tsx --test tests/unit/competitorAnalytics.test.ts exits 0",
+    "npm run test:unit exits 0",
+    "tsc --noEmit still passes (no type errors introduced)",
+    "No changes to lib/competitorAnalytics.ts or src/AnalyticsPage.tsx"
+  ],
+
+  "out_of_scope": [
+    "Frontend component tests (React/DOM — no test renderer in this project)",
+    "Pagination (deferred to a future spec)",
+    "CSV/Parquet export (analytics-export-v1)",
+    "Bot signal heuristic tests (computeBotSignalsForAuthor — numerically complex, low regression risk)"
+  ]
+}

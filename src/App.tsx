@@ -547,7 +547,7 @@ export default function App() {
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) =>
+              className={({ isActive }: { isActive: boolean }) =>
                 `block px-3 py-2 rounded-lg text-sm border transition-all ${
                   isActive ? 'bg-orange-600/20 border-orange-500/40 text-orange-200' : 'border-white/10 hover:bg-white/5'
                 }`
