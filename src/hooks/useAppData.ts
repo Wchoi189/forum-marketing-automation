@@ -1,0 +1,337 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import type { PipelineStepId } from '../PipelineCanvas';
+import {
+  DEFAULT_CONTROL_PANEL,
+  stripTaggedErrorPrefix,
+  type ControlPanelState,
+  type ActivityLog,
+  type BoardStats,
+  type CompetitorStat,
+  type DraftItem,
+  type PublisherHistoryEntry,
+  type TrendInsights
+} from '../lib/controlPanel';
+
+type ActionMessage = { type: 'success' | 'error'; text: string; log?: ActivityLog } | null;
+
+export interface UseAppDataReturn {
+  // Data
+  logs: ActivityLog[];
+  drafts: DraftItem[];
+  competitorStats: CompetitorStat[];
+  boardStats: BoardStats | null;
+  trendInsights: TrendInsights | null;
+  publisherHistory: PublisherHistoryEntry[];
+  controlPanel: ControlPanelState;
+  playbookData: any;
+  loading: boolean;
+  actionMessage: ActionMessage;
+  controlSaving: boolean;
+  controlDirty: boolean;
+  controlPanelSection: 'observer' | 'scheduler' | 'publisher';
+
+  // UI-only state
+  selectedLog: ActivityLog | null;
+  showOverrideModal: boolean;
+  realPublisherStep: PipelineStepId | null;
+
+  // Setters (for UI-only state that pages manipulate directly)
+  setControlPanel: React.Dispatch<React.SetStateAction<ControlPanelState>>;
+  setControlDirty: React.Dispatch<React.SetStateAction<boolean>>;
+  setControlPanelSection: React.Dispatch<React.SetStateAction<'observer' | 'scheduler' | 'publisher'>>;
+  setSelectedLog: React.Dispatch<React.SetStateAction<ActivityLog | null>>;
+  setShowOverrideModal: React.Dispatch<React.SetStateAction<boolean>>;
+  setActionMessage: React.Dispatch<React.SetStateAction<ActionMessage>>;
+
+  // Actions
+  fetchLogs: () => Promise<void>;
+  fetchDrafts: () => Promise<void>;
+  fetchStats: () => Promise<void>;
+  fetchControlPanel: () => Promise<void>;
+  fetchPublisherHistory: () => Promise<void>;
+  fetchPlaybook: () => Promise<void>;
+  runObserver: () => Promise<void>;
+  runPublisher: (force?: boolean) => Promise<void>;
+  saveControlPanel: () => Promise<void>;
+  silentRefreshObserver: () => void;
+}
+
+export function useAppData(): UseAppDataReturn {
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [competitorStats, setCompetitorStats] = useState<CompetitorStat[]>([]);
+  const [boardStats, setBoardStats] = useState<BoardStats | null>(null);
+  const [trendInsights, setTrendInsights] = useState<TrendInsights | null>(null);
+  const [playbookData, setPlaybookData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState<ActionMessage>(null);
+
+  const [drafts, setDrafts] = useState<DraftItem[]>([]);
+  const [publisherHistory, setPublisherHistory] = useState<PublisherHistoryEntry[]>([]);
+  const [controlPanel, setControlPanel] = useState<ControlPanelState>(DEFAULT_CONTROL_PANEL);
+  const [controlSaving, setControlSaving] = useState(false);
+  const [controlDirty, setControlDirty] = useState(false);
+  const [controlPanelSection, setControlPanelSection] = useState<'observer' | 'scheduler' | 'publisher'>('observer');
+
+  const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
+  const [showOverrideModal, setShowOverrideModal] = useState(false);
+
+  // Real publisher step — updated by polling /api/publisher-status during a run
+  const [realPublisherStep, setRealPublisherStep] = useState<PipelineStepId | null>(null);
+  const publisherPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch functions
+  const fetchStats = useCallback(async () => {
+    try {
+      const [compRes, boardRes, trendRes] = await Promise.all([
+        fetch('/api/competitor-stats'),
+        fetch('/api/board-stats'),
+        fetch('/api/trend-insights')
+      ]);
+      const [compData, boardData, trendData] = await Promise.all([
+        compRes.json(),
+        boardRes.json(),
+        trendRes.json()
+      ]);
+      setCompetitorStats(compData);
+      setBoardStats(boardData);
+      if (trendRes.ok && trendData && typeof trendData.trendMultiplier === 'number') {
+        setTrendInsights(trendData as TrendInsights);
+      }
+    } catch (error) {
+      console.error('Failed to fetch stats:', error);
+    }
+  }, []);
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      const response = await fetch('/api/logs');
+      const data = await response.json();
+      setLogs(data);
+    } catch (error) {
+      console.error('Failed to fetch logs:', error);
+    }
+  }, []);
+
+  const fetchDrafts = useCallback(async () => {
+    try {
+      const response = await fetch('/api/drafts');
+      const data = await response.json();
+      setDrafts(data);
+    } catch (error) {
+      console.error('Failed to fetch drafts:', error);
+    }
+  }, []);
+
+  const fetchPublisherHistory = useCallback(async () => {
+    try {
+      const response = await fetch('/api/publisher-history?limit=30');
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setPublisherHistory(data as PublisherHistoryEntry[]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch publisher history:', error);
+    }
+  }, []);
+
+  const fetchControlPanel = useCallback(async () => {
+    try {
+      const response = await fetch('/api/control-panel');
+      const data = await response.json();
+      const nextState: ControlPanelState = {
+        ...DEFAULT_CONTROL_PANEL,
+        ...data,
+        observer: { ...DEFAULT_CONTROL_PANEL.observer, ...data.observer },
+        publisher: { ...DEFAULT_CONTROL_PANEL.publisher, ...data.publisher },
+        autoPublisher: { ...DEFAULT_CONTROL_PANEL.autoPublisher, ...data.autoPublisher }
+      };
+      setControlPanel((current) => {
+        // Read current dirty flag from closure — this is safe because setControlPanel
+        // is called from the same render cycle.
+        if (!controlDirty) return nextState;
+        // While user edits form values, only merge non-form status fields from polling.
+        return {
+          ...current,
+          observer: {
+            ...current.observer,
+            gapThresholdMin: nextState.observer.gapThresholdMin,
+            gapThresholdSpecBaseline: nextState.observer.gapThresholdSpecBaseline,
+            gapUsesEnvOverride: nextState.observer.gapUsesEnvOverride
+          },
+          autoPublisher: {
+            ...current.autoPublisher,
+            running: nextState.autoPublisher.running,
+            effectiveIntervalMinutes: nextState.autoPublisher.effectiveIntervalMinutes
+          }
+        };
+      });
+    } catch (error) {
+      console.error('Failed to fetch control panel:', error);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps — controlDirty is read from render-scope closure
+  }, [controlDirty]);
+
+  const fetchPlaybook = useCallback(async () => {
+    try {
+      const response = await fetch('/api/playbook/ppomppu-gonggu-v1');
+      const data = await response.json();
+      setPlaybookData(data);
+    } catch (error) {
+      console.error('Failed to fetch playbook:', error);
+    }
+  }, []);
+
+  const silentRefreshObserver = useCallback(() => {
+    fetch('/api/run-observer', { method: 'POST' })
+      .then(r => r.json())
+      .then(() => { fetchLogs(); fetchStats(); })
+      .catch(() => {});
+  }, [fetchLogs, fetchStats]);
+
+  // 30-second polling interval
+  useEffect(() => {
+    fetchLogs();
+    fetchDrafts();
+    fetchStats();
+    fetchControlPanel();
+    fetchPublisherHistory();
+    fetchPlaybook();
+    silentRefreshObserver();
+    const interval = setInterval(() => {
+      fetchLogs();
+      fetchDrafts();
+      fetchStats();
+      fetchControlPanel();
+      fetchPublisherHistory();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [fetchLogs, fetchDrafts, fetchStats, fetchControlPanel, fetchPublisherHistory, fetchPlaybook, silentRefreshObserver]);
+
+  // Publisher step polling
+  const startPublisherPolling = useCallback(() => {
+    if (publisherPollRef.current) return;
+    publisherPollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch('/api/publisher-status');
+        const data: { step: PipelineStepId | null; running: boolean } = await res.json();
+        if (data.step) {
+          setRealPublisherStep(data.step);
+        }
+        if (!data.running && !data.step) {
+          stopPublisherPolling();
+        }
+      } catch {
+        // ignore poll errors
+      }
+    }, 1500);
+  }, []);
+
+  const stopPublisherPolling = useCallback(() => {
+    if (publisherPollRef.current) {
+      clearInterval(publisherPollRef.current);
+      publisherPollRef.current = null;
+    }
+  }, []);
+
+  // When the scheduler auto-publishes, detect running=true and start step polling
+  useEffect(() => {
+    if (controlPanel.autoPublisher.running) {
+      startPublisherPolling();
+    } else {
+      stopPublisherPolling();
+      setRealPublisherStep(null);
+    }
+  }, [controlPanel.autoPublisher.running, startPublisherPolling, stopPublisherPolling]);
+
+  // Action handlers
+  const saveControlPanel = useCallback(async () => {
+    setControlSaving(true);
+    try {
+      const response = await fetch('/api/control-panel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(controlPanel)
+      });
+      const data = await response.json();
+      setControlPanel({
+        ...DEFAULT_CONTROL_PANEL,
+        ...data,
+        observer: { ...DEFAULT_CONTROL_PANEL.observer, ...data.observer },
+        publisher: { ...DEFAULT_CONTROL_PANEL.publisher, ...data.publisher },
+        autoPublisher: { ...DEFAULT_CONTROL_PANEL.autoPublisher, ...data.autoPublisher }
+      });
+      setControlDirty(false);
+      setActionMessage({ type: 'success', text: 'Control panel settings saved.' });
+    } catch (error) {
+      setActionMessage({ type: 'error', text: 'Control panel save failed (network/API error).' });
+    } finally {
+      setControlSaving(false);
+    }
+  }, [controlPanel]);
+
+  const runObserver = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/run-observer', { method: 'POST' });
+      const data = await response.json();
+      if (data.success) {
+        setActionMessage({ type: 'success', text: 'Observer run completed successfully.', log: data.log });
+        fetchLogs();
+      } else {
+        const detail = stripTaggedErrorPrefix(data.error || 'Observer failed.');
+        setActionMessage({ type: 'error', text: `Observer — ${detail}`, log: data.log });
+      }
+    } catch (error) {
+      setActionMessage({ type: 'error', text: 'Observer — network error (could not reach API).' });
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchLogs]);
+
+  const runPublisher = useCallback(async (force: boolean = false) => {
+    setLoading(true);
+    setRealPublisherStep(null);
+    startPublisherPolling();
+    try {
+      const response = await fetch('/api/run-publisher', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force })
+      });
+      const data = await response.json();
+      const label = force ? 'Publisher (manual override)' : 'Publisher (auto)';
+      const runHint =
+        typeof data.runId === 'string' && data.runId.length > 0 ? ` runId=${data.runId}` : '';
+      if (data.success) {
+        setActionMessage({ type: 'success', text: `${label} — ${data.message}${runHint}`, log: data.log });
+      } else {
+        const detail = stripTaggedErrorPrefix(data.error || data.message || 'Publisher failed.');
+        setActionMessage({ type: 'error', text: `${label} — ${detail}${runHint}`, log: data.log });
+      }
+      fetchLogs();
+      fetchPublisherHistory();
+      silentRefreshObserver();
+    } catch (error) {
+      const label = force ? 'Publisher (manual override)' : 'Publisher (auto)';
+      setActionMessage({ type: 'error', text: `${label} — network error (could not reach API).` });
+    } finally {
+      stopPublisherPolling();
+      setRealPublisherStep(null);
+      setLoading(false);
+    }
+  }, [fetchLogs, fetchPublisherHistory, silentRefreshObserver, startPublisherPolling, stopPublisherPolling]);
+
+  return {
+    logs, drafts, competitorStats, boardStats, trendInsights, publisherHistory,
+    controlPanel, playbookData, loading, actionMessage, controlSaving, controlDirty,
+    controlPanelSection,
+    // UI-only state
+    selectedLog, showOverrideModal, realPublisherStep,
+    // Setters
+    setControlPanel, setControlDirty, setControlPanelSection, setSelectedLog,
+    setShowOverrideModal, setActionMessage,
+    // Actions
+    fetchLogs, fetchDrafts, fetchStats, fetchControlPanel, fetchPublisherHistory,
+    fetchPlaybook, runObserver, runPublisher, saveControlPanel, silentRefreshObserver
+  };
+}

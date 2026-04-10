@@ -51,6 +51,7 @@
 | POST | `/api/run-publisher` | **Blocking** 30–120s. Returns `PublisherRunResult`. |
 | GET | `/api/publisher-status` | `{ step: PublisherCanvasStep\|null, running: bool }`. Non-blocking. |
 | GET | `/api/publisher-history` | `PublisherHistoryEntry[]`. Query: `?limit=N`. |
+| GET | `/api/ai-recommendation` | `{ recommendation: AiAdvisorOutput\|null, contextBuiltAt, source }`. Returns `null` if `XAI_API_KEY` absent or advisor disabled. |
 
 ## Key Env Vars
 
@@ -63,6 +64,9 @@
 | `PUBLISHER_DEBUG_SCREENSHOTS` | `false` | Saves step screenshots to `artifacts/` |
 | `PUBLISHER_DEBUG_TRACE` | `false` | Saves Playwright trace zip |
 | `OUR_AUTHOR_SUBSTRING` | `'shareplan'` | Substring matched (case-insensitive) to identify our posts for SoV computation |
+| `XAI_API_KEY` | _(absent)_ | Enables Grok 4 AI advisor. If absent, advisor endpoints return `null` recommendation |
+| `AI_ADVISOR_ENABLED` | `true` | Kill-switch for advisor without removing the API key |
+| `AI_ADVISOR_TIMEOUT_MS` | `8000` | Per-call timeout in ms (1000–30000). Advisor skips on timeout |
 
 Full parsing in `config/env.ts`. Schema in `.planning/spec-kit/manifest/schemas/env.schema.json`.
 

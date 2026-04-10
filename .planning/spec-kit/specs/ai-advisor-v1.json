@@ -1,0 +1,218 @@
+{
+  "spec_id": "ai-advisor-v1",
+  "purpose": "Define an AI advisory layer that synthesizes KPI signals into scheduling recommendations using Grok 4. Advisor output is read-only intent; execution stays on existing API paths.",
+  "design_intent": "AI advises, existing API executes. The advisor never writes files, triggers browser runs, or modifies scheduler state directly. All output flows through the validated /api/control-panel path.",
+  "change_impact": "Adds a new precedence tier to scheduler-adaptation.policy.json between operator preset and trend multiplier. Operator always wins. Existing rule-based fallback is preserved if the AI call fails.",
+  "parent_policy_ref": "scheduler-adaptation.policy.json",
+  "execution_loop_ref": "execution-loop.contract.json",
+  "api_contract_ref": "api-endpoint-catalog.json",
+
+  "precedence_chain": [
+    "manual_override_force_on_publish",
+    "operator_control_panel_preset_and_controls",
+    "ai_advisor_recommendation",
+    "trend_adaptive_multiplier_on_effective_interval"
+  ],
+
+  "model": {
+    "provider": "xAI",
+    "model_id": "grok-4",
+    "endpoint": "https://api.x.ai/v1/chat/completions",
+    "auth_env_var": "XAI_API_KEY",
+    "temperature": 0,
+    "max_tokens": 512,
+    "response_format": "json_object",
+    "call_budget": "one call per observer cycle, plus on-demand via GET /api/ai-recommendation"
+  },
+
+  "context_packet": {
+    "description": "Compact JSON snapshot assembled server-side before calling Grok 4. Targets ~800 tokens.",
+    "sources": [
+      {
+        "field": "trend",
+        "from": "GET /api/trend-insights",
+        "include": [
+          "avgNewPostsPerHour",
+          "volatility",
+          "multiplierBand",
+          "sovPercent",
+          "sovFactor",
+          "trendMultiplier",
+          "confidence",
+          "hourlyProfile"
+        ]
+      },
+      {
+        "field": "recentRuns",
+        "from": "GET /api/publisher-history?limit=10",
+        "include": ["at", "success", "decision"],
+        "derived": {
+          "successRate": "successes / total",
+          "gapPolicyRate": "gap_policy decisions / total",
+          "errorRate": "publisher_error + observer_error / total"
+        }
+      },
+      {
+        "field": "currentBoard",
+        "from": "GET /api/logs (latest entry)",
+        "include": ["current_gap_count", "gap_threshold_min", "status"]
+      },
+      {
+        "field": "controls",
+        "from": "GET /api/control-panel",
+        "include": [
+          "intervalMinutes",
+          "schedulerJitterPercent",
+          "schedulerEnabled",
+          "trendAdaptiveEnabled"
+        ]
+      },
+      {
+        "field": "meta",
+        "values": {
+          "currentHour": "server local hour 0–23",
+          "contextBuiltAt": "ISO timestamp"
+        }
+      }
+    ]
+  },
+
+  "system_prompt": {
+    "role": "You are a scheduling optimizer for a forum auto-publisher bot. You receive real-time board activity and performance KPIs. Return a JSON object with your recommendation.",
+    "constraints": [
+      "Never recommend stopping the scheduler entirely — that is an operator decision.",
+      "Respect the clamping bounds: intervalMinutes 5–480, gapThreshold 1–50.",
+      "If data is insufficient (confidence < 0.3), prefer conservative recommendations close to current settings.",
+      "Do not hallucinate data not present in the context packet."
+    ]
+  },
+
+  "output_schema": {
+    "type": "object",
+    "required": ["recommendedIntervalMinutes", "recommendedGapThreshold", "reasoning", "confidence", "signalsUsed"],
+    "properties": {
+      "recommendedIntervalMinutes": {
+        "type": "integer",
+        "minimum": 5,
+        "maximum": 480,
+        "description": "Recommended scheduler base interval. Jitter is applied on top by existing logic."
+      },
+      "recommendedGapThreshold": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 50,
+        "description": "Recommended minimum post gap before publishing."
+      },
+      "reasoning": {
+        "type": "string",
+        "maxLength": 300,
+        "description": "Plain-language explanation of the recommendation. Shown to operator in dashboard."
+      },
+      "confidence": {
+        "type": "string",
+        "enum": ["high", "medium", "low"],
+        "description": "Self-assessed confidence based on signal quality."
+      },
+      "signalsUsed": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Which context fields were decisive (e.g. [\"sovPercent\", \"gapPolicyRate\"])."
+      }
+    }
+  },
+
+  "new_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/ai-recommendation",
+      "intent": "Return last cached AI recommendation with its context snapshot. Read-only, no side effects.",
+      "response": {
+        "recommendation": "AiAdvisorOutput | null",
+        "contextBuiltAt": "ISO string | null",
+        "source": "\"cached\" | \"fresh\""
+      },
+      "failure_mode": "Returns { recommendation: null } if XAI_API_KEY absent or last call errored. Never throws."
+    },
+    {
+      "method": "POST",
+      "path": "/api/apply-ai-recommendation",
+      "intent": "Apply last cached recommendation to control-panel state. Validates bounds, records applied_at.",
+      "body": "{}",
+      "preconditions": ["recommendation not null", "recommendation age < 30 minutes"],
+      "failure_mode": "422 with reason if recommendation stale or out of bounds."
+    }
+  ],
+
+  "integration_with_execution_loop": {
+    "trigger_point": "After observe_board (step 1) completes successfully, before decide_eligibility (step 3). If advisor call fails, proceed with existing rules unchanged.",
+    "scheduler_hook": "recalcTrendFactor in server.ts calls buildAdvisorContext() + getAdvisorRecommendation() async. Result cached in-memory. GET /api/ai-recommendation reads cache.",
+    "apply_path": "POST /api/apply-ai-recommendation → validates → calls existing POST /api/control-panel internally."
+  },
+
+  "safety_constraints": [
+    "XAI_API_KEY absent → advisor silently disabled; no error propagation to scheduler.",
+    "Advisor call timeout 8s → skip, log warning, proceed with rules.",
+    "Output intervalMinutes and gapThreshold are clamped server-side regardless of AI output.",
+    "Operator-applied control-panel settings always override advisor cache.",
+    "Advisor recommendation is never auto-applied — operator must call POST /api/apply-ai-recommendation."
+  ],
+
+  "env_additions": [
+    {
+      "var": "XAI_API_KEY",
+      "required": false,
+      "effect": "Enables Grok 4 advisor. If absent, advisor endpoints return null recommendation."
+    },
+    {
+      "var": "AI_ADVISOR_ENABLED",
+      "default": "true",
+      "effect": "Kill-switch. Set false to disable advisor without removing the API key."
+    },
+    {
+      "var": "AI_ADVISOR_TIMEOUT_MS",
+      "default": "8000",
+      "effect": "Per-call timeout in ms. Advisor skips on timeout."
+    }
+  ],
+
+  "kpi_decision_framework": {
+    "description": "How individual signals should influence the recommendation.",
+    "signals": [
+      {
+        "signal": "avgNewPostsPerHour",
+        "direction": "high → shorten interval; low → lengthen interval",
+        "weight": "primary"
+      },
+      {
+        "signal": "sovPercent",
+        "direction": "low (<5%) → shorten interval, lower gap; high (>20%) → lengthen interval",
+        "weight": "primary"
+      },
+      {
+        "signal": "gapPolicyRate",
+        "direction": "high (>60%) → lower gap threshold; may indicate threshold is miscalibrated",
+        "weight": "secondary"
+      },
+      {
+        "signal": "errorRate",
+        "direction": "high (>30%) → recommend conservative interval (don't hammer); surface in reasoning",
+        "weight": "secondary"
+      },
+      {
+        "signal": "volatility",
+        "direction": "high → use median interval, avoid extremes; penalizes confidence",
+        "weight": "modifier"
+      },
+      {
+        "signal": "currentHour vs hourlyProfile peak",
+        "direction": "current hour near daily peak → shorten interval; off-peak → lengthen",
+        "weight": "modifier"
+      },
+      {
+        "signal": "confidence (trend insights)",
+        "direction": "low → stay close to current settings",
+        "weight": "modifier"
+      }
+    ]
+  }
+}

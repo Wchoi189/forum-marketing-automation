@@ -40,6 +40,12 @@ type EnvConfig = {
   SCHEDULER_JITTER_MODE: "none" | "uniform";
   /** Substring used to identify our posts in board snapshots (case-insensitive includes match). */
   OUR_AUTHOR_SUBSTRING: string;
+  /** xAI API key for Grok 4 advisor. Null when absent — advisor silently disabled. */
+  XAI_API_KEY: string | null;
+  /** Kill-switch for AI advisor without removing the API key. */
+  AI_ADVISOR_ENABLED: boolean;
+  /** Per-call timeout in ms for Grok advisor. Advisor skips on timeout. */
+  AI_ADVISOR_TIMEOUT_MS: number;
 };
 
 function requiredString(name: string): string {
@@ -92,6 +98,11 @@ function optionalString(name: string, fallback: string): string {
   return raw && raw.length > 0 ? raw : fallback;
 }
 
+function optionalStringOrNull(name: string): string | null {
+  const raw = process.env[name]?.trim();
+  return raw && raw.length > 0 ? raw : null;
+}
+
 function optionalJitterMode(name: string, fallback: "none" | "uniform"): "none" | "uniform" {
   const raw = process.env[name]?.trim().toLowerCase();
   if (!raw) return fallback;
@@ -142,6 +153,9 @@ function buildEnv(): EnvConfig {
     SCHEDULER_JITTER_PERCENT: optionalInt("SCHEDULER_JITTER_PERCENT", 15, 0, 50),
     SCHEDULER_JITTER_MODE: optionalJitterMode("SCHEDULER_JITTER_MODE", "uniform"),
     OUR_AUTHOR_SUBSTRING: optionalString("OUR_AUTHOR_SUBSTRING", "shareplan"),
+    XAI_API_KEY: optionalStringOrNull("XAI_API_KEY"),
+    AI_ADVISOR_ENABLED: optionalBool("AI_ADVISOR_ENABLED", true),
+    AI_ADVISOR_TIMEOUT_MS: optionalInt("AI_ADVISOR_TIMEOUT_MS", 8000, 1000, 30000),
   };
 }
 

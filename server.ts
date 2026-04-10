@@ -24,6 +24,13 @@ import { readPublisherHistory } from "./lib/publisherHistory.js";
 import { applyScheduleJitter, type ScheduleJitterMode } from "./lib/scheduleJitter.js";
 import { buildTrendInsightsPayload, computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoice, shareOfVoiceMultiplierFromSoV, COMBINED_MULTIPLIER_MIN, COMBINED_MULTIPLIER_MAX } from "./lib/trendInsights.js";
 import { getPublisherStatus } from "./lib/publisherStepStore.js";
+import {
+  buildAdvisorContext,
+  callGrokAdvisor,
+  getAdvisorCache,
+  setAdvisorCache,
+} from "./lib/aiAdvisor.js";
+import { readPublisherHistory as readHistoryForAdvisor } from "./lib/publisherHistory.js";
 
 type BotDeps = {
   runObserver: typeof runObserver;
@@ -367,6 +374,53 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     }
   });
 
+  app.get("/api/ai-recommendation", async (req, res) => {
+    if (!ENV.AI_ADVISOR_ENABLED || !ENV.XAI_API_KEY) {
+      res.json({ recommendation: null, contextBuiltAt: null, source: "disabled" });
+      return;
+    }
+
+    const cached = getAdvisorCache();
+    if (cached) {
+      res.json({ recommendation: cached.result, contextBuiltAt: cached.cachedAt, source: "cached" });
+      return;
+    }
+
+    // No cache — build fresh
+    try {
+      const [logs, history, controlPanelState] = await Promise.all([
+        deps.getLogs(),
+        readHistoryForAdvisor(10),
+        scheduler ? scheduler.getState() : null,
+      ]);
+
+      const trend = buildTrendInsightsPayload(logs, {
+        windowDays: controlPanelState?.trendWindowDays ?? 7,
+        referenceBaseIntervalMinutes: controlPanelState?.baseIntervalMinutes ?? ENV.RUN_INTERVAL_MINUTES,
+        trendAdaptiveEnabled: controlPanelState?.trendAdaptiveEnabled ?? true,
+        ourAuthorSubstring: ENV.OUR_AUTHOR_SUBSTRING,
+      });
+
+      const latestLog = logs[0] ?? null;
+      const context = buildAdvisorContext(trend, history, latestLog, {
+        baseIntervalMinutes: controlPanelState?.baseIntervalMinutes ?? ENV.RUN_INTERVAL_MINUTES,
+        scheduleJitterPercent: controlPanelState?.scheduleJitterPercent ?? ENV.SCHEDULER_JITTER_PERCENT,
+        enabled: controlPanelState?.enabled ?? true,
+        trendAdaptiveEnabled: controlPanelState?.trendAdaptiveEnabled ?? true,
+      });
+
+      const result = await callGrokAdvisor(context);
+      setAdvisorCache(result);
+
+      const freshCache = getAdvisorCache()!;
+      res.json({ recommendation: freshCache.result, contextBuiltAt: freshCache.cachedAt, source: "fresh" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error({ event: "ai_advisor_endpoint_failed", err }, "GET /api/ai-recommendation failed");
+      res.json({ recommendation: null, contextBuiltAt: null, source: "error", error: msg });
+    }
+  });
+
   app.get("/api/drafts", (req, res) => {
     res.json([
       {
@@ -393,6 +447,47 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
         res.status(500).json({ success: false, action: 'observer', error: log.error, log });
       } else {
         res.json({ success: true, action: 'observer', log });
+
+        // Fire-and-forget: refresh AI advisor cache after successful observer run
+        if (ENV.AI_ADVISOR_ENABLED && ENV.XAI_API_KEY) {
+          void (async () => {
+            try {
+              const [logs, history, controlPanelState] = await Promise.all([
+                deps.getLogs(),
+                readHistoryForAdvisor(10),
+                scheduler ? scheduler.getState() : null,
+              ]);
+              const trend = buildTrendInsightsPayload(logs, {
+                windowDays: controlPanelState?.trendWindowDays ?? 7,
+                referenceBaseIntervalMinutes: controlPanelState?.baseIntervalMinutes ?? ENV.RUN_INTERVAL_MINUTES,
+                trendAdaptiveEnabled: controlPanelState?.trendAdaptiveEnabled ?? true,
+                ourAuthorSubstring: ENV.OUR_AUTHOR_SUBSTRING,
+              });
+              const latestLog = logs[0] ?? null;
+              const context = buildAdvisorContext(trend, history, latestLog, {
+                baseIntervalMinutes: controlPanelState?.baseIntervalMinutes ?? ENV.RUN_INTERVAL_MINUTES,
+                scheduleJitterPercent: controlPanelState?.scheduleJitterPercent ?? ENV.SCHEDULER_JITTER_PERCENT,
+                enabled: controlPanelState?.enabled ?? true,
+                trendAdaptiveEnabled: controlPanelState?.trendAdaptiveEnabled ?? true,
+              });
+              const result = await callGrokAdvisor(context);
+              setAdvisorCache(result);
+              if (result.ok) {
+                const rec = result.recommendation;
+                logger.info(
+                  { event: "ai_advisor_refresh", intervalMinutes: rec.recommendedIntervalMinutes, gapThreshold: rec.recommendedGapThreshold, confidence: rec.confidence },
+                  "[AI Advisor] Recommendation cached after observer run"
+                );
+                logger.debug({ event: "ai_advisor_reasoning", reasoning: rec.reasoning }, "[AI Advisor] Reasoning");
+              } else {
+                const { reason } = result as { ok: false; reason: string };
+                logger.warn({ event: "ai_advisor_refresh_failed", reason }, "[AI Advisor] Advisory call failed after observer run");
+              }
+            } catch (err) {
+              logger.warn({ event: "ai_advisor_refresh_error", err }, "[AI Advisor] Unexpected error in fire-and-forget advisor refresh");
+            }
+          })();
+        }
       }
     } catch (error: any) {
       logger.error(

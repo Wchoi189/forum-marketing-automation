@@ -1,0 +1,126 @@
+{
+  "spec_id": "nl-webhook-v1",
+  "purpose": "Accept natural language commands via HTTP webhook and translate them to existing API actions using Grok 4, eliminating the need for SSH-based config changes.",
+  "design_intent": "The webhook is a thin translation layer only. It classifies intent then dispatches to already-validated API endpoints. It adds no new execution paths — if an intent maps to a forbidden action, the existing endpoint rejects it.",
+  "change_impact": "Adds POST /api/nl-command. No changes to existing endpoints or scheduler logic.",
+  "parent_spec_ref": "ai-advisor-v1.json",
+  "api_contract_ref": "api-endpoint-catalog.json",
+
+  "model": {
+    "provider": "xAI",
+    "model_id": "grok-4",
+    "auth_env_var": "XAI_API_KEY",
+    "temperature": 0,
+    "max_tokens": 256,
+    "response_format": "json_object",
+    "note": "Same API key as advisor. Shares XAI_API_KEY env var."
+  },
+
+  "new_endpoint": {
+    "method": "POST",
+    "path": "/api/nl-command",
+    "intent": "Parse a natural language instruction and dispatch to an existing API endpoint.",
+    "auth": "Same bearer token / CORS rules as other /api/* routes.",
+    "body": {
+      "message": "string — the natural language instruction",
+      "source": "string — origin identifier (e.g. 'telegram', 'discord', 'curl')",
+      "dry_run": "boolean (optional, default false) — if true, return intended_action without executing"
+    },
+    "response_success": {
+      "intent": "string — classified intent code",
+      "dispatched_to": "string — API path called",
+      "result": "object — response from the dispatched endpoint",
+      "dry_run": "boolean"
+    },
+    "response_error": {
+      "422": "Unknown or unsupported intent",
+      "400": "Malformed body or missing message field",
+      "503": "XAI_API_KEY absent or model call failed"
+    }
+  },
+
+  "supported_intents": [
+    {
+      "intent": "pause_scheduler",
+      "example_phrases": ["pause publishing", "stop auto-posting", "halt the scheduler"],
+      "dispatches_to": "POST /api/control-panel",
+      "payload": { "schedulerEnabled": false }
+    },
+    {
+      "intent": "resume_scheduler",
+      "example_phrases": ["resume publishing", "start the scheduler", "turn auto-posting back on"],
+      "dispatches_to": "POST /api/control-panel",
+      "payload": { "schedulerEnabled": true }
+    },
+    {
+      "intent": "force_publish",
+      "example_phrases": ["post now", "force a publish", "publish immediately"],
+      "dispatches_to": "POST /api/run-publisher",
+      "payload": { "force": true },
+      "guard": "MANUAL_OVERRIDE_ENABLED must be true; reject with 422 otherwise"
+    },
+    {
+      "intent": "set_interval",
+      "example_phrases": ["set interval to 45 minutes", "publish every 2 hours", "change schedule to 90m"],
+      "dispatches_to": "POST /api/control-panel",
+      "payload": { "intervalMinutes": "<extracted_value>" },
+      "extraction": "Grok 4 must extract numeric value; if ambiguous return 422"
+    },
+    {
+      "intent": "set_gap_threshold",
+      "example_phrases": ["lower the gap to 3", "set gap threshold to 5 posts", "require 8 posts before posting"],
+      "dispatches_to": "POST /api/control-panel + writeRuntimeGapPersistedOverride",
+      "payload": { "observerGapThresholdMin": "<extracted_value>" }
+    },
+    {
+      "intent": "apply_ai_recommendation",
+      "example_phrases": ["apply the AI recommendation", "use the AI suggestion", "let the AI decide"],
+      "dispatches_to": "POST /api/apply-ai-recommendation",
+      "payload": {}
+    },
+    {
+      "intent": "status_query",
+      "example_phrases": ["what's happening", "give me a status update", "how is publishing going"],
+      "dispatches_to": "GET /api/control-panel + GET /api/trend-insights + GET /api/publisher-history?limit=5",
+      "note": "Aggregates responses and returns AI-generated plain-text summary in result.summary field. No mutations."
+    }
+  ],
+
+  "classification_prompt": {
+    "role": "You are a command parser for a forum automation bot. Classify the user's instruction into one of the supported intents and extract any numeric parameters. Return a JSON object only.",
+    "output_schema": {
+      "intent": "one of the supported intent codes or 'unknown'",
+      "extracted_params": "object with any numeric values extracted (e.g. { intervalMinutes: 45 })",
+      "confidence": "high | medium | low",
+      "reason": "one sentence — why this classification"
+    }
+  },
+
+  "env_additions": [
+    {
+      "var": "NL_WEBHOOK_ENABLED",
+      "default": "true",
+      "effect": "Kill-switch for the /api/nl-command endpoint. Returns 503 when false."
+    },
+    {
+      "var": "NL_WEBHOOK_SECRET",
+      "required": false,
+      "effect": "If set, requests must include Authorization: Bearer <NL_WEBHOOK_SECRET>. Recommended for any external exposure."
+    }
+  ],
+
+  "safety_constraints": [
+    "Extracted numeric params are validated against existing endpoint schemas before dispatch.",
+    "force_publish intent requires MANUAL_OVERRIDE_ENABLED=true — otherwise return 422 with reason.",
+    "status_query is always safe (read-only) — no guard needed.",
+    "dry_run=true returns intended_action without calling any downstream endpoint.",
+    "Unknown intent → 422, no dispatch.",
+    "Source field is logged for audit but never influences dispatch logic."
+  ],
+
+  "telegram_adapter_note": {
+    "description": "Optional: a thin Telegram bot (node-telegram-bot-api) that forwards messages to POST /api/nl-command. Out of scope for sprint plan but architecturally trivial — adapter is ~30 lines.",
+    "env_var": "TELEGRAM_BOT_TOKEN",
+    "scope": "Not included in Sprint 3. Can be added as Sprint 4 if needed."
+  }
+}

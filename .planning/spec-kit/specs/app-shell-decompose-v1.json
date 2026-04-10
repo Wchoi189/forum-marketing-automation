@@ -1,0 +1,117 @@
+{
+  "$schema": "../manifest/schemas/spec.contract.json",
+  "id": "app-shell-decompose-v1",
+  "title": "App Shell Decomposition — Extract Pages, Components, Hooks",
+  "version": 1,
+  "status": "proposed",
+  "purpose": "Decompose src/App.tsx (1,832 lines) into a route-driven shell with extracted pages, presentational components, and data hooks. Eliminate God-component anti-pattern.",
+  "design_intent": "One page, one primary decision. Keep App.tsx as a thin dispatcher (~50 lines): sidebar nav, header bar, and <Outlet> or route-based conditional rendering. All data fetching, forms, charts, and modals live in their own files.",
+  "scope": {
+    "in_scope": [
+      "Extract ObserverControlState, AutoPublisherControlState, PublisherControlState, ControlPanelState types to src/lib/controlPanel.ts",
+      "Extract applyRuntimePreset, gapPolicySourceLabel, stripTaggedErrorPrefix to src/lib/controlPanel.ts",
+      "Extract all fetch* closures and polling logic into custom hooks (useAppData, usePublisherPoll)",
+      "Extract LogDetailModal and OverrideConfirmModal to src/components/",
+      "Extract OverviewPage (KPI strip, trend chart, publisher runs log, pipeline canvas)",
+      "Extract ControlsPage (runtime control panel with observer/scheduler/publisher tabs)",
+      "Extract OperationsPage (competitor table, post velocity chart, activity log, drafts)",
+      "Extract PublisherRunsPage (dedicated publisher history view)",
+      "Extract sub-components: KpiStrip, TrendInsightsChart, ControlPanelForm, CompetitorTable, DraftCards, PublisherRunsLog, AppSidebar",
+      "App.tsx becomes ~50-line route dispatcher"
+    ],
+    "out_of_scope": [
+      "No changes to backend API contracts (server.ts endpoints unchanged)",
+      "No visual/UX redesign — preserve existing Tailwind classes and motion animations",
+      "No state management library migration (stay with useState/useEffect)",
+      "PipelineCanvas.tsx already extracted — no changes needed"
+    ]
+  },
+  "constraints": [
+    "Zero visual regression — component output must match current App.tsx rendering exactly",
+    "No changes to API endpoint URLs or request/response shapes",
+    "All extracted files must use existing import conventions (relative paths, no path aliases)",
+    "controlDirty flag behavior must be preserved (onChangeCapture pattern or explicit equivalent)",
+    "30-second polling interval must continue to work after extraction",
+    "Publisher step polling (start/stop) must remain coupled to autoPublisher.running state"
+  ],
+  "change_impact": {
+    "affected_files": ["src/App.tsx (primary target, ~1,832 → ~50 lines)"],
+    "new_files": [
+      "src/lib/controlPanel.ts (types + utils)",
+      "src/hooks/useAppData.ts (data fetching + polling)",
+      "src/hooks/usePublisherPoll.ts (publisher step polling)",
+      "src/components/AppSidebar.tsx",
+      "src/components/KpiStrip.tsx",
+      "src/components/TrendInsightsChart.tsx",
+      "src/components/ControlPanelForm.tsx",
+      "src/components/CompetitorTable.tsx",
+      "src/components/DraftCards.tsx",
+      "src/components/PublisherRunsLog.tsx",
+      "src/components/LogDetailModal.tsx",
+      "src/components/OverrideConfirmModal.tsx",
+      "src/pages/OverviewPage.tsx",
+      "src/pages/ControlsPage.tsx",
+      "src/pages/OperationsPage.tsx",
+      "src/pages/PublisherRunsPage.tsx"
+    ],
+    "risk": "medium — large file moves but no logic changes; lint + tsc + test gate required"
+  },
+  "acceptance_criteria": [
+    "npm run lint — zero errors",
+    "tsc --noEmit — zero errors",
+    "npm run test — all existing tests pass",
+    "App.tsx is ≤ 80 lines",
+    "All 16 new files exist and have coherent single-responsibility",
+    "No import cycles or circular dependencies",
+    "Visual output unchanged (manual smoke test: sidebar nav, header, overview page render)"
+  ],
+  "execution_phases": [
+    {
+      "phase": 1,
+      "name": "Types + Utils",
+      "description": "Extract control panel types, applyRuntimePreset, gapPolicySourceLabel, stripTaggedErrorPrefix to src/lib/controlPanel.ts",
+      "verification": "tsc --noEmit passes, no import errors in App.tsx"
+    },
+    {
+      "phase": 2,
+      "name": "Custom Hooks",
+      "description": "Extract all fetch* functions into useAppData hook. Extract publisher polling into usePublisherPoll hook. App.tsx consumes hooks instead of inline functions.",
+      "verification": "Polling still starts/stops correctly with autoPublisher.running. 30s interval continues."
+    },
+    {
+      "phase": 3,
+      "name": "Modals",
+      "description": "Extract LogDetailModal and OverrideConfirmModal to src/components/. Pass selectedLog/showOverrideModal as props.",
+      "verification": "Modal open/close behavior unchanged. Escape/backdrop dismiss works."
+    },
+    {
+      "phase": 4,
+      "name": "Pages",
+      "description": "Extract OverviewPage, ControlsPage, OperationsPage, PublisherRunsPage. Each page receives props from hooks/App state.",
+      "verification": "Each route renders identically. controlDirty + saveControlPanel wiring intact on ControlsPage."
+    },
+    {
+      "phase": 5,
+      "name": "Sub-Components",
+      "description": "Extract KpiStrip, TrendInsightsChart, ControlPanelForm, CompetitorTable, DraftCards, PublisherRunsLog, AppSidebar from page components.",
+      "verification": "No visual regression. ControlPanelForm onChange still sets controlDirty."
+    },
+    {
+      "phase": 6,
+      "name": "Route Shell",
+      "description": "App.tsx reduced to sidebar + header + route conditional rendering (~50-80 lines).",
+      "verification": "All 5 routes render correctly. NavLink active states preserved."
+    },
+    {
+      "phase": 7,
+      "name": "Verification Gate",
+      "description": "Run npm run lint, tsc --noEmit, npm run test. Manual smoke test.",
+      "verification": "All gates pass. Commit with descriptive message."
+    }
+  ],
+  "session_boundary": {
+    "recommended_split_after_phase": 2,
+    "rationale": "Phase 1-2 extract the data layer (types, utils, hooks). Once hooks are clean, Phase 3-6 is purely component extraction — a different cognitive mode. Handover after Phase 2 gives the next session a clean data API to work against.",
+    "next_session_starts_at": "Phase 3 — Extract modals, then pages, then sub-components"
+  }
+}
