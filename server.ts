@@ -13,6 +13,7 @@ import {
   runPublisher,
   setObserverControls,
   setPublisherControls,
+  initBotControls,
   type ObserverControlsWithGap
 } from "./bot.js";
 import { ENV } from "./config/env.js";
@@ -30,6 +31,7 @@ import {
   getAdvisorCache,
   setAdvisorCache,
   markAdvisorCacheApplied,
+  getAdvisorTokenStats,
 } from "./lib/aiAdvisor.js";
 import { readPublisherHistory as readHistoryForAdvisor } from "./lib/publisherHistory.js";
 import {
@@ -38,6 +40,10 @@ import {
   extractIntervalMinutes,
   extractGapThreshold,
 } from "./lib/nlWebhook.js";
+import {
+  readPersistedSchedulerControls,
+  persistAllControlPanelSettings,
+} from "./lib/runtimeControls.js";
 
 type BotDeps = {
   runObserver: typeof runObserver;
@@ -51,6 +57,7 @@ type SchedulerController = ReturnType<typeof startScheduler>;
 
 type ControlPanelResponse = {
   preset: "balanced" | "night-safe" | "day-aggressive";
+  nlWebhookEnabled: boolean;
   observer: ObserverControlsWithGap;
   publisher: ReturnType<typeof getPublisherControls>;
   autoPublisher: {
@@ -226,6 +233,7 @@ const PRESET_CONFIG: Record<
 
 export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerController) {
   const app = express();
+  let nlWebhookEnabledRuntime: boolean = ENV.NL_WEBHOOK_ENABLED;
 
   app.use(cors());
   app.use(express.json());
@@ -426,6 +434,10 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       logger.error({ event: "ai_advisor_endpoint_failed", err }, "GET /api/ai-recommendation failed");
       res.json({ recommendation: null, contextBuiltAt: null, source: "error", error: msg });
     }
+  });
+
+  app.get("/api/ai-token-stats", (_req, res) => {
+    res.json(getAdvisorTokenStats());
   });
 
   app.post("/api/apply-ai-recommendation", async (req, res) => {
@@ -630,6 +642,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     };
     const payload: ControlPanelResponse = {
       preset: scheduler?.getPreset() ?? "balanced",
+      nlWebhookEnabled: nlWebhookEnabledRuntime,
       observer: await getObserverControlsWithGap(),
       publisher: getPublisherControls(),
       autoPublisher: autoPublisherState
@@ -640,10 +653,15 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   app.post("/api/control-panel", async (req, res) => {
     const body = (req.body ?? {}) as {
       preset?: ControlPanelPreset;
+      nlWebhookEnabled?: boolean;
       observer?: Partial<ObserverControlsWithGap>;
       publisher?: Partial<ReturnType<typeof getPublisherControls>>;
       autoPublisher?: Partial<AutoPublisherControls> & { enabled?: boolean };
     };
+
+    if (typeof body.nlWebhookEnabled === "boolean") {
+      nlWebhookEnabledRuntime = body.nlWebhookEnabled;
+    }
 
     const rawObserver = body.observer ?? {};
     const gapPersistedOverride = (rawObserver as { gapPersistedOverride?: number | null }).gapPersistedOverride;
@@ -715,10 +733,44 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       targetPublishIntervalMinutes: 0,
       running: false
     };
+
+    // Persist all settings so they survive server restarts.
+    const currentObserver = await getObserverControlsWithGap();
+    const currentPublisher = getPublisherControls();
+    persistAllControlPanelSettings({
+      schedulerEnabled: autoPublisherState.enabled,
+      schedulerControls: {
+        baseIntervalMinutes: autoPublisherState.baseIntervalMinutes,
+        quietHoursStart: autoPublisherState.quietHoursStart,
+        quietHoursEnd: autoPublisherState.quietHoursEnd,
+        quietHoursMultiplier: autoPublisherState.quietHoursMultiplier,
+        activeHoursStart: autoPublisherState.activeHoursStart,
+        activeHoursEnd: autoPublisherState.activeHoursEnd,
+        activeHoursMultiplier: autoPublisherState.activeHoursMultiplier,
+        trendAdaptiveEnabled: autoPublisherState.trendAdaptiveEnabled,
+        trendWindowDays: autoPublisherState.trendWindowDays,
+        trendRecalibrationDays: autoPublisherState.trendRecalibrationDays,
+        scheduleJitterPercent: autoPublisherState.scheduleJitterPercent,
+        scheduleJitterMode: autoPublisherState.scheduleJitterMode,
+        targetPublishIntervalMinutes: autoPublisherState.targetPublishIntervalMinutes,
+      },
+      preset: scheduler?.getPreset() ?? "balanced",
+      observerControls: {
+        enabled: currentObserver.enabled,
+        minPreVisitDelayMs: currentObserver.minPreVisitDelayMs,
+        maxPreVisitDelayMs: currentObserver.maxPreVisitDelayMs,
+        minIntervalBetweenRunsMs: currentObserver.minIntervalBetweenRunsMs,
+      },
+      publisherControls: {
+        draftItemIndex: currentPublisher.draftItemIndex,
+      },
+    }).catch((err) => logger.warn({ event: 'control_panel_persist_failed', err }, '[ControlPanel] Failed to persist settings to disk'));
+
     const payload: ControlPanelResponse = {
       preset: scheduler?.getPreset() ?? "balanced",
-      observer: await getObserverControlsWithGap(),
-      publisher: getPublisherControls(),
+      nlWebhookEnabled: nlWebhookEnabledRuntime,
+      observer: currentObserver,
+      publisher: currentPublisher,
       autoPublisher: autoPublisherState
     };
     res.json(payload);
@@ -729,8 +781,8 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   // ---------------------------------------------------------------------------
 
   app.post("/api/nl-command", async (req, res) => {
-    // Kill-switch guard
-    if (!ENV.NL_WEBHOOK_ENABLED) {
+    // Kill-switch guard (runtime-toggleable; falls back to env var at startup)
+    if (!nlWebhookEnabledRuntime) {
       res.status(503).json({ error: "nl_webhook_disabled" });
       return;
     }
@@ -921,29 +973,35 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   return app;
 }
 
-export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: number = ENV.RUN_INTERVAL_MINUTES) {
-  let preset: ControlPanelPreset = "balanced";
-  let controls = normalizeAutoPublisherControls(
-    {
-      enabled: true,
-      baseIntervalMinutes: Math.max(1, intervalMinutes),
-      quietHoursStart: 3,
-      quietHoursEnd: 5,
-      quietHoursMultiplier: 1.8,
-      activeHoursStart: 8,
-      activeHoursEnd: 23,
-      activeHoursMultiplier: 0.8,
-      trendAdaptiveEnabled: true,
-      trendWindowDays: 7,
-      trendRecalibrationDays: 7,
-      scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
-      scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
-      targetPublishIntervalMinutes: 0
-    },
-    { ...PRESET_CONFIG.balanced.autoPublisher, baseIntervalMinutes: Math.max(1, intervalMinutes) }
-  );
+export function startScheduler(
+  deps: BotDeps = defaultDeps,
+  intervalMinutes: number = ENV.RUN_INTERVAL_MINUTES,
+  persistedState?: Partial<AutoPublisherControls & { enabled: boolean; preset: string }>
+) {
+  const resolvedPreset =
+    persistedState?.preset && PRESET_CONFIG[persistedState.preset as ControlPanelPreset]
+      ? (persistedState.preset as ControlPanelPreset)
+      : "balanced";
+  let preset: ControlPanelPreset = resolvedPreset;
+  const baseDefaults: AutoPublisherControls = {
+    enabled: persistedState?.enabled ?? true,
+    baseIntervalMinutes: Math.max(1, persistedState?.baseIntervalMinutes ?? intervalMinutes),
+    quietHoursStart: persistedState?.quietHoursStart ?? 3,
+    quietHoursEnd: persistedState?.quietHoursEnd ?? 5,
+    quietHoursMultiplier: persistedState?.quietHoursMultiplier ?? 1.8,
+    activeHoursStart: persistedState?.activeHoursStart ?? 8,
+    activeHoursEnd: persistedState?.activeHoursEnd ?? 23,
+    activeHoursMultiplier: persistedState?.activeHoursMultiplier ?? 0.8,
+    trendAdaptiveEnabled: persistedState?.trendAdaptiveEnabled ?? true,
+    trendWindowDays: persistedState?.trendWindowDays ?? 7,
+    trendRecalibrationDays: persistedState?.trendRecalibrationDays ?? 7,
+    scheduleJitterPercent: persistedState?.scheduleJitterPercent ?? ENV.SCHEDULER_JITTER_PERCENT,
+    scheduleJitterMode: persistedState?.scheduleJitterMode ?? ENV.SCHEDULER_JITTER_MODE,
+    targetPublishIntervalMinutes: persistedState?.targetPublishIntervalMinutes ?? 0,
+  };
+  let controls = normalizeAutoPublisherControls(baseDefaults);
   let timer: NodeJS.Timeout | null = null;
-  let enabled = true;
+  let enabled = baseDefaults.enabled;
   let running = false;
   let nextTickEta: string | null = null;
   let lastTrendRecalculatedAt = 0;
@@ -1045,9 +1103,23 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
       })();
     }, nextMinutes * 60 * 1000);
   };
-  void scheduleNext();
+  // Fire an initial tick shortly after startup so the publisher doesn't sit idle for
+  // a full interval after every server restart. The short delay lets the server finish
+  // binding and Vite initialise before Playwright launches.
+  const STARTUP_TICK_DELAY_MS = 10_000;
+  nextTickEta = new Date(Date.now() + STARTUP_TICK_DELAY_MS).toISOString();
+  timer = setTimeout(() => {
+    void (async () => {
+      nextTickEta = null;
+      await tick();
+      await scheduleNext();
+    })();
+  }, STARTUP_TICK_DELAY_MS);
 
-  logger.info({ event: LOG_EVENT.schedulerStarted, baseIntervalMinutes: controls.baseIntervalMinutes }, `[Scheduler] Started with interval ${controls.baseIntervalMinutes} minute(s).`);
+  logger.info(
+    { event: LOG_EVENT.schedulerStarted, baseIntervalMinutes: controls.baseIntervalMinutes, startupTickDelayMs: STARTUP_TICK_DELAY_MS },
+    `[Scheduler] Started — first tick in ${STARTUP_TICK_DELAY_MS / 1000}s, then every ${controls.baseIntervalMinutes} minute(s).`
+  );
 
   return {
     stop: () => {
@@ -1081,8 +1153,8 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
       void scheduleNext();
     },
     getState: async () => ({
-      enabled,
       ...controls,
+      enabled,
       effectiveIntervalMinutes: await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes),
       running,
       nextTickEta: enabled ? nextTickEta : null
@@ -1093,7 +1165,16 @@ export function startScheduler(deps: BotDeps = defaultDeps, intervalMinutes: num
 export async function startServer() {
   await validateRuntimeContracts();
 
-  const scheduler = startScheduler();
+  // Load persisted control panel settings so state survives server restarts.
+  const [persistedScheduler] = await Promise.all([
+    readPersistedSchedulerControls(),
+    initBotControls(),
+  ]);
+  const scheduler = startScheduler(defaultDeps, ENV.RUN_INTERVAL_MINUTES, persistedScheduler);
+  if (Object.keys(persistedScheduler).length > 0) {
+    logger.info({ event: 'scheduler_controls_loaded', ...persistedScheduler }, '[Scheduler] Restored persisted controls');
+  }
+
   const app = createApp(defaultDeps, scheduler);
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

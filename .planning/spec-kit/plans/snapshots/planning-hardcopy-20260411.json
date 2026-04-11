@@ -1,0 +1,36 @@
+{
+  "snapshot_id": "planning-hardcopy-20260411",
+  "created_at": "2026-04-11",
+  "purpose": "Persist a hard copy of the planning brain structure and authoritative sources.",
+  "authoritative_roots": {
+    "planning_root": ".planning/spec-kit",
+    "spec_root": ".planning/spec-kit/specs",
+    "plan_root": ".planning/spec-kit/plans"
+  },
+  "canonical_sources": {
+    "constitution": ".planning/spec-kit/constitution.md",
+    "folder_conventions": ".planning/spec-kit/specs/folder-conventions.json",
+    "project_manifest": ".planning/spec-kit/manifest/project.manifest.json",
+    "execution_loop_contract": ".planning/spec-kit/specs/execution-loop.contract.json",
+    "planning_execution_loop": ".planning/spec-kit/plans/execution-loop.plan.json",
+    "consolidation_plan": ".planning/spec-kit/plans/planning-brain-consolidation.plan.json"
+  },
+  "active_plan_indexes": [
+    ".planning/spec-kit/plans/README.md",
+    ".planning/spec-kit/plans/roadmaps",
+    ".planning/spec-kit/plans/sprints",
+    ".planning/spec-kit/plans/tasks"
+  ],
+  "anomalies": [
+    {
+      "id": "A-001",
+      "description": "Spec outside planning root: .planning/specs/scheduler-ux-refactor.md",
+      "action": "Move into .planning/spec-kit/specs or archive with a redirect note."
+    }
+  ],
+  "status": {
+    "last_verified": "2026-04-11",
+    "verified_by": "unassigned",
+    "notes": "Initial hard copy snapshot for consolidation tracking."
+  }
+}

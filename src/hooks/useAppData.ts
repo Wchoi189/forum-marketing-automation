@@ -86,6 +86,7 @@ export function useAppData(): UseAppDataReturn {
   // Real publisher step — updated by polling /api/publisher-status during a run
   const [realPublisherStep, setRealPublisherStep] = useState<PipelineStepId | null>(null);
   const publisherPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevPublisherRunningRef = useRef(false);
 
   // Fetch functions
   const fetchStats = useCallback(async () => {
@@ -217,7 +218,7 @@ export function useAppData(): UseAppDataReturn {
       .catch(() => {});
   }, [fetchLogs, fetchStats, fetchAiRecommendation]);
 
-  // 30-second polling interval
+  // Initial data load on mount + 30-second refresh for non-critical data
   useEffect(() => {
     fetchLogs();
     fetchDrafts();
@@ -237,7 +238,29 @@ export function useAppData(): UseAppDataReturn {
     return () => clearInterval(interval);
   }, [fetchLogs, fetchDrafts, fetchStats, fetchControlPanel, fetchPublisherHistory, fetchPlaybook, fetchAiRecommendation, silentRefreshObserver]);
 
-  // Publisher step polling
+  // Periodic observer auto-refresh every 5 minutes so board state never goes stale
+  useEffect(() => {
+    const interval = setInterval(() => {
+      silentRefreshObserver();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [silentRefreshObserver]);
+
+  // Re-sync control panel + logs when the tab regains focus after being in the background.
+  // Timers in background tabs are heavily throttled by browsers, so polling may be stale.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchControlPanel();
+        fetchLogs();
+        fetchPublisherHistory();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [fetchControlPanel, fetchLogs, fetchPublisherHistory]);
+
+  // Publisher step polling (fine-grained, used during active publish runs)
   const startPublisherPolling = useCallback(() => {
     if (publisherPollRef.current) return;
     publisherPollRef.current = setInterval(async () => {
@@ -262,6 +285,37 @@ export function useAppData(): UseAppDataReturn {
       publisherPollRef.current = null;
     }
   }, []);
+
+  // Fast 5-second poll of publisher-status to detect scheduler auto-publish ticks.
+  // This endpoint is pure in-memory (zero disk I/O) so the overhead is negligible.
+  // When running transitions true→false, we refresh logs and history to show updated data.
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/publisher-status');
+        const data: { step: PipelineStepId | null; running: boolean } = await res.json();
+        const wasRunning = prevPublisherRunningRef.current;
+        prevPublisherRunningRef.current = data.running;
+
+        if (data.running) {
+          // Auto-publisher just started or is mid-run — activate step polling
+          startPublisherPolling();
+          if (data.step) setRealPublisherStep(data.step);
+        } else if (wasRunning && !data.running) {
+          // Run just finished — refresh data to reflect the new state
+          stopPublisherPolling();
+          setRealPublisherStep(null);
+          fetchLogs();
+          fetchStats();
+          fetchControlPanel();
+          fetchPublisherHistory();
+        }
+      } catch {
+        // ignore poll errors
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [startPublisherPolling, stopPublisherPolling, fetchLogs, fetchStats, fetchControlPanel, fetchPublisherHistory]);
 
   // When the scheduler auto-publishes, detect running=true and start step polling
   useEffect(() => {

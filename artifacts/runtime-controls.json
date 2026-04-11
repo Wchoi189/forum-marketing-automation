@@ -1,3 +1,23 @@
 {
-  "observerGapThresholdMin": 4
+  "schedulerEnabled": true,
+  "schedulerBaseIntervalMinutes": 60,
+  "schedulerQuietHoursStart": 3,
+  "schedulerQuietHoursEnd": 5,
+  "schedulerQuietHoursMultiplier": 1.8,
+  "schedulerActiveHoursStart": 8,
+  "schedulerActiveHoursEnd": 23,
+  "schedulerActiveHoursMultiplier": 0.8,
+  "schedulerTrendAdaptiveEnabled": true,
+  "schedulerTrendWindowDays": 7,
+  "schedulerTrendRecalibrationDays": 7,
+  "schedulerJitterPercent": 15,
+  "schedulerJitterMode": "uniform",
+  "schedulerTargetPublishIntervalMinutes": 0,
+  "preset": "balanced",
+  "observerEnabled": true,
+  "observerMinPreVisitDelayMs": 0,
+  "observerMaxPreVisitDelayMs": 0,
+  "observerMinIntervalBetweenRunsMs": 0,
+  "publisherDraftItemIndex": 1,
+  "observerGapThresholdMin": 5
 }

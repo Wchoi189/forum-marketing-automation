@@ -13,7 +13,7 @@ import {
 } from './lib/publisher/diagnostics.js';
 import { runPublisherFlow } from './lib/publisher/flow/runPublisherFlow.js';
 import { setPublisherStep, setPublisherRunning, playbookStepToCanvasStep } from './lib/publisherStepStore.js';
-import { readRuntimeGapPersistedOverride, writeRuntimeGapPersistedOverride } from './lib/runtimeControls.js';
+import { readRuntimeGapPersistedOverride, writeRuntimeGapPersistedOverride, readPersistedObserverControls, readPersistedPublisherControls } from './lib/runtimeControls.js';
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
 import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval-polyfill.js';
 import { logger } from './lib/logger.js';
@@ -131,8 +131,12 @@ const publisherControls: PublisherControls = {
   draftItemIndex: 1
 };
 
-let observerRunning = false;
+/** Shared promise for an in-progress observer run. Concurrent callers receive the same result instead of failing. */
+let activeObserverRun: Promise<ActivityLog> | null = null;
 let lastObserverRunStartedAt = 0;
+
+/** Prevents two concurrent publisher browser sessions from launching simultaneously. */
+let activePublisherRun: Promise<PublisherRunResult> | null = null;
 
 const PARSER_OPTIONS = {
   maxDepth: 6,
@@ -322,6 +326,25 @@ export async function getObserverControlsWithGap(): Promise<ObserverControlsWith
 
 export async function persistGapThresholdPersistedOverride(value: number | null): Promise<void> {
   await writeRuntimeGapPersistedOverride(value);
+}
+
+/**
+ * Load persisted observer + publisher controls from disk and apply them.
+ * Called once during server startup before the first scheduler tick fires.
+ */
+export async function initBotControls(): Promise<void> {
+  const [obs, pub] = await Promise.all([
+    readPersistedObserverControls(),
+    readPersistedPublisherControls(),
+  ]);
+  if (Object.keys(obs).length > 0) {
+    setObserverControls(obs);
+    logger.info({ event: 'bot_controls_loaded', observer: obs }, '[Bot] Restored persisted observer controls');
+  }
+  if (Object.keys(pub).length > 0) {
+    setPublisherControls(pub);
+    logger.info({ event: 'bot_controls_loaded', publisher: pub }, '[Bot] Restored persisted publisher controls');
+  }
 }
 
 async function getBoardDiagnostics(page: import('playwright').Page) {
@@ -554,47 +577,54 @@ async function recordPublisherRun(entry: {
   }).catch(() => null);
 }
 
-export async function runObserver() {
-  const observerStartedAt = Date.now();
+/**
+ * Run the board observer. If a run is already in progress, the caller shares
+ * its result rather than launching a second browser session. This eliminates the
+ * startup race where silentRefreshObserver() holds the lock while the user
+ * triggers a manual publish.
+ */
+export function runObserver(): Promise<ActivityLog> {
   if (!observerControls.enabled) {
-    const log: ActivityLog = {
-      timestamp: new Date().toISOString(),
-      current_gap_count: 0,
-      last_post_timestamp: 'N/A',
-      top_competitor_names: [],
-      view_count_of_last_post: 0,
-      status: 'error',
-      all_posts: [],
-      error: '[Observer] Observer is paused by control panel'
-    };
-    await saveLog(log);
-    logger.warn(
-      { event: LOG_EVENT.observerRunSkipped, status: 'error', errorCode: 'OBSERVER_PAUSED', durationMs: Date.now() - observerStartedAt },
-      'Observer skipped because controls are disabled'
-    );
-    return log;
+    return (async (): Promise<ActivityLog> => {
+      const disabledAt = Date.now();
+      const log: ActivityLog = {
+        timestamp: new Date().toISOString(),
+        current_gap_count: 0,
+        last_post_timestamp: 'N/A',
+        top_competitor_names: [],
+        view_count_of_last_post: 0,
+        status: 'error',
+        all_posts: [],
+        error: '[Observer] Observer is paused by control panel'
+      };
+      await saveLog(log);
+      logger.warn(
+        { event: LOG_EVENT.observerRunSkipped, status: 'error', errorCode: 'OBSERVER_PAUSED', durationMs: Date.now() - disabledAt },
+        'Observer skipped because controls are disabled'
+      );
+      return log;
+    })();
   }
 
-  if (observerRunning) {
-    const log: ActivityLog = {
-      timestamp: new Date().toISOString(),
-      current_gap_count: 0,
-      last_post_timestamp: 'N/A',
-      top_competitor_names: [],
-      view_count_of_last_post: 0,
-      status: 'error',
-      all_posts: [],
-      error: '[Observer] Observer run already in progress'
-    };
-    await saveLog(log);
-    logger.warn(
-      { event: LOG_EVENT.observerRunSkipped, status: 'error', errorCode: 'OBSERVER_ALREADY_RUNNING', durationMs: Date.now() - observerStartedAt },
-      'Observer skipped because another run is active'
+  if (activeObserverRun !== null) {
+    logger.info(
+      { event: LOG_EVENT.observerRunSkipped, reason: 'sharing_active_run' },
+      'Observer run already in progress — sharing result with concurrent caller'
     );
-    return log;
+    return activeObserverRun;
   }
-  observerRunning = true;
 
+  const runPromise = _executeObserverRun();
+  activeObserverRun = runPromise;
+  runPromise.then(
+    () => { activeObserverRun = null; },
+    () => { activeObserverRun = null; }
+  );
+  return runPromise;
+}
+
+async function _executeObserverRun(): Promise<ActivityLog> {
+  const observerStartedAt = Date.now();
   const now = Date.now();
   const elapsed = now - lastObserverRunStartedAt;
   const waitForInterval = Math.max(0, observerControls.minIntervalBetweenRunsMs - elapsed);
@@ -691,7 +721,7 @@ export async function runObserver() {
           if (value) {
             date = value;
             dateTitle = el?.getAttribute('title')?.trim() || '';
-            if (!dateTitle) {
+            if (!dateTitle && el) {
               const nobr = el.querySelector('nobr');
               dateTitle = nobr?.getAttribute('title')?.trim() || '';
             }
@@ -821,14 +851,43 @@ export async function runObserver() {
     await saveLog(log);
     return log;
   } finally {
-    observerRunning = false;
     if (browser) {
       await browser.close().catch(() => null);
     }
   }
 }
 
-export async function runPublisher(force: boolean = false): Promise<PublisherRunResult> {
+/**
+ * Run the publisher. Concurrent calls are rejected immediately — only one browser
+ * session may execute at a time. The scheduler's own `running` flag prevents its
+ * own re-entry; this guard covers the HTTP endpoint vs scheduler overlap.
+ */
+export function runPublisher(force: boolean = false): Promise<PublisherRunResult> {
+  if (activePublisherRun !== null) {
+    const runId = randomUUID();
+    logger.warn(
+      { event: LOG_EVENT.publisherRunSkipped, status: 'skip', reason: 'publisher_already_running', force },
+      '[Publisher] Skipped — another publisher run is already active'
+    );
+    return Promise.resolve({
+      success: false,
+      message: '[Publisher] A publisher run is already in progress — try again shortly',
+      runId,
+      decision: 'publisher_error' as PublisherRunDecision,
+      artifactDir: null
+    });
+  }
+
+  const runPromise = _executePublisherRun(force);
+  activePublisherRun = runPromise;
+  runPromise.then(
+    () => { activePublisherRun = null; },
+    () => { activePublisherRun = null; }
+  );
+  return runPromise;
+}
+
+async function _executePublisherRun(force: boolean): Promise<PublisherRunResult> {
   const runId = randomUUID();
   const publisherStartedAt = Date.now();
   let log: ActivityLog | undefined;
@@ -964,10 +1023,10 @@ export async function runPublisher(force: boolean = false): Promise<PublisherRun
           setPublisherStep(playbookStepToCanvasStep(stepId));
         },
         onBeforeSubmit: async () => {
-          await publisherDebugScreenshot(page, debugDir, '05-before-submit');
+          if (page) await publisherDebugScreenshot(page, debugDir, '05-before-submit');
         },
         onSuccess: async () => {
-          await publisherDebugScreenshot(page, debugDir, '06-success');
+          if (page) await publisherDebugScreenshot(page, debugDir, '06-success');
         }
       });
       if (flow.decision === 'dry_run') {

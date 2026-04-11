@@ -1,0 +1,85 @@
+{
+  "plan_id": "planning-execution-loop-v1",
+  "purpose": "Define a single, repeatable execution loop for planning and implementation to prevent drift.",
+  "design_intent": "Make every change pass through the same intake -> plan -> implement -> verify -> update -> handover loop, with explicit artifacts and status updates.",
+  "change_impact": "Changes affect how all planning artifacts and progress statuses are updated; skipping steps risks stale or duplicated plans.",
+  "scope": "planning_and_implementation",
+  "loop": {
+    "stages": [
+      {
+        "stage": "intake",
+        "goal": "Capture the request, link it to existing specs/plans, and define the minimal scope.",
+        "inputs": ["request", "related_specs", "related_plans"],
+        "outputs": ["scope_statement", "linked_refs"],
+        "exit_criteria": ["scope_statement_complete", "refs_linked"]
+      },
+      {
+        "stage": "diagnose",
+        "goal": "Identify drift, duplication, or missing contracts before changing anything.",
+        "inputs": ["current_planning_inventory", "status_trackers"],
+        "outputs": ["drift_findings", "risk_notes"],
+        "exit_criteria": ["drift_findings_logged"]
+      },
+      {
+        "stage": "plan",
+        "goal": "Choose the execution tracker, write acceptance criteria, and list the smallest deliverables.",
+        "inputs": ["scope_statement", "drift_findings"],
+        "outputs": ["plan_update", "acceptance"],
+        "exit_criteria": ["plan_update_saved", "acceptance_defined"]
+      },
+      {
+        "stage": "implement",
+        "goal": "Apply the smallest change set that satisfies the acceptance criteria.",
+        "inputs": ["plan_update"],
+        "outputs": ["code_or_doc_changes"],
+        "exit_criteria": ["changes_complete"]
+      },
+      {
+        "stage": "verify",
+        "goal": "Run required checks and confirm behavior matches acceptance criteria.",
+        "inputs": ["acceptance", "verification_steps"],
+        "outputs": ["verification_results"],
+        "exit_criteria": ["checks_complete", "results_logged"]
+      },
+      {
+        "stage": "update_brain",
+        "goal": "Update planning docs, status checklists, and hard copy snapshot.",
+        "inputs": ["code_or_doc_changes", "verification_results"],
+        "outputs": ["status_updates", "hard_copy_snapshot"],
+        "exit_criteria": ["status_updated", "snapshot_updated"]
+      },
+      {
+        "stage": "handover",
+        "goal": "Record what changed, why, risks, and the next exact step.",
+        "inputs": ["status_updates"],
+        "outputs": ["handover_note"],
+        "exit_criteria": ["handover_note_saved"]
+      }
+    ]
+  },
+  "artifacts": {
+    "required": [
+      "spec_or_plan_update",
+      "status_update",
+      "verification_results",
+      "hard_copy_snapshot"
+    ],
+    "optional": ["risk_note", "decision_log"]
+  },
+  "status_rules": {
+    "single_tracker_per_task": true,
+    "allowed_trackers": ["plans/sprints", "plans/tasks"],
+    "duplication_policy": "Do not mirror the same task across multiple trackers. Link instead."
+  },
+  "hard_copy": {
+    "snapshot_dir": "plans/snapshots",
+    "update_triggers": ["new_plan_or_spec", "status_change", "structural_move"],
+    "retention": "Keep latest snapshot and the first snapshot per quarter."
+  },
+  "references": {
+    "planning_root": ".planning/spec-kit",
+    "runtime_execution_contract": "../specs/execution-loop.contract.json",
+    "decision_rules": "../specs/decision-rules.json",
+    "planning_guidance": "README.md"
+  }
+}

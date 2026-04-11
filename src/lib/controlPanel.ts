@@ -74,6 +74,7 @@ export type ControlPanelState = {
   observer: ObserverControlState;
   publisher: PublisherControlState;
   autoPublisher: AutoPublisherControlState;
+  nlWebhookEnabled: boolean;
 };
 
 export function gapPolicySourceLabel(o: ObserverControlState): string {
@@ -148,6 +149,7 @@ export function applyRuntimePreset(preset: ControlPanelState['preset'], current:
 
 export const DEFAULT_CONTROL_PANEL: ControlPanelState = {
   preset: 'balanced',
+  nlWebhookEnabled: true,
   observer: {
     enabled: true,
     minPreVisitDelayMs: 0,

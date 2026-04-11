@@ -1,0 +1,98 @@
+{
+  "plan_id": "planning-brain-consolidation-v1",
+  "purpose": "Consolidate the planning brain into one canonical structure and eliminate drift in status tracking.",
+  "design_intent": "Make planning artifacts predictable, searchable, and fail-safe by enforcing one root, one tracker per task, and a persisted hard copy snapshot.",
+  "change_impact": "Moves or reclassifies planning artifacts, changes how progress is recorded, and adds a new snapshot cadence.",
+  "problem_statement": "Planning docs live in multiple roots and progress is tracked in parallel, causing duplicates and unchecked items to diverge.",
+  "goals": [
+    "Single canonical planning root: .planning/spec-kit",
+    "Eliminate duplicate or conflicting task tracking",
+    "Persist a hard copy snapshot that captures authoritative sources and active plans"
+  ],
+  "non_goals": [
+    "Changing runtime behavior",
+    "Rewriting existing specs unless they are structurally misplaced"
+  ],
+  "current_pain_points": [
+    "Spec exists outside planning root (.planning/specs)",
+    "Task status is split between plan checklists and implementation.tasks.json",
+    "Handover loop is documented in a single task template but not enforced globally"
+  ],
+  "target_state": {
+    "planning_root": ".planning/spec-kit",
+    "spec_root": ".planning/spec-kit/specs",
+    "plan_root": ".planning/spec-kit/plans",
+    "status_tracking": "One tracker per task; no mirrored checklists",
+    "hard_copy": "Snapshot stored under plans/snapshots"
+  },
+  "work_items": [
+    {
+      "id": "C-001",
+      "name": "Inventory current planning artifacts",
+      "status": "not_started",
+      "actions": [
+        "List files in .planning/spec-kit and .planning/specs",
+        "Tag each item as spec, plan, task, manifest, or reference"
+      ],
+      "acceptance": ["Inventory saved in snapshot file"]
+    },
+    {
+      "id": "C-002",
+      "name": "Resolve out-of-root planning docs",
+      "status": "not_started",
+      "actions": [
+        "Move .planning/specs/* into .planning/spec-kit/specs or archive",
+        "Add redirect note if a file path changes"
+      ],
+      "acceptance": ["No active specs remain outside .planning/spec-kit"]
+    },
+    {
+      "id": "C-003",
+      "name": "Choose a single status tracker per task",
+      "status": "not_started",
+      "actions": [
+        "For each plan, keep either the sprint checklist or a task file, not both",
+        "Convert duplicates into links"
+      ],
+      "acceptance": ["No duplicated task items across trackers"]
+    },
+    {
+      "id": "C-004",
+      "name": "Publish the execution loop",
+      "status": "not_started",
+      "actions": [
+        "Reference execution-loop.plan.json from plans/README.md",
+        "Ensure new plans link to the loop"
+      ],
+      "acceptance": ["Execution loop is referenced in planning index"]
+    },
+    {
+      "id": "C-005",
+      "name": "Persist and maintain a hard copy snapshot",
+      "status": "not_started",
+      "actions": [
+        "Create initial snapshot under plans/snapshots",
+        "Update snapshot on structural changes or status changes"
+      ],
+      "acceptance": ["Snapshot exists and is referenced from the consolidation plan"]
+    }
+  ],
+  "hard_copy": {
+    "snapshot_path": "plans/snapshots/planning-hardcopy-20260411.json",
+    "update_policy": [
+      "Update when a planning file is moved or renamed",
+      "Update when a task status changes",
+      "Update when a new plan/spec is added"
+    ]
+  },
+  "acceptance": [
+    "All planning artifacts reside under .planning/spec-kit",
+    "Progress is tracked in one place per task",
+    "Hard copy snapshot is current and referenced"
+  ],
+  "references": {
+    "execution_loop_plan": "execution-loop.plan.json",
+    "planning_guidance": "README.md",
+    "folder_conventions": "../specs/folder-conventions.json"
+  }
+}
