@@ -3,12 +3,11 @@
 This directory stores execution planning artifacts that are intentionally separate from specifications.
 
 ## Structure
-- `epics/`: multi-session initiatives and long-running tracks.
 - `sprints/`: time-boxed execution plans.
-- `roadmaps/`: higher-level timeline and sequencing docs.
-- `tasks/` (optional): granular implementation checklists.
 - `snapshots/`: hard copy planning snapshots.
-
+- `templates/`: execution loop context pack and drift report templates.
+- `../archive/`: mirrored archive root (specs + plans/epics/roadmaps/sprints/tasks).
+- `../archive/plans/tasks/`: archived implementation checklists.
 ## Guidance
 - Keep contracts, schemas, and behavior definitions in `../specs/`.
 - Keep sequencing, delivery plans, and execution breakdowns here.

@@ -2,38 +2,105 @@
 ├── .planning/
 │   └── spec-kit/
 │       ├── constitution.md
+│       ├── manifest/
+│       │   ├── keys.manifest.json
+│       │   ├── playbook.ppomppu-gonggu-v1.json
+│       │   ├── project.manifest.json
+│       │   ├── workflow.ppomppu-gonggu-v1.json
+│       │   └── schemas/
+│       │       ├── data-contracts.schema.json
+│       │       ├── env.schema.json
+│       │       ├── playbook.schema.json
+│       │       ├── project.manifest.schema.json
+│       │       └── workflow.schema.json
+│       ├── plans/
+│       │   ├── README.md
+│       │   ├── execution-loop.plan.json
+│       │   ├── planning-brain-consolidation.plan.json
+│       │   ├── sprints/
+│       │   ├── snapshots/
+│       │   │   └── planning-hardcopy-20260411.json
+│       │   └── templates/
+│       │       ├── context-pack.md
+│       │       └── drift-report.md
+│       ├── archive/
+│       │   ├── specs/
+│       │   │   └── scheduler-ux-refactor.md
+│       │   └── plans/
+│       │       ├── epics/
+│       │       │   ├── ai-advisor-epic.md
+│       │       │   └── publisher-refactor-epic.md
+│       │       ├── roadmaps/
+│       │       │   └── publisher-refactor-roadmap.md
+│       │       ├── tasks/
+│       │       │   ├── logging-modernization-pino-plan.md
+│       │       │   ├── publisher-refactor-constraints-checklist.md
+│       │       │   ├── publisher-refactor-phase-1-foundations-tasks.md
+│       │       │   ├── publisher-refactor-phase-2-draft-modal-tasks.md
+│       │       │   ├── publisher-refactor-phase-3-submit-verification-tasks.md
+│       │       │   ├── publisher-refactor-phase-4-flow-orchestrator-tasks.md
+│       │       │   ├── publisher-refactor-phase-5-hardening-tasks.md
+│       │       │   ├── session-handover-analytics-eda.md
+│       │       │   ├── session-handover-app-shell-decompose.md
+│       │       │   ├── session-handover-eda-redesign-s2.md
+│       │       │   ├── session-handover-sov-sprint1-impl.md
+│       │       │   ├── session-handover-sov-sprint2-ui.md
+│       │       │   └── session-handover.md
+│       │       └── sprints/
+│       │           ├── ai-advisor-sprint-1.md
+│       │           ├── ai-advisor-sprint-2.md
+│       │           ├── ai-advisor-sprint-3.md
+│       │           ├── analytics-eda-polish-sprint-2.md
+│       │           ├── analytics-eda-quality-sprint-1.md
+│       │           ├── analytics-eda-refactor-sprint-1.md
+│       │           ├── analytics-export-sprint-1.md
+│       │           ├── scheduler-sov-sprint-1.md
+│       │           ├── publisher-refactor-sprint-1-foundations.md
+│       │           ├── publisher-refactor-sprint-2-draft-modal.md
+│       │           ├── publisher-refactor-sprint-3-submit-verification.md
+│       │           ├── publisher-refactor-sprint-4-flow-orchestrator.md
+│       │           └── publisher-refactor-sprint-5-hardening.md
 │       ├── specs/
-│       │   ├── source-artifacts.json
-│       │   ├── decision-rules.json
+│       │   ├── ai-advisor-v1.json
+│       │   ├── ai-design-guidelines.json
+│       │   ├── analytics-eda-polish-v2.json
+│       │   ├── analytics-eda-quality-v1.json
+│       │   ├── analytics-eda-refactor-v1.json
+│       │   ├── analytics-export-v1.json
+│       │   ├── analytics-trend.contract.json
 │       │   ├── api-contract.json
 │       │   ├── api-endpoint-catalog.json
-│       │   ├── shared-model.contract.json
-│       │   ├── forum-adapter.contract.json
-│       │   ├── workflow-import.contract.json
-│       │   ├── folder-conventions.json
-│       │   ├── module-boundaries.json
-│       │   ├── ui-route-map.json
-│       │   ├── ui-screen-inventory.json
-│       │   ├── ui-refactor-backlog.json
-│       │   ├── ai-design-guidelines.json
+│       │   ├── app-shell-decompose-v1.json
 │       │   ├── autonomy-workflow-tips.md
-│       │   ├── reviewer-readme.md
+│       │   ├── dashboard-ux-followup.md
+│       │   ├── decision-rules.json
 │       │   ├── entry-points.contract.json
 │       │   ├── execution-loop.contract.json
+│       │   ├── folder-conventions.json
+│       │   ├── forum-adapter.contract.json
+│       │   ├── integration-test-plan.json
+│       │   ├── module-boundaries.json
+│       │   ├── nl-webhook-v1.json
 │       │   ├── packaging.strategy.json
-│       │   ├── risk-review.edge-cases.json
+│       │   ├── remote-ops.acceptance.plan.json
+│       │   ├── remote-ops.access.contract.json
+│       │   ├── remote-ops.deploy.contract.json
+│       │   ├── remote-ops.observability.contract.json
+│       │   ├── remote-ops.runtime.contract.json
+│       │   ├── reviewer-readme.md
 │       │   ├── risk-review.adversarial.json
-│       │   └── integration-test-plan.json
+│       │   ├── risk-review.edge-cases.json
+│       │   ├── scheduler-adaptation.policy.json
+│       │   ├── scheduler-sov-multiplier-v1.json
+│       │   ├── shared-model.contract.json
+│       │   ├── source-artifacts.json
+│       │   ├── state-sync-architecture.md
+│       │   ├── ui-refactor-backlog.json
+│       │   ├── ui-route-map.json
+│       │   ├── ui-screen-inventory.json
+│       │   └── workflow-import.contract.json
 │       ├── tasks/
 │       │   └── implementation.tasks.json
-│       ├── manifest/
-│       │   ├── project.manifest.json
-│       │   ├── keys.manifest.json
-│       │   └── schemas/
-│       │       ├── project.manifest.schema.json
-│       │       ├── workflow.schema.json
-│       │       ├── data-contracts.schema.json
-│       │       └── env.schema.json
 │       └── reference/
 │           └── project-tree.txt
 ├── .agent/
@@ -46,5 +113,17 @@
 │   │   └── registry.json
 │   └── session-handovers/
 │       ├── template.json
-│       └── handover-YYYYMMDD-HHMM.json
-└── runtime code (server.ts, bot.ts, src/, etc.)
+│       │       ├── tasks/
+│       │       │   ├── logging-modernization-pino-plan.md
+│       │       │   ├── publisher-refactor-constraints-checklist.md
+│       │       │   ├── publisher-refactor-phase-1-foundations-tasks.md
+│       │       │   ├── publisher-refactor-phase-2-draft-modal-tasks.md
+│       │       │   ├── publisher-refactor-phase-3-submit-verification-tasks.md
+│       │       │   ├── publisher-refactor-phase-4-flow-orchestrator-tasks.md
+│       │       │   ├── publisher-refactor-phase-5-hardening-tasks.md
+│       │       │   ├── session-handover-analytics-eda.md
+│       │       │   ├── session-handover-app-shell-decompose.md
+│       │       │   ├── session-handover-eda-redesign-s2.md
+│       │       │   ├── session-handover-sov-sprint1-impl.md
+│       │       │   ├── session-handover-sov-sprint2-ui.md
+│       │       │   └── session-handover.md

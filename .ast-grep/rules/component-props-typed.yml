@@ -1,0 +1,21 @@
+# React components with Props parameter but no type annotation.
+# Prefer: function Name({ prop }: PropsType) — not: function Name({ prop })
+id: component-props-typed
+severity: warning
+language: Tsx
+rule:
+  all:
+    - kind: function_declaration
+    - has:
+        kind: formal_parameters
+        has:
+          kind: object_pattern
+    - not:
+        has:
+          kind: formal_parameters
+          has:
+            kind: object_pattern
+            has:
+              kind: type_annotation
+files:
+  - src/**/*.tsx

@@ -29,7 +29,7 @@
     {
       "id": "C-001",
       "name": "Inventory current planning artifacts",
-      "status": "not_started",
+      "status": "done",
       "actions": [
         "List files in .planning/spec-kit and .planning/specs",
         "Tag each item as spec, plan, task, manifest, or reference"
@@ -39,7 +39,7 @@
     {
       "id": "C-002",
       "name": "Resolve out-of-root planning docs",
-      "status": "not_started",
+      "status": "done",
       "actions": [
         "Move .planning/specs/* into .planning/spec-kit/specs or archive",
         "Add redirect note if a file path changes"
@@ -49,7 +49,7 @@
     {
       "id": "C-003",
       "name": "Choose a single status tracker per task",
-      "status": "not_started",
+      "status": "done",
       "actions": [
         "For each plan, keep either the sprint checklist or a task file, not both",
         "Convert duplicates into links"
@@ -59,7 +59,7 @@
     {
       "id": "C-004",
       "name": "Publish the execution loop",
-      "status": "not_started",
+      "status": "done",
       "actions": [
         "Reference execution-loop.plan.json from plans/README.md",
         "Ensure new plans link to the loop"
@@ -69,7 +69,7 @@
     {
       "id": "C-005",
       "name": "Persist and maintain a hard copy snapshot",
-      "status": "not_started",
+      "status": "done",
       "actions": [
         "Create initial snapshot under plans/snapshots",
         "Update snapshot on structural changes or status changes"

@@ -1,0 +1,9 @@
+# Custom hooks must use named exports (not default) for consistent imports.
+id: hook-named-export-only
+severity: error
+language: Typescript
+rule:
+  kind: function_declaration
+  regex: export\s+default\s+function\s+use[A-Z]
+files:
+  - src/hooks/**/*.ts

@@ -55,6 +55,29 @@ function clampInt(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.round(value)));
 }
 
+/**
+ * Returns the current hour in KST (UTC+9), 0-23.
+ * Used for cold-start heuristics before empirical data is available.
+ */
+export function kstHourNow(): number {
+  return (new Date().getUTCHours() + 9) % 24;
+}
+
+/**
+ * Heuristic trend multiplier based on Ppomppu KST traffic patterns.
+ * Applied only during cold-start (insufficient empirical snapshots).
+ *
+ * Peak hours  (11–13, 18–22 KST): board moves fast → shorter interval → multiplier 0.8
+ * Off-peak    (02–06 KST):         board quiet      → longer  interval → multiplier 1.6
+ * Default:                         neutral                              → multiplier 1.0
+ */
+export function kstColdStartMultiplier(kstHour: number): number {
+  if (kstHour >= 11 && kstHour <= 13) return 0.8;
+  if (kstHour >= 18 && kstHour <= 22) return 0.8;
+  if (kstHour >= 2  && kstHour <= 6)  return 1.6;
+  return 1.0;
+}
+
 /** Maps mean pairwise turnover (new posts per hour) to scheduler trend multiplier. Order matches server legacy logic. */
 export function trendMultiplierFromAvgRate(avgRate: number): number {
   if (!Number.isFinite(avgRate) || avgRate < 0) {
@@ -198,7 +221,10 @@ export function buildTrendInsightsPayload(
     trendAdaptiveEnabled && analysis.recentSnapshotCount >= 3 && analysis.pairSampleCount >= 3;
 
   const rawMult = trendMultiplierFromAvgRate(analysis.avgNewPostsPerHour);
-  const trendMultiplier = sufficientForAdaptive ? rawMult : 1;
+  const coldStartMult = trendAdaptiveEnabled && !sufficientForAdaptive
+    ? kstColdStartMultiplier(kstHourNow())
+    : 1;
+  const trendMultiplier = sufficientForAdaptive ? rawMult : coldStartMult;
 
   const multiplierBand: TrendMultiplierBand = sufficientForAdaptive
     ? multiplierBandFromAvgRate(analysis.avgNewPostsPerHour)
@@ -220,9 +246,9 @@ export function buildTrendInsightsPayload(
     explanation =
       "Trend adaptation is off; multiplier is fixed at 1. Turn on trend adaptation in the control panel to apply turnover-based pacing.";
   } else if (analysis.recentSnapshotCount < 3) {
-    explanation = "Not enough recent snapshots with board data in the selected window; need at least 3 to estimate turnover.";
+    explanation = `Not enough recent snapshots (need 3); using KST time-of-day heuristic (multiplier ${coldStartMult}) until empirical data accumulates.`;
   } else if (analysis.pairSampleCount < 3) {
-    explanation = "Not enough valid snapshot pairs with positive time deltas; cannot estimate a stable turnover rate.";
+    explanation = `Not enough valid snapshot pairs (need 3); using KST time-of-day heuristic (multiplier ${coldStartMult}) until empirical data accumulates.`;
   } else {
     explanation = `Mean new-post rate ~${analysis.avgNewPostsPerHour} posts/hour (${multiplierBand.replace(/_/g, " ")}). Trend multiplier ${trendMultiplier} scales the effective scheduler interval (bounded ${TREND_MULTIPLIER_MIN}–${TREND_MULTIPLIER_MAX}). Volatility ${analysis.volatility} affects confidence.`;
   }

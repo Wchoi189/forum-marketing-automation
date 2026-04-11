@@ -1,0 +1,5 @@
+# AST-grep configuration for marketing-automation
+# Run: sg scan
+# Run single rule: sg scan --rule .ast-grep/rules/no-direct-fetch-in-components.yml
+ruleDirs:
+  - .ast-grep/rules

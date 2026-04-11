@@ -13,7 +13,7 @@ import {
 } from './lib/publisher/diagnostics.js';
 import { runPublisherFlow } from './lib/publisher/flow/runPublisherFlow.js';
 import { setPublisherStep, setPublisherRunning, playbookStepToCanvasStep } from './lib/publisherStepStore.js';
-import { readRuntimeGapPersistedOverride, writeRuntimeGapPersistedOverride, readPersistedObserverControls, readPersistedPublisherControls } from './lib/runtimeControls.js';
+import { readRuntimeGapPersistedOverride, writeRuntimeGapPersistedOverride, readPersistedObserverControls, readPersistedPublisherControls, readPersistedGapSourcePin } from './lib/runtimeControls.js';
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
 import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval-polyfill.js';
 import { logger } from './lib/logger.js';
@@ -43,7 +43,11 @@ function sharedBrowserContextOptions(): BrowserContextOptions {
     timezoneId: 'Asia/Seoul',
     viewport: { width: 1280, height: 800 },
     extraHTTPHeaders: {
-      'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Sec-Ch-Ua': '"Google Chrome";v="146", "Chromium";v="146", "Not/A)Brand";v="24"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"Windows"'
     }
   };
 }
@@ -113,12 +117,21 @@ export type ObserverControlsWithGap = ObserverControls & {
   gapPersistedOverride: number | null;
   gapThresholdSpecBaseline: number;
   gapUsesEnvOverride: boolean;
+  /** Which source is currently supplying the effective gap threshold. */
+  gapSource: 'file' | 'env' | 'spec';
+  /**
+   * Explicit source pin set by the user.
+   * 'env'  = always use env var (skip file override).
+   * 'spec' = always use spec baseline.
+   * null   = default precedence: file → env → spec.
+   */
+  gapSourcePin: 'env' | 'spec' | null;
 };
 
 const observerControls: ObserverControls = {
   enabled: true,
-  minPreVisitDelayMs: 0,
-  maxPreVisitDelayMs: 0,
+  minPreVisitDelayMs: 1500,
+  maxPreVisitDelayMs: 4000,
   minIntervalBetweenRunsMs: 0
 };
 
@@ -285,22 +298,31 @@ async function loadObserverPolicyBase(): Promise<ObserverPolicyBase> {
   return observerPolicyBasePromise;
 }
 
-/** Precedence: persisted file → explicit env var → spec baseline. */
-async function resolveEffectiveGapThresholdMin(specGap: number): Promise<number> {
-  const persisted = await readRuntimeGapPersistedOverride();
-  if (persisted !== null) {
-    return Math.max(1, Math.min(50, persisted));
+/**
+ * Precedence (default, no pin): file override → explicit env var → spec baseline.
+ * With pin 'env': always use env var (skip file override).
+ * With pin 'spec': always use spec baseline (skip both).
+ */
+async function resolveEffectiveGapThresholdMin(specGap: number): Promise<{ value: number; source: 'file' | 'env' | 'spec' }> {
+  const pin = await readPersistedGapSourcePin();
+  if (pin === 'spec') {
+    return { value: specGap, source: 'spec' };
   }
   const raw = process.env.OBSERVER_GAP_THRESHOLD;
-  if (typeof raw === 'string' && raw.trim() !== '') {
-    return ENV.OBSERVER_GAP_THRESHOLD;
+  const envVal = typeof raw === 'string' && raw.trim() !== '' ? ENV.OBSERVER_GAP_THRESHOLD : null;
+  if (pin === 'env') {
+    return { value: envVal ?? specGap, source: envVal !== null ? 'env' : 'spec' };
   }
-  return specGap;
+  // Default precedence: file → env → spec
+  const persisted = await readRuntimeGapPersistedOverride();
+  if (persisted !== null) return { value: persisted, source: 'file' };
+  if (envVal !== null) return { value: envVal, source: 'env' };
+  return { value: specGap, source: 'spec' };
 }
 
 async function loadObserverPolicy(): Promise<ObserverPolicy> {
   const base = await loadObserverPolicyBase();
-  const gapThresholdMin = await resolveEffectiveGapThresholdMin(base.specGapThresholdMin);
+  const { value: gapThresholdMin } = await resolveEffectiveGapThresholdMin(base.specGapThresholdMin);
   return {
     boardUrl: base.boardUrl,
     authorMatch: base.authorMatch,
@@ -312,15 +334,20 @@ async function loadObserverPolicy(): Promise<ObserverPolicy> {
 
 export async function getObserverControlsWithGap(): Promise<ObserverControlsWithGap> {
   const base = await loadObserverPolicyBase();
-  const persisted = await readRuntimeGapPersistedOverride();
-  const effective = await resolveEffectiveGapThresholdMin(base.specGapThresholdMin);
+  const [persisted, pin, resolved] = await Promise.all([
+    readRuntimeGapPersistedOverride(),
+    readPersistedGapSourcePin(),
+    resolveEffectiveGapThresholdMin(base.specGapThresholdMin).then(r => r),
+  ]);
   const raw = process.env.OBSERVER_GAP_THRESHOLD;
   return {
     ...getObserverControls(),
-    gapThresholdMin: effective,
+    gapThresholdMin: resolved.value,
     gapPersistedOverride: persisted,
     gapThresholdSpecBaseline: base.specGapThresholdMin,
-    gapUsesEnvOverride: typeof raw === 'string' && raw.trim() !== ''
+    gapUsesEnvOverride: typeof raw === 'string' && raw.trim() !== '',
+    gapSource: resolved.source,
+    gapSourcePin: pin,
   };
 }
 

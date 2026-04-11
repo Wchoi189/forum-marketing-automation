@@ -1,0 +1,13 @@
+# Prefer structured logging (pino) over console.log/warn/error.
+# Runtime uses pino in server.ts — console statements are invisible in prod.
+id: no-console-log
+severity: warning
+language: Tsx
+rule:
+  pattern: console.log($$$)
+files:
+  - src/**/*.ts
+  - src/**/*.tsx
+ignores:
+  - '**/*.test.ts'
+  - server.ts

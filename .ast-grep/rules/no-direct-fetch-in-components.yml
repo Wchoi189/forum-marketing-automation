@@ -1,0 +1,13 @@
+# Prevent fetch() calls inside React component files outside of hooks/.
+# After the App.tsx decomposition, all data fetching lives in useAppData.
+# This prevents accidental regressions back to inline fetch.
+id: no-direct-fetch-in-components
+severity: error
+language: Tsx
+rule:
+  pattern: fetch($$$)
+files:
+  - src/**/*.tsx
+ignores:
+  - src/hooks/**
+  - src/AnalyticsPage.tsx

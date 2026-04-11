@@ -1,0 +1,13 @@
+# Ban `any` type annotations. Use explicit types from contracts/models.
+id: no-any-type
+severity: warning
+language: Typescript
+rule:
+  kind: predefined_type
+  regex: ^any$
+files:
+  - src/**/*.ts
+  - src/**/*.tsx
+ignores:
+  - '**/*.test.ts'
+  - '**/*.d.ts'

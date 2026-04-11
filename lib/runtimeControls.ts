@@ -11,6 +11,16 @@ function filePath(): string {
 export type RuntimeControlsFile = {
   /** Persisted minimum gap (posts). Omitted or null = no runtime file override (use env/spec chain). */
   observerGapThresholdMin?: number | null;
+  /**
+   * Explicit source pin for gap threshold resolution.
+   * 'env'  = always use env var (skip file override even if set).
+   * 'spec' = always use spec baseline (skip both file override and env var).
+   * Absent/undefined = default precedence: file → env → spec.
+   */
+  gapSourcePin?: 'env' | 'spec';
+
+  // NL Webhook kill-switch (persisted so it survives server restarts)
+  nlWebhookEnabled?: boolean;
 
   // Scheduler
   schedulerEnabled?: boolean;
@@ -182,6 +192,24 @@ export async function readPersistedPublisherControls(): Promise<Partial<Persiste
 }
 
 /**
+ * Read persisted NL webhook enabled flag. Returns null if not set (caller uses env var default).
+ */
+export async function readPersistedNlWebhookEnabled(): Promise<boolean | null> {
+  const data = await readRuntimeControls();
+  if (typeof data.nlWebhookEnabled === 'boolean') return data.nlWebhookEnabled;
+  return null;
+}
+
+/**
+ * Read persisted gap source pin. Returns null if not set (default precedence applies).
+ */
+export async function readPersistedGapSourcePin(): Promise<'env' | 'spec' | null> {
+  const data = await readRuntimeControls();
+  if (data.gapSourcePin === 'env' || data.gapSourcePin === 'spec') return data.gapSourcePin;
+  return null;
+}
+
+/**
  * Persist all control panel settings to disk atomically.
  */
 export async function persistAllControlPanelSettings(opts: {
@@ -212,10 +240,12 @@ export async function persistAllControlPanelSettings(opts: {
     draftItemIndex: number;
   };
 }): Promise<void> {
-  // Preserve existing gap override — don't overwrite it
+  // Preserve existing gap override, source pin, and NL webhook flag — they have their own write paths
   const existing = await readRuntimeControls();
   const next: RuntimeControlsFile = {
     observerGapThresholdMin: existing.observerGapThresholdMin,
+    gapSourcePin: existing.gapSourcePin,
+    nlWebhookEnabled: existing.nlWebhookEnabled,
 
     schedulerEnabled: opts.schedulerEnabled,
     schedulerBaseIntervalMinutes: opts.schedulerControls.baseIntervalMinutes,

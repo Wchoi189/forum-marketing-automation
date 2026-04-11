@@ -1,32 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { motion } from 'motion/react';
 import { type UseAppDataReturn } from '../hooks/useAppData';
 import { type AiAdvisorOutput } from '../lib/controlPanel';
 
-type TokenStats = {
-  callCount: number;
-  successCount: number;
-  failureCount: number;
-  totalPromptTokens: number;
-  totalCompletionTokens: number;
-  totalTokens: number;
-  avgPromptTokens: number | null;
-  avgCompletionTokens: number | null;
-  avgTotalTokens: number | null;
-  lastCallAt: string | null;
-  lastDurationMs: number | null;
-};
-
 export default function AiAdvisorPanel({ app }: { app: UseAppDataReturn }) {
-  const { aiRec, aiRecBuiltAt, aiRecApplied, applyAiRecommendation, loading } = app;
-  const [tokenStats, setTokenStats] = useState<TokenStats | null>(null);
-
-  useEffect(() => {
-    const load = () => fetch('/api/ai-token-stats').then(r => r.json()).then(setTokenStats).catch(() => {});
-    load();
-    const t = setInterval(load, 30000);
-    return () => clearInterval(t);
-  }, []);
+  const { aiRec, aiRecBuiltAt, aiRecApplied, aiAppliedValues, applyAiRecommendation, loading, aiTokenStats } = app;
 
   const ageMinutes = aiRecBuiltAt ? Math.round((Date.now() - new Date(aiRecBuiltAt).getTime()) / 60000) : null;
   const isStale = ageMinutes !== null && ageMinutes > 30;
@@ -76,7 +54,11 @@ export default function AiAdvisorPanel({ app }: { app: UseAppDataReturn }) {
               )}
             </div>
             <div className="flex items-center gap-3">
-              {aiRecApplied && <span className="text-[10px] text-emerald-400/80 font-medium">Applied</span>}
+              {aiRecApplied && aiAppliedValues && (
+                <span className="text-[10px] text-emerald-400/80 font-medium">
+                  Applied — Gap: <span className="font-mono">{aiAppliedValues.gapThreshold}</span> posts · Interval: <span className="font-mono">{aiAppliedValues.intervalMinutes}</span> min
+                </span>
+              )}
               <button
                 onClick={applyAiRecommendation}
                 disabled={isStale || loading}
@@ -92,25 +74,25 @@ export default function AiAdvisorPanel({ app }: { app: UseAppDataReturn }) {
       )}
 
       {/* Token usage traceability */}
-      {tokenStats && tokenStats.callCount > 0 && (
+      {aiTokenStats && aiTokenStats.callCount > 0 && (
         <div className="pt-4 border-t border-white/10 space-y-2">
           <p className="text-[10px] font-bold uppercase tracking-wider opacity-40">Token Usage (this session)</p>
           <div className="grid grid-cols-3 gap-3">
             <div className="p-2 rounded-lg bg-black/30 border border-white/5">
               <p className="text-[9px] opacity-40 uppercase tracking-widest mb-0.5">Calls</p>
-              <p className="font-mono text-sm font-bold">{tokenStats.callCount}</p>
-              <p className="text-[9px] opacity-30">{tokenStats.successCount} ok / {tokenStats.failureCount} fail</p>
+              <p className="font-mono text-sm font-bold">{aiTokenStats.callCount}</p>
+              <p className="text-[9px] opacity-30">{aiTokenStats.successCount} ok / {aiTokenStats.failureCount} fail</p>
             </div>
             <div className="p-2 rounded-lg bg-black/30 border border-white/5">
               <p className="text-[9px] opacity-40 uppercase tracking-widest mb-0.5">Tokens / call</p>
-              <p className="font-mono text-sm font-bold">{tokenStats.avgTotalTokens ?? '—'}</p>
-              <p className="text-[9px] opacity-30">{tokenStats.avgPromptTokens ?? '—'} in / {tokenStats.avgCompletionTokens ?? '—'} out</p>
+              <p className="font-mono text-sm font-bold">{aiTokenStats.avgTotalTokens ?? '—'}</p>
+              <p className="text-[9px] opacity-30">{aiTokenStats.avgPromptTokens ?? '—'} in / {aiTokenStats.avgCompletionTokens ?? '—'} out</p>
             </div>
             <div className="p-2 rounded-lg bg-black/30 border border-white/5">
               <p className="text-[9px] opacity-40 uppercase tracking-widest mb-0.5">Total tokens</p>
-              <p className="font-mono text-sm font-bold">{tokenStats.totalTokens.toLocaleString()}</p>
+              <p className="font-mono text-sm font-bold">{aiTokenStats.totalTokens.toLocaleString()}</p>
               <p className="text-[9px] opacity-30">
-                {tokenStats.lastDurationMs != null ? `last ${tokenStats.lastDurationMs}ms` : ''}
+                {aiTokenStats.lastDurationMs != null ? `last ${aiTokenStats.lastDurationMs}ms` : ''}
               </p>
             </div>
           </div>

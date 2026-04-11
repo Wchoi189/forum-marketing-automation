@@ -41,6 +41,15 @@ export type ObserverControlState = {
   gapPersistedOverride: number | null;
   gapThresholdSpecBaseline: number;
   gapUsesEnvOverride: boolean;
+  /** Which source is currently supplying the effective gap threshold. */
+  gapSource: 'file' | 'env' | 'spec';
+  /**
+   * Explicit source pin chosen by the user.
+   * 'env'  = always use env var.
+   * 'spec' = always use spec baseline.
+   * null   = default precedence (file → env → spec).
+   */
+  gapSourcePin: 'env' | 'spec' | null;
 };
 
 export type AutoPublisherControlState = {
@@ -78,8 +87,8 @@ export type ControlPanelState = {
 };
 
 export function gapPolicySourceLabel(o: ObserverControlState): string {
-  if (o.gapPersistedOverride !== null) return 'persisted file';
-  if (o.gapUsesEnvOverride) return 'env';
+  if (o.gapSource === 'file') return 'persisted file';
+  if (o.gapSource === 'env') return 'env';
   return 'spec';
 }
 
@@ -141,7 +150,9 @@ export function applyRuntimePreset(preset: ControlPanelState['preset'], current:
       gapThresholdMin: current.observer.gapThresholdMin,
       gapPersistedOverride: current.observer.gapPersistedOverride,
       gapThresholdSpecBaseline: current.observer.gapThresholdSpecBaseline,
-      gapUsesEnvOverride: current.observer.gapUsesEnvOverride
+      gapUsesEnvOverride: current.observer.gapUsesEnvOverride,
+      gapSource: current.observer.gapSource,
+      gapSourcePin: current.observer.gapSourcePin,
     },
     autoPublisher: { ...current.autoPublisher, ...autoPatch }
   };
@@ -158,7 +169,9 @@ export const DEFAULT_CONTROL_PANEL: ControlPanelState = {
     gapThresholdMin: 5,
     gapPersistedOverride: null,
     gapThresholdSpecBaseline: 5,
-    gapUsesEnvOverride: false
+    gapUsesEnvOverride: false,
+    gapSource: 'spec' as const,
+    gapSourcePin: null
   },
   publisher: {
     draftItemIndex: 1

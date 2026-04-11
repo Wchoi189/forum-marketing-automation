@@ -17,15 +17,15 @@
         "stage": "diagnose",
         "goal": "Identify drift, duplication, or missing contracts before changing anything.",
         "inputs": ["current_planning_inventory", "status_trackers"],
-        "outputs": ["drift_findings", "risk_notes"],
+        "outputs": ["drift_findings", "risk_notes", "drift_report"],
         "exit_criteria": ["drift_findings_logged"]
       },
       {
         "stage": "plan",
         "goal": "Choose the execution tracker, write acceptance criteria, and list the smallest deliverables.",
         "inputs": ["scope_statement", "drift_findings"],
-        "outputs": ["plan_update", "acceptance"],
-        "exit_criteria": ["plan_update_saved", "acceptance_defined"]
+        "outputs": ["plan_update", "acceptance", "context_pack", "verification_budget"],
+        "exit_criteria": ["plan_update_saved", "acceptance_defined", "context_pack_saved", "verification_budget_defined"]
       },
       {
         "stage": "implement",
@@ -45,8 +45,8 @@
         "stage": "update_brain",
         "goal": "Update planning docs, status checklists, and hard copy snapshot.",
         "inputs": ["code_or_doc_changes", "verification_results"],
-        "outputs": ["status_updates", "hard_copy_snapshot"],
-        "exit_criteria": ["status_updated", "snapshot_updated"]
+        "outputs": ["status_updates", "hard_copy_snapshot", "archive_actions", "archive_debt_report"],
+        "exit_criteria": ["status_updated", "snapshot_updated", "archive_actions_logged", "archive_debt_cleared"]
       },
       {
         "stage": "handover",
@@ -59,22 +59,45 @@
   },
   "artifacts": {
     "required": [
+      "context_pack",
+      "verification_budget",
       "spec_or_plan_update",
       "status_update",
       "verification_results",
       "hard_copy_snapshot"
     ],
-    "optional": ["risk_note", "decision_log"]
+    "optional": ["risk_note", "decision_log", "drift_report"]
   },
   "status_rules": {
     "single_tracker_per_task": true,
-    "allowed_trackers": ["plans/sprints", "plans/tasks"],
+    "allowed_trackers": ["plans/sprints", "archive/plans/tasks"],
     "duplication_policy": "Do not mirror the same task across multiple trackers. Link instead."
+  },
+  "audit_policy": {
+    "mode": "event_driven",
+    "triggers": ["structural_move", "status_change", "new_plan_or_spec", "archive_move"],
+    "prohibitions": ["periodic_full_scans", "duplicate_tracker_reviews_without_trigger"]
+  },
+  "regression_policy": {
+    "verification_budget_required": true,
+    "max_steps": 3,
+    "defaults": ["lint", "targeted_test"],
+    "allow_manual": true
+  },
+  "archive_policy": {
+    "required_on_closeout": true,
+    "debt_not_allowed": true,
+    "definition": "Any plan/task marked done must be moved to .planning/spec-kit/archive in the same loop.",
+    "debt_field": "archive_debt"
   },
   "hard_copy": {
     "snapshot_dir": "plans/snapshots",
     "update_triggers": ["new_plan_or_spec", "status_change", "structural_move"],
     "retention": "Keep latest snapshot and the first snapshot per quarter."
+  },
+  "templates": {
+    "context_pack": "templates/context-pack.md",
+    "drift_report": "templates/drift-report.md"
   },
   "references": {
     "planning_root": ".planning/spec-kit",

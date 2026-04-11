@@ -15,6 +15,20 @@ import {
 
 type ActionMessage = { type: 'success' | 'error'; text: string; log?: ActivityLog } | null;
 
+type AiTokenStats = {
+  callCount: number;
+  successCount: number;
+  failureCount: number;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  avgPromptTokens: number | null;
+  avgCompletionTokens: number | null;
+  avgTotalTokens: number | null;
+  lastCallAt: string | null;
+  lastDurationMs: number | null;
+};
+
 export interface UseAppDataReturn {
   // Data
   logs: ActivityLog[];
@@ -24,7 +38,8 @@ export interface UseAppDataReturn {
   trendInsights: TrendInsights | null;
   publisherHistory: PublisherHistoryEntry[];
   controlPanel: ControlPanelState;
-  playbookData: any;
+  aiTokenStats: AiTokenStats | null;
+  playbookData: unknown;
   loading: boolean;
   actionMessage: ActionMessage;
   controlSaving: boolean;
@@ -33,6 +48,7 @@ export interface UseAppDataReturn {
   aiRec: AiAdvisorOutput | null;
   aiRecBuiltAt: string | null;
   aiRecApplied: boolean;
+  aiAppliedValues: { intervalMinutes: number; gapThreshold: number } | null;
 
   // UI-only state
   selectedLog: ActivityLog | null;
@@ -54,6 +70,7 @@ export interface UseAppDataReturn {
   fetchControlPanel: () => Promise<void>;
   fetchPublisherHistory: () => Promise<void>;
   fetchPlaybook: () => Promise<void>;
+  fetchAiTokenStats: () => Promise<void>;
   runObserver: () => Promise<void>;
   runPublisher: (force?: boolean) => Promise<void>;
   saveControlPanel: () => Promise<void>;
@@ -66,7 +83,8 @@ export function useAppData(): UseAppDataReturn {
   const [competitorStats, setCompetitorStats] = useState<CompetitorStat[]>([]);
   const [boardStats, setBoardStats] = useState<BoardStats | null>(null);
   const [trendInsights, setTrendInsights] = useState<TrendInsights | null>(null);
-  const [playbookData, setPlaybookData] = useState<any>(null);
+  const [playbookData, setPlaybookData] = useState<unknown>(null);
+  const [aiTokenStats, setAiTokenStats] = useState<AiTokenStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<ActionMessage>(null);
 
@@ -82,6 +100,7 @@ export function useAppData(): UseAppDataReturn {
   const [aiRec, setAiRec] = useState<AiAdvisorOutput | null>(null);
   const [aiRecBuiltAt, setAiRecBuiltAt] = useState<string | null>(null);
   const [aiRecApplied, setAiRecApplied] = useState(false);
+  const [aiAppliedValues, setAiAppliedValues] = useState<{ intervalMinutes: number; gapThreshold: number } | null>(null);
 
   // Real publisher step — updated by polling /api/publisher-status during a run
   const [realPublisherStep, setRealPublisherStep] = useState<PipelineStepId | null>(null);
@@ -155,17 +174,46 @@ export function useAppData(): UseAppDataReturn {
         autoPublisher: { ...DEFAULT_CONTROL_PANEL.autoPublisher, ...data.autoPublisher }
       };
       setControlPanel((current) => {
-        // Read current dirty flag from closure — this is safe because setControlPanel
-        // is called from the same render cycle.
+        // controlDirty merge guard — determines which fields survive a polling re-fetch
+        // while the user has unsaved edits in the form.
+        //
+        // When controlDirty=false (no unsaved edits): replace state entirely from server.
+        //
+        // When controlDirty=true (user is editing): split fields into two groups:
+        //
+        //   ALWAYS REFRESHED — server-authoritative computed/status values that are
+        //   never editable by the user. These are safe to overwrite mid-edit because
+        //   they reflect real-time system state, not form inputs:
+        //     - observer.gapThresholdMin          (effective computed gap)
+        //     - observer.gapThresholdSpecBaseline  (spec constant)
+        //     - observer.gapUsesEnvOverride        (precedence flag)
+        //     - observer.gapSource                 ('file' | 'env' | 'spec')
+        //     - observer.gapSourcePin              (display label)
+        //     - autoPublisher.running              (live scheduler status)
+        //     - autoPublisher.effectiveIntervalMinutes (trend-adjusted interval)
+        //
+        //   PROTECTED — user-edited form values. Kept from `current` so in-progress
+        //   edits are not clobbered by a background poll:
+        //     - observer.gapPersistedOverride      (the override input field)
+        //     - scheduler.baseIntervalMinutes      (scheduler interval input)
+        //     - scheduler.enabled                  (enable toggle)
+        //     - observer.* (all other pacing inputs)
+        //     - publisher.* (draft index, etc.)
+        //     - autoPublisher.enabled              (auto-publish toggle)
+        //     - nlWebhookEnabled                   (NL webhook toggle)
+        //
+        // After saveControlPanel() succeeds, controlDirty is reset to false, which
+        // returns this function to full-replace mode on the next poll.
         if (!controlDirty) return nextState;
-        // While user edits form values, only merge non-form status fields from polling.
         return {
           ...current,
           observer: {
             ...current.observer,
             gapThresholdMin: nextState.observer.gapThresholdMin,
             gapThresholdSpecBaseline: nextState.observer.gapThresholdSpecBaseline,
-            gapUsesEnvOverride: nextState.observer.gapUsesEnvOverride
+            gapUsesEnvOverride: nextState.observer.gapUsesEnvOverride,
+            gapSource: nextState.observer.gapSource,
+            gapSourcePin: nextState.observer.gapSourcePin,
           },
           autoPublisher: {
             ...current.autoPublisher,
@@ -190,6 +238,16 @@ export function useAppData(): UseAppDataReturn {
     }
   }, []);
 
+  const fetchAiTokenStats = useCallback(async () => {
+    try {
+      const response = await fetch('/api/ai-token-stats');
+      const data = await response.json();
+      setAiTokenStats(data);
+    } catch {
+      // ignore — panel shows null gracefully
+    }
+  }, []);
+
   const fetchAiRecommendation = useCallback(async () => {
     try {
       const res = await fetch('/api/ai-recommendation');
@@ -200,6 +258,7 @@ export function useAppData(): UseAppDataReturn {
           setAiRec(rec as AiAdvisorOutput);
           setAiRecBuiltAt(data.contextBuiltAt ?? null);
           setAiRecApplied(false);
+          setAiAppliedValues(null);
         } else {
           setAiRec(null);
         }
@@ -214,9 +273,9 @@ export function useAppData(): UseAppDataReturn {
   const silentRefreshObserver = useCallback(() => {
     fetch('/api/run-observer', { method: 'POST' })
       .then(r => r.json())
-      .then(() => { fetchLogs(); fetchStats(); fetchAiRecommendation(); })
+      .then(() => { fetchLogs(); fetchStats(); fetchAiRecommendation(); fetchControlPanel(); })
       .catch(() => {});
-  }, [fetchLogs, fetchStats, fetchAiRecommendation]);
+  }, [fetchLogs, fetchStats, fetchAiRecommendation, fetchControlPanel]);
 
   // Initial data load on mount + 30-second refresh for non-critical data
   useEffect(() => {
@@ -226,6 +285,7 @@ export function useAppData(): UseAppDataReturn {
     fetchControlPanel();
     fetchPublisherHistory();
     fetchPlaybook();
+    fetchAiTokenStats();
     fetchAiRecommendation();
     silentRefreshObserver();
     const interval = setInterval(() => {
@@ -234,9 +294,10 @@ export function useAppData(): UseAppDataReturn {
       fetchStats();
       fetchControlPanel();
       fetchPublisherHistory();
+      fetchAiTokenStats();
     }, 30000);
     return () => clearInterval(interval);
-  }, [fetchLogs, fetchDrafts, fetchStats, fetchControlPanel, fetchPublisherHistory, fetchPlaybook, fetchAiRecommendation, silentRefreshObserver]);
+  }, [fetchLogs, fetchDrafts, fetchStats, fetchControlPanel, fetchPublisherHistory, fetchPlaybook, fetchAiTokenStats, fetchAiRecommendation, silentRefreshObserver]);
 
   // Periodic observer auto-refresh every 5 minutes so board state never goes stale
   useEffect(() => {
@@ -361,6 +422,7 @@ export function useAppData(): UseAppDataReturn {
       if (data.success) {
         setActionMessage({ type: 'success', text: 'Observer run completed successfully.', log: data.log });
         fetchLogs();
+        fetchControlPanel();
       } else {
         const detail = stripTaggedErrorPrefix(data.error || 'Observer failed.');
         setActionMessage({ type: 'error', text: `Observer — ${detail}`, log: data.log });
@@ -370,13 +432,15 @@ export function useAppData(): UseAppDataReturn {
     } finally {
       setLoading(false);
     }
-  }, [fetchLogs]);
+  }, [fetchLogs, fetchControlPanel]);
 
   const applyAiRecommendation = useCallback(async () => {
     try {
       const res = await fetch('/api/apply-ai-recommendation', { method: 'POST' });
       if (res.ok) {
+        const data = await res.json() as { applied: boolean; intervalMinutes: number; gapThreshold: number };
         setAiRecApplied(true);
+        setAiAppliedValues({ intervalMinutes: data.intervalMinutes, gapThreshold: data.gapThreshold });
         setActionMessage({ type: 'success', text: 'AI recommendation applied to control panel.' });
         await fetchControlPanel();
       } else {
@@ -426,9 +490,9 @@ export function useAppData(): UseAppDataReturn {
 
   return {
     logs, drafts, competitorStats, boardStats, trendInsights, publisherHistory,
-    controlPanel, playbookData, loading, actionMessage, controlSaving, controlDirty,
+    controlPanel, aiTokenStats, playbookData, loading, actionMessage, controlSaving, controlDirty,
     controlPanelSection,
-    aiRec, aiRecBuiltAt, aiRecApplied,
+    aiRec, aiRecBuiltAt, aiRecApplied, aiAppliedValues,
     // UI-only state
     selectedLog, showOverrideModal, realPublisherStep,
     // Setters
@@ -436,7 +500,7 @@ export function useAppData(): UseAppDataReturn {
     setShowOverrideModal, setActionMessage,
     // Actions
     fetchLogs, fetchDrafts, fetchStats, fetchControlPanel, fetchPublisherHistory,
-    fetchPlaybook, runObserver, runPublisher, saveControlPanel, silentRefreshObserver,
+    fetchPlaybook, fetchAiTokenStats, runObserver, runPublisher, saveControlPanel, silentRefreshObserver,
     applyAiRecommendation
   };
 }

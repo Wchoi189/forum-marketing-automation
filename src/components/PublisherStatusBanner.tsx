@@ -8,14 +8,8 @@ export default function PublisherStatusBanner({ app }: { app: UseAppDataReturn }
 
   const toggleEnabled = () => {
     app.setControlPanel((c) => ({ ...c, autoPublisher: { ...c.autoPublisher, enabled: !isEnabled } }));
-    app.setControlDirty(true);
-    // Immediately save the toggle so it persists without requiring "Apply Controls"
-    const next = { ...app.controlPanel, autoPublisher: { ...app.controlPanel.autoPublisher, enabled: !isEnabled } };
-    fetch('/api/control-panel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(next),
-    }).then(() => app.fetchControlPanel()).catch(() => {});
+    // Immediately persist the toggle without requiring manual "Apply Controls"
+    void app.saveControlPanel();
   };
 
   let etaLabel = '';
