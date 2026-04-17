@@ -78,7 +78,7 @@
     }
   ],
   "hard_copy": {
-    "snapshot_path": "plans/snapshots/planning-hardcopy-20260411.json",
+    "snapshot_path": "plans/snapshots/planning-hardcopy-20260417.json",
     "update_policy": [
       "Update when a planning file is moved or renamed",
       "Update when a task status changes",

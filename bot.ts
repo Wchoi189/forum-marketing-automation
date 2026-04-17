@@ -12,6 +12,7 @@ import {
   publisherFailureScreenshot
 } from './lib/publisher/diagnostics.js';
 import { runPublisherFlow } from './lib/publisher/flow/runPublisherFlow.js';
+import type { DraftRowSelectionDiagnostics, PlaybookRuntimeContext } from './lib/playbookRunner.js';
 import { setPublisherStep, setPublisherRunning, playbookStepToCanvasStep } from './lib/publisherStepStore.js';
 import { readRuntimeGapPersistedOverride, writeRuntimeGapPersistedOverride, readPersistedObserverControls, readPersistedPublisherControls, readPersistedGapSourcePin } from './lib/runtimeControls.js';
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from './lib/parser/index.js';
@@ -163,6 +164,17 @@ function extractErrorCode(input: unknown): string {
   const message = String((input as { message?: unknown })?.message ?? input ?? '').trim();
   const matched = message.match(/^([A-Z0-9_]+):/);
   return matched ? matched[1] : 'UNCLASSIFIED_ERROR';
+}
+
+function formatDraftRowSelectionSuffix(selection?: DraftRowSelectionDiagnostics): string {
+  if (!selection) return '';
+  const label = selection.clickedLabel ? ` label="${selection.clickedLabel}"` : '';
+  return ` [draft-row requested=${selection.requestedDraftIndex} raw=${selection.clickedRawRowIndex} selectable=${selection.selectableRows}/${selection.totalRows}${label}]`;
+}
+
+function appendDraftRowSelection(message: string, selection?: DraftRowSelectionDiagnostics): string {
+  if (!selection || message.includes('[draft-row requested=')) return message;
+  return `${message}${formatDraftRowSelectionSuffix(selection)}`;
 }
 
 function clampInt(value: unknown, fallback: number, min: number, max: number): number {
@@ -1013,6 +1025,7 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
     }
 
     let page: import('playwright').Page | null = null;
+    let playbookRuntime: PlaybookRuntimeContext | null = null;
     try {
       page = await context.newPage();
       logger.info({ event: LOG_EVENT.publisherRunStarted, runId, boardUrl: policy.boardUrl, force }, 'Running Publisher');
@@ -1048,13 +1061,14 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
       }
 
       await publisherDebugScreenshot(page, debugDir, '01-board');
+      playbookRuntime = {
+        boardEntryUrl: policy.boardUrl,
+        draftItemIndex: publisherControls.draftItemIndex,
+        verifyTextTimeoutMs: ENV.PUBLISHER_POST_SUBMIT_WAIT_MS
+      };
       const flow = await runPublisherFlow({
         page,
-        runtime: {
-          boardEntryUrl: policy.boardUrl,
-          draftItemIndex: publisherControls.draftItemIndex,
-          verifyTextTimeoutMs: ENV.PUBLISHER_POST_SUBMIT_WAIT_MS
-        },
+        runtime: playbookRuntime,
         postSubmitWaitMs: ENV.PUBLISHER_POST_SUBMIT_WAIT_MS,
         dryRunMode: ENV.DRY_RUN_MODE,
         onStepStart: (stepId) => {
@@ -1075,11 +1089,16 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
       const samplePct = ENV.PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT;
       persistPublisherTraceZip =
         samplePct > 0 && Math.random() * 100 < samplePct;
-      return await finish(true, flow.message, flow.decision, log);
+      const flowMessage = appendDraftRowSelection(flow.message, playbookRuntime.draftRowSelection);
+      return await finish(true, flowMessage, flow.decision, log);
     } catch (innerErr) {
       publisherBrowserFlowFailed = true;
       persistPublisherTraceZip = true;
       await publisherFailureScreenshot(page, debugDir);
+      const maybeError = innerErr as { message?: unknown };
+      if (playbookRuntime?.draftRowSelection && typeof maybeError.message === 'string') {
+        maybeError.message = appendDraftRowSelection(maybeError.message, playbookRuntime.draftRowSelection);
+      }
       throw innerErr;
     } finally {
       if (traceStarted && debugDir) {

@@ -1,0 +1,31 @@
+{
+  "meta": {
+    "generatedAt": "2026-04-17T15:06:03.454Z",
+    "replayFingerprint": "876bda6e78a4d3db0b40612a554af14d80c77696539662aef030d53f7e34fc2e",
+    "source": "jsonl",
+    "historyLimit": 240,
+    "windowDays": 14,
+    "windowSize": 8,
+    "inputEventCount": 240,
+    "timelineEventCount": 240
+  },
+  "calibration": {
+    "isolatedMultiplierMin": 0.85,
+    "isolatedMultiplierMax": 0.981,
+    "isolatedMultiplierP10": 0.85,
+    "isolatedMultiplierP50": 0.85,
+    "isolatedMultiplierP90": 0.947,
+    "isolatedBoundHitRate": 0,
+    "suggestedMinBound": 0.83,
+    "suggestedMaxBound": 1.15,
+    "recommendation": "hold_bounds",
+    "currentBoundMin": 0.83,
+    "currentBoundMax": 1.15
+  },
+  "context": {
+    "globalOpportunityScore": 0.705,
+    "globalReason": "opportunity_rich",
+    "adaptationWindowCount": 7,
+    "skipHeavyWindowCount": 4
+  }
+}

@@ -7,6 +7,7 @@ export const LOG_EVENT = {
   publisherRunFinished: 'publisher.run.finished',
   publisherRunFailed: 'publisher.run.failed',
   publisherRunSkipped: 'publisher.run.skipped',
+  publisherDraftRowSelected: 'publisher.draft-row.selected',
   publisherSubmitCompleted: 'publisher.submit.completed',
   publisherSubmitSkipped: 'publisher.submit.skipped',
   publisherArtifactsDir: 'publisher.artifacts.dir',

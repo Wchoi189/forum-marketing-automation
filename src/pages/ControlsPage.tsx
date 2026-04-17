@@ -5,6 +5,7 @@ import { applyRuntimePreset, type ControlPanelState } from '../lib/controlPanel'
 import PublisherStatusBanner from '../components/PublisherStatusBanner';
 import ObserverPanel from '../components/observer/ObserverPanel';
 import SchedulerPanel from '../components/scheduler/SchedulerPanel';
+import SchedulerDiagnosticsWidget from '../components/scheduler/SchedulerDiagnosticsWidget';
 import PublisherSettingsPanel from '../components/publisher/PublisherSettingsPanel';
 import AiAdvisorPanel from '../components/AiAdvisorPanel';
 
@@ -35,6 +36,13 @@ export default function ControlsPage({ app }: { app: UseAppDataReturn }) {
           {app.controlPanelSection === 'observer' && <ObserverPanel app={app} />}
           {app.controlPanelSection === 'scheduler' && <SchedulerPanel app={app} />}
         </div>
+        {app.controlPanelSection === 'scheduler' && (
+          <SchedulerDiagnosticsWidget
+            trendInsights={app.trendInsights}
+            stateVersion={app.controlPanel.stateVersion}
+            persistedAt={app.controlPanel.persistedAt}
+          />
+        )}
         {app.controlPanelSection === 'publisher' && <PublisherSettingsPanel app={app} />}
         <div className="pt-4 border-t border-white/10 space-y-3">
           <p className="text-[10px] font-bold uppercase tracking-widest opacity-40">System Kill-switches</p>

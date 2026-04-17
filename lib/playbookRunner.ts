@@ -24,11 +24,21 @@ export type PublisherPlaybook = {
   steps: PlaybookStep[];
 };
 
+export type DraftRowSelectionDiagnostics = {
+  requestedDraftIndex: number;
+  clickedRawRowIndex: number;
+  selectableRows: number;
+  totalRows: number;
+  clickedLabel?: string | null;
+};
+
 export type PlaybookRuntimeContext = {
   boardEntryUrl: string;
   draftItemIndex?: number;
   /** Upper bound for verify_text waits (draft body may load async / live in an iframe). */
   verifyTextTimeoutMs?: number;
+  /** Populated by confirm-load-draft-modal to expose selected row context to callers. */
+  draftRowSelection?: DraftRowSelectionDiagnostics;
 };
 
 async function waitForExpectedTextInAnyFrame(page: Page, text: string, timeoutMs: number): Promise<void> {

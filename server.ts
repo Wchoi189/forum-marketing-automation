@@ -47,6 +47,8 @@ import {
   extractIntervalMinutes,
   extractGapThreshold,
 } from "./lib/nlWebhook.js";
+import { isValidKakaoPayload, logKakaoMessage, simpleTextResponse as kakaoSimpleText } from "./lib/kakaoSkill.js";
+import { getAutoReply as kakaoGetAutoReply } from "./lib/kakaoAutoReply.js";
 import {
   readPersistedObserverControls,
   readPersistedPublisherControls,
@@ -1197,6 +1199,40 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       logger.error({ event: "nl_command_dispatch_error", intent, err }, "[NL Webhook] Dispatch failed");
       res.status(503).json({ error: "dispatch_failed", reason: msg });
     }
+  });
+
+  // POST /kakao-webhook — Kakao Open Builder skill endpoint
+  // Registered URL: https://tortile-edmund-overboastful.ngrok-free.dev/kakao-webhook
+  // 0 blocks connected → safe to deploy; apply blocks in Open Builder when ready.
+  // ---------------------------------------------------------------------------
+  app.post("/kakao-webhook", async (req, res) => {
+    if (!ENV.KAKAO_WEBHOOK_ENABLED) {
+      res.status(503).json({ error: "kakao_webhook_disabled" });
+      return;
+    }
+
+    if (!isValidKakaoPayload(req.body)) {
+      logger.warn({ event: "kakao_payload_invalid" }, "[Kakao] Rejected malformed payload");
+      res.status(400).json({ error: "invalid_payload" });
+      return;
+    }
+
+    // Bot ID guard — cheap spoofing check until HMAC is wired up
+    if (ENV.KAKAO_OPENBUILDER_BOT_ID && req.body.bot.id !== ENV.KAKAO_OPENBUILDER_BOT_ID) {
+      logger.warn(
+        { event: "kakao_bot_id_mismatch", received: req.body.bot.id },
+        "[Kakao] Bot ID mismatch — rejected"
+      );
+      res.status(403).json({ error: "bot_id_mismatch" });
+      return;
+    }
+
+    logKakaoMessage(req.body);
+
+    // Auto-reply: attempt LLM response within KAKAO_AUTOREPLY_TIMEOUT_MS.
+    // Falls back to neutral ACK when disabled, key absent, or timed out.
+    const reply = await kakaoGetAutoReply(req.body.userRequest.utterance);
+    res.status(200).json(kakaoSimpleText(reply ?? "메시지를 받았습니다."));
   });
 
   return app;

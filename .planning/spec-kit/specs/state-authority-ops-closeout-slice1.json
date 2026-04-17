@@ -1,0 +1,107 @@
+{
+  "slice_id": "state-authority-ops-closeout-slice1-v1",
+  "phase": "P5",
+  "status": "done",
+  "purpose": "Close out the state-authority hardening plan by consolidating operator-facing provenance visibility, runbook guidance, and acceptance evidence.",
+  "design_intent": "Ensure operators can explain effective control values and scheduler adaptation rationale from APIs, UI, and runbooks without code inspection.",
+  "change_impact": "Updates planning/operations documentation and completion trackers; no runtime contract behavior is changed.",
+  "scope": {
+    "in": [
+      "Map SG-001 through SG-005 success criteria to concrete implementation evidence",
+      "Consolidate provenance and scheduler diagnostics operator runbook steps",
+      "Finalize closeout tracker state and planning hardcopy snapshot"
+    ],
+    "out": [
+      "Changing persistence topology or scheduler adaptation algorithms",
+      "Altering fail-closed publisher submit/redirect verification semantics",
+      "Introducing new control-panel API fields"
+    ]
+  },
+  "acceptance_checklist": [
+    {
+      "criterion": "SG-001",
+      "name": "Durable control persistence",
+      "status": "met",
+      "evidence": [
+        "lib/runtimeControls.ts serialized atomic write queue and temp-write rename path",
+        "server.ts control-panel mutation handlers return persistence failures explicitly",
+        "tests/integration/api.integration.test.ts persistence-failure expectations"
+      ]
+    },
+    {
+      "criterion": "SG-002",
+      "name": "State version convergence",
+      "status": "met",
+      "evidence": [
+        "server.ts control panel responses include stateVersion and persistedAt",
+        "server.ts stale write protection via expectedVersion",
+        "src/hooks/controlPanelSync.ts stale-response suppression by state version"
+      ]
+    },
+    {
+      "criterion": "SG-003",
+      "name": "Frontend stale-response immunity",
+      "status": "met",
+      "evidence": [
+        "src/hooks/useAppData.ts authoritative invalidate-and-replace flow",
+        "src/hooks/controlPanelSync.ts ordering guard and equal-version response handling",
+        "tests/integration/api.integration.test.ts conflict and authoritative response assertions"
+      ]
+    },
+    {
+      "criterion": "SG-004",
+      "name": "Opportunity-capture scheduler behavior",
+      "status": "met",
+      "evidence": [
+        "lib/schedulerSignals.ts isolated opportunity signal windows excluding recheck-only cadence",
+        "scripts/scheduler_signal_replay.ts deterministic replay and calibration report outputs",
+        "ops/systemd/scheduler-replay-report.sh operator command path for timestamped calibration runs"
+      ]
+    },
+    {
+      "criterion": "SG-005",
+      "name": "Operational explainability",
+      "status": "met",
+      "evidence": [
+        "GET /api/control-panel includes gap source + state metadata for provenance",
+        "GET /api/trend-insights and GET /api/scheduler-signals expose adaptation reasoning and calibration metrics",
+        "README.md and ops/systemd/README.md operator steps for provenance and scheduler diagnostics"
+      ]
+    }
+  ],
+  "runbook_consolidation": {
+    "operator_queries": [
+      "GET /api/control-panel",
+      "GET /api/trend-insights",
+      "GET /api/scheduler-signals",
+      "GET /api/publisher-history?limit=40"
+    ],
+    "calibration_commands": [
+      "npm run scheduler:replay:recent",
+      "npm run scheduler:replay:runbook"
+    ],
+    "escalation_toggles": [
+      "PUBLISHER_DEBUG_SCREENSHOTS",
+      "PUBLISHER_DEBUG_TRACE",
+      "PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT"
+    ]
+  },
+  "verification": {
+    "required_checks": [
+      "npm run lint",
+      "npm run test:integration"
+    ],
+    "status": "pass"
+  },
+  "archive_actions": {
+    "snapshot": "plans/snapshots/planning-hardcopy-20260417.json",
+    "archive_debt": [],
+    "notes": "P5 closeout artifacts prepared; optional post-closeout enhancements stay out of acceptance gate."
+  },
+  "references": {
+    "final_goal": ".planning/spec-kit/specs/state-authority-final-goal-v1.json",
+    "hardening_plan": ".planning/spec-kit/plans/state-authority-hardening.plan.json",
+    "p4_slice2": ".planning/spec-kit/specs/scheduler-signal-isolation-slice2.json",
+    "runtime_runbook": "ops/systemd/README.md"
+  }
+}

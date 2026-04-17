@@ -101,11 +101,17 @@
     {
       "phase_id": "P5",
       "name": "Ops and Closeout",
-      "status": "not_started",
+      "status": "done",
       "scope": [
         "Add operator-facing provenance visibility where missing",
         "Finalize runbook and escalation toggles",
         "Close verification budget and archive debt"
+      ],
+      "done_evidence": [
+        ".planning/spec-kit/specs/state-authority-ops-closeout-slice1.json acceptance checklist mapped to SG-001..SG-005",
+        "README.md operator-facing provenance and diagnostics section",
+        "ops/systemd/README.md provenance and scheduler diagnostics runbook walkthrough",
+        ".planning/spec-kit/plans/snapshots/planning-hardcopy-20260417.json closeout snapshot"
       ],
       "deliverables": [
         "Runbook updates for persistence and scheduler diagnostics",
@@ -143,6 +149,7 @@
   "references": {
     "final_goal_spec": ".planning/spec-kit/specs/state-authority-final-goal-v1.json",
     "state_sync_architecture": ".planning/spec-kit/specs/state-sync-architecture.md",
+    "p5_closeout_slice": ".planning/spec-kit/specs/state-authority-ops-closeout-slice1.json",
     "execution_loop_plan": ".planning/spec-kit/plans/execution-loop.plan.json",
     "runtime_execution_contract": ".planning/spec-kit/specs/execution-loop.contract.json",
     "planning_guidance": ".planning/spec-kit/plans/README.md"

@@ -82,6 +82,28 @@ Control panel API: `GET /api/control-panel`, `POST /api/control-panel`.
 Trend analytics (Spec-kit `analytics-trend` + `scheduler-adaptation.policy`): `GET /api/trend-insights` with optional query `windowDays` (1–60) and `trendAdaptiveEnabled` (`true`/`false`).
 Scheduler signal diagnostics API: `GET /api/scheduler-signals` with optional query `windowDays` (1–60), `windowSize` (1–24), and `historyLimit` (20–500).
 
+### Control Provenance + Decision Diagnostics
+
+Use this sequence when operators need to explain "what value is in effect" and "why scheduler adaptation changed":
+
+1. Read effective control source and persistence metadata:
+  - `GET /api/control-panel`
+  - Confirm `observer.gapSource` (`file`, `env`, `spec`) and `stateVersion` / `persistedAt`.
+2. Read adaptation rationale in context:
+  - `GET /api/trend-insights`
+  - Inspect `schedulerSignals.summary.reason`, `opportunityScore`, and multiplier fields.
+3. Deep-dive diagnostics payload for calibration posture:
+  - `GET /api/scheduler-signals?windowDays=14&windowSize=8&historyLimit=240`
+  - Inspect `calibration` (`isolatedBoundHitRate`, `suggestedMinBound`, `suggestedMaxBound`, `recommendation`).
+4. Correlate with run outcomes:
+  - `GET /api/publisher-history?limit=40`
+  - Compare decisions (`gap_policy`, `published_verified`, `publisher_error`) against diagnostics counts.
+
+Escalation path when evidence is insufficient:
+- Run `npm run scheduler:replay:runbook` for timestamped replay artifacts.
+- Enable `PUBLISHER_DEBUG_SCREENSHOTS=true` first.
+- Enable `PUBLISHER_DEBUG_TRACE=true` next; keep `PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT=0` unless success-path traces are required.
+
 ### Scheduler Replay / Calibration Commands
 
 - Synthetic fixture generation:
@@ -92,6 +114,8 @@ Scheduler signal diagnostics API: `GET /api/scheduler-signals` with optional que
   - `npm run scheduler:replay:recent`
 - Operator runbook path with timestamped output dir:
   - `npm run scheduler:replay:runbook`
+- Optional nightly automation on hosts:
+  - Enable `ops/systemd/scheduler-replay-report.timer` (runs `scheduler-replay-report.service` at 03:20 UTC)
 
 Replay outputs include:
 - `window_summary.json`

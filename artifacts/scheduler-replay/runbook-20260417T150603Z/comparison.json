@@ -1,0 +1,85 @@
+{
+  "meta": {
+    "generatedAt": "2026-04-17T15:06:03.453Z",
+    "replayFingerprint": "876bda6e78a4d3db0b40612a554af14d80c77696539662aef030d53f7e34fc2e"
+  },
+  "aggregate": {
+    "isolatedAverageMultiplier": 0.879,
+    "baselineAverageMultiplier": 1.02,
+    "averageDelta": -0.141,
+    "globalOpportunityScore": 0.705,
+    "globalReason": "opportunity_rich"
+  },
+  "windows": [
+    {
+      "windowIndex": 1,
+      "startAt": "2026-04-14T02:54:45.432Z",
+      "endAt": "2026-04-14T11:59:43.185Z",
+      "isolatedMultiplier": 0.85,
+      "baselineMultiplier": 0.91,
+      "deltaFromBaseline": -0.06,
+      "opportunityScore": 0.94,
+      "reason": "opportunity_rich"
+    },
+    {
+      "windowIndex": 2,
+      "startAt": "2026-04-14T13:16:10.647Z",
+      "endAt": "2026-04-15T05:57:45.803Z",
+      "isolatedMultiplier": 0.85,
+      "baselineMultiplier": 1.079,
+      "deltaFromBaseline": -0.229,
+      "opportunityScore": 0.771,
+      "reason": "opportunity_rich"
+    },
+    {
+      "windowIndex": 3,
+      "startAt": "2026-04-15T07:04:03.733Z",
+      "endAt": "2026-04-15T16:02:22.353Z",
+      "isolatedMultiplier": 0.85,
+      "baselineMultiplier": 1.036,
+      "deltaFromBaseline": -0.186,
+      "opportunityScore": 0.814,
+      "reason": "opportunity_rich"
+    },
+    {
+      "windowIndex": 4,
+      "startAt": "2026-04-15T17:32:41.548Z",
+      "endAt": "2026-04-16T06:55:19.922Z",
+      "isolatedMultiplier": 0.85,
+      "baselineMultiplier": 0.91,
+      "deltaFromBaseline": -0.06,
+      "opportunityScore": 0.94,
+      "reason": "opportunity_rich"
+    },
+    {
+      "windowIndex": 5,
+      "startAt": "2026-04-16T07:38:07.675Z",
+      "endAt": "2026-04-16T13:39:11.806Z",
+      "isolatedMultiplier": 0.85,
+      "baselineMultiplier": 0.979,
+      "deltaFromBaseline": -0.129,
+      "opportunityScore": 0.871,
+      "reason": "opportunity_rich"
+    },
+    {
+      "windowIndex": 6,
+      "startAt": "2026-04-16T14:31:22.556Z",
+      "endAt": "2026-04-17T08:56:12.252Z",
+      "isolatedMultiplier": 0.925,
+      "baselineMultiplier": 1.124,
+      "deltaFromBaseline": -0.199,
+      "opportunityScore": 0.559,
+      "reason": "opportunity_rich"
+    },
+    {
+      "windowIndex": 7,
+      "startAt": "2026-04-17T09:42:22.336Z",
+      "endAt": "2026-04-17T14:57:24.331Z",
+      "isolatedMultiplier": 0.981,
+      "baselineMultiplier": 1.1,
+      "deltaFromBaseline": -0.119,
+      "opportunityScore": 0.487,
+      "reason": "opportunity_balanced"
+    }
+  ]
+}

@@ -1,0 +1,239 @@
+{
+  "spec_id": "kakao-chatbot-v1",
+  "purpose": "Define the infrastructure, data architecture, and phased rollout plan for a Kakao Business Channel chatbot serving SharePlan's subscription sharing customers.",
+  "design_intent": "Build logging-first infrastructure to capture and structure conversation data before any automation. The chatbot system is completely isolated from the publisher/scheduler system. All AI automation is additive and gated behind kill-switches.",
+  "change_impact": "New subsystem only. No changes to publisher, scheduler, observer, or any existing API routes. Route POST /kakao-webhook is separate from the /api/* namespace.",
+  "isolation_guarantee": "The publisher, scheduler, and observer systems must not be called, referenced, or affected by any Kakao chatbot code. These are two independent products sharing one Express server.",
+
+  "business_context": {
+    "service": "SharePlan — subscription sharing intermediary",
+    "products": ["YouTube Premium (6mo, 12mo)", "Coursera Plus"],
+    "payment_method": "Korean bank transfer (IBK기업은행, account 43414622001010, owner 최웅비)",
+    "customer_acquisition_source": "ppomppu.co.kr forum referral links",
+    "operator_username": "SharePlan",
+    "service_flow": "customer inquires → price negotiation → email/Google ID collection → payment confirmation → Google Family invite → A/S follow-up",
+    "pricing_at_spec_date": {
+      "youtube_premium_6mo": "₩25,000",
+      "youtube_premium_12mo": "₩50,000",
+      "note": "Prices visible in historical chat data; may drift — do not hardcode in automation without re-verification"
+    }
+  },
+
+  "channel_architecture": {
+    "app_id": 1433640,
+    "app_name": "테스트 앱",
+    "env_key_rest": "KAKAO_REST_API_KEY",
+    "env_key_admin": "KAKAO_ADMIN_KEY",
+    "env_key_bot_id": "KAKAO_OPENBUILDER_BOT_ID",
+    "channels": {
+      "production": {
+        "handle": "@shareplan",
+        "name": "SharePlan",
+        "use": "Live customers. Do not connect skill blocks until dev channel is validated."
+      },
+      "development": {
+        "handle": "@mtq2kdq3ndpthyz",
+        "name": "(테스트)shareplan-dev",
+        "use": "Safe test target. Connect skill blocks here first for all testing."
+      }
+    },
+    "note": "Both channels share App 1433640. Target via channel handle in Open Builder skill scenarios — the API key itself is the same."
+  },
+
+  "bizmessage_app": {
+    "app_id": 1377955,
+    "app_name": "messenger",
+    "purpose": "AlimTalk and FriendTalk (Phase 5 only). Pre-approval and business verification complete.",
+    "env_keys": ["KAKAO_MESSENGER_REST_API_KEY", "KAKAO_LOGIN_CLIENT_SECRET", "KAKAO_BIZ_CLIENT_SECRET"],
+    "note": "Do not use this app for skill webhook handling — that belongs to app 1433640."
+  },
+
+  "openbuilder_skill": {
+    "skill_name": "Main_Skill_Dev",
+    "registered_webhook_url": "https://tortile-edmund-overboastful.ngrok-free.dev/kakao-webhook",
+    "express_route": "POST /kakao-webhook",
+    "blocks_connected": 0,
+    "note": "0 blocks connected is the safe Phase 1 state. Apply blocks only on dev channel during Phase 4 testing.",
+    "hmac_verification": "Not yet implemented. KAKAO_SKILL_SECRET env var is reserved. For now, bot ID validation provides a basic spoofing guard."
+  },
+
+  "data_inventory": {
+    "historical_csv": {
+      "path": "data/kakao_chat_records_2026-04-18/",
+      "file_count": 156,
+      "format": "CSV with header: DATE, USER, MESSAGE",
+      "date_range": {
+        "earliest": "2024-11-23",
+        "latest": "2026-04-15"
+      },
+      "filename_convention": "SharePlan_<customer_display_name>.csv",
+      "speaker_taxonomy": {
+        "operator": "USER == 'SharePlan' — human agent response",
+        "menu": "USER == 'SharePlan(메뉴)' — automated button/menu response",
+        "customer": "any other USER value — the customer"
+      },
+      "known_menu_triggers": [
+        "서비스 목록",
+        "결제 안내",
+        "자주 묻는 질문",
+        "A/S 신청"
+      ]
+    },
+    "live_jsonl": {
+      "path": "artifacts/kakao-history/YYYY-MM-DD.jsonl",
+      "written_by": "lib/kakaoSkill.ts logKakaoMessage()",
+      "started": "2026-04-18"
+    },
+    "knowledge_base_template": {
+      "path": "data/kakao_knowledge_base_data/knowledge-base-test_v1_20260417.xlsx",
+      "kb_name": "knowledge-base-test",
+      "kb_id": "NervousWood-ZdFrexLJKg0QKH2zMnQGXplk",
+      "schema_columns": [
+        "FAQ_No",
+        "Category1",
+        "Category2",
+        "Category3",
+        "Category4",
+        "Category5",
+        "Question",
+        "Answer",
+        "Landing URL",
+        "Landing URL Button Name",
+        "Image Info (URL)"
+      ],
+      "note": "Kakao native FAQ format. Import/export via Channel Partner Center dashboard. Empty template exported for schema reference."
+    }
+  },
+
+  "unified_message_schema": {
+    "description": "Single schema used for both live (webhook) and historical (CSV ingested) messages",
+    "fields": {
+      "id": "string — '{user_id}-{epoch_ms}' for live; '{conv_id}-{turn_index}' for historical",
+      "conv_id": "string — bot user ID for live; CSV basename (without .csv) for historical",
+      "ts": "ISO8601 string",
+      "source": "'live' | 'historical'",
+      "speaker": "'operator' | 'menu' | 'customer'",
+      "user_id": "string — Kakao user ID (live) or customer display name from CSV (historical)",
+      "text": "string — message body",
+      "labels": "string[] — annotation tags, initially empty",
+      "meta": {
+        "block_id": "string? — Open Builder block ID (live only)",
+        "block_name": "string? — block name (live only)",
+        "intent_id": "string? — Open Builder intent ID (live only)",
+        "bot_id": "string? — bot ID (live only)",
+        "conv_filename": "string? — source CSV filename (historical only)"
+      }
+    }
+  },
+
+  "phase_roadmap": [
+    {
+      "phase": 1,
+      "name": "Webhook Infrastructure",
+      "status": "DONE",
+      "deliverables": [
+        "lib/kakaoSkill.ts — types, validator, JSONL logger, response builder",
+        "POST /kakao-webhook in server.ts",
+        "KAKAO_WEBHOOK_ENABLED kill-switch in config/env.ts",
+        "artifacts/kakao-history/YYYY-MM-DD.jsonl live logging",
+        "Bot ID guard (KAKAO_OPENBUILDER_BOT_ID validation)"
+      ],
+      "acceptance": "Webhook returns 200 + valid Kakao 2.0 JSON within 3s; message appears in daily JSONL file"
+    },
+    {
+      "phase": 2,
+      "name": "Historical Data Ingestion",
+      "status": "PENDING",
+      "deliverables": [
+        "scripts/kakao-ingest.ts — CLI that reads all CSVs and writes unified JSONL",
+        "data/kakao-processed/conversations.jsonl — single merged output",
+        "Speaker normalization: SharePlan → operator, SharePlan(메뉴) → menu, other → customer",
+        "conv_id derived from CSV filename",
+        "Idempotent: re-running overwrites output deterministically"
+      ],
+      "acceptance": "All 156 CSVs parse without errors; conversation count matches file count; speaker field is always one of operator/menu/customer",
+      "entry_point": "npx tsx scripts/kakao-ingest.ts",
+      "data_note": "Do not modify source CSVs. Write output only to data/kakao-processed/."
+    },
+    {
+      "phase": 3,
+      "name": "Annotation & Labeling Tooling",
+      "status": "PENDING",
+      "deliverables": [
+        "Label taxonomy definition (intent classes, topic tags, sentiment)",
+        "scripts/kakao-annotate.ts — CLI or simple web UI for reviewing and labeling turns",
+        "Labeled output: data/kakao-annotated/conversations.jsonl (labels field populated)"
+      ],
+      "label_taxonomy_seed": {
+        "intents": ["inquiry_price", "inquiry_service", "inquiry_process", "provide_email", "confirm_payment", "request_as", "renewal", "cancel", "complaint", "greeting", "other"],
+        "topics": ["youtube_premium", "coursera", "pricing", "payment", "google_family", "activation", "as_support", "renewal", "general"],
+        "sentiment": ["positive", "neutral", "negative"]
+      },
+      "acceptance": "At least 50 conversations annotated; annotation format validates against unified_message_schema"
+    },
+    {
+      "phase": 4,
+      "name": "Knowledge Base Population",
+      "status": "PENDING",
+      "deliverables": [
+        "FAQ extraction from annotated data — identify high-frequency Q&A pairs",
+        "scripts/kakao-kb-export.ts — generates knowledge-base-import.xlsx matching Kakao KB schema",
+        "Populated xlsx with Category1-5 hierarchy mirroring known topics",
+        "Manual import into Kakao Channel dashboard (no API for this operation)"
+      ],
+      "acceptance": "Generated xlsx passes Kakao import validation; at least 20 FAQ entries covering top customer intents",
+      "note": "Knowledge base auth key in .env as KAKAO_BIZ_CLIENT_SECRET area — exact env var TBD when Kakao KB API is investigated"
+    },
+    {
+      "phase": 5,
+      "name": "Auto-Reply with OpenAI",
+      "status": "DONE",
+      "deliverables": [
+        "Intent classification: OpenAI classifies incoming utterance against known intent taxonomy",
+        "Response generation: retrieves matching FAQ from KB or generates from annotated examples",
+        "lib/kakaoAutoReply.ts — wraps OpenAI call, respects KAKAO_AUTOREPLY_ENABLED kill-switch",
+        "3-second timeout compliance: immediate ACK if LLM call cannot complete in time",
+        "Dev channel only until operator validates reply quality"
+      ],
+      "model": {
+        "provider": "OpenAI",
+        "env_var": "OPENAI_API_KEY",
+        "rationale": "Isolated from xAI/Grok used by the publisher advisor. Separate env var, separate module, no cross-dependency."
+      },
+      "acceptance": "Auto-reply enabled on dev channel; 10 manual test conversations pass operator review; kill-switch works",
+      "gate": "Phase 3 annotation must be complete; operator must explicitly enable KAKAO_AUTOREPLY_ENABLED"
+    }
+  ],
+
+  "env_additions": [
+    { "var": "KAKAO_WEBHOOK_ENABLED", "default": "false", "added_phase": 1, "effect": "Kill-switch for POST /kakao-webhook. Returns 503 when false." },
+    { "var": "KAKAO_OPENBUILDER_BOT_ID", "default": null, "added_phase": 1, "effect": "Bot ID validation on incoming skill payloads. Null = no validation." },
+    { "var": "KAKAO_ADMIN_KEY", "default": null, "added_phase": 1, "effect": "Admin key for outbound channel API calls (Phase 3+)." },
+    { "var": "KAKAO_SKILL_SECRET", "default": null, "added_phase": 1, "effect": "Reserved for HMAC signature verification of inbound skill requests. Not yet wired." },
+    { "var": "KAKAO_MESSENGER_REST_API_KEY", "default": null, "added_phase": 1, "effect": "App 1377955 REST API key for BizMessage (AlimTalk/FriendTalk), Phase 5+." },
+    { "var": "KAKAO_LOGIN_CLIENT_SECRET", "default": null, "added_phase": 1, "effect": "App 1377955 카카오 로그인 client secret." },
+    { "var": "KAKAO_BIZ_CLIENT_SECRET", "default": null, "added_phase": 1, "effect": "App 1377955 비즈니스 인증 client secret. Used for AlimTalk sender token exchange." },
+    { "var": "KAKAO_CHANNEL_ID", "default": null, "added_phase": 1, "effect": "Channel identifier. Origin unclear — verify this is the plusFriendId before using in API calls." },
+    { "var": "KAKAO_BASE_URL", "default": "https://kapi.kakao.com/v2/api/talk/channels", "added_phase": 1, "effect": "Base URL for Kakao Talk Channels API." },
+    { "var": "OPENAI_API_KEY", "default": null, "added_phase": 5, "effect": "OpenAI API key for auto-reply intent classification and response generation." },
+    { "var": "KAKAO_AUTOREPLY_ENABLED", "default": "false", "added_phase": 5, "effect": "Kill-switch for LLM auto-reply. Must be explicitly enabled by operator." }
+  ],
+
+  "safety_constraints": [
+    "Publisher, scheduler, and observer code must never be imported or called from any Kakao module.",
+    "KAKAO_WEBHOOK_ENABLED defaults to false — must be explicitly opted in.",
+    "KAKAO_AUTOREPLY_ENABLED defaults to false — operator must enable after reviewing Phase 4 output.",
+    "Auto-replies must only be enabled on dev channel (@mtq2kdq3ndpthyz) until operator validates quality.",
+    "Operator manual chat is never disabled — the webhook logs and optionally replies; it does not replace the admin center.",
+    "Historical CSV source files must never be modified — ingest script writes to data/kakao-processed/ only.",
+    "Credentials (bank account, phone number, customer emails) visible in CSV data must never be logged to live JSONL or included in LLM prompts without anonymization."
+  ],
+
+  "open_questions": [
+    "KAKAO_CHANNEL_ID value origin unclear — verify it is the plusFriendId for @shareplan before using in API calls.",
+    "KAKAO_SKILL_SECRET value origin unclear — locate in Open Builder → Skills → Security Settings to confirm.",
+    "ngrok URL (tortile-edmund-overboastful.ngrok-free.dev) is tied to a free account — it persists across restarts but requires ngrok running on Windows. Consider Tailscale or a VPS for production.",
+    "Kakao Knowledge Base API availability — investigate whether KB can be updated programmatically or requires manual dashboard import.",
+    "OPENAI_API_KEY not yet added to .env — add when Phase 5 work begins."
+  ]
+}

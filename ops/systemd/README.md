@@ -1,9 +1,11 @@
 # Runtime Service Runbook
 
-## Install service unit
+## Install service units
 
 1. Copy unit file:
    - `sudo cp ops/systemd/marketing-automation.service /etc/systemd/system/marketing-automation.service`
+  - `sudo cp ops/systemd/scheduler-replay-report.service /etc/systemd/system/scheduler-replay-report.service`
+  - `sudo cp ops/systemd/scheduler-replay-report.timer /etc/systemd/system/scheduler-replay-report.timer`
 2. Ensure scripts are executable:
    - `chmod +x ops/systemd/load-env-from-ssm.sh`
    - `chmod +x ops/systemd/healthcheck.sh`
@@ -12,12 +14,31 @@
 3. Reload and enable:
    - `sudo systemctl daemon-reload`
    - `sudo systemctl enable --now marketing-automation.service`
+4. Optional nightly replay automation (03:20 UTC):
+  - `sudo systemctl enable --now scheduler-replay-report.timer`
 
 ## Runtime checks
 
 - `systemctl status marketing-automation.service`
 - `journalctl -u marketing-automation.service -n 200 --no-pager`
+- `systemctl status scheduler-replay-report.timer`
+- `systemctl list-timers --all | grep scheduler-replay-report`
 - Health check: `PORT=3000 ops/systemd/healthcheck.sh`
+
+## Provenance visibility walkthrough
+
+When operators need to explain effective runtime settings without code inspection:
+
+1. `GET /api/control-panel`
+  - Confirm `observer.gapSource` (`file`, `env`, `spec`) and `stateVersion` / `persistedAt`.
+2. `GET /api/trend-insights`
+  - Inspect `schedulerSignals.summary` (`reason`, `opportunityScore`, `isolatedMultiplier`).
+3. `GET /api/scheduler-signals?windowDays=14&windowSize=8&historyLimit=240`
+  - Inspect `calibration` and recommendation fields for bound posture.
+4. `GET /api/publisher-history?limit=40`
+  - Correlate run decisions (`gap_policy`, `published_verified`, `publisher_error`) with diagnostics summary counts.
+
+These four responses provide source provenance + decision rationale for SG-005 operational explainability.
 
 ## Scheduler Signal Replay Report
 
@@ -38,8 +59,17 @@ Optional environment overrides for the runbook script:
 - `SCHEDULER_REPLAY_HISTORY_DIR` (default `artifacts/publisher-history`)
 - `SCHEDULER_REPLAY_OUTPUT_ROOT` (default `artifacts/scheduler-replay`)
 
-Optional cron example (daily 03:20 UTC):
+Preferred systemd timer (daily 03:20 UTC):
+- `scheduler-replay-report.timer` -> `scheduler-replay-report.service`
+
+Optional cron fallback (daily 03:20 UTC):
 - `20 3 * * * cd /opt/marketing-automation/current && npm run scheduler:replay:runbook >> /var/log/marketing-automation-scheduler-replay.log 2>&1`
+
+Troubleshooting sequence when diagnostics and outcomes diverge:
+1. Run `npm run scheduler:replay:runbook` and archive the generated report path.
+2. Compare `stability_report.json` gate outcomes with live `/api/scheduler-signals` calibration values.
+3. If data is insufficient, increase replay context (`SCHEDULER_REPLAY_HISTORY_LIMIT=320`) and rerun.
+4. If browser-step ambiguity remains, enable screenshots first, then traces (`PUBLISHER_DEBUG_SCREENSHOTS`, `PUBLISHER_DEBUG_TRACE`).
 
 ## Daily artifact cleanup
 

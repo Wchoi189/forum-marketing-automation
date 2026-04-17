@@ -1,0 +1,184 @@
+{
+  "snapshot_id": "planning-hardcopy-20260417",
+  "created_at": "2026-04-17",
+  "purpose": "Persist a hard copy of the planning brain structure and authoritative sources.",
+  "authoritative_roots": {
+    "planning_root": ".planning/spec-kit",
+    "spec_root": ".planning/spec-kit/specs",
+    "plan_root": ".planning/spec-kit/plans"
+  },
+  "canonical_sources": {
+    "constitution": ".planning/spec-kit/constitution.md",
+    "folder_conventions": ".planning/spec-kit/specs/folder-conventions.json",
+    "project_manifest": ".planning/spec-kit/manifest/project.manifest.json",
+    "execution_loop_contract": ".planning/spec-kit/specs/execution-loop.contract.json",
+    "planning_execution_loop": ".planning/spec-kit/plans/execution-loop.plan.json",
+    "consolidation_plan": ".planning/spec-kit/plans/planning-brain-consolidation.plan.json",
+    "state_authority_final_goal": ".planning/spec-kit/specs/state-authority-final-goal-v1.json",
+    "state_authority_plan": ".planning/spec-kit/plans/state-authority-hardening.plan.json",
+    "state_authority_closeout": ".planning/spec-kit/specs/state-authority-ops-closeout-slice1.json"
+  },
+  "inventory": {
+    "specs": [
+      ".planning/spec-kit/archive/specs/scheduler-ux-refactor.md",
+      ".planning/spec-kit/specs/ai-advisor-v1.json",
+      ".planning/spec-kit/specs/ai-design-guidelines.json",
+      ".planning/spec-kit/specs/analytics-eda-polish-v2.json",
+      ".planning/spec-kit/specs/analytics-eda-quality-v1.json",
+      ".planning/spec-kit/specs/analytics-eda-refactor-v1.json",
+      ".planning/spec-kit/specs/analytics-export-v1.json",
+      ".planning/spec-kit/specs/analytics-trend.contract.json",
+      ".planning/spec-kit/specs/api-contract.json",
+      ".planning/spec-kit/specs/api-endpoint-catalog.json",
+      ".planning/spec-kit/specs/app-shell-decompose-v1.json",
+      ".planning/spec-kit/specs/autonomy-workflow-tips.md",
+      ".planning/spec-kit/specs/dashboard-ux-followup.md",
+      ".planning/spec-kit/specs/decision-rules.json",
+      ".planning/spec-kit/specs/entry-points.contract.json",
+      ".planning/spec-kit/specs/execution-loop.contract.json",
+      ".planning/spec-kit/specs/folder-conventions.json",
+      ".planning/spec-kit/specs/forum-adapter.contract.json",
+      ".planning/spec-kit/specs/integration-test-plan.json",
+      ".planning/spec-kit/specs/module-boundaries.json",
+      ".planning/spec-kit/specs/nl-webhook-v1.json",
+      ".planning/spec-kit/specs/packaging.strategy.json",
+      ".planning/spec-kit/specs/remote-ops.acceptance.plan.json",
+      ".planning/spec-kit/specs/remote-ops.access.contract.json",
+      ".planning/spec-kit/specs/remote-ops.deploy.contract.json",
+      ".planning/spec-kit/specs/remote-ops.observability.contract.json",
+      ".planning/spec-kit/specs/remote-ops.runtime.contract.json",
+      ".planning/spec-kit/specs/reviewer-readme.md",
+      ".planning/spec-kit/specs/risk-review.adversarial.json",
+      ".planning/spec-kit/specs/risk-review.edge-cases.json",
+      ".planning/spec-kit/specs/scheduler-adaptation.policy.json",
+      ".planning/spec-kit/specs/scheduler-sov-multiplier-v1.json",
+      ".planning/spec-kit/specs/shared-model.contract.json",
+      ".planning/spec-kit/specs/source-artifacts.json",
+      ".planning/spec-kit/specs/state-authority-final-goal-v1.json",
+      ".planning/spec-kit/specs/state-authority-ops-closeout-slice1.json",
+      ".planning/spec-kit/specs/state-sync-architecture.md",
+      ".planning/spec-kit/specs/ui-refactor-backlog.json",
+      ".planning/spec-kit/specs/ui-route-map.json",
+      ".planning/spec-kit/specs/ui-screen-inventory.json",
+      ".planning/spec-kit/specs/workflow-import.contract.json"
+    ],
+    "epics": [
+      ".planning/spec-kit/archive/plans/epics/ai-advisor-epic.md",
+      ".planning/spec-kit/archive/plans/epics/publisher-refactor-epic.md"
+    ],
+    "roadmaps": [
+      ".planning/spec-kit/archive/plans/roadmaps/publisher-refactor-roadmap.md"
+    ],
+    "sprints": [
+      ".planning/spec-kit/archive/plans/sprints/ai-advisor-sprint-1.md",
+      ".planning/spec-kit/archive/plans/sprints/ai-advisor-sprint-2.md",
+      ".planning/spec-kit/archive/plans/sprints/ai-advisor-sprint-3.md",
+      ".planning/spec-kit/archive/plans/sprints/analytics-eda-polish-sprint-2.md",
+      ".planning/spec-kit/archive/plans/sprints/analytics-eda-quality-sprint-1.md",
+      ".planning/spec-kit/archive/plans/sprints/analytics-eda-refactor-sprint-1.md",
+      ".planning/spec-kit/archive/plans/sprints/analytics-export-sprint-1.md",
+      ".planning/spec-kit/archive/plans/sprints/scheduler-sov-sprint-1.md",
+      ".planning/spec-kit/archive/plans/sprints/publisher-refactor-sprint-1-foundations.md",
+      ".planning/spec-kit/archive/plans/sprints/publisher-refactor-sprint-2-draft-modal.md",
+      ".planning/spec-kit/archive/plans/sprints/publisher-refactor-sprint-3-submit-verification.md",
+      ".planning/spec-kit/archive/plans/sprints/publisher-refactor-sprint-4-flow-orchestrator.md",
+      ".planning/spec-kit/archive/plans/sprints/publisher-refactor-sprint-5-hardening.md"
+    ],
+    "tasks": [
+      ".planning/spec-kit/archive/plans/tasks/logging-modernization-pino-plan.md",
+      ".planning/spec-kit/archive/plans/tasks/publisher-refactor-constraints-checklist.md",
+      ".planning/spec-kit/archive/plans/tasks/publisher-refactor-phase-1-foundations-tasks.md",
+      ".planning/spec-kit/archive/plans/tasks/publisher-refactor-phase-2-draft-modal-tasks.md",
+      ".planning/spec-kit/archive/plans/tasks/publisher-refactor-phase-3-submit-verification-tasks.md",
+      ".planning/spec-kit/archive/plans/tasks/publisher-refactor-phase-4-flow-orchestrator-tasks.md",
+      ".planning/spec-kit/archive/plans/tasks/publisher-refactor-phase-5-hardening-tasks.md",
+      ".planning/spec-kit/archive/plans/tasks/session-handover-analytics-eda.md",
+      ".planning/spec-kit/archive/plans/tasks/session-handover-app-shell-decompose.md",
+      ".planning/spec-kit/archive/plans/tasks/session-handover-eda-redesign-s2.md",
+      ".planning/spec-kit/archive/plans/tasks/session-handover-sov-sprint1-impl.md",
+      ".planning/spec-kit/archive/plans/tasks/session-handover-sov-sprint2-ui.md",
+      ".planning/spec-kit/archive/plans/tasks/session-handover.md"
+    ],
+    "snapshots": [
+      ".planning/spec-kit/plans/snapshots/planning-hardcopy-20260411.json",
+      ".planning/spec-kit/plans/snapshots/planning-hardcopy-20260417.json"
+    ],
+    "templates": [
+      ".planning/spec-kit/plans/templates/context-pack.md",
+      ".planning/spec-kit/plans/templates/drift-report.md"
+    ],
+    "manifest": [
+      ".planning/spec-kit/manifest/keys.manifest.json",
+      ".planning/spec-kit/manifest/playbook.ppomppu-gonggu-v1.json",
+      ".planning/spec-kit/manifest/project.manifest.json",
+      ".planning/spec-kit/manifest/workflow.ppomppu-gonggu-v1.json"
+    ],
+    "schemas": [
+      ".planning/spec-kit/manifest/schemas/data-contracts.schema.json",
+      ".planning/spec-kit/manifest/schemas/env.schema.json",
+      ".planning/spec-kit/manifest/schemas/playbook.schema.json",
+      ".planning/spec-kit/manifest/schemas/project.manifest.schema.json",
+      ".planning/spec-kit/manifest/schemas/workflow.schema.json"
+    ],
+    "reference": [
+      ".planning/spec-kit/reference/project-tree.txt"
+    ]
+  },
+  "tracker_policy": {
+    "default": "Use sprint checklists when no dedicated task file exists.",
+    "publisher_refactor": "Use archive/plans/tasks/publisher-refactor-phase-*-tasks.md as the authoritative checklist; sprint files are scope-only."
+  },
+  "memory_index": [
+    {
+      "item": "Scheduler SoV Sprint 1+2 complete",
+      "source": "project_sov_sprint1.md",
+      "status": "done",
+      "notes": "Both sprints done 2026-04-10; SoV badge + stat card live in dashboard"
+    },
+    {
+      "item": "AI Advisor + NL Webhook Epic",
+      "source": "project_ai_advisor_epic.md",
+      "status": "done",
+      "notes": "Sprints archived 2026-04-11; AI advisor, apply path, and NL webhook implemented"
+    },
+    {
+      "item": "Scheduler UX + App Modularization",
+      "source": ".planning/spec-kit/archive/specs/scheduler-ux-refactor.md",
+      "status": "done",
+      "notes": "All 3 sprints done 2026-04-11; collapsible sections, tooltips, NL webhook kill-switch in Controls"
+    },
+    {
+      "item": "Planning archive sweep",
+      "source": ".planning/spec-kit/archive/plans/sprints",
+      "status": "done",
+      "notes": "All sprints, epics, and roadmaps archived 2026-04-11"
+    }
+  ],
+  "active_plan_indexes": [
+    ".planning/spec-kit/plans/README.md",
+    ".planning/spec-kit/plans/state-authority-hardening.plan.json",
+    ".planning/spec-kit/plans/sprints",
+    ".planning/spec-kit/archive/plans",
+    ".planning/spec-kit/archive/plans/tasks",
+    ".planning/spec-kit/archive/specs"
+  ],
+  "archive_debt": [],
+  "anomalies": [],
+  "structural_changes": [
+    "Removed empty .planning/specs directory after spec consolidation.",
+    "Archived completed scheduler and publisher-refactor planning files under archive/specs and archive/plans/sprints.",
+    "Archived remaining AI advisor, analytics EDA, analytics export, and scheduler SoV sprints under archive/plans/sprints.",
+    "Archived completed epics and roadmaps under archive/plans/epics and archive/plans/roadmaps.",
+    "Added execution loop context-pack and drift-report templates under plans/templates.",
+    "Added state-authority final goal spec under specs and linked hardening plan under plans.",
+    "Completed state-authority hardening P5 closeout and marked SA-005 done in implementation tracker.",
+    "Added state-authority ops closeout slice spec with SG-001..SG-005 acceptance mapping.",
+    "Consolidated operator provenance and scheduler diagnostics runbook steps in README and ops/systemd/README.",
+    "Added planning hardcopy snapshot for 2026-04-17 closeout checkpoint."
+  ],
+  "status": {
+    "last_verified": "2026-04-17",
+    "verified_by": "github-copilot",
+    "notes": "Snapshot updated after state-authority P5 closeout artifacts and tracker transitions."
+  }
+}

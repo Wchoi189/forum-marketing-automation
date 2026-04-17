@@ -52,6 +52,20 @@ type EnvConfig = {
   NL_WEBHOOK_SECRET: string | null;
   /** Slack Webhook URL for outgoing notifications. Null when absent. */
   SLACK_WEBHOOK_URL: string | null;
+  /** Kill-switch for /kakao-webhook endpoint. Returns 503 when false. */
+  KAKAO_WEBHOOK_ENABLED: boolean;
+  /** Kakao Open Builder bot ID. Used to validate incoming skill payloads. Null = no validation. */
+  KAKAO_OPENBUILDER_BOT_ID: string | null;
+  /** Kakao app Admin Key. Used for outbound channel API calls. */
+  KAKAO_ADMIN_KEY: string | null;
+  /** Kakao Open Builder skill secret. Reserved for future HMAC verification of inbound requests. */
+  KAKAO_SKILL_SECRET: string | null;
+  /** OpenAI API key for Kakao auto-reply (Phase 5). Null when absent — auto-reply silently disabled. */
+  OPENAI_API_KEY: string | null;
+  /** Kill-switch for LLM auto-reply on the Kakao webhook. Must be explicitly enabled by operator. */
+  KAKAO_AUTOREPLY_ENABLED: boolean;
+  /** Per-call timeout in ms for Kakao auto-reply. Falls back to neutral ACK on timeout. */
+  KAKAO_AUTOREPLY_TIMEOUT_MS: number;
 };
 
 function requiredString(name: string): string {
@@ -165,6 +179,13 @@ function buildEnv(): EnvConfig {
     NL_WEBHOOK_ENABLED: optionalBool("NL_WEBHOOK_ENABLED", true),
     NL_WEBHOOK_SECRET: optionalStringOrNull("NL_WEBHOOK_SECRET"),
     SLACK_WEBHOOK_URL: optionalStringOrNull("SLACK_WEBHOOK_URL"),
+    KAKAO_WEBHOOK_ENABLED: optionalBool("KAKAO_WEBHOOK_ENABLED", false),
+    KAKAO_OPENBUILDER_BOT_ID: optionalStringOrNull("KAKAO_OPENBUILDER_BOT_ID"),
+    KAKAO_ADMIN_KEY: optionalStringOrNull("KAKAO_ADMIN_KEY"),
+    KAKAO_SKILL_SECRET: optionalStringOrNull("KAKAO_SKILL_SECRET"),
+    OPENAI_API_KEY: optionalStringOrNull("OPENAI_API_KEY"),
+    KAKAO_AUTOREPLY_ENABLED: optionalBool("KAKAO_AUTOREPLY_ENABLED", false),
+    KAKAO_AUTOREPLY_TIMEOUT_MS: optionalInt("KAKAO_AUTOREPLY_TIMEOUT_MS", 2400, 500, 5000),
   };
 }
 

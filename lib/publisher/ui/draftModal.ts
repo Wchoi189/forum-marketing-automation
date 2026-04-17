@@ -2,6 +2,11 @@ import type { Locator, Page } from "playwright";
 
 import { PLAYBOOK_LOCATOR_TIMEOUT_MS } from "../core/timeouts.js";
 import type { PlaybookRuntimeContext } from "../../playbookRunner.js";
+import { logger } from "../../logger.js";
+import { LOG_EVENT } from "../../logEvents.js";
+
+const DRAFT_MODAL_FALLBACK_VISIBLE_TIMEOUT_MS = 500;
+const DRAFT_MODAL_ACTION_TIMEOUT_MS = 500;
 
 function getDraftIndex(runtime: PlaybookRuntimeContext): number {
   return Math.max(1, Math.floor(runtime.draftItemIndex ?? 1));
@@ -29,21 +34,76 @@ async function resolveVisibleDraftModalRoot(page: Page): Promise<Locator | null>
   if (await primary.isVisible().catch(() => false)) return primary;
 
   const fallback = getDraftModalFallbackRoot(page);
-  await fallback.waitFor({ state: "visible", timeout: 1500 }).catch(() => null);
+  await fallback.waitFor({ state: "visible", timeout: DRAFT_MODAL_FALLBACK_VISIBLE_TIMEOUT_MS }).catch(() => null);
   if (await fallback.isVisible().catch(() => false)) return fallback;
 
   return null;
 }
 
-async function resolveDraftRow(modalRoot: Locator, page: Page, draftIndex: number): Promise<Locator | null> {
+type DraftRowSelection = {
+  rowCell: Locator;
+  clickedRawRowIndex: number;
+  selectableRowCount: number;
+  totalRowCount: number;
+  clickedLabel: string | null;
+};
+
+type DraftRowResolution = {
+  selection: DraftRowSelection | null;
+  totalRowCount: number;
+  selectableRowCount: number;
+};
+
+async function resolveDraftRow(modalRoot: Locator, page: Page, draftIndex: number): Promise<DraftRowResolution> {
   const rowLocator = modalRoot.locator("table tr").filter({ has: page.locator("td") });
   const rowCount = await rowLocator.count().catch(() => 0);
-  if (rowCount < draftIndex) return null;
+  if (rowCount === 0) {
+    return {
+      selection: null,
+      totalRowCount: 0,
+      selectableRowCount: 0,
+    };
+  }
 
-  const targetRow = rowLocator.nth(draftIndex - 1);
-  const rowTarget = targetRow.locator("a,button,td").first();
-  await rowTarget.click();
-  return targetRow.locator("td").first();
+  const selectableRows: Array<{ row: Locator; rawIndex: number }> = [];
+  for (let i = 0; i < rowCount; i += 1) {
+    const row = rowLocator.nth(i);
+    const rowVisible = await row.isVisible().catch(() => false);
+    if (!rowVisible) continue;
+
+    // Draft tables often interleave hidden/preview rows; only count visible actionable rows.
+    const rowTarget = row.locator("a:visible, button:visible, td:not([colspan]):visible").first();
+    const targetCount = await rowTarget.count().catch(() => 0);
+    if (targetCount === 0) continue;
+    if (!(await rowTarget.isVisible().catch(() => false))) continue;
+
+    selectableRows.push({ row, rawIndex: i });
+  }
+
+  if (selectableRows.length < draftIndex) {
+    return {
+      selection: null,
+      totalRowCount: rowCount,
+      selectableRowCount: selectableRows.length,
+    };
+  }
+
+  const selected = selectableRows[draftIndex - 1];
+  const rowTarget = selected.row.locator("a:visible, button:visible, td:not([colspan]):visible").first();
+  const clickedLabel = (await selected.row.innerText().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 140) || null;
+  await rowTarget.click({ timeout: DRAFT_MODAL_ACTION_TIMEOUT_MS });
+
+  return {
+    selection: {
+      rowCell: selected.row.locator("td:not([colspan]):visible, td:visible").first(),
+      clickedRawRowIndex: selected.rawIndex + 1,
+      selectableRowCount: selectableRows.length,
+      totalRowCount: rowCount,
+      clickedLabel,
+    },
+    totalRowCount: rowCount,
+    selectableRowCount: selectableRows.length,
+  };
 }
 
 async function clickPreviewLoadButton(page: Page, draftModalShell: Locator): Promise<void> {
@@ -54,12 +114,12 @@ async function clickPreviewLoadButton(page: Page, draftModalShell: Locator): Pro
   if ((await previewLoadBtn.count().catch(() => 0)) === 0) return;
 
   await previewLoadBtn
-    .click({ noWaitAfter: true, force: true, timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS })
+    .click({ noWaitAfter: true, force: true, timeout: DRAFT_MODAL_ACTION_TIMEOUT_MS })
     .catch(async () => {
       await draftModalShell
         .locator('button:has-text("불러오기")')
         .first()
-        .click({ noWaitAfter: true, force: true, timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS });
+        .click({ noWaitAfter: true, force: true, timeout: DRAFT_MODAL_ACTION_TIMEOUT_MS });
     });
 }
 
@@ -78,7 +138,7 @@ async function clearFreezeWithCloseFallbacks(page: Page, draftModalShell: Locato
       await closeBtn.click({
         noWaitAfter: true,
         force: true,
-        timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS
+        timeout: DRAFT_MODAL_ACTION_TIMEOUT_MS
       });
       await waitForBodyUnfreeze(page);
     }
@@ -113,10 +173,34 @@ export async function confirmLoadDraftFromModal(
     .filter({ has: page.locator('button:has-text("닫기")') })
     .first();
 
-  const rowCell = await resolveDraftRow(modalRoot, page, draftIndex);
-  if (!rowCell) {
-    throw new Error(`[Playbook] ${stepId}: no matching selector candidate`);
+  const rowResolution = await resolveDraftRow(modalRoot, page, draftIndex);
+  if (!rowResolution.selection) {
+    throw new Error(
+      `[Playbook] ${stepId}: no matching selector candidate (requestedDraftIndex=${draftIndex}, totalRows=${rowResolution.totalRowCount}, selectableRows=${rowResolution.selectableRowCount})`
+    );
   }
+  const rowCell = rowResolution.selection.rowCell;
+
+  runtime.draftRowSelection = {
+    requestedDraftIndex: draftIndex,
+    clickedRawRowIndex: rowResolution.selection.clickedRawRowIndex,
+    selectableRows: rowResolution.selection.selectableRowCount,
+    totalRows: rowResolution.selection.totalRowCount,
+    clickedLabel: rowResolution.selection.clickedLabel,
+  };
+
+  logger.info(
+    {
+      event: LOG_EVENT.publisherDraftRowSelected,
+      stepId,
+      requestedDraftIndex: draftIndex,
+      clickedRawRowIndex: rowResolution.selection.clickedRawRowIndex,
+      selectableRows: rowResolution.selection.selectableRowCount,
+      totalRows: rowResolution.selection.totalRowCount,
+      clickedLabel: rowResolution.selection.clickedLabel,
+    },
+    "[Publisher] Draft row selected"
+  );
 
   await clickPreviewLoadButton(page, draftModalShell);
   await waitForBodyUnfreeze(page);

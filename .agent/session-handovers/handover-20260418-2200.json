@@ -1,0 +1,137 @@
+{
+  "handover_id": "handover-20260418-2200",
+  "created_at": "2026-04-18T22:00:00+09:00",
+  "branch": "fiori-integration",
+  "focus": "Kakao Business Channel chatbot — Phase 1 infrastructure complete; spec, data inventory, and roadmap grounded",
+
+  "system_context": {
+    "what_shareplan_is": "A subscription sharing intermediary. Sells YouTube Premium (6mo/12mo) and Coursera Plus to Korean customers acquired via ppomppu.co.kr forum. Payments via bank transfer. Operator manages conversations manually via Kakao Business Channel.",
+    "what_this_project_is": "A completely separate subsystem from the publisher/scheduler. Goal: capture all channel conversations, annotate them, populate a Kakao Knowledge Base, and eventually automate replies using OpenAI. The publisher must never be touched by Kakao code.",
+    "current_state": "Phase 1 done. Webhook is wired but 0 Open Builder blocks connected — safe. Spec written. Data inventoried."
+  },
+
+  "completed": [
+    {
+      "item": "Feasibility assessment: two-way Kakao messaging architecture confirmed",
+      "detail": "Kakao requires server-side webhook (Skill) for receive; replies returned in same HTTP response. No polling API. No historical retrieval API."
+    },
+    {
+      "item": ".env reorganized — Kakao keys renamed to standard names, duplicates removed",
+      "detail": "KAKAO_BUSINESS_ID→KAKAO_CHANNEL_ID, KAKAO_BUSINESS_AUTH_KEY→KAKAO_SKILL_SECRET, KAKAO__BASE_URL→KAKAO_BASE_URL, KAKAO_BOT_ID→KAKAO_OPENBUILDER_BOT_ID. Two-app section added: chatbot (1433640) and messenger/bizmessage (1377955).",
+      "files": [".env"]
+    },
+    {
+      "item": "Phase 1 implementation: lib/kakaoSkill.ts + POST /kakao-webhook route + env additions",
+      "detail": "Webhook validates bot ID, logs to artifacts/kakao-history/YYYY-MM-DD.jsonl (sync appendFileSync), returns Kakao 2.0 ACK. Kill-switch KAKAO_WEBHOOK_ENABLED defaults false. No HMAC yet.",
+      "files": [
+        "lib/kakaoSkill.ts",
+        "server.ts",
+        "config/env.ts"
+      ]
+    },
+    {
+      "item": "Data inventory: 156 CSV conversations analyzed, KB template schema extracted",
+      "detail": "CSVs span 2024-11-23 to 2026-04-15. Schema: DATE,USER,MESSAGE. Speakers: SharePlan (operator), SharePlan(메뉴) (automated menu), customer name. KB template: 11-column Kakao FAQ format.",
+      "files": [
+        "data/kakao_chat_records_2026-04-18/",
+        "data/kakao_knowledge_base_data/knowledge-base-test_v1_20260417.xlsx"
+      ]
+    },
+    {
+      "item": "Spec written: kakao-chatbot-v1.json",
+      "detail": "Business context, channel architecture, data schema, 5-phase roadmap, env vars, safety constraints, open questions.",
+      "files": [".planning/spec-kit/specs/kakao-chatbot-v1.json"]
+    }
+  ],
+
+  "kakao_credential_map": {
+    "note": "All keys in .env. Do not re-derive from elsewhere.",
+    "chatbot_app_id": 1433640,
+    "env_keys_chatbot": ["KAKAO_REST_API_KEY", "KAKAO_JAVASCRIPT_KEY", "KAKAO_ADMIN_KEY", "KAKAO_OPENBUILDER_BOT_ID"],
+    "bizmessage_app_id": 1377955,
+    "env_keys_bizmessage": ["KAKAO_MESSENGER_REST_API_KEY", "KAKAO_LOGIN_CLIENT_SECRET", "KAKAO_BIZ_CLIENT_SECRET"],
+    "channel_and_webhook": ["KAKAO_CHANNEL_ID", "KAKAO_SKILL_SECRET", "KAKAO_BASE_URL", "KAKAO_WEBHOOK_ENABLED"],
+    "openbuilder_bot_id": "69e252bca2692abcc35b3cf8",
+    "prod_channel": "@shareplan",
+    "dev_channel": "@mtq2kdq3ndpthyz"
+  },
+
+  "infrastructure_state": {
+    "ngrok": {
+      "status": "running on Windows host",
+      "url": "https://tortile-edmund-overboastful.ngrok-free.dev",
+      "forwarding_to": "http://localhost:3000",
+      "registered_webhook": "https://tortile-edmund-overboastful.ngrok-free.dev/kakao-webhook",
+      "note": "Free domain — survives restarts but requires ngrok process running. Run: ngrok http 3000"
+    },
+    "kakao_webhook": {
+      "route": "POST /kakao-webhook",
+      "kill_switch_env": "KAKAO_WEBHOOK_ENABLED",
+      "current_value": "true (set in .env)",
+      "blocks_connected": 0,
+      "note": "Safe to leave running. Will only fire when a block is connected in Open Builder."
+    },
+    "log_output": "artifacts/kakao-history/YYYY-MM-DD.jsonl"
+  },
+
+  "open_questions": [
+    "KAKAO_CHANNEL_ID=oG31Ot1mRmPGYEb8uvsDnzdUtufCosrx — verify this is the plusFriendId for @shareplan. Check Channel Partner Center → Channel info.",
+    "KAKAO_SKILL_SECRET=yC4xCD5A45Bxug56RVV9ZBTiUTpEEDh1 — verify this is from Open Builder → Skills → Main_Skill_Dev → Security Settings.",
+    "ngrok is on free plan — URL stable but requires process to be running. Evaluate Tailscale tunnel or VPS for persistent access.",
+    "OPENAI_API_KEY not yet in .env — needed for Phase 5 auto-reply. Add when that phase begins."
+  ],
+
+  "pending_next": [
+    {
+      "phase": 2,
+      "task": "Build scripts/kakao-ingest.ts — parse all 156 CSVs into unified JSONL at data/kakao-processed/conversations.jsonl",
+      "spec_ref": ".planning/spec-kit/specs/kakao-chatbot-v1.json phase_roadmap[1]",
+      "entry_point": "npx tsx scripts/kakao-ingest.ts",
+      "notes": [
+        "Speaker normalization: SharePlan→operator, SharePlan(메뉴)→menu, other→customer",
+        "conv_id from CSV filename (basename without extension)",
+        "Idempotent: output file is overwritten cleanly on each run",
+        "Do NOT modify source CSV files"
+      ]
+    },
+    {
+      "phase": "1b (optional)",
+      "task": "Connect Main_Skill_Dev to a test block on dev channel @mtq2kdq3ndpthyz and send a test message",
+      "notes": [
+        "Verify KAKAO_WEBHOOK_ENABLED=true in .env",
+        "Verify server running on port 3000",
+        "Verify ngrok forwarding to localhost:3000",
+        "Check artifacts/kakao-history/ for the logged entry"
+      ]
+    },
+    {
+      "phase": "1b (optional)",
+      "task": "Investigate HMAC verification for POST /kakao-webhook",
+      "notes": [
+        "Find KAKAO_SKILL_SECRET source in Open Builder → Skills → Main_Skill_Dev → 보안 설정",
+        "Wire crypto.createHmac verification in lib/kakaoSkill.ts when confirmed"
+      ]
+    }
+  ],
+
+  "validation": {
+    "lint": "not run this session",
+    "type_check": "pass (tsc --noEmit clean on Kakao-related files)",
+    "integration_tests": "not applicable (new subsystem, no tests written yet)",
+    "notes": [
+      "lib/kakaoSkill.ts compiles clean",
+      "server.ts import and route compile clean",
+      "config/env.ts additions compile clean"
+    ]
+  },
+
+  "session_boundary_recommendation": {
+    "boundary_now": true,
+    "recommended_cut": "Phase 1 infrastructure complete and spec grounded. Clean cut before Phase 2 (data ingestion pipeline).",
+    "reason": [
+      "kakao-chatbot-v1.json provides complete context for any future session to continue without re-deriving architecture.",
+      "All env keys are named, organized, and documented.",
+      "Phase 2 is a self-contained scripting task that starts fresh without depending on this session's working memory."
+    ]
+  }
+}

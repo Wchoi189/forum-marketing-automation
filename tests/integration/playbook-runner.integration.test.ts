@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runPublisherPlaybook, type PublisherPlaybook } from "../../lib/playbookRunner.ts";
+import { runPublisherPlaybook, type PlaybookRuntimeContext, type PublisherPlaybook } from "../../lib/playbookRunner.ts";
 import { confirmLoadDraftFromModal } from "../../lib/publisher/ui/draftModal.ts";
 
 type FakeState = {
@@ -102,6 +102,8 @@ type DraftModalMockState = {
   freeze: boolean;
   modalVisible: boolean;
   rowCount: number;
+  rowSelectable?: boolean[];
+  clickedRowIndexes: number[];
   previewLoadButtonCount: number;
   closeButtonVisible: boolean;
   closeButtonClearsFreeze: boolean;
@@ -136,12 +138,29 @@ function createDraftModalPage(state: DraftModalMockState) {
   const rowLocator = {
     filter: () => rowLocator,
     count: async () => state.rowCount,
-    nth: (_index: number) => ({
+    nth: (index: number) => ({
+      isVisible: async () => true,
+      innerText: async () => `mock-row-${index + 1}`,
       locator: (selector: string) => {
-        if (selector === "a,button,td") {
+        if (selector === "a:visible, button:visible, td:not([colspan]):visible") {
+          const selectable = state.rowSelectable?.[index] ?? true;
           return {
             first: () => ({
-              click: async () => undefined
+              count: async () => (selectable ? 1 : 0),
+              isVisible: async () => selectable,
+              click: async () => {
+                if (!selectable) {
+                  throw new Error("element is not visible");
+                }
+                state.clickedRowIndexes.push(index);
+              }
+            })
+          };
+        }
+        if (selector === "td:not([colspan]):visible, td:visible") {
+          return {
+            first: () => ({
+              count: async () => 1
             })
           };
         }
@@ -206,15 +225,19 @@ function createDraftModalPage(state: DraftModalMockState) {
       press: async (key: string) => {
         if (key === "Escape" && state.escapeClearsFreeze) state.freeze = false;
       }
-    }
+    },
+    _state: state
   };
 }
 
 test("confirm-load-draft-modal clears freeze through close lifecycle", async () => {
+  const runtime: PlaybookRuntimeContext = { boardEntryUrl: "https://example.com", draftItemIndex: 2 };
   const page = createDraftModalPage({
     freeze: true,
     modalVisible: true,
-    rowCount: 2,
+    rowCount: 3,
+    rowSelectable: [true, false, true],
+    clickedRowIndexes: [],
     previewLoadButtonCount: 1,
     closeButtonVisible: true,
     closeButtonClearsFreeze: true,
@@ -225,10 +248,19 @@ test("confirm-load-draft-modal clears freeze through close lifecycle", async () 
   await assert.doesNotReject(() =>
     confirmLoadDraftFromModal(
       page as never,
-      { boardEntryUrl: "https://example.com", draftItemIndex: 2 },
+      runtime,
       "confirm-load-draft-modal"
     )
   );
+
+  assert.deepEqual((page as unknown as { _state: DraftModalMockState })._state.clickedRowIndexes, [2]);
+  assert.deepEqual(runtime.draftRowSelection, {
+    requestedDraftIndex: 2,
+    clickedRawRowIndex: 3,
+    selectableRows: 2,
+    totalRows: 3,
+    clickedLabel: "mock-row-3"
+  });
 });
 
 test("confirm-load-draft-modal fails closed when freeze persists after fallbacks", async () => {
@@ -236,6 +268,8 @@ test("confirm-load-draft-modal fails closed when freeze persists after fallbacks
     freeze: true,
     modalVisible: true,
     rowCount: 1,
+    rowSelectable: [true],
+    clickedRowIndexes: [],
     previewLoadButtonCount: 1,
     closeButtonVisible: true,
     closeButtonClearsFreeze: false,
