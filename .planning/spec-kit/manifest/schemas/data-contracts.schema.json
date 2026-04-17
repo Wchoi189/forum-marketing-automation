@@ -175,7 +175,13 @@
         "enabled",
         "minPreVisitDelayMs",
         "maxPreVisitDelayMs",
-        "minIntervalBetweenRunsMs"
+        "minIntervalBetweenRunsMs",
+        "gapThresholdMin",
+        "gapPersistedOverride",
+        "gapThresholdSpecBaseline",
+        "gapUsesEnvOverride",
+        "gapSource",
+        "gapSourcePin"
       ],
       "properties": {
         "enabled": { "type": "boolean" },
@@ -193,7 +199,19 @@
           "oneOf": [{ "type": "integer", "minimum": 1, "maximum": 50 }, { "type": "null" }]
         },
         "gapThresholdSpecBaseline": { "type": "integer", "minimum": 1, "maximum": 50 },
-        "gapUsesEnvOverride": { "type": "boolean" }
+        "gapUsesEnvOverride": { "type": "boolean" },
+        "gapSource": {
+          "type": "string",
+          "enum": ["file", "env", "spec"],
+          "description": "Effective source currently supplying gapThresholdMin."
+        },
+        "gapSourcePin": {
+          "description": "Explicit user source pin; null means default file→env→spec precedence.",
+          "oneOf": [
+            { "type": "string", "enum": ["env", "spec"] },
+            { "type": "null" }
+          ]
+        }
       }
     },
     "publisherControls": {
@@ -241,15 +259,38 @@
         "scheduleJitterPercent": { "type": "integer", "minimum": 0, "maximum": 50 },
         "scheduleJitterMode": { "type": "string", "enum": ["none", "uniform"] },
         "targetPublishIntervalMinutes": { "type": "integer", "minimum": 0, "maximum": 1440 },
-        "running": { "type": "boolean" }
+        "running": { "type": "boolean" },
+        "nextTickEta": {
+          "description": "ISO timestamp for next scheduler tick when available.",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "null" }
+          ]
+        }
       }
     },
     "controlPanelResponse": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["preset", "observer", "publisher", "autoPublisher"],
+      "required": [
+        "stateVersion",
+        "persistedAt",
+        "preset",
+        "nlWebhookEnabled",
+        "observer",
+        "publisher",
+        "autoPublisher"
+      ],
       "properties": {
+        "stateVersion": { "type": "integer", "minimum": 0 },
+        "persistedAt": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "null" }
+          ]
+        },
         "preset": { "type": "string", "enum": ["balanced", "night-safe", "day-aggressive"] },
+        "nlWebhookEnabled": { "type": "boolean" },
         "observer": { "$ref": "#/definitions/observerControls" },
         "publisher": { "$ref": "#/definitions/publisherControls" },
         "autoPublisher": { "$ref": "#/definitions/autoPublisherControls" }
@@ -259,7 +300,9 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "expectedVersion": { "type": "integer", "minimum": 0 },
         "preset": { "type": "string", "enum": ["balanced", "night-safe", "day-aggressive"] },
+        "nlWebhookEnabled": { "type": "boolean" },
         "observer": {
           "type": "object",
           "additionalProperties": false,
@@ -268,6 +311,13 @@
             "minPreVisitDelayMs": { "type": "integer" },
             "maxPreVisitDelayMs": { "type": "integer" },
             "minIntervalBetweenRunsMs": { "type": "integer" },
+            "gapSourcePin": {
+              "description": "Explicit source pin. null clears pin to default precedence.",
+              "oneOf": [
+                { "type": "string", "enum": ["env", "spec"] },
+                { "type": "null" }
+              ]
+            },
             "gapPersistedOverride": {
               "description": "Set to integer to persist; null clears file override.",
               "oneOf": [{ "type": "integer", "minimum": 1, "maximum": 50 }, { "type": "null" }]

@@ -3,12 +3,94 @@ import path from "path";
 import { ENV } from "../config/env.js";
 
 const REL_PATH = path.join("artifacts", "runtime-controls.json");
+let runtimeControlsWriteQueue: Promise<void> = Promise.resolve();
+
+export type RuntimeControlsStateMeta = {
+  stateVersion: number;
+  persistedAt: string | null;
+};
+
+export class RuntimeControlsVersionConflictError extends Error {
+  readonly code = "RUNTIME_CONTROLS_VERSION_CONFLICT";
+  readonly expectedVersion: number;
+  readonly currentVersion: number;
+
+  constructor(expectedVersion: number, currentVersion: number) {
+    super(`Expected runtime controls version ${expectedVersion}, found ${currentVersion}`);
+    this.name = "RuntimeControlsVersionConflictError";
+    this.expectedVersion = expectedVersion;
+    this.currentVersion = currentVersion;
+  }
+}
 
 function filePath(): string {
   return path.join(ENV.PROJECT_ROOT, REL_PATH);
 }
 
+function enqueueRuntimeControlsWrite<T>(operation: () => Promise<T>): Promise<T> {
+  const run = runtimeControlsWriteQueue.then(operation, operation);
+  runtimeControlsWriteQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+async function writeRuntimeControlsFileAtomic(next: RuntimeControlsFile): Promise<void> {
+  const fp = filePath();
+  await fs.mkdir(path.dirname(fp), { recursive: true });
+  const tmp = `${fp}.${process.pid}.${Date.now()}.tmp`;
+  const serialized = JSON.stringify(next, null, 2);
+  await fs.writeFile(tmp, serialized, "utf-8");
+  const handle = await fs.open(tmp, "r");
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  await fs.rename(tmp, fp);
+}
+
+function normalizeStateVersion(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) return 0;
+  return value;
+}
+
+function normalizePersistedAt(value: unknown): string | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const t = Date.parse(value);
+  if (!Number.isFinite(t)) return null;
+  return new Date(t).toISOString();
+}
+
+async function mutateRuntimeControls(
+  mutator: (existing: RuntimeControlsFile) => RuntimeControlsFile,
+  opts: { expectedVersion?: number } = {}
+): Promise<RuntimeControlsStateMeta> {
+  return enqueueRuntimeControlsWrite(async () => {
+    const existing = await readRuntimeControls();
+    const currentVersion = normalizeStateVersion(existing.stateVersion);
+    if (opts.expectedVersion !== undefined && opts.expectedVersion !== currentVersion) {
+      throw new RuntimeControlsVersionConflictError(opts.expectedVersion, currentVersion);
+    }
+    const mutated = mutator(existing);
+    const nextMeta: RuntimeControlsStateMeta = {
+      stateVersion: currentVersion + 1,
+      persistedAt: new Date().toISOString(),
+    };
+    const next: RuntimeControlsFile = {
+      ...mutated,
+      stateVersion: nextMeta.stateVersion,
+      persistedAt: nextMeta.persistedAt,
+    };
+    await writeRuntimeControlsFileAtomic(next);
+    return nextMeta;
+  });
+}
+
 export type RuntimeControlsFile = {
+  /** Monotonic state version for optimistic concurrency on control mutations. */
+  stateVersion?: number;
+  /** Last successful atomic persistence timestamp (UTC ISO string). */
+  persistedAt?: string | null;
+
   /** Persisted minimum gap (posts). Omitted or null = no runtime file override (use env/spec chain). */
   observerGapThresholdMin?: number | null;
   /**
@@ -77,15 +159,19 @@ export async function readRuntimeControls(): Promise<RuntimeControlsFile> {
   }
 }
 
+export async function readRuntimeControlsStateMeta(): Promise<RuntimeControlsStateMeta> {
+  const data = await readRuntimeControls();
+  return {
+    stateVersion: normalizeStateVersion(data.stateVersion),
+    persistedAt: normalizePersistedAt(data.persistedAt),
+  };
+}
+
 /**
  * Write (merge) fields into the runtime controls file, preserving existing keys.
  */
-export async function writeRuntimeControls(patch: Partial<RuntimeControlsFile>): Promise<void> {
-  const fp = filePath();
-  await fs.mkdir(path.dirname(fp), { recursive: true });
-  const existing = await readRuntimeControls();
-  const next: RuntimeControlsFile = { ...existing, ...patch };
-  await fs.writeFile(fp, JSON.stringify(next, null, 2), "utf-8");
+export async function writeRuntimeControls(patch: Partial<RuntimeControlsFile>): Promise<RuntimeControlsStateMeta> {
+  return mutateRuntimeControls((existing) => ({ ...existing, ...patch }));
 }
 
 /**
@@ -102,17 +188,16 @@ export async function readRuntimeGapPersistedOverride(): Promise<number | null> 
 /**
  * Persist or clear gap override. null removes the key so env/spec chain applies.
  */
-export async function writeRuntimeGapPersistedOverride(value: number | null): Promise<void> {
-  await writeRuntimeControls({
-    observerGapThresholdMin: value === null ? undefined : clampGap(value),
+export async function writeRuntimeGapPersistedOverride(value: number | null): Promise<RuntimeControlsStateMeta> {
+  return mutateRuntimeControls((existing) => {
+    const next: RuntimeControlsFile = { ...existing };
+    if (value === null) {
+      delete next.observerGapThresholdMin;
+    } else {
+      next.observerGapThresholdMin = clampGap(value);
+    }
+    return next;
   });
-  if (value === null) {
-    // Remove the key entirely rather than setting to undefined
-    const fp = filePath();
-    const existing = await readRuntimeControls();
-    delete existing.observerGapThresholdMin;
-    await fs.writeFile(fp, JSON.stringify(existing, null, 2), "utf-8");
-  }
 }
 
 export type PersistedSchedulerControls = {
@@ -213,6 +298,14 @@ export async function readPersistedGapSourcePin(): Promise<'env' | 'spec' | null
  * Persist all control panel settings to disk atomically.
  */
 export async function persistAllControlPanelSettings(opts: {
+  expectedVersion?: number;
+
+  // Explicit override updates from API payload.
+  // undefined = preserve existing value.
+  gapPersistedOverride?: number | null;
+  gapSourcePin?: 'env' | 'spec' | null;
+  nlWebhookEnabled?: boolean;
+
   schedulerEnabled: boolean;
   schedulerControls: {
     baseIntervalMinutes: number;
@@ -239,38 +332,58 @@ export async function persistAllControlPanelSettings(opts: {
   publisherControls: {
     draftItemIndex: number;
   };
-}): Promise<void> {
-  // Preserve existing gap override, source pin, and NL webhook flag — they have their own write paths
-  const existing = await readRuntimeControls();
-  const next: RuntimeControlsFile = {
-    observerGapThresholdMin: existing.observerGapThresholdMin,
-    gapSourcePin: existing.gapSourcePin,
-    nlWebhookEnabled: existing.nlWebhookEnabled,
+}): Promise<RuntimeControlsStateMeta> {
+  return mutateRuntimeControls(
+    (existing) => {
+      const next: RuntimeControlsFile = {
+        ...existing,
 
-    schedulerEnabled: opts.schedulerEnabled,
-    schedulerBaseIntervalMinutes: opts.schedulerControls.baseIntervalMinutes,
-    schedulerQuietHoursStart: opts.schedulerControls.quietHoursStart,
-    schedulerQuietHoursEnd: opts.schedulerControls.quietHoursEnd,
-    schedulerQuietHoursMultiplier: opts.schedulerControls.quietHoursMultiplier,
-    schedulerActiveHoursStart: opts.schedulerControls.activeHoursStart,
-    schedulerActiveHoursEnd: opts.schedulerControls.activeHoursEnd,
-    schedulerActiveHoursMultiplier: opts.schedulerControls.activeHoursMultiplier,
-    schedulerTrendAdaptiveEnabled: opts.schedulerControls.trendAdaptiveEnabled,
-    schedulerTrendWindowDays: opts.schedulerControls.trendWindowDays,
-    schedulerTrendRecalibrationDays: opts.schedulerControls.trendRecalibrationDays,
-    schedulerJitterPercent: opts.schedulerControls.scheduleJitterPercent,
-    schedulerJitterMode: opts.schedulerControls.scheduleJitterMode,
-    schedulerTargetPublishIntervalMinutes: opts.schedulerControls.targetPublishIntervalMinutes,
-    preset: opts.preset,
+        schedulerEnabled: opts.schedulerEnabled,
+        schedulerBaseIntervalMinutes: opts.schedulerControls.baseIntervalMinutes,
+        schedulerQuietHoursStart: opts.schedulerControls.quietHoursStart,
+        schedulerQuietHoursEnd: opts.schedulerControls.quietHoursEnd,
+        schedulerQuietHoursMultiplier: opts.schedulerControls.quietHoursMultiplier,
+        schedulerActiveHoursStart: opts.schedulerControls.activeHoursStart,
+        schedulerActiveHoursEnd: opts.schedulerControls.activeHoursEnd,
+        schedulerActiveHoursMultiplier: opts.schedulerControls.activeHoursMultiplier,
+        schedulerTrendAdaptiveEnabled: opts.schedulerControls.trendAdaptiveEnabled,
+        schedulerTrendWindowDays: opts.schedulerControls.trendWindowDays,
+        schedulerTrendRecalibrationDays: opts.schedulerControls.trendRecalibrationDays,
+        schedulerJitterPercent: opts.schedulerControls.scheduleJitterPercent,
+        schedulerJitterMode: opts.schedulerControls.scheduleJitterMode,
+        schedulerTargetPublishIntervalMinutes: opts.schedulerControls.targetPublishIntervalMinutes,
+        preset: opts.preset,
 
-    observerEnabled: opts.observerControls.enabled,
-    observerMinPreVisitDelayMs: opts.observerControls.minPreVisitDelayMs,
-    observerMaxPreVisitDelayMs: opts.observerControls.maxPreVisitDelayMs,
-    observerMinIntervalBetweenRunsMs: opts.observerControls.minIntervalBetweenRunsMs,
+        observerEnabled: opts.observerControls.enabled,
+        observerMinPreVisitDelayMs: opts.observerControls.minPreVisitDelayMs,
+        observerMaxPreVisitDelayMs: opts.observerControls.maxPreVisitDelayMs,
+        observerMinIntervalBetweenRunsMs: opts.observerControls.minIntervalBetweenRunsMs,
 
-    publisherDraftItemIndex: opts.publisherControls.draftItemIndex,
-  };
-  const fp = filePath();
-  await fs.mkdir(path.dirname(fp), { recursive: true });
-  await fs.writeFile(fp, JSON.stringify(next, null, 2), "utf-8");
+        publisherDraftItemIndex: opts.publisherControls.draftItemIndex,
+      };
+
+      if (opts.gapPersistedOverride !== undefined) {
+        if (opts.gapPersistedOverride === null) {
+          delete next.observerGapThresholdMin;
+        } else {
+          next.observerGapThresholdMin = clampGap(opts.gapPersistedOverride);
+        }
+      }
+
+      if (opts.gapSourcePin !== undefined) {
+        if (opts.gapSourcePin === null) {
+          delete next.gapSourcePin;
+        } else {
+          next.gapSourcePin = opts.gapSourcePin;
+        }
+      }
+
+      if (opts.nlWebhookEnabled !== undefined) {
+        next.nlWebhookEnabled = opts.nlWebhookEnabled;
+      }
+
+      return next;
+    },
+    { expectedVersion: opts.expectedVersion }
+  );
 }

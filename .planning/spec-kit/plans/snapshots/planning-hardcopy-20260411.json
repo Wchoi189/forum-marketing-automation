@@ -13,7 +13,9 @@
     "project_manifest": ".planning/spec-kit/manifest/project.manifest.json",
     "execution_loop_contract": ".planning/spec-kit/specs/execution-loop.contract.json",
     "planning_execution_loop": ".planning/spec-kit/plans/execution-loop.plan.json",
-    "consolidation_plan": ".planning/spec-kit/plans/planning-brain-consolidation.plan.json"
+    "consolidation_plan": ".planning/spec-kit/plans/planning-brain-consolidation.plan.json",
+    "state_authority_final_goal": ".planning/spec-kit/specs/state-authority-final-goal-v1.json",
+    "state_authority_plan": ".planning/spec-kit/plans/state-authority-hardening.plan.json"
   },
   "inventory": {
     "specs": [
@@ -51,6 +53,7 @@
       ".planning/spec-kit/archive/specs/scheduler-ux-refactor.md",
       ".planning/spec-kit/specs/shared-model.contract.json",
       ".planning/spec-kit/specs/source-artifacts.json",
+      ".planning/spec-kit/specs/state-authority-final-goal-v1.json",
       ".planning/spec-kit/specs/state-sync-architecture.md",
       ".planning/spec-kit/specs/ui-refactor-backlog.json",
       ".planning/spec-kit/specs/ui-route-map.json",
@@ -150,6 +153,7 @@
   ],
   "active_plan_indexes": [
     ".planning/spec-kit/plans/README.md",
+    ".planning/spec-kit/plans/state-authority-hardening.plan.json",
     ".planning/spec-kit/plans/sprints",
     ".planning/spec-kit/archive/plans",
     ".planning/spec-kit/archive/plans/tasks",
@@ -162,11 +166,12 @@
     "Archived completed scheduler and publisher-refactor planning files under archive/specs and archive/plans/sprints.",
     "Archived remaining AI advisor, analytics EDA, analytics export, and scheduler SoV sprints under archive/plans/sprints.",
     "Archived completed epics and roadmaps under archive/plans/epics and archive/plans/roadmaps.",
-    "Added execution loop context-pack and drift-report templates under plans/templates."
+    "Added execution loop context-pack and drift-report templates under plans/templates.",
+    "Added state-authority final goal spec under specs and linked hardening plan under plans."
   ],
   "status": {
-    "last_verified": "2026-04-11",
-    "verified_by": "unassigned",
-    "notes": "Snapshot updated after archive enforcement additions (archive policy + debt tracking)."
+    "last_verified": "2026-04-17",
+    "verified_by": "github-copilot",
+    "notes": "Snapshot updated after adding state-authority final-goal and hardening plan artifacts."
   }
 }

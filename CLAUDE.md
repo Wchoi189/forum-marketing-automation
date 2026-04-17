@@ -1,5 +1,14 @@
 # Code Map
 
+## Fiori Integration (Branch: `fiori-integration`)
+
+This branch experiments with adopting SAP Fiori design principles. **See [`FIORI.md`](FIORI.md) for the full context map before working on anything Fiori-related.**
+
+Short version: `src/components/` = existing Tailwind world (stable). `src/fiori/` = new Fiori world (`@ui5/webcomponents-react`). Never mix the two. CAP skills (`sap-cap-developer`, `sap-cap-deployment`) do not apply — this is an Express backend.
+
+---
+
+
 ## Server / Bot
 
 | File | Role |

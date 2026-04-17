@@ -1,0 +1,54 @@
+{
+  "handover_id": "handover-20260417-1625",
+  "created_at": "2026-04-17T16:25:00+09:00",
+  "branch": "fiori-integration",
+  "focus": "State-authority hardening P2 implementation and task tracking",
+  "completed": [
+    {
+      "item": "Added runtime control state metadata and optimistic concurrency primitives",
+      "files": [
+        "lib/runtimeControls.ts"
+      ]
+    },
+    {
+      "item": "Implemented control-panel API expectedVersion checks and conflict response with latest state",
+      "files": [
+        "server.ts"
+      ]
+    },
+    {
+      "item": "Updated frontend save path to send expectedVersion and recover from 409 conflicts",
+      "files": [
+        "src/hooks/useAppData.ts",
+        "src/lib/controlPanel.ts"
+      ]
+    },
+    {
+      "item": "Added integration tests for state metadata and expectedVersion concurrency",
+      "files": [
+        "tests/integration/api.integration.test.ts"
+      ]
+    },
+    {
+      "item": "Added dedicated phase tracker entries and advanced plan status",
+      "files": [
+        ".planning/spec-kit/tasks/implementation.tasks.json",
+        ".planning/spec-kit/plans/state-authority-hardening.plan.json"
+      ]
+    }
+  ],
+  "validation": {
+    "lint": "pass",
+    "integration_tests": "pass",
+    "notes": [
+      "npm run lint succeeded",
+      "npm run test:integration succeeded (39/39 passing)"
+    ]
+  },
+  "pending_next": [
+    "Finish remaining P2 scope by propagating stateVersion metadata consistently to any additional control mutation endpoints as needed",
+    "Begin P3 stale-response suppression hardening beyond control save path (poll ordering/version guard strategy)",
+    "Update spec-kit snapshot/hardcopy if required after additional status changes"
+  ],
+  "suggested_next_prompt": "Continue P2 completion audit: list all control-mutating endpoints and ensure each returns authoritative state metadata where contract-appropriate, then start P3 request-order guards in useAppData polling flows."
+}

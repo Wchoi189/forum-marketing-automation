@@ -14,6 +14,9 @@ export default function ObserverPanel({ app }: { app: UseAppDataReturn }) {
   const o = app.controlPanel.observer;
   const setObs = (patch: Partial<typeof o>) => app.setControlPanel((c) => ({ ...c, observer: { ...c.observer, ...patch } }));
 
+  const msToSeconds = (ms: number) => Number((ms / 1000).toFixed(2));
+  const secondsToMs = (sec: number) => Math.max(0, Math.round(sec * 1000));
+
   function selectSource(pin: GapSourcePin) {
     if (pin === null) {
       setObs({ gapSourcePin: null });
@@ -30,9 +33,24 @@ export default function ObserverPanel({ app }: { app: UseAppDataReturn }) {
     <div className="space-y-4 p-4 rounded-2xl bg-white/5 border border-white/10 lg:col-span-2">
       <p className="text-[11px] font-bold uppercase tracking-wider opacity-60">Observer Pacing</p>
       <label className="flex items-center justify-between text-sm"><span>Observer enabled</span><input type="checkbox" checked={o.enabled} onChange={(e) => setObs({ enabled: e.target.checked })} /></label>
-      <NumField label="Min delay before board visit (ms)" value={o.minPreVisitDelayMs} onChange={(v) => setObs({ minPreVisitDelayMs: Math.max(0, v) })} />
-      <NumField label="Max delay before board visit (ms)" value={o.maxPreVisitDelayMs} onChange={(v) => setObs({ maxPreVisitDelayMs: Math.max(0, v) })} />
-      <NumField label="Minimum time between observer runs (ms)" value={o.minIntervalBetweenRunsMs} onChange={(v) => setObs({ minIntervalBetweenRunsMs: Math.max(0, v) })} />
+      <NumField
+        label="Min delay before board visit (sec)"
+        value={msToSeconds(o.minPreVisitDelayMs)}
+        step={0.5}
+        onChange={(v) => setObs({ minPreVisitDelayMs: secondsToMs(v) })}
+      />
+      <NumField
+        label="Max delay before board visit (sec)"
+        value={msToSeconds(o.maxPreVisitDelayMs)}
+        step={0.5}
+        onChange={(v) => setObs({ maxPreVisitDelayMs: secondsToMs(v) })}
+      />
+      <NumField
+        label="Minimum time between observer runs (sec)"
+        value={msToSeconds(o.minIntervalBetweenRunsMs)}
+        step={1}
+        onChange={(v) => setObs({ minIntervalBetweenRunsMs: secondsToMs(v) })}
+      />
 
       <div className="pt-2 border-t border-white/10 space-y-3">
         <p className="text-[10px] opacity-50 uppercase tracking-wider">Gap policy (publish safety)</p>

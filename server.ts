@@ -6,9 +6,9 @@ import { pathToFileURL } from "url";
 import { createServer as createViteServer } from "vite";
 import {
   getLogs,
+  getObserverControls,
   getObserverControlsWithGap,
   getPublisherControls,
-  persistGapThresholdPersistedOverride,
   runObserver,
   runPublisher,
   setObserverControls,
@@ -48,9 +48,14 @@ import {
   extractGapThreshold,
 } from "./lib/nlWebhook.js";
 import {
+  readPersistedObserverControls,
+  readPersistedPublisherControls,
   readPersistedSchedulerControls,
   readPersistedNlWebhookEnabled,
+  readRuntimeControlsStateMeta,
+  RuntimeControlsVersionConflictError,
   persistAllControlPanelSettings,
+  writeRuntimeGapPersistedOverride,
   writeRuntimeControls,
 } from "./lib/runtimeControls.js";
 
@@ -59,6 +64,8 @@ const defaultDeps: BotDeps = { runObserver, runPublisher, getLogs };
 type SchedulerController = ReturnType<typeof startScheduler>;
 
 type ControlPanelResponse = {
+  stateVersion: number;
+  persistedAt: string | null;
   preset: ControlPanelPreset;
   nlWebhookEnabled: boolean;
   observer: ObserverControlsWithGap;
@@ -89,6 +96,48 @@ function extractErrorCode(input: unknown): string {
   const message = String((input as { message?: unknown })?.message ?? input ?? "").trim();
   const matched = message.match(/^([A-Z0-9_]+):/);
   return matched ? matched[1] : "UNCLASSIFIED_ERROR";
+}
+
+async function buildControlPanelResponse(
+  scheduler: SchedulerController | undefined,
+  nlWebhookEnabled: boolean,
+  stateMetaOverride?: { stateVersion: number; persistedAt: string | null }
+): Promise<ControlPanelResponse> {
+  const [autoPublisherState, observer, publisher, stateMeta] = await Promise.all([
+    (scheduler ? scheduler.getState() : Promise.resolve(null)).then((st) =>
+      st ?? {
+        enabled: true,
+        baseIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
+        effectiveIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
+        quietHoursStart: 3,
+        quietHoursEnd: 5,
+        quietHoursMultiplier: 1.8,
+        activeHoursStart: 8,
+        activeHoursEnd: 23,
+        activeHoursMultiplier: 0.8,
+        trendAdaptiveEnabled: true,
+        trendWindowDays: 7,
+        trendRecalibrationDays: 7,
+        scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
+        scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
+        targetPublishIntervalMinutes: 0,
+        running: false,
+      }
+    ),
+    getObserverControlsWithGap(),
+    Promise.resolve(getPublisherControls()),
+    stateMetaOverride ? Promise.resolve(stateMetaOverride) : readRuntimeControlsStateMeta(),
+  ]);
+
+  return {
+    stateVersion: stateMeta.stateVersion,
+    persistedAt: stateMeta.persistedAt,
+    preset: scheduler?.getPreset() ?? "balanced",
+    nlWebhookEnabled,
+    observer,
+    publisher,
+    autoPublisher: autoPublisherState,
+  };
 }
 
 export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerController, opts: { initialNlWebhookEnabled?: boolean } = {}) {
@@ -137,7 +186,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   app.get("/api/competitor-stats", async (req, res) => {
     const logs = await deps.getLogs();
     const stats: Record<string, { count: number, totalViews: number }> = {};
-    
+
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
     const recentLogs = logs.filter(log => new Date(log.timestamp) >= oneWeekAgo);
@@ -195,7 +244,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
 
     const prevKeys = new Set(previous.all_posts?.map(p => p.title + p.author) || []);
     const newPosts = latest.all_posts?.filter(p => !prevKeys.has(p.title + p.author)).length || 0;
-    
+
     const timeDiffHours = (new Date(latest.timestamp).getTime() - new Date(previous.timestamp).getTime()) / (1000 * 60 * 60);
     const turnoverRate = timeDiffHours > 0 ? (newPosts / timeDiffHours).toFixed(1) : 0;
 
@@ -319,10 +368,14 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     if (scheduler) {
       scheduler.setControls({ baseIntervalMinutes: recommendedIntervalMinutes });
     }
-    await Promise.all([
-      persistGapThresholdPersistedOverride(recommendedGapThreshold),
-      writeRuntimeControls({ schedulerBaseIntervalMinutes: recommendedIntervalMinutes }),
-    ]);
+    const persistMeta = await writeRuntimeControls({
+      observerGapThresholdMin: recommendedGapThreshold,
+      schedulerBaseIntervalMinutes: recommendedIntervalMinutes,
+    });
+    const controlPanel = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
+      stateVersion: persistMeta.stateVersion,
+      persistedAt: persistMeta.persistedAt,
+    });
 
     markAdvisorCacheApplied();
     const appliedAt = new Date().toISOString();
@@ -331,7 +384,15 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       { event: "ai_advisor_applied", intervalMinutes: recommendedIntervalMinutes, gapThreshold: recommendedGapThreshold },
       "AI recommendation applied to control panel"
     );
-    res.json({ applied: true, intervalMinutes: recommendedIntervalMinutes, gapThreshold: recommendedGapThreshold, appliedAt });
+    res.json({
+      applied: true,
+      intervalMinutes: recommendedIntervalMinutes,
+      gapThreshold: recommendedGapThreshold,
+      stateVersion: persistMeta.stateVersion,
+      persistedAt: persistMeta.persistedAt,
+      appliedAt,
+      controlPanel,
+    });
   });
 
   app.get("/api/drafts", (req, res) => {
@@ -360,47 +421,6 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
         res.status(500).json({ success: false, action: 'observer', error: log.error, log });
       } else {
         res.json({ success: true, action: 'observer', log });
-
-        // Fire-and-forget: refresh AI advisor cache after successful observer run
-        if (ENV.AI_ADVISOR_ENABLED && ENV.XAI_API_KEY) {
-          void (async () => {
-            try {
-              const [logs, history, controlPanelState] = await Promise.all([
-                deps.getLogs(),
-                readHistoryForAdvisor(10),
-                scheduler ? scheduler.getState() : null,
-              ]);
-              const trend = buildTrendInsightsPayload(logs, {
-                windowDays: controlPanelState?.trendWindowDays ?? 7,
-                referenceBaseIntervalMinutes: controlPanelState?.baseIntervalMinutes ?? ENV.RUN_INTERVAL_MINUTES,
-                trendAdaptiveEnabled: controlPanelState?.trendAdaptiveEnabled ?? true,
-                ourAuthorSubstring: ENV.OUR_AUTHOR_SUBSTRING,
-              });
-              const latestLog = logs[0] ?? null;
-              const context = buildAdvisorContext(trend, history, latestLog, {
-                baseIntervalMinutes: controlPanelState?.baseIntervalMinutes ?? ENV.RUN_INTERVAL_MINUTES,
-                scheduleJitterPercent: controlPanelState?.scheduleJitterPercent ?? ENV.SCHEDULER_JITTER_PERCENT,
-                enabled: controlPanelState?.enabled ?? true,
-                trendAdaptiveEnabled: controlPanelState?.trendAdaptiveEnabled ?? true,
-              });
-              const result = await callGrokAdvisor(context);
-              setAdvisorCache(result);
-              if (result.ok) {
-                const rec = result.recommendation;
-                logger.info(
-                  { event: "ai_advisor_refresh", intervalMinutes: rec.recommendedIntervalMinutes, gapThreshold: rec.recommendedGapThreshold, confidence: rec.confidence },
-                  "[AI Advisor] Recommendation cached after observer run"
-                );
-                logger.debug({ event: "ai_advisor_reasoning", reasoning: rec.reasoning }, "[AI Advisor] Reasoning");
-              } else {
-                const { reason } = result as { ok: false; reason: string };
-                logger.warn({ event: "ai_advisor_refresh_failed", reason }, "[AI Advisor] Advisory call failed after observer run");
-              }
-            } catch (err) {
-              logger.warn({ event: "ai_advisor_refresh_error", err }, "[AI Advisor] Unexpected error in fire-and-forget advisor refresh");
-            }
-          })();
-        }
       }
     } catch (error: any) {
       logger.error(
@@ -485,36 +505,13 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   });
 
   app.get("/api/control-panel", async (req, res) => {
-    const autoPublisherState = (scheduler ? await scheduler.getState() : null) ?? {
-      enabled: true,
-      baseIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
-      effectiveIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
-      quietHoursStart: 3,
-      quietHoursEnd: 5,
-      quietHoursMultiplier: 1.8,
-      activeHoursStart: 8,
-      activeHoursEnd: 23,
-      activeHoursMultiplier: 0.8,
-      trendAdaptiveEnabled: true,
-      trendWindowDays: 7,
-      trendRecalibrationDays: 7,
-      scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
-      scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
-      targetPublishIntervalMinutes: 0,
-      running: false
-    };
-    const payload: ControlPanelResponse = {
-      preset: scheduler?.getPreset() ?? "balanced",
-      nlWebhookEnabled: nlWebhookEnabledRuntime,
-      observer: await getObserverControlsWithGap(),
-      publisher: getPublisherControls(),
-      autoPublisher: autoPublisherState
-    };
+    const payload = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime);
     res.json(payload);
   });
 
   app.post("/api/control-panel", async (req, res) => {
     const body = (req.body ?? {}) as {
+      expectedVersion?: number;
       preset?: ControlPanelPreset;
       nlWebhookEnabled?: boolean;
       observer?: Partial<ObserverControlsWithGap>;
@@ -522,136 +519,240 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       autoPublisher?: Partial<AutoPublisherControls> & { enabled?: boolean };
     };
 
-    if (typeof body.nlWebhookEnabled === "boolean") {
-      nlWebhookEnabledRuntime = body.nlWebhookEnabled;
-      writeRuntimeControls({ nlWebhookEnabled: body.nlWebhookEnabled }).catch((err) =>
-        logger.warn({ event: 'nl_webhook_persist_failed', err }, '[ControlPanel] Failed to persist nlWebhookEnabled')
+    if (
+      body.expectedVersion !== undefined &&
+      (!Number.isInteger(body.expectedVersion) || body.expectedVersion < 0)
+    ) {
+      res.status(400).json({ error: "expectedVersion must be an integer >= 0" });
+      return;
+    }
+
+    const prevNlWebhookEnabledRuntime = nlWebhookEnabledRuntime;
+    const prevObserverControls = getObserverControls();
+    const prevPublisherControls = getPublisherControls();
+    const prevSchedulerPreset = scheduler?.getPreset();
+    const prevSchedulerState = scheduler ? await scheduler.getState() : null;
+
+    try {
+
+      if (typeof body.nlWebhookEnabled === "boolean") {
+        nlWebhookEnabledRuntime = body.nlWebhookEnabled;
+      }
+
+      const rawObserver = body.observer ?? {};
+      const gapPersistedOverride = (rawObserver as { gapPersistedOverride?: number | null }).gapPersistedOverride;
+      const gapSourcePin = (rawObserver as { gapSourcePin?: 'env' | 'spec' | null }).gapSourcePin;
+      const observerPacing: Parameters<typeof setObserverControls>[0] = { ...rawObserver };
+      delete (observerPacing as { gapPersistedOverride?: unknown }).gapPersistedOverride;
+      delete (observerPacing as { gapSourcePin?: unknown }).gapSourcePin;
+      delete (observerPacing as { gapThresholdMin?: unknown }).gapThresholdMin;
+      delete (observerPacing as { gapThresholdSpecBaseline?: unknown }).gapThresholdSpecBaseline;
+      delete (observerPacing as { gapUsesEnvOverride?: unknown }).gapUsesEnvOverride;
+      delete (observerPacing as { gapSource?: unknown }).gapSource;
+
+      if (Object.prototype.hasOwnProperty.call(rawObserver, "gapPersistedOverride")) {
+        const v = gapPersistedOverride;
+        if (v !== null && (typeof v !== "number" || !Number.isInteger(v))) {
+          logger.warn(
+            { event: LOG_EVENT.apiControlPanelValidationFailed, status: "error", field: "gapPersistedOverride", reason: "not_integer_or_null", value: v },
+            "Control panel validation failed"
+          );
+          res.status(400).json({ error: "gapPersistedOverride must be an integer 1–50 or null" });
+          return;
+        }
+        if (v !== null && (v < 1 || v > 50)) {
+          logger.warn(
+            { event: LOG_EVENT.apiControlPanelValidationFailed, status: "error", field: "gapPersistedOverride", reason: "out_of_range", value: v },
+            "Control panel validation failed"
+          );
+          res.status(400).json({ error: "gapPersistedOverride must be an integer 1–50 or null" });
+          return;
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(rawObserver, "gapSourcePin")) {
+        const pin = gapSourcePin;
+        if (pin !== null && pin !== 'env' && pin !== 'spec') {
+          res.status(400).json({ error: "gapSourcePin must be 'env', 'spec', or null" });
+          return;
+        }
+      }
+
+      setObserverControls(observerPacing);
+      if (body.publisher && typeof body.publisher === "object") {
+        setPublisherControls(body.publisher);
+      }
+
+      const hasPreset = Boolean(scheduler && body.preset && PRESET_CONFIG[body.preset]);
+      if (scheduler && body.preset && PRESET_CONFIG[body.preset]) {
+        const presetConfig = PRESET_CONFIG[body.preset];
+        setObserverControls({ ...presetConfig.observer, ...observerPacing });
+        scheduler.applyPreset(body.preset);
+        scheduler.setControls(presetConfig.autoPublisher);
+      }
+
+      if (scheduler && body.autoPublisher) {
+        // Preset wins scheduler numeric controls; only explicit enabled toggle may be layered after preset.
+        if (Object.prototype.hasOwnProperty.call(body.autoPublisher, "enabled")) {
+          scheduler.setEnabled(Boolean(body.autoPublisher.enabled));
+        }
+        if (!hasPreset) {
+          scheduler.setControls(body.autoPublisher);
+        }
+      }
+
+      const autoPublisherState = (scheduler ? await scheduler.getState() : null) ?? {
+        enabled: true,
+        baseIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
+        effectiveIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
+        quietHoursStart: 3,
+        quietHoursEnd: 5,
+        quietHoursMultiplier: 1.8,
+        activeHoursStart: 8,
+        activeHoursEnd: 23,
+        activeHoursMultiplier: 0.8,
+        trendAdaptiveEnabled: true,
+        trendWindowDays: 7,
+        trendRecalibrationDays: 7,
+        scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
+        scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
+        targetPublishIntervalMinutes: 0,
+        running: false
+      };
+
+      // Persist all settings so they survive server restarts.
+      const currentObserver = await getObserverControlsWithGap();
+      const currentPublisher = getPublisherControls();
+      const persistMeta = await persistAllControlPanelSettings({
+        expectedVersion: body.expectedVersion,
+        nlWebhookEnabled: typeof body.nlWebhookEnabled === "boolean" ? body.nlWebhookEnabled : undefined,
+        gapPersistedOverride: Object.prototype.hasOwnProperty.call(rawObserver, "gapPersistedOverride")
+          ? (gapPersistedOverride ?? null)
+          : undefined,
+        gapSourcePin: Object.prototype.hasOwnProperty.call(rawObserver, "gapSourcePin")
+          ? (gapSourcePin ?? null)
+          : undefined,
+        schedulerEnabled: autoPublisherState.enabled,
+        schedulerControls: {
+          baseIntervalMinutes: autoPublisherState.baseIntervalMinutes,
+          quietHoursStart: autoPublisherState.quietHoursStart,
+          quietHoursEnd: autoPublisherState.quietHoursEnd,
+          quietHoursMultiplier: autoPublisherState.quietHoursMultiplier,
+          activeHoursStart: autoPublisherState.activeHoursStart,
+          activeHoursEnd: autoPublisherState.activeHoursEnd,
+          activeHoursMultiplier: autoPublisherState.activeHoursMultiplier,
+          trendAdaptiveEnabled: autoPublisherState.trendAdaptiveEnabled,
+          trendWindowDays: autoPublisherState.trendWindowDays,
+          trendRecalibrationDays: autoPublisherState.trendRecalibrationDays,
+          scheduleJitterPercent: autoPublisherState.scheduleJitterPercent,
+          scheduleJitterMode: autoPublisherState.scheduleJitterMode,
+          targetPublishIntervalMinutes: autoPublisherState.targetPublishIntervalMinutes,
+        },
+        preset: scheduler?.getPreset() ?? "balanced",
+        observerControls: {
+          enabled: currentObserver.enabled,
+          minPreVisitDelayMs: currentObserver.minPreVisitDelayMs,
+          maxPreVisitDelayMs: currentObserver.maxPreVisitDelayMs,
+          minIntervalBetweenRunsMs: currentObserver.minIntervalBetweenRunsMs,
+        },
+        publisherControls: {
+          draftItemIndex: currentPublisher.draftItemIndex,
+        },
+      });
+
+      const payload = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
+        stateVersion: persistMeta.stateVersion,
+        persistedAt: persistMeta.persistedAt,
+      });
+      res.json(payload);
+    } catch (error: unknown) {
+      const [persistedObserver, persistedPublisher, persistedScheduler, persistedNlWebhookEnabled] = await Promise.all([
+        readPersistedObserverControls(),
+        readPersistedPublisherControls(),
+        readPersistedSchedulerControls(),
+        readPersistedNlWebhookEnabled(),
+      ]);
+
+      // Rehydrate in-memory state from persisted controls first; fall back to previous snapshot if nothing is persisted.
+      setObserverControls(
+        Object.keys(persistedObserver).length > 0 ? persistedObserver : prevObserverControls
       );
-    }
+      setPublisherControls(
+        Object.keys(persistedPublisher).length > 0 ? persistedPublisher : prevPublisherControls
+      );
+      nlWebhookEnabledRuntime = persistedNlWebhookEnabled ?? prevNlWebhookEnabledRuntime;
 
-    const rawObserver = body.observer ?? {};
-    const gapPersistedOverride = (rawObserver as { gapPersistedOverride?: number | null }).gapPersistedOverride;
-    const gapSourcePin = (rawObserver as { gapSourcePin?: 'env' | 'spec' | null }).gapSourcePin;
-    const observerPacing: Parameters<typeof setObserverControls>[0] = { ...rawObserver };
-    delete (observerPacing as { gapPersistedOverride?: unknown }).gapPersistedOverride;
-    delete (observerPacing as { gapSourcePin?: unknown }).gapSourcePin;
-    delete (observerPacing as { gapThresholdMin?: unknown }).gapThresholdMin;
-    delete (observerPacing as { gapThresholdSpecBaseline?: unknown }).gapThresholdSpecBaseline;
-    delete (observerPacing as { gapUsesEnvOverride?: unknown }).gapUsesEnvOverride;
-    delete (observerPacing as { gapSource?: unknown }).gapSource;
+      if (scheduler) {
+        if (Object.keys(persistedScheduler).length > 0) {
+          if (
+            typeof persistedScheduler.preset === "string" &&
+            persistedScheduler.preset in PRESET_CONFIG
+          ) {
+            scheduler.setPreset(persistedScheduler.preset as ControlPanelPreset);
+          }
+          if (typeof persistedScheduler.enabled === "boolean") {
+            scheduler.setEnabled(persistedScheduler.enabled);
+          }
+          scheduler.setControls({
+            baseIntervalMinutes: persistedScheduler.baseIntervalMinutes,
+            quietHoursStart: persistedScheduler.quietHoursStart,
+            quietHoursEnd: persistedScheduler.quietHoursEnd,
+            quietHoursMultiplier: persistedScheduler.quietHoursMultiplier,
+            activeHoursStart: persistedScheduler.activeHoursStart,
+            activeHoursEnd: persistedScheduler.activeHoursEnd,
+            activeHoursMultiplier: persistedScheduler.activeHoursMultiplier,
+            trendAdaptiveEnabled: persistedScheduler.trendAdaptiveEnabled,
+            trendWindowDays: persistedScheduler.trendWindowDays,
+            trendRecalibrationDays: persistedScheduler.trendRecalibrationDays,
+            scheduleJitterPercent: persistedScheduler.scheduleJitterPercent,
+            scheduleJitterMode: persistedScheduler.scheduleJitterMode,
+            targetPublishIntervalMinutes: persistedScheduler.targetPublishIntervalMinutes,
+          });
+        } else if (prevSchedulerState) {
+          scheduler.setPreset(prevSchedulerPreset ?? "balanced");
+          scheduler.setControls({
+            baseIntervalMinutes: prevSchedulerState.baseIntervalMinutes,
+            quietHoursStart: prevSchedulerState.quietHoursStart,
+            quietHoursEnd: prevSchedulerState.quietHoursEnd,
+            quietHoursMultiplier: prevSchedulerState.quietHoursMultiplier,
+            activeHoursStart: prevSchedulerState.activeHoursStart,
+            activeHoursEnd: prevSchedulerState.activeHoursEnd,
+            activeHoursMultiplier: prevSchedulerState.activeHoursMultiplier,
+            trendAdaptiveEnabled: prevSchedulerState.trendAdaptiveEnabled,
+            trendWindowDays: prevSchedulerState.trendWindowDays,
+            trendRecalibrationDays: prevSchedulerState.trendRecalibrationDays,
+            scheduleJitterPercent: prevSchedulerState.scheduleJitterPercent,
+            scheduleJitterMode: prevSchedulerState.scheduleJitterMode,
+            targetPublishIntervalMinutes: prevSchedulerState.targetPublishIntervalMinutes,
+          });
+          scheduler.setEnabled(prevSchedulerState.enabled);
+        }
+      }
 
-    if (Object.prototype.hasOwnProperty.call(rawObserver, "gapPersistedOverride")) {
-      const v = gapPersistedOverride;
-      if (v !== null && (typeof v !== "number" || !Number.isInteger(v))) {
-        logger.warn(
-          { event: LOG_EVENT.apiControlPanelValidationFailed, status: "error", field: "gapPersistedOverride", reason: "not_integer_or_null", value: v },
-          "Control panel validation failed"
-        );
-        res.status(400).json({ error: "gapPersistedOverride must be an integer 1–50 or null" });
+      if (error instanceof RuntimeControlsVersionConflictError) {
+        const latest = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime);
+        res.status(409).json({
+          error: "CONTROL_PANEL_VERSION_CONFLICT",
+          expectedVersion: error.expectedVersion,
+          currentVersion: error.currentVersion,
+          currentState: latest,
+        });
         return;
       }
-      if (v !== null && (v < 1 || v > 50)) {
-        logger.warn(
-          { event: LOG_EVENT.apiControlPanelValidationFailed, status: "error", field: "gapPersistedOverride", reason: "out_of_range", value: v },
-          "Control panel validation failed"
-        );
-        res.status(400).json({ error: "gapPersistedOverride must be an integer 1–50 or null" });
-        return;
-      }
-      await persistGapThresholdPersistedOverride(v === null ? null : v);
+
+      logger.error(
+        {
+          event: LOG_EVENT.apiControlPanelPersistFailed,
+          status: "error",
+          errorCode: extractErrorCode(error),
+          err: error
+        },
+        "control-panel persistence failed"
+      );
+      res.status(500).json({
+        error: "[ControlPanel] Failed to persist control panel settings"
+      });
     }
-
-    if (Object.prototype.hasOwnProperty.call(rawObserver, "gapSourcePin")) {
-      const pin = gapSourcePin;
-      if (pin !== null && pin !== 'env' && pin !== 'spec') {
-        res.status(400).json({ error: "gapSourcePin must be 'env', 'spec', or null" });
-        return;
-      }
-      await writeRuntimeControls({ gapSourcePin: pin ?? undefined });
-    }
-
-    setObserverControls(observerPacing);
-    if (body.publisher && typeof body.publisher === "object") {
-      setPublisherControls(body.publisher);
-    }
-
-    const hasPreset = Boolean(scheduler && body.preset && PRESET_CONFIG[body.preset]);
-    if (scheduler && body.preset && PRESET_CONFIG[body.preset]) {
-      const presetConfig = PRESET_CONFIG[body.preset];
-      setObserverControls({ ...presetConfig.observer, ...observerPacing });
-      scheduler.applyPreset(body.preset);
-      scheduler.setControls(presetConfig.autoPublisher);
-    }
-
-    if (scheduler && body.autoPublisher) {
-      // Preset wins scheduler numeric controls; only explicit enabled toggle may be layered after preset.
-      if (Object.prototype.hasOwnProperty.call(body.autoPublisher, "enabled")) {
-        scheduler.setEnabled(Boolean(body.autoPublisher.enabled));
-      }
-      if (!hasPreset) {
-        scheduler.setControls(body.autoPublisher);
-      }
-    }
-
-    const autoPublisherState = (scheduler ? await scheduler.getState() : null) ?? {
-      enabled: true,
-      baseIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
-      effectiveIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
-      quietHoursStart: 3,
-      quietHoursEnd: 5,
-      quietHoursMultiplier: 1.8,
-      activeHoursStart: 8,
-      activeHoursEnd: 23,
-      activeHoursMultiplier: 0.8,
-      trendAdaptiveEnabled: true,
-      trendWindowDays: 7,
-      trendRecalibrationDays: 7,
-      scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
-      scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
-      targetPublishIntervalMinutes: 0,
-      running: false
-    };
-
-    // Persist all settings so they survive server restarts.
-    const currentObserver = await getObserverControlsWithGap();
-    const currentPublisher = getPublisherControls();
-    persistAllControlPanelSettings({
-      schedulerEnabled: autoPublisherState.enabled,
-      schedulerControls: {
-        baseIntervalMinutes: autoPublisherState.baseIntervalMinutes,
-        quietHoursStart: autoPublisherState.quietHoursStart,
-        quietHoursEnd: autoPublisherState.quietHoursEnd,
-        quietHoursMultiplier: autoPublisherState.quietHoursMultiplier,
-        activeHoursStart: autoPublisherState.activeHoursStart,
-        activeHoursEnd: autoPublisherState.activeHoursEnd,
-        activeHoursMultiplier: autoPublisherState.activeHoursMultiplier,
-        trendAdaptiveEnabled: autoPublisherState.trendAdaptiveEnabled,
-        trendWindowDays: autoPublisherState.trendWindowDays,
-        trendRecalibrationDays: autoPublisherState.trendRecalibrationDays,
-        scheduleJitterPercent: autoPublisherState.scheduleJitterPercent,
-        scheduleJitterMode: autoPublisherState.scheduleJitterMode,
-        targetPublishIntervalMinutes: autoPublisherState.targetPublishIntervalMinutes,
-      },
-      preset: scheduler?.getPreset() ?? "balanced",
-      observerControls: {
-        enabled: currentObserver.enabled,
-        minPreVisitDelayMs: currentObserver.minPreVisitDelayMs,
-        maxPreVisitDelayMs: currentObserver.maxPreVisitDelayMs,
-        minIntervalBetweenRunsMs: currentObserver.minIntervalBetweenRunsMs,
-      },
-      publisherControls: {
-        draftItemIndex: currentPublisher.draftItemIndex,
-      },
-    }).catch((err) => logger.warn({ event: 'control_panel_persist_failed', err }, '[ControlPanel] Failed to persist settings to disk'));
-
-    const payload: ControlPanelResponse = {
-      preset: scheduler?.getPreset() ?? "balanced",
-      nlWebhookEnabled: nlWebhookEnabledRuntime,
-      observer: currentObserver,
-      publisher: currentPublisher,
-      autoPublisher: autoPublisherState
-    };
-    res.json(payload);
   });
 
   // ---------------------------------------------------------------------------
@@ -735,15 +836,35 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       switch (intent) {
         case "pause_scheduler": {
           if (scheduler) scheduler.setEnabled(false);
+          const persistMeta = await writeRuntimeControls({ schedulerEnabled: false });
+          const controlPanel = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
+            stateVersion: persistMeta.stateVersion,
+            persistedAt: persistMeta.persistedAt,
+          });
           dispatchedTo = "POST /api/control-panel";
-          result = { schedulerEnabled: false };
+          result = {
+            schedulerEnabled: false,
+            stateVersion: persistMeta.stateVersion,
+            persistedAt: persistMeta.persistedAt,
+            controlPanel,
+          };
           break;
         }
 
         case "resume_scheduler": {
           if (scheduler) scheduler.setEnabled(true);
+          const persistMeta = await writeRuntimeControls({ schedulerEnabled: true });
+          const controlPanel = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
+            stateVersion: persistMeta.stateVersion,
+            persistedAt: persistMeta.persistedAt,
+          });
           dispatchedTo = "POST /api/control-panel";
-          result = { schedulerEnabled: true };
+          result = {
+            schedulerEnabled: true,
+            stateVersion: persistMeta.stateVersion,
+            persistedAt: persistMeta.persistedAt,
+            controlPanel,
+          };
           break;
         }
 
@@ -764,8 +885,20 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
             return;
           }
           if (scheduler) scheduler.setControls({ baseIntervalMinutes: intervalMinutes });
+          const persistMeta = await writeRuntimeControls({
+            schedulerBaseIntervalMinutes: intervalMinutes,
+          });
+          const controlPanel = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
+            stateVersion: persistMeta.stateVersion,
+            persistedAt: persistMeta.persistedAt,
+          });
           dispatchedTo = "POST /api/control-panel";
-          result = { baseIntervalMinutes: intervalMinutes };
+          result = {
+            baseIntervalMinutes: intervalMinutes,
+            stateVersion: persistMeta.stateVersion,
+            persistedAt: persistMeta.persistedAt,
+            controlPanel,
+          };
           break;
         }
 
@@ -775,9 +908,18 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
             res.status(422).json({ error: "missing_param", reason: "observerGapThresholdMin could not be extracted or is out of range (1–50)" });
             return;
           }
-          await persistGapThresholdPersistedOverride(gapThreshold);
+          const persistMeta = await writeRuntimeGapPersistedOverride(gapThreshold);
+          const controlPanel = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
+            stateVersion: persistMeta.stateVersion,
+            persistedAt: persistMeta.persistedAt,
+          });
           dispatchedTo = "writeRuntimeGapPersistedOverride";
-          result = { observerGapThresholdMin: gapThreshold };
+          result = {
+            observerGapThresholdMin: gapThreshold,
+            stateVersion: persistMeta.stateVersion,
+            persistedAt: persistMeta.persistedAt,
+            controlPanel,
+          };
           break;
         }
 
@@ -794,13 +936,24 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
           }
           const { recommendedIntervalMinutes, recommendedGapThreshold } = cached.result.recommendation;
           if (scheduler) scheduler.setControls({ baseIntervalMinutes: recommendedIntervalMinutes });
-          await Promise.all([
-            persistGapThresholdPersistedOverride(recommendedGapThreshold),
-            writeRuntimeControls({ schedulerBaseIntervalMinutes: recommendedIntervalMinutes }),
-          ]);
+          const persistMeta = await writeRuntimeControls({
+            observerGapThresholdMin: recommendedGapThreshold,
+            schedulerBaseIntervalMinutes: recommendedIntervalMinutes,
+          });
+          const controlPanel = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
+            stateVersion: persistMeta.stateVersion,
+            persistedAt: persistMeta.persistedAt,
+          });
           markAdvisorCacheApplied();
           dispatchedTo = "POST /api/apply-ai-recommendation";
-          result = { applied: true, intervalMinutes: recommendedIntervalMinutes, gapThreshold: recommendedGapThreshold };
+          result = {
+            applied: true,
+            intervalMinutes: recommendedIntervalMinutes,
+            gapThreshold: recommendedGapThreshold,
+            stateVersion: persistMeta.stateVersion,
+            persistedAt: persistMeta.persistedAt,
+            controlPanel,
+          };
           break;
         }
 

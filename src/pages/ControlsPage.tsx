@@ -57,7 +57,7 @@ export default function ControlsPage({ app }: { app: UseAppDataReturn }) {
         </div>
 
         <div className="flex items-center justify-end">
-          <button onClick={app.saveControlPanel} disabled={app.controlSaving} className="px-4 py-2 rounded-full bg-orange-600 hover:bg-orange-500 transition-all text-sm font-bold disabled:opacity-50">{app.controlSaving ? 'Saving...' : 'Apply Controls'}</button>
+          <button onClick={() => { void app.saveControlPanel(); }} disabled={app.controlSaving} className="px-4 py-2 rounded-full bg-orange-600 hover:bg-orange-500 transition-all text-sm font-bold disabled:opacity-50">{app.controlSaving ? 'Saving...' : 'Apply Controls'}</button>
         </div>
       </motion.div>
       <AiAdvisorPanel app={app} />

@@ -18,6 +18,7 @@ import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedS
 import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval-polyfill.js';
 import { logger } from './lib/logger.js';
 import { LOG_EVENT } from './lib/logEvents.js';
+import { sendSlackNotification } from './lib/notifications.js';
 
 export type PublisherRunResult = {
   success: boolean;
@@ -947,6 +948,16 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
       { event: LOG_EVENT.publisherRunFinished, runId, decision, status: success ? 'success' : 'error', durationMs, force, artifactDir: artifactRel },
       'Publisher run completed'
     );
+
+    // Filter noise: don't notify for normal gap-check skips
+    if (success) {
+      const emoji = decision === 'dry_run' ? '🚧' : '✅';
+      const label = decision === 'dry_run' ? 'Dry Run' : 'Success';
+      await sendSlackNotification(`${emoji} *Publisher ${label}* [${decision}]\n> ${message}${force ? ' (Force)' : ''}`);
+    } else if (decision !== 'gap_policy') {
+      await sendSlackNotification(`❌ *Publisher Failed* [${decision}]\n> ${message}${force ? ' (Force)' : ''}`);
+    }
+
     return { success, message, log: outLog, runId, decision, artifactDir: artifactRel };
   };
 

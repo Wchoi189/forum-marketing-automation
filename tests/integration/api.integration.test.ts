@@ -224,7 +224,7 @@ test("POST /api/run-publisher supports manual override force path", async () => 
 test("scheduler uses lock to avoid overlapping runs", async () => {
   const safeLog = createLog("safe");
   let runCount = 0;
-  let release: (() => void) | null = null;
+  let release!: () => void;
   const blocker = new Promise<void>((resolve) => {
     release = resolve;
   });
@@ -243,7 +243,7 @@ test("scheduler uses lock to avoid overlapping runs", async () => {
   const firstRun = scheduler.runNow();
   const secondRun = scheduler.runNow();
   await new Promise((resolve) => setTimeout(resolve, 25));
-  release?.();
+  release();
   await Promise.all([firstRun, secondRun]);
   scheduler.stop();
 
@@ -266,25 +266,27 @@ function trendLogsSteadyRate(): ActivityLog[] {
     views: 10,
     isNotice: false
   });
+  const now = Date.now();
+  const ts = (hoursAgo: number) => new Date(now - hoursAgo * 60 * 60 * 1000).toISOString();
   return [
     {
       ...base,
-      timestamp: "2026-04-04T10:00:00.000Z",
+      timestamp: ts(4),
       all_posts: [post("p1"), post("p2")]
     },
     {
       ...base,
-      timestamp: "2026-04-04T11:00:00.000Z",
+      timestamp: ts(3),
       all_posts: [post("p1"), post("p2"), post("p3")]
     },
     {
       ...base,
-      timestamp: "2026-04-04T12:00:00.000Z",
+      timestamp: ts(2),
       all_posts: [post("p1"), post("p2"), post("p3"), post("p4")]
     },
     {
       ...base,
-      timestamp: "2026-04-04T13:00:00.000Z",
+      timestamp: ts(1),
       all_posts: [post("p1"), post("p2"), post("p3"), post("p4"), post("p5")]
     }
   ];
@@ -464,10 +466,10 @@ test("GET /api/control-panel includes publisher.draftItemIndex", async () => {
   await withServer(deps, async (baseUrl) => {
     const res = await fetch(`${baseUrl}/api/control-panel`);
     assert.equal(res.status, 200);
-    const body = (await res.json()) as { publisher?: { draftItemIndex?: number } };
+    const body = (await res.json()) as { publisher: { draftItemIndex: number } };
     assert.ok(body.publisher);
-    assert.equal(typeof body.publisher?.draftItemIndex, "number");
-    assert.ok(body.publisher!.draftItemIndex >= 1);
+    assert.equal(typeof body.publisher.draftItemIndex, "number");
+    assert.ok(body.publisher.draftItemIndex >= 1);
   });
 });
 
@@ -623,6 +625,84 @@ test("GET /api/control-panel includes schedule jitter fields", async () => {
     assert.equal(typeof body.autoPublisher.scheduleJitterPercent, "number");
     assert.ok(body.autoPublisher.scheduleJitterMode === "none" || body.autoPublisher.scheduleJitterMode === "uniform");
     assert.equal(typeof body.autoPublisher.targetPublishIntervalMinutes, "number");
+  });
+});
+
+test("GET /api/control-panel includes state version metadata", async () => {
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
+    getLogs: async () => [createLog("safe")]
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/api/control-panel`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { stateVersion: number; persistedAt: string | null };
+    assert.equal(typeof body.stateVersion, "number");
+    assert.ok(body.stateVersion >= 0);
+    assert.ok(body.persistedAt === null || typeof body.persistedAt === "string");
+  });
+});
+
+test("POST /api/control-panel enforces expectedVersion concurrency", async () => {
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
+    getLogs: async () => [createLog("safe")]
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const get0 = await fetch(`${baseUrl}/api/control-panel`);
+    assert.equal(get0.status, 200);
+    const initial = (await get0.json()) as {
+      stateVersion: number;
+      preset: string;
+      nlWebhookEnabled: boolean;
+      observer: Record<string, unknown>;
+      publisher: { draftItemIndex: number };
+      autoPublisher: Record<string, unknown>;
+    };
+
+    const firstWrite = await fetch(`${baseUrl}/api/control-panel`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        expectedVersion: initial.stateVersion,
+        preset: initial.preset,
+        nlWebhookEnabled: initial.nlWebhookEnabled,
+        observer: initial.observer,
+        publisher: { draftItemIndex: Math.min(initial.publisher.draftItemIndex + 1, 50) },
+        autoPublisher: initial.autoPublisher
+      })
+    });
+    assert.equal(firstWrite.status, 200);
+    const firstBody = (await firstWrite.json()) as { stateVersion: number };
+    assert.ok(firstBody.stateVersion > initial.stateVersion);
+
+    const staleWrite = await fetch(`${baseUrl}/api/control-panel`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        expectedVersion: initial.stateVersion,
+        preset: initial.preset,
+        nlWebhookEnabled: initial.nlWebhookEnabled,
+        observer: initial.observer,
+        publisher: { draftItemIndex: initial.publisher.draftItemIndex },
+        autoPublisher: initial.autoPublisher
+      })
+    });
+    assert.equal(staleWrite.status, 409);
+    const staleBody = (await staleWrite.json()) as {
+      error: string;
+      expectedVersion: number;
+      currentVersion: number;
+      currentState?: { stateVersion?: number };
+    };
+    assert.equal(staleBody.error, "CONTROL_PANEL_VERSION_CONFLICT");
+    assert.equal(staleBody.expectedVersion, initial.stateVersion);
+    assert.equal(typeof staleBody.currentVersion, "number");
+    assert.ok((staleBody.currentState?.stateVersion ?? 0) >= staleBody.currentVersion);
   });
 });
 

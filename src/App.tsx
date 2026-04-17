@@ -49,7 +49,8 @@ export default function App() {
             { to: '/operations', label: 'Operations' },
             { to: '/controls', label: 'Controls' },
             { to: '/publisher-runs', label: 'Publisher Runs' },
-            { to: '/analytics', label: 'Competitor EDA' }
+            { to: '/analytics', label: 'Competitor EDA' },
+            { to: '/fiori', label: 'Fiori View ↗' }
           ].map((item) => (
             <NavLink
               key={item.to}

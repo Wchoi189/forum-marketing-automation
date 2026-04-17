@@ -19,6 +19,10 @@
     "test:integration": "PROJECT_ROOT=/parent/marketing-automation FORUM_PRIMARY_ID=ppomppu PPOMPPU_USER_ID=test-user PPOMPPU_USER_PW=test-pass BOT_PROFILE_DIR=/tmp/ppomppu-profile ACTIVITY_LOG_PATH=/tmp/activity-log.json XAI_API_KEY=test-xai-key NL_WEBHOOK_SECRET=test-secret tsx --test tests/integration/api.integration.test.ts tests/integration/playbook-runner.integration.test.ts tests/integration/nlWebhook.test.ts"
   },
   "dependencies": {
+    "@ui5/webcomponents-react": "^2.10.0",
+    "@ui5/webcomponents": "^2.10.0",
+    "@ui5/webcomponents-fiori": "^2.10.0",
+    "@ui5/webcomponents-icons": "^2.10.0",
     "@google/genai": "^1.29.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",

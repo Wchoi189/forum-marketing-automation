@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import App from './App.tsx';
 import { AnalyticsPage } from './AnalyticsPage.tsx';
+import FioriShell from './fiori/layouts/FioriShell.tsx';
+import FioriOverviewPage from './fiori/pages/FioriOverviewPage.tsx';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -15,6 +17,12 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/controls" element={<App />} />
         <Route path="/publisher-runs" element={<App />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
+
+        {/* ── Fiori integration (branch: fiori-integration) ── */}
+        <Route path="/fiori" element={<FioriShell />}>
+          <Route index element={<FioriOverviewPage />} />
+          <Route path="publisher-runs" element={<FioriOverviewPage />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   </StrictMode>
