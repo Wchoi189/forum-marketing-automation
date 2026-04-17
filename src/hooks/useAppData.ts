@@ -12,6 +12,11 @@ import {
   type TrendInsights,
   type AiAdvisorOutput
 } from '../lib/controlPanel';
+import {
+  decideControlPanelSync,
+  decideSequencedResponse,
+  reconcileControlPanelState
+} from './controlPanelSync';
 
 type ActionMessage = { type: 'success' | 'error'; text: string; log?: ActivityLog } | null;
 
@@ -133,75 +138,27 @@ export function useAppData(): UseAppDataReturn {
   ) => {
     const { requestSeq, preserveDirtyEdits = false } = opts;
 
-    if (typeof requestSeq === 'number') {
-      const highestSeen = controlPanelHighestVersionSeenRef.current;
-      if (nextState.stateVersion < highestSeen) return false;
-      if (
-        nextState.stateVersion === highestSeen &&
-        requestSeq < controlPanelAppliedSeqRef.current
-      ) {
-        return false;
+    const syncDecision = decideControlPanelSync(
+      {
+        highestVersionSeen: controlPanelHighestVersionSeenRef.current,
+        appliedRequestSeq: controlPanelAppliedSeqRef.current
+      },
+      nextState.stateVersion,
+      {
+        requestSeq,
+        latestRequestedSeq: controlPanelRequestSeqRef.current
       }
-      controlPanelAppliedSeqRef.current = requestSeq;
-    } else {
-      // Mutation responses are authoritative; pin the latest applied fetch sequence.
-      controlPanelAppliedSeqRef.current = controlPanelRequestSeqRef.current;
-    }
-
-    controlPanelHighestVersionSeenRef.current = Math.max(
-      controlPanelHighestVersionSeenRef.current,
-      nextState.stateVersion
     );
 
-    setControlPanel((current) => {
-      // controlDirty merge guard — determines which fields survive a polling re-fetch
-      // while the user has unsaved edits in the form.
-      //
-      // When preserveDirtyEdits=false OR controlDirty=false: replace state entirely from server.
-      //
-      // When preserveDirtyEdits=true AND controlDirty=true: split fields into two groups:
-      //
-      //   ALWAYS REFRESHED — server-authoritative computed/status values that are
-      //   never editable by the user. These are safe to overwrite mid-edit because
-      //   they reflect real-time system state, not form inputs:
-      //     - observer.gapThresholdMin          (effective computed gap)
-      //     - observer.gapThresholdSpecBaseline  (spec constant)
-      //     - observer.gapUsesEnvOverride        (precedence flag)
-      //     - observer.gapSource                 ('file' | 'env' | 'spec')
-      //     - observer.gapSourcePin              (display label)
-      //     - autoPublisher.running              (live scheduler status)
-      //     - autoPublisher.effectiveIntervalMinutes (trend-adjusted interval)
-      //
-      //   PROTECTED — user-edited form values. Kept from `current` so in-progress
-      //   edits are not clobbered by a background poll:
-      //     - observer.gapPersistedOverride      (the override input field)
-      //     - scheduler.baseIntervalMinutes      (scheduler interval input)
-      //     - scheduler.enabled                  (enable toggle)
-      //     - observer.* (all other pacing inputs)
-      //     - publisher.* (draft index, etc.)
-      //     - autoPublisher.enabled              (auto-publish toggle)
-      //     - nlWebhookEnabled                   (NL webhook toggle)
-      //
-      // After saveControlPanel() succeeds, controlDirty is reset to false, which
-      // returns this function to full-replace mode on the next poll.
-      if (!preserveDirtyEdits || !controlDirty) return nextState;
-      return {
-        ...current,
-        observer: {
-          ...current.observer,
-          gapThresholdMin: nextState.observer.gapThresholdMin,
-          gapThresholdSpecBaseline: nextState.observer.gapThresholdSpecBaseline,
-          gapUsesEnvOverride: nextState.observer.gapUsesEnvOverride,
-          gapSource: nextState.observer.gapSource,
-          gapSourcePin: nextState.observer.gapSourcePin,
-        },
-        autoPublisher: {
-          ...current.autoPublisher,
-          running: nextState.autoPublisher.running,
-          effectiveIntervalMinutes: nextState.autoPublisher.effectiveIntervalMinutes
-        }
-      };
-    });
+    if (!syncDecision.accepted) return false;
+
+    controlPanelAppliedSeqRef.current = syncDecision.tracker.appliedRequestSeq;
+    controlPanelHighestVersionSeenRef.current = syncDecision.tracker.highestVersionSeen;
+
+    setControlPanel((current) => reconcileControlPanelState(current, nextState, {
+      preserveDirtyEdits,
+      controlDirty
+    }));
 
     return true;
   }, [controlDirty]);
@@ -377,8 +334,12 @@ export function useAppData(): UseAppDataReturn {
         const requestSeq = ++publisherStatusRequestSeqRef.current;
         const res = await fetch('/api/publisher-status');
         const data: { step: PipelineStepId | null; running: boolean } = await res.json();
-        if (requestSeq < publisherStatusAppliedSeqRef.current) return;
-        publisherStatusAppliedSeqRef.current = requestSeq;
+        const sequenceDecision = decideSequencedResponse(
+          publisherStatusAppliedSeqRef.current,
+          requestSeq
+        );
+        if (!sequenceDecision.accepted) return;
+        publisherStatusAppliedSeqRef.current = sequenceDecision.appliedRequestSeq;
         if (data.step) {
           setRealPublisherStep(data.step);
         }
@@ -407,8 +368,12 @@ export function useAppData(): UseAppDataReturn {
         const requestSeq = ++publisherStatusRequestSeqRef.current;
         const res = await fetch('/api/publisher-status');
         const data: { step: PipelineStepId | null; running: boolean } = await res.json();
-        if (requestSeq < publisherStatusAppliedSeqRef.current) return;
-        publisherStatusAppliedSeqRef.current = requestSeq;
+        const sequenceDecision = decideSequencedResponse(
+          publisherStatusAppliedSeqRef.current,
+          requestSeq
+        );
+        if (!sequenceDecision.accepted) return;
+        publisherStatusAppliedSeqRef.current = sequenceDecision.appliedRequestSeq;
         const wasRunning = prevPublisherRunningRef.current;
         prevPublisherRunningRef.current = data.running;
 

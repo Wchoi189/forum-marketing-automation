@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "generatedAt": "2026-04-17T08:41:46.529Z",
+    "replayFingerprint": "e0f850beedf555be3668723b627b7f013b777bfcdfc2191a69a1fb218035190d"
+  },
+  "inputCoverage": {
+    "publisherHistoryEvents": 24,
+    "timelineEvents": 24,
+    "activityLogSnapshots": 300,
+    "adaptationEligibleSignals": 6,
+    "gapRechecks": 18
+  },
+  "qualityGates": {
+    "multiplierBoundsSatisfied": true,
+    "skipHeavyNoInflationWithoutDegradation": true,
+    "deterministicReplayFingerprint": "e0f850beedf555be3668723b627b7f013b777bfcdfc2191a69a1fb218035190d"
+  },
+  "violations": {
+    "multiplierBounds": [],
+    "skipHeavyInflation": []
+  }
+}

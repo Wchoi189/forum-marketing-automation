@@ -7,16 +7,19 @@ import {
   COMBINED_MULTIPLIER_MIN,
   COMBINED_MULTIPLIER_MAX,
 } from './trendInsights.js';
+import { summarizeSchedulerSignals } from './schedulerSignals.js';
 import { logger } from './logger.js';
 import { LOG_EVENT } from './logEvents.js';
 import { ENV } from '../config/env.js';
 import type { ActivityLog } from '../contracts/models.js';
+import type { PublisherHistoryEntry } from '../contracts/models.js';
 import type { PublisherRunResult } from '../bot.js';
 
 export type BotDeps = {
   runObserver: () => Promise<ActivityLog>;
   runPublisher: (force?: boolean) => Promise<PublisherRunResult>;
   getLogs: () => Promise<ActivityLog[]>;
+  getPublisherHistory?: (limit: number) => Promise<PublisherHistoryEntry[]>;
 };
 
 export type ControlPanelPreset = 'balanced' | 'night-safe' | 'day-aggressive';
@@ -236,6 +239,41 @@ export function startScheduler(
       logger.warn({ event: 'scheduler_sov_fallback', err }, '[Scheduler] SoV computation failed; using sovFactor=1');
     }
     trendFactor = Math.max(COMBINED_MULTIPLIER_MIN, Math.min(COMBINED_MULTIPLIER_MAX, trendFactor * sovFactor));
+
+    if (deps.getPublisherHistory) {
+      try {
+        const historyLimit = Math.max(40, Math.min(200, controls.trendWindowDays * 24));
+        const history = await deps.getPublisherHistory(historyLimit);
+        const signalSummary = summarizeSchedulerSignals(history, {
+          windowDays: controls.trendWindowDays,
+          nowMs: now,
+        });
+        trendFactor = Math.max(
+          COMBINED_MULTIPLIER_MIN,
+          Math.min(COMBINED_MULTIPLIER_MAX, trendFactor * signalSummary.isolatedMultiplier)
+        );
+        logger.info(
+          {
+            event: 'scheduler_signal_isolation_applied',
+            opportunityMultiplier: signalSummary.isolatedMultiplier,
+            opportunityScore: signalSummary.opportunityScore,
+            totalSignals: signalSummary.totalSignalCount,
+            eligibleSignals: signalSummary.adaptationEligibleCount,
+            gapRechecks: signalSummary.gapRecheckCount,
+            publishAttempts: signalSummary.publishAttemptCount,
+            publishSuccesses: signalSummary.publishSuccessCount,
+            publishFailures: signalSummary.publishFailureCount,
+            reason: signalSummary.reason,
+          },
+          '[Scheduler] Applied isolated opportunity signal multiplier'
+        );
+      } catch (err) {
+        logger.warn(
+          { event: 'scheduler_signal_isolation_fallback', err },
+          '[Scheduler] Failed to load opportunity signals; using trend+SoV factors only'
+        );
+      }
+    }
 
     lastTrendRecalculatedAt = now;
     return trendFactor;

@@ -44,13 +44,13 @@
         "id": "SA-003",
         "phase": "P3",
         "name": "Frontend authoritative sync and stale-response suppression",
-        "status": "in_progress"
+        "status": "done"
       },
       {
         "id": "SA-004",
         "phase": "P4",
         "name": "Scheduler signal isolation from gap recheck cadence",
-        "status": "not_started"
+        "status": "done"
       },
       {
         "id": "SA-005",

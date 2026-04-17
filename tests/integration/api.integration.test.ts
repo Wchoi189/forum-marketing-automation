@@ -6,7 +6,7 @@ import path from "node:path";
 import { createApp } from "../../server.ts";
 import { startScheduler } from "../../lib/scheduler.ts";
 import { validateRuntimeContracts } from "../../config/runtime-validation.ts";
-import type { ActivityLog, Post } from "../../contracts/models.ts";
+import type { ActivityLog, Post, PublisherHistoryEntry } from "../../contracts/models.ts";
 import { applyScheduleJitter } from "../../lib/scheduleJitter.ts";
 
 type BotDeps = NonNullable<Parameters<typeof createApp>[0]>;
@@ -292,6 +292,55 @@ function trendLogsSteadyRate(): ActivityLog[] {
   ];
 }
 
+function schedulerHistoryFixture(nowMs = Date.now()): PublisherHistoryEntry[] {
+  const hour = 60 * 60 * 1000;
+  const at = (hoursAgo: number) => new Date(nowMs - hoursAgo * hour).toISOString();
+  return [
+    {
+      at: at(12),
+      success: false,
+      force: false,
+      message: "gap-policy-skip",
+      decision: "gap_policy",
+    },
+    {
+      at: at(10),
+      success: true,
+      force: false,
+      message: "published",
+      decision: "published_verified",
+    },
+    {
+      at: at(8),
+      success: false,
+      force: false,
+      message: "publisher-error",
+      decision: "publisher_error",
+    },
+    {
+      at: at(6),
+      success: true,
+      force: false,
+      message: "dry-run",
+      decision: "dry_run",
+    },
+    {
+      at: at(4),
+      success: false,
+      force: false,
+      message: "gap-policy-skip-2",
+      decision: "gap_policy",
+    },
+    {
+      at: at(2),
+      success: true,
+      force: false,
+      message: "published-2",
+      decision: "published_verified",
+    },
+  ];
+}
+
 test("GET /api/trend-insights returns contract-shaped payload", async () => {
   const logs = trendLogsSteadyRate();
   const deps: BotDeps = {
@@ -332,6 +381,71 @@ test("GET /api/trend-insights trendAdaptiveEnabled=false forces multiplier 1", a
     assert.equal(body.trendMultiplier, 1);
     assert.equal(body.confidenceReason, "adaptive_disabled");
     assert.equal(body.multiplierBand, "unknown");
+  });
+});
+
+test("GET /api/trend-insights includes scheduler signal diagnostics payload", async () => {
+  const logs = trendLogsSteadyRate();
+  const history = schedulerHistoryFixture();
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
+    getLogs: async () => logs,
+    getPublisherHistory: async () => history,
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/api/trend-insights`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      schedulerSignals?: {
+        summary?: { isolatedMultiplier?: number; publishAttemptCount?: number; gapRecheckCount?: number };
+        calibration?: { recommendation?: string };
+      } | null;
+    };
+
+    assert.ok(body.schedulerSignals);
+    assert.equal(typeof body.schedulerSignals?.summary?.isolatedMultiplier, "number");
+    assert.equal(typeof body.schedulerSignals?.summary?.publishAttemptCount, "number");
+    assert.equal(typeof body.schedulerSignals?.summary?.gapRecheckCount, "number");
+    assert.ok([
+      "hold_bounds",
+      "widen_bounds",
+      "tighten_bounds",
+    ].includes(String(body.schedulerSignals?.calibration?.recommendation)));
+  });
+});
+
+test("GET /api/scheduler-signals returns diagnostics contract-shaped payload", async () => {
+  const logs = trendLogsSteadyRate();
+  const history = schedulerHistoryFixture();
+  const deps: BotDeps = {
+    runObserver: async () => createLog("safe"),
+    runPublisher: async () => mockPublisherSuccess(createLog("safe")),
+    getLogs: async () => logs,
+    getPublisherHistory: async () => history,
+  };
+
+  await withServer(deps, async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/api/scheduler-signals?windowDays=14&windowSize=4&historyLimit=50`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      windowDays?: number;
+      windowSize?: number;
+      historyLimit?: number;
+      summary?: { totalSignalCount?: number; isolatedMultiplier?: number };
+      latestWindow?: { windowIndex?: number } | null;
+      calibration?: { suggestedMinBound?: number; suggestedMaxBound?: number };
+    };
+
+    assert.equal(body.windowDays, 14);
+    assert.equal(body.windowSize, 4);
+    assert.equal(body.historyLimit, 50);
+    assert.equal(typeof body.summary?.totalSignalCount, "number");
+    assert.equal(typeof body.summary?.isolatedMultiplier, "number");
+    assert.ok(body.latestWindow === null || typeof body.latestWindow?.windowIndex === "number");
+    assert.equal(typeof body.calibration?.suggestedMinBound, "number");
+    assert.equal(typeof body.calibration?.suggestedMaxBound, "number");
   });
 });
 

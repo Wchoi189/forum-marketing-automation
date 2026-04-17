@@ -80,6 +80,24 @@ Use this to exercise the bot **without** submitting a real post.
 API equivalents (e.g. for scripts): `POST /api/run-observer`, `POST /api/run-publisher` with JSON body `{ "force": true }` for manual override.
 Control panel API: `GET /api/control-panel`, `POST /api/control-panel`.
 Trend analytics (Spec-kit `analytics-trend` + `scheduler-adaptation.policy`): `GET /api/trend-insights` with optional query `windowDays` (1–60) and `trendAdaptiveEnabled` (`true`/`false`).
+Scheduler signal diagnostics API: `GET /api/scheduler-signals` with optional query `windowDays` (1–60), `windowSize` (1–24), and `historyLimit` (20–500).
+
+### Scheduler Replay / Calibration Commands
+
+- Synthetic fixture generation:
+  - `npm run scheduler:fixtures`
+- Generic replay:
+  - `npm run scheduler:replay -- --window-days 14 --window-size 8 --history-limit 240`
+- Recent-history replay quick path:
+  - `npm run scheduler:replay:recent`
+- Operator runbook path with timestamped output dir:
+  - `npm run scheduler:replay:runbook`
+
+Replay outputs include:
+- `window_summary.json`
+- `comparison.json`
+- `stability_report.json`
+- `calibration_report.json`
 
 ## Parser MCP Server
 - Start server:

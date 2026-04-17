@@ -108,10 +108,17 @@ function BoardStatsCard({ app }: { app: ReturnType<typeof useAppData> }) {
           <Text style={{ color: 'var(--sapNeutralTextColor)' }}>No board data yet</Text>
         )}
         {app.trendInsights && (
-          <Text style={{ color: 'var(--sapNeutralTextColor)' }}>
-            Scheduler multiplier: ×{app.trendInsights.trendMultiplier?.toFixed(2) ?? '1.00'}
-            {app.trendInsights.multiplierBand ? ` (${app.trendInsights.multiplierBand})` : ''}
-          </Text>
+          <>
+            <Text style={{ color: 'var(--sapNeutralTextColor)' }}>
+              Scheduler multiplier: ×{app.trendInsights.trendMultiplier?.toFixed(2) ?? '1.00'}
+              {app.trendInsights.multiplierBand ? ` (${app.trendInsights.multiplierBand})` : ''}
+            </Text>
+            {app.trendInsights.schedulerSignals && (
+              <Text style={{ color: 'var(--sapNeutralTextColor)' }}>
+                Isolated opportunity multiplier: ×{app.trendInsights.schedulerSignals.summary.isolatedMultiplier.toFixed(2)}
+              </Text>
+            )}
+          </>
         )}
       </div>
     </Card>

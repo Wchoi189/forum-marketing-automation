@@ -58,7 +58,7 @@
     {
       "phase_id": "P3",
       "name": "Frontend Authoritative Sync",
-      "status": "in_progress",
+      "status": "done",
       "scope": [
         "Adopt invalidate-and-replace state updates after mutations",
         "Discard stale poll results using request ordering/version guards",
@@ -77,11 +77,16 @@
     {
       "phase_id": "P4",
       "name": "Scheduler Signal Isolation",
-      "status": "not_started",
+      "status": "done",
       "scope": [
         "Separate gap-policy recheck cadence from adaptation signal window",
         "Track opportunity-oriented publish signal metrics",
         "Backtest interval adaptation against recent history"
+      ],
+      "done_evidence": [
+        "server.ts /api/scheduler-signals diagnostics endpoint and /api/trend-insights schedulerSignals payload",
+        "scripts/scheduler_signal_replay.ts calibration_report.json output and history-limit backtest support",
+        "ops/systemd/scheduler-replay-report.sh runbook command path and README/operator docs"
       ],
       "deliverables": [
         "Refined trend/adaptation input model",
