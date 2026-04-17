@@ -199,6 +199,22 @@ function bucketLabel(ms: number, bucket: AnalyticsBucket): string {
   return `Wk ${d.toISOString().slice(0, 10)}`;
 }
 
+function nextBucketStart(ms: number, bucket: AnalyticsBucket): number {
+  const d = new Date(ms);
+  if (bucket === "hour") {
+    d.setHours(d.getHours() + 1, 0, 0, 0);
+    return d.getTime();
+  }
+  if (bucket === "day") {
+    d.setDate(d.getDate() + 1);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+  d.setDate(d.getDate() + 7);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 function computeBotSignalsForAuthor(author: string, events: NewPostEvent[]): AuthorBotSignals {
   const times = events.map((e) => e.firstSeenAtMs).sort((a, b) => a - b);
   const gaps: number[] = [];
@@ -352,18 +368,27 @@ export function buildCompetitorAnalyticsPayload(
     m.set(seriesAuthor, (m.get(seriesAuthor) ?? 0) + 1);
   }
 
-  const allStarts = [...bucketMap.keys()].sort((a, b) => a - b);
+  const hasEvents = events.length > 0;
+  const allStarts: number[] = [];
+  if (hasEvents) {
+    const start = bucketStartMs(fromMs, bucket);
+    const end = bucketStartMs(toMs, bucket);
+    for (let t = start; t <= end; t = nextBucketStart(t, bucket)) {
+      allStarts.push(t);
+    }
+  }
+  allStarts.sort((a, b) => a - b);
   const timeSeries: Record<string, string | number>[] = [];
   for (const start of allStarts) {
     const row: Record<string, string | number> = { bucket: bucketLabel(start, bucket) };
     let total = 0;
-    const inner = bucketMap.get(start)!;
+    const inner = bucketMap.get(start);
     for (const a of topAuthors) {
-      const c = inner.get(a) ?? 0;
+      const c = inner?.get(a) ?? 0;
       row[a] = c;
       total += c;
     }
-    const other = inner.get("_other") ?? 0;
+    const other = inner?.get("_other") ?? 0;
     row._other = other;
     total += other;
     row._total = total;

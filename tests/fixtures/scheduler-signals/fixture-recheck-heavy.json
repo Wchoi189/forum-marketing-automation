@@ -1,0 +1,223 @@
+{
+  "id": "fixture-recheck-heavy",
+  "description": "High frequency gap-policy skips with sparse successful opportunities. Isolated adaptation should stay stable and avoid skip-driven inflation.",
+  "generatedAt": "2026-04-17T08:43:08.487Z",
+  "entries": [
+    {
+      "at": "2026-04-01T00:00:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-1",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:03:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-2",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:06:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-3",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:09:00.000Z",
+      "success": true,
+      "force": false,
+      "message": "Publication submitted successfully",
+      "decision": "published_verified",
+      "runId": "fixture-recheck-heavy-4",
+      "artifactDir": "artifacts/publisher-runs/fixture-recheck-heavy-4"
+    },
+    {
+      "at": "2026-04-01T00:12:00.000Z",
+      "success": true,
+      "force": false,
+      "message": "Publication submitted successfully",
+      "decision": "published_verified",
+      "runId": "fixture-recheck-heavy-5",
+      "artifactDir": "artifacts/publisher-runs/fixture-recheck-heavy-5"
+    },
+    {
+      "at": "2026-04-01T00:15:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-6",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:18:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-7",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:21:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-8",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:24:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-9",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:27:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-10",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:30:00.000Z",
+      "success": true,
+      "force": false,
+      "message": "Publication submitted successfully",
+      "decision": "published_verified",
+      "runId": "fixture-recheck-heavy-11",
+      "artifactDir": "artifacts/publisher-runs/fixture-recheck-heavy-11"
+    },
+    {
+      "at": "2026-04-01T00:33:00.000Z",
+      "success": true,
+      "force": false,
+      "message": "Publication submitted successfully",
+      "decision": "published_verified",
+      "runId": "fixture-recheck-heavy-12",
+      "artifactDir": "artifacts/publisher-runs/fixture-recheck-heavy-12"
+    },
+    {
+      "at": "2026-04-01T00:36:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-13",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:39:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-14",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:42:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-15",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:45:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-16",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:48:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-17",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T00:51:00.000Z",
+      "success": true,
+      "force": false,
+      "message": "Publication submitted successfully",
+      "decision": "published_verified",
+      "runId": "fixture-recheck-heavy-18",
+      "artifactDir": "artifacts/publisher-runs/fixture-recheck-heavy-18"
+    },
+    {
+      "at": "2026-04-01T00:54:00.000Z",
+      "success": true,
+      "force": false,
+      "message": "Publication submitted successfully",
+      "decision": "published_verified",
+      "runId": "fixture-recheck-heavy-19",
+      "artifactDir": "artifacts/publisher-runs/fixture-recheck-heavy-19"
+    },
+    {
+      "at": "2026-04-01T00:57:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-20",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T01:00:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-21",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T01:03:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-22",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T01:06:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-23",
+      "artifactDir": null
+    },
+    {
+      "at": "2026-04-01T01:09:00.000Z",
+      "success": false,
+      "force": false,
+      "message": "Gap policy skip",
+      "decision": "gap_policy",
+      "runId": "fixture-recheck-heavy-24",
+      "artifactDir": null
+    }
+  ]
+}

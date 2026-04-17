@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "generatedAt": "2026-04-17T08:41:46.529Z",
+    "replayFingerprint": "e0f850beedf555be3668723b627b7f013b777bfcdfc2191a69a1fb218035190d"
+  },
+  "aggregate": {
+    "isolatedAverageMultiplier": 0.944,
+    "baselineAverageMultiplier": 0.99,
+    "averageDelta": -0.046,
+    "globalOpportunityScore": 0.775,
+    "globalReason": "opportunity_rich"
+  },
+  "windows": [
+    {
+      "windowIndex": 1,
+      "startAt": "2026-04-01T00:09:00.000Z",
+      "endAt": "2026-04-01T00:33:00.000Z",
+      "isolatedMultiplier": 0.925,
+      "baselineMultiplier": 1.017,
+      "deltaFromBaseline": -0.092,
+      "opportunityScore": 0.833,
+      "reason": "opportunity_rich"
+    },
+    {
+      "windowIndex": 2,
+      "startAt": "2026-04-01T00:51:00.000Z",
+      "endAt": "2026-04-01T00:54:00.000Z",
+      "isolatedMultiplier": 0.963,
+      "baselineMultiplier": 0.963,
+      "deltaFromBaseline": 0,
+      "opportunityScore": 1,
+      "reason": "insufficient_opportunity_windows"
+    }
+  ]
+}

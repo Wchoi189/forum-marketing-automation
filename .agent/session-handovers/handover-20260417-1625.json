@@ -1,0 +1,132 @@
+{
+  "handover_id": "handover-20260417-1625",
+  "created_at": "2026-04-17T16:25:00+09:00",
+  "updated_at": "2026-04-17T17:35:00+09:00",
+  "branch": "fiori-integration",
+  "focus": "State-authority hardening P3 completion with stale-response regression tests and P4 kickoff spec slice",
+  "completed": [
+    {
+      "item": "Added runtime control state metadata and optimistic concurrency primitives",
+      "files": [
+        "lib/runtimeControls.ts"
+      ]
+    },
+    {
+      "item": "Implemented control-panel API expectedVersion checks and conflict response with latest state",
+      "files": [
+        "server.ts"
+      ]
+    },
+    {
+      "item": "Updated frontend save path to send expectedVersion and recover from 409 conflicts",
+      "files": [
+        "src/hooks/useAppData.ts",
+        "src/lib/controlPanel.ts"
+      ]
+    },
+    {
+      "item": "Added integration tests for state metadata and expectedVersion concurrency",
+      "files": [
+        "tests/integration/api.integration.test.ts"
+      ]
+    },
+    {
+      "item": "Added dedicated phase tracker entries and advanced plan status",
+      "files": [
+        ".planning/spec-kit/tasks/implementation.tasks.json",
+        ".planning/spec-kit/plans/state-authority-hardening.plan.json"
+      ]
+    },
+    {
+      "item": "Completed control-mutating NL command paths with write-through persistence and authoritative state metadata payloads",
+      "files": [
+        "server.ts"
+      ]
+    },
+    {
+      "item": "Returned authoritative control-panel payload from apply-ai-recommendation mutation response",
+      "files": [
+        "server.ts"
+      ]
+    },
+    {
+      "item": "Added frontend stale-response suppression guards (request ordering + stateVersion checks) for control panel and publisher status polling",
+      "files": [
+        "src/hooks/useAppData.ts"
+      ]
+    },
+    {
+      "item": "Added integration coverage for live NL command mutation metadata and control-state authority",
+      "files": [
+        "tests/integration/nlWebhook.test.ts"
+      ]
+    },
+    {
+      "item": "Aligned control-panel data contract schema to include stateVersion/persistedAt and optimistic concurrency request fields",
+      "files": [
+        ".planning/spec-kit/manifest/schemas/data-contracts.schema.json"
+      ]
+    },
+    {
+      "item": "Marked P2 as done and moved P3 to in-progress in plan/task trackers",
+      "files": [
+        ".planning/spec-kit/plans/state-authority-hardening.plan.json",
+        ".planning/spec-kit/tasks/implementation.tasks.json"
+      ]
+    },
+    {
+      "item": "Extracted control-state sync decisions into pure helper utilities and wired useAppData to shared stale-response guards",
+      "files": [
+        "src/hooks/controlPanelSync.ts",
+        "src/hooks/useAppData.ts"
+      ]
+    },
+    {
+      "item": "Added unit regression tests covering out-of-order poll/version behavior and dirty-edit reconciliation boundaries",
+      "files": [
+        "tests/unit/controlPanelSync.test.ts",
+        "package.json"
+      ]
+    },
+    {
+      "item": "Recorded P3 completion notes and launched first P4 scheduler signal isolation planning slice",
+      "files": [
+        ".planning/spec-kit/specs/state-sync-architecture.md",
+        ".planning/spec-kit/specs/scheduler-signal-isolation-slice1.json",
+        ".planning/spec-kit/plans/state-authority-hardening.plan.json",
+        ".planning/spec-kit/tasks/implementation.tasks.json"
+      ]
+    }
+  ],
+  "validation": {
+    "lint": "pass",
+    "unit_tests": "pass",
+    "integration_tests": "pass",
+    "notes": [
+      "npm run lint succeeded",
+      "npm run test:unit succeeded (16/16 passing)",
+      "npm run test:integration succeeded (41/41 passing)"
+    ]
+  },
+  "pending_next": [
+    "Implement scheduler signal taxonomy and adaptation input filtering per scheduler-signal-isolation-slice1 spec",
+    "Build deterministic replay/backtest harness skeleton and initial fixture generation path",
+    "Add scheduler unit tests for recheck-heavy versus opportunity-rich signal windows",
+    "Update spec-kit snapshot/hardcopy artifacts if this checkpoint is treated as a formal planning checkpoint"
+  ],
+  "session_boundary_recommendation": {
+    "boundary_now": true,
+    "recommended_cut": "Stop now after verified P3 closeout and P4 kickoff spec publication.",
+    "reason": [
+      "P3 exit criteria are now covered by deterministic stale-response unit tests and async-path audit.",
+      "P4 is in-progress at the planning/spec boundary with acceptance criteria and replay harness outline defined.",
+      "Repository worktree still includes broad parallel changes, so limiting this checkpoint to bounded slice updates reduces coupling risk."
+    ],
+    "next_session_start_scope": [
+      "P4 runtime signal classification implementation",
+      "P4 replay/backtest harness bootstrap",
+      "P4 scheduler unit test matrix landing"
+    ]
+  },
+  "suggested_next_prompt": "Continue P4 slice 1: implement scheduler signal taxonomy and adaptation-window filtering, scaffold deterministic replay/backtest harness over publisher-history JSONL, and add scheduler unit tests for recheck-heavy versus opportunity-rich fixtures."
+}

@@ -1,4 +1,6 @@
 {
+  "observerGapThresholdMin": 4,
+  "nlWebhookEnabled": true,
   "schedulerEnabled": true,
   "schedulerBaseIntervalMinutes": 60,
   "schedulerQuietHoursStart": 3,
@@ -15,9 +17,10 @@
   "schedulerTargetPublishIntervalMinutes": 0,
   "preset": "balanced",
   "observerEnabled": true,
-  "observerMinPreVisitDelayMs": 0,
-  "observerMaxPreVisitDelayMs": 0,
+  "observerMinPreVisitDelayMs": 1500,
+  "observerMaxPreVisitDelayMs": 4000,
   "observerMinIntervalBetweenRunsMs": 0,
-  "publisherDraftItemIndex": 1,
-  "observerGapThresholdMin": 5
+  "publisherDraftItemIndex": 2,
+  "stateVersion": 12,
+  "persistedAt": "2026-04-17T08:13:20.950Z"
 }

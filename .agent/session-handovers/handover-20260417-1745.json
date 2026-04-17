@@ -1,0 +1,88 @@
+{
+  "handover_id": "handover-20260417-1745",
+  "created_at": "2026-04-17T17:45:00+09:00",
+  "updated_at": "2026-04-17T17:45:00+09:00",
+  "branch": "fiori-integration",
+  "focus": "P4 slice 1 implementation: scheduler signal taxonomy isolation, deterministic replay harness, and scheduler regression fixtures",
+  "completed": [
+    {
+      "item": "Implemented scheduler signal taxonomy and adaptation summary model with explicit eligible signal classes",
+      "files": [
+        "lib/schedulerSignals.ts"
+      ]
+    },
+    {
+      "item": "Wired scheduler recalibration to apply isolated opportunity multiplier from publisher-history signals with safe fallback",
+      "files": [
+        "lib/scheduler.ts",
+        "server.ts"
+      ]
+    },
+    {
+      "item": "Scaffolded deterministic replay/backtest harness and fixture generator commands",
+      "files": [
+        "scripts/scheduler_signal_replay.ts",
+        "scripts/generate_scheduler_signal_fixtures.ts",
+        "package.json"
+      ]
+    },
+    {
+      "item": "Added synthetic fixture set and replay output artifacts for recheck-heavy and opportunity-shift scenarios",
+      "files": [
+        "tests/fixtures/scheduler-signals/fixture-recheck-heavy.json",
+        "tests/fixtures/scheduler-signals/fixture-opportunity-shift.json",
+        "artifacts/scheduler-replay/fixture-recheck-heavy/window_summary.json",
+        "artifacts/scheduler-replay/fixture-recheck-heavy/comparison.json",
+        "artifacts/scheduler-replay/fixture-recheck-heavy/stability_report.json",
+        "artifacts/scheduler-replay/fixture-opportunity-shift/window_summary.json",
+        "artifacts/scheduler-replay/fixture-opportunity-shift/comparison.json",
+        "artifacts/scheduler-replay/fixture-opportunity-shift/stability_report.json"
+      ]
+    },
+    {
+      "item": "Added scheduler unit regression tests for recheck-heavy stability and opportunity degradation windows",
+      "files": [
+        "tests/unit/schedulerSignals.test.ts",
+        "package.json"
+      ]
+    },
+    {
+      "item": "Expanded slice spec with concrete taxonomy, adaptation filtering policy, and replay contract schema",
+      "files": [
+        ".planning/spec-kit/specs/scheduler-signal-isolation-slice1.json"
+      ]
+    }
+  ],
+  "validation": {
+    "lint": "pass",
+    "unit_tests": "pass",
+    "integration_tests": "pass",
+    "full_test": "pass",
+    "notes": [
+      "npm run lint succeeded",
+      "npm run test:unit succeeded (19/19 passing)",
+      "npm run test:integration succeeded (41/41 passing)",
+      "npm run test succeeded (lint + unit + integration + parser MCP)"
+    ]
+  },
+  "pending_next": [
+    "Integrate replay harness into an operator-facing runbook command path (optional scheduled report generation)",
+    "Decide whether to surface isolated opportunity metrics via API/control panel payload",
+    "Advance P4 plan/task trackers when this slice is accepted as complete"
+  ],
+  "session_boundary_recommendation": {
+    "boundary_now": true,
+    "recommended_cut": "Checkpoint after P4 slice 1 runtime/tests/harness landing and full verification pass.",
+    "reason": [
+      "Core isolation behavior is implemented and verified without changing publisher fail-closed semantics.",
+      "Deterministic fixtures and replay outputs are now available for follow-up tuning slices.",
+      "Remaining work is primarily operationalization and visibility rather than core adaptation mechanics."
+    ],
+    "next_session_start_scope": [
+      "P4 visibility: expose signal-isolation metrics in diagnostics endpoints",
+      "P4 operationalization: automate replay report generation for recent history",
+      "P4 tuning: calibrate opportunity multiplier thresholds with production history"
+    ]
+  },
+  "suggested_next_prompt": "Continue P4 slice 2: expose isolated scheduler signal summary in diagnostics APIs, wire replay harness into an operator runbook command, and calibrate multiplier thresholds using recent publisher-history windows."
+}

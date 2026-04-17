@@ -4,10 +4,11 @@ import { type UseAppDataReturn } from '../hooks/useAppData';
 import { type AiAdvisorOutput } from '../lib/controlPanel';
 
 export default function AiAdvisorPanel({ app }: { app: UseAppDataReturn }) {
-  const { aiRec, aiRecBuiltAt, aiRecApplied, aiAppliedValues, applyAiRecommendation, loading, aiTokenStats } = app;
+  const { aiRec, aiRecBuiltAt, aiRecApplied, aiAppliedValues, aiRecRefreshAttempted, refreshAiRecommendation, applyAiRecommendation, loading, aiTokenStats } = app;
 
   const ageMinutes = aiRecBuiltAt ? Math.round((Date.now() - new Date(aiRecBuiltAt).getTime()) / 60000) : null;
   const isStale = ageMinutes !== null && ageMinutes > 30;
+  const isRefreshing = loading;
 
   const confidenceBadge: Record<AiAdvisorOutput['confidence'], string> = {
     high: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
@@ -15,15 +16,29 @@ export default function AiAdvisorPanel({ app }: { app: UseAppDataReturn }) {
     low: 'text-gray-400 border-gray-500/30 bg-gray-500/10',
   };
 
+  const handleRefresh = () => {
+    refreshAiRecommendation();
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="p-8 rounded-3xl border border-white/10 bg-white/5 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">AI Advisor</h2>
-        {aiRec && (
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${confidenceBadge[aiRec.confidence]}`}>
-            {aiRec.confidence}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-[10px] font-bold uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Get new recommendation"
+          >
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+          {aiRec && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${confidenceBadge[aiRec.confidence]}`}>
+              {aiRec.confidence}
+            </span>
+          )}
+        </div>
       </div>
 
       {aiRec ? (
@@ -50,7 +65,7 @@ export default function AiAdvisorPanel({ app }: { app: UseAppDataReturn }) {
                 <p className="text-[10px] opacity-40">Built {ageMinutes} minute{ageMinutes !== 1 ? 's' : ''} ago</p>
               )}
               {isStale && (
-                <p className="text-[10px] text-amber-400/80">Stale — run observer to refresh</p>
+                <p className="text-[10px] text-amber-400/80">Stale — refresh to get updated recommendation</p>
               )}
             </div>
             <div className="flex items-center gap-3">
@@ -70,7 +85,11 @@ export default function AiAdvisorPanel({ app }: { app: UseAppDataReturn }) {
           </div>
         </>
       ) : (
-        <p className="text-sm opacity-50">AI advisor disabled — set XAI_API_KEY to enable</p>
+        <div className="space-y-2">
+          <p className="text-sm opacity-50">
+            {aiRecRefreshAttempted ? 'No recommendation available — advisor may be disabled' : 'Click Refresh to get an AI recommendation'}
+          </p>
+        </div>
       )}
 
       {/* Token usage traceability */}

@@ -79,6 +79,67 @@ export interface TrendHourlyBucket {
   avgNewPostsPerHour: number;
 }
 
+export type SchedulerSignalCalibrationRecommendation =
+  | "hold_bounds"
+  | "widen_bounds"
+  | "tighten_bounds";
+
+export interface SchedulerSignalCalibration {
+  isolatedMultiplierP10: number;
+  isolatedMultiplierP50: number;
+  isolatedMultiplierP90: number;
+  isolatedMultiplierMin: number;
+  isolatedMultiplierMax: number;
+  isolatedBoundHitRate: number;
+  suggestedMinBound: number;
+  suggestedMaxBound: number;
+  recommendation: SchedulerSignalCalibrationRecommendation;
+}
+
+export interface SchedulerSignalDiagnostics {
+  sampledAt: string;
+  windowDays: number;
+  windowSize: number;
+  historyLimit: number;
+  inputEventCount: number;
+  timelineEventCount: number;
+  adaptationWindowCount: number;
+  summary: {
+    totalSignalCount: number;
+    adaptationEligibleCount: number;
+    gapRecheckCount: number;
+    opportunityWindowCount: number;
+    publishAttemptCount: number;
+    publishSuccessCount: number;
+    publishFailureCount: number;
+    ignoredSignalCount: number;
+    successRate: number;
+    opportunityScore: number;
+    isolatedMultiplier: number;
+    baselineMultiplier: number;
+    reason:
+      | "insufficient_opportunity_windows"
+      | "opportunity_rich"
+      | "opportunity_balanced"
+      | "opportunity_degraded";
+  };
+  latestWindow: {
+    windowIndex: number;
+    startAt: string;
+    endAt: string;
+    deltaFromBaseline: number;
+    isolatedMultiplier: number;
+    baselineMultiplier: number;
+    opportunityScore: number;
+    reason:
+      | "insufficient_opportunity_windows"
+      | "opportunity_rich"
+      | "opportunity_balanced"
+      | "opportunity_degraded";
+  } | null;
+  calibration: SchedulerSignalCalibration;
+}
+
 export interface TrendInsights {
   windowDays: number;
   referenceBaseIntervalMinutes: number;
@@ -98,4 +159,5 @@ export interface TrendInsights {
   precedenceNote: string;
   sovPercent: number;
   sovFactor: number;
+  schedulerSignals?: SchedulerSignalDiagnostics | null;
 }

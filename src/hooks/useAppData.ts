@@ -12,6 +12,11 @@ import {
   type TrendInsights,
   type AiAdvisorOutput
 } from '../lib/controlPanel';
+import {
+  decideControlPanelSync,
+  decideSequencedResponse,
+  reconcileControlPanelState
+} from './controlPanelSync';
 
 type ActionMessage = { type: 'success' | 'error'; text: string; log?: ActivityLog } | null;
 
@@ -49,6 +54,7 @@ export interface UseAppDataReturn {
   aiRecBuiltAt: string | null;
   aiRecApplied: boolean;
   aiAppliedValues: { intervalMinutes: number; gapThreshold: number } | null;
+  aiRecRefreshAttempted: boolean;
 
   // UI-only state
   selectedLog: ActivityLog | null;
@@ -71,14 +77,17 @@ export interface UseAppDataReturn {
   fetchPublisherHistory: () => Promise<void>;
   fetchPlaybook: () => Promise<void>;
   fetchAiTokenStats: () => Promise<void>;
+  refreshAiRecommendation: () => Promise<void>;
   runObserver: () => Promise<void>;
   runPublisher: (force?: boolean) => Promise<void>;
-  saveControlPanel: () => Promise<void>;
+  saveControlPanel: (override?: ControlPanelState) => Promise<void>;
   silentRefreshObserver: () => void;
   applyAiRecommendation: () => Promise<void>;
 }
 
 export function useAppData(): UseAppDataReturn {
+  const ACTIVITY_POLL_MS = 60_000;
+  const OBSERVER_REFRESH_MS = 5 * 60 * 1000;
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [competitorStats, setCompetitorStats] = useState<CompetitorStat[]>([]);
   const [boardStats, setBoardStats] = useState<BoardStats | null>(null);
@@ -99,6 +108,7 @@ export function useAppData(): UseAppDataReturn {
   const [showOverrideModal, setShowOverrideModal] = useState(false);
   const [aiRec, setAiRec] = useState<AiAdvisorOutput | null>(null);
   const [aiRecBuiltAt, setAiRecBuiltAt] = useState<string | null>(null);
+  const [aiRecRefreshAttempted, setAiRecRefreshAttempted] = useState(false);
   const [aiRecApplied, setAiRecApplied] = useState(false);
   const [aiAppliedValues, setAiAppliedValues] = useState<{ intervalMinutes: number; gapThreshold: number } | null>(null);
 
@@ -106,6 +116,52 @@ export function useAppData(): UseAppDataReturn {
   const [realPublisherStep, setRealPublisherStep] = useState<PipelineStepId | null>(null);
   const publisherPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevPublisherRunningRef = useRef(false);
+  const publisherStatusRequestSeqRef = useRef(0);
+  const publisherStatusAppliedSeqRef = useRef(0);
+
+  // Guard against out-of-order /api/control-panel responses overwriting newer state.
+  const controlPanelRequestSeqRef = useRef(0);
+  const controlPanelAppliedSeqRef = useRef(0);
+  const controlPanelHighestVersionSeenRef = useRef(DEFAULT_CONTROL_PANEL.stateVersion);
+
+  const normalizeControlPanelState = useCallback((data: Partial<ControlPanelState>): ControlPanelState => ({
+    ...DEFAULT_CONTROL_PANEL,
+    ...data,
+    observer: { ...DEFAULT_CONTROL_PANEL.observer, ...data.observer },
+    publisher: { ...DEFAULT_CONTROL_PANEL.publisher, ...data.publisher },
+    autoPublisher: { ...DEFAULT_CONTROL_PANEL.autoPublisher, ...data.autoPublisher }
+  }), []);
+
+  const applyServerControlPanelState = useCallback((
+    nextState: ControlPanelState,
+    opts: { requestSeq?: number; preserveDirtyEdits?: boolean } = {}
+  ) => {
+    const { requestSeq, preserveDirtyEdits = false } = opts;
+
+    const syncDecision = decideControlPanelSync(
+      {
+        highestVersionSeen: controlPanelHighestVersionSeenRef.current,
+        appliedRequestSeq: controlPanelAppliedSeqRef.current
+      },
+      nextState.stateVersion,
+      {
+        requestSeq,
+        latestRequestedSeq: controlPanelRequestSeqRef.current
+      }
+    );
+
+    if (!syncDecision.accepted) return false;
+
+    controlPanelAppliedSeqRef.current = syncDecision.tracker.appliedRequestSeq;
+    controlPanelHighestVersionSeenRef.current = syncDecision.tracker.highestVersionSeen;
+
+    setControlPanel((current) => reconcileControlPanelState(current, nextState, {
+      preserveDirtyEdits,
+      controlDirty
+    }));
+
+    return true;
+  }, [controlDirty]);
 
   // Fetch functions
   const fetchStats = useCallback(async () => {
@@ -164,69 +220,18 @@ export function useAppData(): UseAppDataReturn {
 
   const fetchControlPanel = useCallback(async () => {
     try {
+      const requestSeq = ++controlPanelRequestSeqRef.current;
       const response = await fetch('/api/control-panel');
       const data = await response.json();
-      const nextState: ControlPanelState = {
-        ...DEFAULT_CONTROL_PANEL,
-        ...data,
-        observer: { ...DEFAULT_CONTROL_PANEL.observer, ...data.observer },
-        publisher: { ...DEFAULT_CONTROL_PANEL.publisher, ...data.publisher },
-        autoPublisher: { ...DEFAULT_CONTROL_PANEL.autoPublisher, ...data.autoPublisher }
-      };
-      setControlPanel((current) => {
-        // controlDirty merge guard — determines which fields survive a polling re-fetch
-        // while the user has unsaved edits in the form.
-        //
-        // When controlDirty=false (no unsaved edits): replace state entirely from server.
-        //
-        // When controlDirty=true (user is editing): split fields into two groups:
-        //
-        //   ALWAYS REFRESHED — server-authoritative computed/status values that are
-        //   never editable by the user. These are safe to overwrite mid-edit because
-        //   they reflect real-time system state, not form inputs:
-        //     - observer.gapThresholdMin          (effective computed gap)
-        //     - observer.gapThresholdSpecBaseline  (spec constant)
-        //     - observer.gapUsesEnvOverride        (precedence flag)
-        //     - observer.gapSource                 ('file' | 'env' | 'spec')
-        //     - observer.gapSourcePin              (display label)
-        //     - autoPublisher.running              (live scheduler status)
-        //     - autoPublisher.effectiveIntervalMinutes (trend-adjusted interval)
-        //
-        //   PROTECTED — user-edited form values. Kept from `current` so in-progress
-        //   edits are not clobbered by a background poll:
-        //     - observer.gapPersistedOverride      (the override input field)
-        //     - scheduler.baseIntervalMinutes      (scheduler interval input)
-        //     - scheduler.enabled                  (enable toggle)
-        //     - observer.* (all other pacing inputs)
-        //     - publisher.* (draft index, etc.)
-        //     - autoPublisher.enabled              (auto-publish toggle)
-        //     - nlWebhookEnabled                   (NL webhook toggle)
-        //
-        // After saveControlPanel() succeeds, controlDirty is reset to false, which
-        // returns this function to full-replace mode on the next poll.
-        if (!controlDirty) return nextState;
-        return {
-          ...current,
-          observer: {
-            ...current.observer,
-            gapThresholdMin: nextState.observer.gapThresholdMin,
-            gapThresholdSpecBaseline: nextState.observer.gapThresholdSpecBaseline,
-            gapUsesEnvOverride: nextState.observer.gapUsesEnvOverride,
-            gapSource: nextState.observer.gapSource,
-            gapSourcePin: nextState.observer.gapSourcePin,
-          },
-          autoPublisher: {
-            ...current.autoPublisher,
-            running: nextState.autoPublisher.running,
-            effectiveIntervalMinutes: nextState.autoPublisher.effectiveIntervalMinutes
-          }
-        };
+      const nextState = normalizeControlPanelState(data as Partial<ControlPanelState>);
+      applyServerControlPanelState(nextState, {
+        requestSeq,
+        preserveDirtyEdits: true,
       });
     } catch (error) {
       console.error('Failed to fetch control panel:', error);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps — controlDirty is read from render-scope closure
-  }, [controlDirty]);
+  }, [normalizeControlPanelState, applyServerControlPanelState]);
 
   const fetchPlaybook = useCallback(async () => {
     try {
@@ -248,8 +253,9 @@ export function useAppData(): UseAppDataReturn {
     }
   }, []);
 
-  const fetchAiRecommendation = useCallback(async () => {
+  const refreshAiRecommendation = useCallback(async () => {
     try {
+      setAiRecRefreshAttempted(true);
       const res = await fetch('/api/ai-recommendation');
       const data = await res.json();
       if (data.recommendation && data.recommendation.ok !== false) {
@@ -273,9 +279,9 @@ export function useAppData(): UseAppDataReturn {
   const silentRefreshObserver = useCallback(() => {
     fetch('/api/run-observer', { method: 'POST' })
       .then(r => r.json())
-      .then(() => { fetchLogs(); fetchStats(); fetchAiRecommendation(); fetchControlPanel(); })
+      .then(() => { fetchLogs(); fetchStats(); fetchControlPanel(); })
       .catch(() => {});
-  }, [fetchLogs, fetchStats, fetchAiRecommendation, fetchControlPanel]);
+  }, [fetchLogs, fetchStats, fetchControlPanel]);
 
   // Initial data load on mount + 30-second refresh for non-critical data
   useEffect(() => {
@@ -286,7 +292,6 @@ export function useAppData(): UseAppDataReturn {
     fetchPublisherHistory();
     fetchPlaybook();
     fetchAiTokenStats();
-    fetchAiRecommendation();
     silentRefreshObserver();
     const interval = setInterval(() => {
       fetchLogs();
@@ -295,15 +300,15 @@ export function useAppData(): UseAppDataReturn {
       fetchControlPanel();
       fetchPublisherHistory();
       fetchAiTokenStats();
-    }, 30000);
+    }, ACTIVITY_POLL_MS);
     return () => clearInterval(interval);
-  }, [fetchLogs, fetchDrafts, fetchStats, fetchControlPanel, fetchPublisherHistory, fetchPlaybook, fetchAiTokenStats, fetchAiRecommendation, silentRefreshObserver]);
+  }, [fetchLogs, fetchDrafts, fetchStats, fetchControlPanel, fetchPublisherHistory, fetchPlaybook, fetchAiTokenStats, silentRefreshObserver]);
 
   // Periodic observer auto-refresh every 5 minutes so board state never goes stale
   useEffect(() => {
     const interval = setInterval(() => {
       silentRefreshObserver();
-    }, 5 * 60 * 1000);
+    }, OBSERVER_REFRESH_MS);
     return () => clearInterval(interval);
   }, [silentRefreshObserver]);
 
@@ -326,8 +331,15 @@ export function useAppData(): UseAppDataReturn {
     if (publisherPollRef.current) return;
     publisherPollRef.current = setInterval(async () => {
       try {
+        const requestSeq = ++publisherStatusRequestSeqRef.current;
         const res = await fetch('/api/publisher-status');
         const data: { step: PipelineStepId | null; running: boolean } = await res.json();
+        const sequenceDecision = decideSequencedResponse(
+          publisherStatusAppliedSeqRef.current,
+          requestSeq
+        );
+        if (!sequenceDecision.accepted) return;
+        publisherStatusAppliedSeqRef.current = sequenceDecision.appliedRequestSeq;
         if (data.step) {
           setRealPublisherStep(data.step);
         }
@@ -353,8 +365,15 @@ export function useAppData(): UseAppDataReturn {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
+        const requestSeq = ++publisherStatusRequestSeqRef.current;
         const res = await fetch('/api/publisher-status');
         const data: { step: PipelineStepId | null; running: boolean } = await res.json();
+        const sequenceDecision = decideSequencedResponse(
+          publisherStatusAppliedSeqRef.current,
+          requestSeq
+        );
+        if (!sequenceDecision.accepted) return;
+        publisherStatusAppliedSeqRef.current = sequenceDecision.appliedRequestSeq;
         const wasRunning = prevPublisherRunningRef.current;
         prevPublisherRunningRef.current = data.running;
 
@@ -389,22 +408,39 @@ export function useAppData(): UseAppDataReturn {
   }, [controlPanel.autoPublisher.running, startPublisherPolling, stopPublisherPolling]);
 
   // Action handlers
-  const saveControlPanel = useCallback(async () => {
+  const saveControlPanel = useCallback(async (override?: ControlPanelState) => {
     setControlSaving(true);
     try {
+      const payload = override ?? controlPanel;
       const response = await fetch('/api/control-panel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(controlPanel)
+        body: JSON.stringify({
+          ...payload,
+          expectedVersion: payload.stateVersion
+        })
       });
       const data = await response.json();
-      setControlPanel({
-        ...DEFAULT_CONTROL_PANEL,
-        ...data,
-        observer: { ...DEFAULT_CONTROL_PANEL.observer, ...data.observer },
-        publisher: { ...DEFAULT_CONTROL_PANEL.publisher, ...data.publisher },
-        autoPublisher: { ...DEFAULT_CONTROL_PANEL.autoPublisher, ...data.autoPublisher }
-      });
+
+      if (!response.ok) {
+        if (response.status === 409 && data?.currentState) {
+          applyServerControlPanelState(
+            normalizeControlPanelState(data.currentState as Partial<ControlPanelState>)
+          );
+          setControlDirty(false);
+          setActionMessage({
+            type: 'error',
+            text: 'Control panel changed in another request. Latest server state loaded; re-apply your edits and save again.'
+          });
+          return;
+        }
+
+        const errorText = typeof data?.error === 'string' ? data.error : 'Control panel save failed.';
+        setActionMessage({ type: 'error', text: errorText });
+        return;
+      }
+
+      applyServerControlPanelState(normalizeControlPanelState(data as Partial<ControlPanelState>));
       setControlDirty(false);
       setActionMessage({ type: 'success', text: 'Control panel settings saved.' });
     } catch (error) {
@@ -412,7 +448,7 @@ export function useAppData(): UseAppDataReturn {
     } finally {
       setControlSaving(false);
     }
-  }, [controlPanel]);
+  }, [controlPanel, normalizeControlPanelState, applyServerControlPanelState]);
 
   const runObserver = useCallback(async () => {
     setLoading(true);
@@ -438,11 +474,20 @@ export function useAppData(): UseAppDataReturn {
     try {
       const res = await fetch('/api/apply-ai-recommendation', { method: 'POST' });
       if (res.ok) {
-        const data = await res.json() as { applied: boolean; intervalMinutes: number; gapThreshold: number };
+        const data = await res.json() as {
+          applied: boolean;
+          intervalMinutes: number;
+          gapThreshold: number;
+          controlPanel?: Partial<ControlPanelState>;
+        };
         setAiRecApplied(true);
         setAiAppliedValues({ intervalMinutes: data.intervalMinutes, gapThreshold: data.gapThreshold });
         setActionMessage({ type: 'success', text: 'AI recommendation applied to control panel.' });
-        await fetchControlPanel();
+        if (data.controlPanel) {
+          applyServerControlPanelState(normalizeControlPanelState(data.controlPanel));
+        } else {
+          await fetchControlPanel();
+        }
       } else {
         const data = await res.json();
         const reason = data.error === 'recommendation_stale'
@@ -453,7 +498,7 @@ export function useAppData(): UseAppDataReturn {
     } catch {
       setActionMessage({ type: 'error', text: 'AI advisor — network error.' });
     }
-  }, [fetchControlPanel]);
+  }, [fetchControlPanel, normalizeControlPanelState, applyServerControlPanelState]);
 
   const runPublisher = useCallback(async (force: boolean = false) => {
     setLoading(true);
@@ -492,7 +537,7 @@ export function useAppData(): UseAppDataReturn {
     logs, drafts, competitorStats, boardStats, trendInsights, publisherHistory,
     controlPanel, aiTokenStats, playbookData, loading, actionMessage, controlSaving, controlDirty,
     controlPanelSection,
-    aiRec, aiRecBuiltAt, aiRecApplied, aiAppliedValues,
+    aiRec, aiRecBuiltAt, aiRecApplied, aiAppliedValues, aiRecRefreshAttempted,
     // UI-only state
     selectedLog, showOverrideModal, realPublisherStep,
     // Setters
@@ -500,7 +545,7 @@ export function useAppData(): UseAppDataReturn {
     setShowOverrideModal, setActionMessage,
     // Actions
     fetchLogs, fetchDrafts, fetchStats, fetchControlPanel, fetchPublisherHistory,
-    fetchPlaybook, fetchAiTokenStats, runObserver, runPublisher, saveControlPanel, silentRefreshObserver,
+    fetchPlaybook, fetchAiTokenStats, refreshAiRecommendation, runObserver, runPublisher, saveControlPanel, silentRefreshObserver,
     applyAiRecommendation
   };
 }

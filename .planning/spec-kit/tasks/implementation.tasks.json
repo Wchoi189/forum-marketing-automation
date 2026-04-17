@@ -17,6 +17,49 @@
     { "id": "T-014", "name": "Standardize semantic intent fields across legacy specs", "status": "done" },
     { "id": "T-015", "name": "Add autonomy workflow pro tips document", "status": "done" }
   ],
+  "state_authority_hardening_taskset": {
+    "taskset_id": "state-authority-hardening-v1",
+    "owner": "session-driven",
+    "execution_loop": [
+      "spec_update",
+      "task_selection",
+      "implement_slice",
+      "verify_gates",
+      "handover_write"
+    ],
+    "tasks": [
+      {
+        "id": "SA-001",
+        "phase": "P1",
+        "name": "Persistence foundations with serialized atomic writes",
+        "status": "done"
+      },
+      {
+        "id": "SA-002",
+        "phase": "P2",
+        "name": "State version metadata and optimistic concurrency checks",
+        "status": "done"
+      },
+      {
+        "id": "SA-003",
+        "phase": "P3",
+        "name": "Frontend authoritative sync and stale-response suppression",
+        "status": "done"
+      },
+      {
+        "id": "SA-004",
+        "phase": "P4",
+        "name": "Scheduler signal isolation from gap recheck cadence",
+        "status": "done"
+      },
+      {
+        "id": "SA-005",
+        "phase": "P5",
+        "name": "Operational provenance, closeout, and archive completion",
+        "status": "not_started"
+      }
+    ]
+  },
   "remote_ops_taskset": {
     "taskset_id": "remote-ops-aws-v1",
     "owner": "session-driven",

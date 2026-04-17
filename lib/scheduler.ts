@@ -7,16 +7,19 @@ import {
   COMBINED_MULTIPLIER_MIN,
   COMBINED_MULTIPLIER_MAX,
 } from './trendInsights.js';
+import { summarizeSchedulerSignals } from './schedulerSignals.js';
 import { logger } from './logger.js';
 import { LOG_EVENT } from './logEvents.js';
 import { ENV } from '../config/env.js';
 import type { ActivityLog } from '../contracts/models.js';
+import type { PublisherHistoryEntry } from '../contracts/models.js';
 import type { PublisherRunResult } from '../bot.js';
 
 export type BotDeps = {
   runObserver: () => Promise<ActivityLog>;
   runPublisher: (force?: boolean) => Promise<PublisherRunResult>;
   getLogs: () => Promise<ActivityLog[]>;
+  getPublisherHistory?: (limit: number) => Promise<PublisherHistoryEntry[]>;
 };
 
 export type ControlPanelPreset = 'balanced' | 'night-safe' | 'day-aggressive';
@@ -237,6 +240,41 @@ export function startScheduler(
     }
     trendFactor = Math.max(COMBINED_MULTIPLIER_MIN, Math.min(COMBINED_MULTIPLIER_MAX, trendFactor * sovFactor));
 
+    if (deps.getPublisherHistory) {
+      try {
+        const historyLimit = Math.max(40, Math.min(200, controls.trendWindowDays * 24));
+        const history = await deps.getPublisherHistory(historyLimit);
+        const signalSummary = summarizeSchedulerSignals(history, {
+          windowDays: controls.trendWindowDays,
+          nowMs: now,
+        });
+        trendFactor = Math.max(
+          COMBINED_MULTIPLIER_MIN,
+          Math.min(COMBINED_MULTIPLIER_MAX, trendFactor * signalSummary.isolatedMultiplier)
+        );
+        logger.info(
+          {
+            event: 'scheduler_signal_isolation_applied',
+            opportunityMultiplier: signalSummary.isolatedMultiplier,
+            opportunityScore: signalSummary.opportunityScore,
+            totalSignals: signalSummary.totalSignalCount,
+            eligibleSignals: signalSummary.adaptationEligibleCount,
+            gapRechecks: signalSummary.gapRecheckCount,
+            publishAttempts: signalSummary.publishAttemptCount,
+            publishSuccesses: signalSummary.publishSuccessCount,
+            publishFailures: signalSummary.publishFailureCount,
+            reason: signalSummary.reason,
+          },
+          '[Scheduler] Applied isolated opportunity signal multiplier'
+        );
+      } catch (err) {
+        logger.warn(
+          { event: 'scheduler_signal_isolation_fallback', err },
+          '[Scheduler] Failed to load opportunity signals; using trend+SoV factors only'
+        );
+      }
+    }
+
     lastTrendRecalculatedAt = now;
     return trendFactor;
   };
@@ -259,23 +297,30 @@ export function startScheduler(
     return effective;
   };
 
-  const tick = async () => {
+  // When gap_policy skips, re-check at this short interval so we catch the window
+  // as soon as it opens rather than waiting the full base interval.
+  const GAP_RECHECK_INTERVAL_MINUTES = 3;
+
+  // Returns true if the run was a gap_policy skip (gap not yet safe).
+  const tick = async (): Promise<boolean> => {
     if (!enabled) {
-      return;
+      return false;
     }
     if (running) {
       logger.warn(
         { event: LOG_EVENT.schedulerTickSkipped, status: 'skip', reason: 'already_running' },
         '[Scheduler] Tick skipped because previous run is still active.'
       );
-      return;
+      return false;
     }
 
     running = true;
     const tickStartedAt = Date.now();
+    let wasGapSkip = false;
     try {
       logger.info({ event: LOG_EVENT.schedulerTickStarted }, '[Scheduler] Tick started');
-      await deps.runPublisher(false);
+      const result = await deps.runPublisher(false);
+      wasGapSkip = result.decision === 'gap_policy';
     } catch (error: any) {
       logger.error(
         { event: LOG_EVENT.schedulerTickFailed, status: 'error', error: String(error?.message ?? error) },
@@ -288,35 +333,47 @@ export function startScheduler(
       );
       running = false;
     }
+    return wasGapSkip;
   };
 
-  const scheduleNext = async () => {
+  const scheduleNext = async (fromGapSkip = false) => {
     if (timer) {
       clearTimeout(timer);
     }
-    const baseMinutes = await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes);
-    const nextMinutes = applyScheduleJitter(
-      baseMinutes,
-      controls.scheduleJitterPercent,
-      controls.scheduleJitterMode,
-      Math.random
-    );
+    let nextMinutes: number;
+    let baseMinutes: number;
+    if (fromGapSkip) {
+      // Gap is not yet safe — re-check soon rather than waiting the full interval.
+      baseMinutes = GAP_RECHECK_INTERVAL_MINUTES;
+      nextMinutes = GAP_RECHECK_INTERVAL_MINUTES;
+    } else {
+      baseMinutes = await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes);
+      nextMinutes = applyScheduleJitter(
+        baseMinutes,
+        controls.scheduleJitterPercent,
+        controls.scheduleJitterMode,
+        Math.random
+      );
+    }
     nextTickEta = new Date(Date.now() + nextMinutes * 60 * 1000).toISOString();
     logger.info(
       {
         event: LOG_EVENT.schedulerNextScheduled,
         nextMinutes,
         baseMinutes,
-        jitterPercent: controls.scheduleJitterPercent,
-        jitterMode: controls.scheduleJitterMode,
+        jitterPercent: fromGapSkip ? 0 : controls.scheduleJitterPercent,
+        jitterMode: fromGapSkip ? 'none' : controls.scheduleJitterMode,
+        reason: fromGapSkip ? 'gap_recheck' : 'normal',
       },
-      '[Scheduler] Next tick scheduled'
+      fromGapSkip
+        ? `[Scheduler] Gap not safe — re-checking in ${nextMinutes} minute(s)`
+        : '[Scheduler] Next tick scheduled'
     );
     timer = setTimeout(() => {
       void (async () => {
         nextTickEta = null;
-        await tick();
-        await scheduleNext();
+        const gapSkip = await tick();
+        await scheduleNext(gapSkip);
       })();
     }, nextMinutes * 60 * 1000);
   };
@@ -329,8 +386,8 @@ export function startScheduler(
   timer = setTimeout(() => {
     void (async () => {
       nextTickEta = null;
-      await tick();
-      await scheduleNext();
+      const gapSkip = await tick();
+      await scheduleNext(gapSkip);
     })();
   }, STARTUP_TICK_DELAY_MS);
 
@@ -356,14 +413,14 @@ export function startScheduler(
     },
     setIntervalMinutes: (nextIntervalMinutes: number) => {
       controls = normalizeAutoPublisherControls(controls, { baseIntervalMinutes: nextIntervalMinutes });
-      void scheduleNext();
+      void scheduleNext(false);
     },
     setControls: (patch: Partial<AutoPublisherControls>) => {
       controls = normalizeAutoPublisherControls(controls, patch);
       if (controls.trendAdaptiveEnabled === false) {
         trendFactor = 1;
       }
-      void scheduleNext();
+      void scheduleNext(false);
     },
     setPreset: (nextPreset: ControlPanelPreset) => {
       preset = nextPreset;
@@ -372,7 +429,7 @@ export function startScheduler(
     applyPreset: (nextPreset: ControlPanelPreset) => {
       preset = nextPreset;
       controls = normalizeAutoPublisherControls(controls, PRESET_CONFIG[nextPreset].autoPublisher);
-      void scheduleNext();
+      void scheduleNext(false);
     },
     getState: async () => ({
       ...controls,

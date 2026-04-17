@@ -1,0 +1,153 @@
+{
+  "slice_id": "scheduler-signal-isolation-slice1-v1",
+  "phase": "P4",
+  "status": "done",
+  "purpose": "Define the first implementation slice that isolates scheduler adaptation signals from frequent gap-policy recheck noise.",
+  "design_intent": "Separate opportunity-quality measurements from enforcement cadence so interval adaptation reflects real publish opportunities, not skip-heavy recheck traffic.",
+  "change_impact": "Affects scheduler adaptation inputs, trend insight derivation, and replay/backtest verification artifacts used for operational tuning.",
+  "scope": {
+    "in": [
+      "Define event taxonomy separating gap_recheck, publish_attempt, publish_success, and opportunity_window observations",
+      "Specify adaptation input window that excludes recheck-only events from opportunity score aggregation",
+      "Draft deterministic replay/backtest harness contract over publisher history JSONL",
+      "Define minimum scheduler unit test matrix for recheck-heavy workloads"
+    ],
+    "out": [
+      "Changing publisher success/fail-closed redirect rules",
+      "Replacing existing runtime controls storage model",
+      "Introducing new UI routes before signal model stabilizes"
+    ]
+  },
+  "acceptance_criteria": [
+    "Spec defines signal classes and explicitly identifies which classes are eligible for adaptation math",
+    "Replay harness contract includes deterministic inputs, fixed seed behavior (if sampling exists), and expected output schema",
+    "At least one synthetic recheck-heavy fixture and one opportunity-rich fixture are defined",
+    "Scheduler tests assert adaptation stability under frequent gap-policy skips",
+    "No changes weaken fail-closed publisher criteria"
+  ],
+  "signal_taxonomy": [
+    {
+      "class": "gap_recheck",
+      "source_decisions": ["gap_policy"],
+      "eligible_for_adaptation": false,
+      "intent": "Enforcement cadence only; excluded so skip storms do not distort opportunity quality."
+    },
+    {
+      "class": "publish_attempt",
+      "source_decisions": ["publisher_error", "published_verified", "dry_run", "legacy_unknown_false"],
+      "eligible_for_adaptation": true,
+      "intent": "Represents windows where the system attempted to act on a publish opportunity."
+    },
+    {
+      "class": "publish_success",
+      "source_decisions": ["published_verified", "dry_run", "legacy_unknown_true"],
+      "eligible_for_adaptation": true,
+      "intent": "High-quality opportunity capture signal; contributes positively to adaptation score."
+    },
+    {
+      "class": "opportunity_window",
+      "source_decisions": ["publisher_error", "published_verified", "dry_run", "legacy_unknown"],
+      "eligible_for_adaptation": true,
+      "intent": "Umbrella signal for adaptation windows, excluding pure recheck-only observations."
+    },
+    {
+      "class": "non_adaptive",
+      "source_decisions": ["observer_error", "manual_override_disabled"],
+      "eligible_for_adaptation": false,
+      "intent": "Policy/diagnostic outcomes not suitable for adaptation scoring."
+    }
+  ],
+  "adaptation_input_filtering": {
+    "window_construction": "Build timeline in timestamp order, then create adaptation windows from eligible signals only (default chunk size 8; replay configurable).",
+    "score_components": [
+      "successRate = publish_success / publish_attempt",
+      "attemptDensity = publish_attempt / totalSignalCount",
+      "opportunityScore = 0.7 * successRate + 0.3 * attemptDensity"
+    ],
+    "multiplier_model": {
+      "name": "rate_driven_opportunity_multiplier",
+      "bounds": { "min": 0.83, "max": 1.15 },
+      "notes": [
+        "Uses success-rate centering with sample-size damping (volumeStrength = min(1, attempts/8)).",
+        "Skip-heavy windows affect baseline comparison metrics but not isolated opportunity multiplier input set."
+      ]
+    }
+  },
+  "replay_backtest_harness_outline": {
+    "input_sources": [
+      "artifacts/publisher-history/YYYY-MM-DD.jsonl",
+      "activity_log.json"
+    ],
+    "normalization": [
+      "Parse run records into ordered timeline keyed by runStartedAt/runFinishedAt",
+      "Classify each record into signal class using decision/status metadata",
+      "Build adaptation windows that include only eligible signal classes"
+    ],
+    "outputs": [
+      "window_summary.json: per-window counts, opportunity score, and resulting multiplier",
+      "comparison.json: baseline multiplier vs isolated-signal multiplier deltas",
+      "stability_report.json: skip-heavy stress metrics and bound checks"
+    ],
+    "quality_gates": [
+      "Multiplier remains within policy bounds for every replay window",
+      "Skip-heavy fixtures do not inflate effective interval absent opportunity degradation",
+      "Deterministic replay: identical input produces identical output artifacts"
+    ]
+  },
+  "replay_harness_contract": {
+    "script": "scripts/scheduler_signal_replay.ts",
+    "fixture_generator": "scripts/generate_scheduler_signal_fixtures.ts",
+    "commands": [
+      "npm run scheduler:fixtures",
+      "npm run scheduler:replay -- --fixture tests/fixtures/scheduler-signals/fixture-recheck-heavy.json --output-dir artifacts/scheduler-replay/fixture-recheck-heavy --window-days 30 --window-size 4 --now 2026-04-30T00:00:00.000Z",
+      "npm run scheduler:replay -- --fixture tests/fixtures/scheduler-signals/fixture-opportunity-shift.json --output-dir artifacts/scheduler-replay/fixture-opportunity-shift --window-days 30 --window-size 6 --now 2026-04-30T00:00:00.000Z"
+    ],
+    "determinism": {
+      "sampling": "none",
+      "fixed_seed_requirement": "not_applicable",
+      "fingerprint": "sha256 over normalized input events and replay options"
+    },
+    "output_schema": {
+      "window_summary.json": [
+        "meta.generatedAt",
+        "meta.replayFingerprint",
+        "meta.windowDays",
+        "meta.windowSize",
+        "windows[].windowIndex",
+        "windows[].opportunityScore",
+        "windows[].isolatedMultiplier",
+        "windows[].baselineMultiplier"
+      ],
+      "comparison.json": [
+        "aggregate.isolatedAverageMultiplier",
+        "aggregate.baselineAverageMultiplier",
+        "aggregate.averageDelta",
+        "windows[].deltaFromBaseline"
+      ],
+      "stability_report.json": [
+        "qualityGates.multiplierBoundsSatisfied",
+        "qualityGates.skipHeavyNoInflationWithoutDegradation",
+        "qualityGates.deterministicReplayFingerprint",
+        "violations.multiplierBounds[]",
+        "violations.skipHeavyInflation[]"
+      ]
+    }
+  },
+  "initial_test_fixture_outline": [
+    {
+      "id": "fixture-recheck-heavy",
+      "description": "High frequency gap-policy skips with low publish attempts; validates that adaptation does not overreact to recheck cadence.",
+      "path": "tests/fixtures/scheduler-signals/fixture-recheck-heavy.json"
+    },
+    {
+      "id": "fixture-opportunity-shift",
+      "description": "Stable recheck cadence but clear change in publish opportunity outcomes; validates adaptation follows opportunity signal.",
+      "path": "tests/fixtures/scheduler-signals/fixture-opportunity-shift.json"
+    }
+  ],
+  "references": {
+    "plan": ".planning/spec-kit/plans/state-authority-hardening.plan.json",
+    "final_goal": ".planning/spec-kit/specs/state-authority-final-goal-v1.json",
+    "scheduler_policy": ".planning/spec-kit/specs/scheduler-adaptation.policy.json"
+  }
+}

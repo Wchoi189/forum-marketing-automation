@@ -1,0 +1,70 @@
+{
+  "slice_id": "scheduler-signal-isolation-slice2-v1",
+  "phase": "P4",
+  "status": "done",
+  "purpose": "Operationalize scheduler signal isolation with diagnostics visibility, runbook command paths, and calibration reporting over recent publisher history.",
+  "design_intent": "Make opportunity-signal adaptation observable and repeatable for operators without changing publisher fail-closed behavior or control-panel authority semantics.",
+  "change_impact": "Affects diagnostics API payloads, overview dashboards, replay report outputs, and operator runbook procedures for scheduler tuning.",
+  "scope": {
+    "in": [
+      "Expose isolated scheduler signal summary in diagnostics APIs",
+      "Add operator-facing replay runbook command path with timestamped output",
+      "Emit calibration-oriented replay artifact for multiplier bound tuning",
+      "Advance P4 plan/task tracker status after validation"
+    ],
+    "out": [
+      "Changing publisher success URL criteria or fail-closed submission semantics",
+      "Altering runtime control persistence topology",
+      "Introducing new scheduler control knobs in the API"
+    ]
+  },
+  "api_visibility": {
+    "trend_insights": {
+      "path": "/api/trend-insights",
+      "field": "schedulerSignals",
+      "fallback": "null when publisher history diagnostics cannot be built"
+    },
+    "diagnostics_endpoint": {
+      "path": "/api/scheduler-signals",
+      "query": ["windowDays", "windowSize", "historyLimit"],
+      "contract": "SchedulerSignalDiagnostics"
+    }
+  },
+  "runbook_commands": [
+    "npm run scheduler:replay:recent",
+    "npm run scheduler:replay:runbook"
+  ],
+  "replay_outputs": [
+    "window_summary.json",
+    "comparison.json",
+    "stability_report.json",
+    "calibration_report.json"
+  ],
+  "calibration_policy": {
+    "series": "isolatedMultiplier over adaptation windows (or global fallback when no windows)",
+    "report_fields": [
+      "isolatedMultiplierP10",
+      "isolatedMultiplierP50",
+      "isolatedMultiplierP90",
+      "isolatedBoundHitRate",
+      "suggestedMinBound",
+      "suggestedMaxBound",
+      "recommendation"
+    ],
+    "recommendation_logic": {
+      "widen_bounds": "isolatedBoundHitRate >= 0.12",
+      "tighten_bounds": "isolatedBoundHitRate == 0 and suggested bounds fall strictly inside current bounds",
+      "hold_bounds": "otherwise"
+    }
+  },
+  "acceptance_criteria": [
+    "Trend insights payload includes schedulerSignals diagnostics without breaking existing callers",
+    "Dedicated scheduler signal diagnostics endpoint returns contract-shaped payload",
+    "Runbook command writes timestamped replay artifacts and calibration report",
+    "P4 plan/task trackers are advanced to done after lint and integration verification"
+  ],
+  "verification": {
+    "required": ["npm run lint", "npm run test:integration"],
+    "recommended": ["npm run scheduler:replay:recent"]
+  }
+}

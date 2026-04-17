@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "generatedAt": "2026-04-17T08:41:46.529Z",
+    "replayFingerprint": "e0f850beedf555be3668723b627b7f013b777bfcdfc2191a69a1fb218035190d",
+    "source": "fixture",
+    "windowDays": 30,
+    "windowSize": 4,
+    "inputEventCount": 24,
+    "timelineEventCount": 24,
+    "nowIso": "2026-04-30T00:00:00.000Z"
+  },
+  "windows": [
+    {
+      "windowIndex": 1,
+      "startAt": "2026-04-01T00:09:00.000Z",
+      "endAt": "2026-04-01T00:33:00.000Z",
+      "deltaFromBaseline": -0.092,
+      "totalSignalCount": 9,
+      "adaptationEligibleCount": 4,
+      "gapRecheckCount": 5,
+      "opportunityWindowCount": 4,
+      "publishAttemptCount": 4,
+      "publishSuccessCount": 4,
+      "publishFailureCount": 0,
+      "ignoredSignalCount": 5,
+      "successRate": 1,
+      "opportunityScore": 0.833,
+      "isolatedMultiplier": 0.925,
+      "baselineMultiplier": 1.017,
+      "reason": "opportunity_rich"
+    },
+    {
+      "windowIndex": 2,
+      "startAt": "2026-04-01T00:51:00.000Z",
+      "endAt": "2026-04-01T00:54:00.000Z",
+      "deltaFromBaseline": 0,
+      "totalSignalCount": 2,
+      "adaptationEligibleCount": 2,
+      "gapRecheckCount": 0,
+      "opportunityWindowCount": 2,
+      "publishAttemptCount": 2,
+      "publishSuccessCount": 2,
+      "publishFailureCount": 0,
+      "ignoredSignalCount": 0,
+      "successRate": 1,
+      "opportunityScore": 1,
+      "isolatedMultiplier": 0.963,
+      "baselineMultiplier": 0.963,
+      "reason": "insufficient_opportunity_windows"
+    }
+  ]
+}

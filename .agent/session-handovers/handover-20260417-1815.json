@@ -1,0 +1,105 @@
+{
+  "handover_id": "handover-20260417-1815",
+  "created_at": "2026-04-17T18:15:00+09:00",
+  "updated_at": "2026-04-17T18:15:00+09:00",
+  "branch": "fiori-integration",
+  "focus": "P4 slice 2 implementation: diagnostics API visibility, operator replay runbook path, and multiplier bound calibration",
+  "completed": [
+    {
+      "item": "Exposed scheduler signal diagnostics in API responses",
+      "files": [
+        "server.ts",
+        "contracts/models.ts"
+      ]
+    },
+    {
+      "item": "Added dedicated diagnostics endpoint and trend payload embedding",
+      "files": [
+        "server.ts",
+        "tests/integration/api.integration.test.ts"
+      ]
+    },
+    {
+      "item": "Added replay calibration report output and recent-history limit support",
+      "files": [
+        "scripts/scheduler_signal_replay.ts",
+        "package.json"
+      ]
+    },
+    {
+      "item": "Wired operator-facing runbook command path for scheduler replay reports",
+      "files": [
+        "ops/systemd/scheduler-replay-report.sh",
+        "ops/systemd/README.md",
+        "README.md",
+        "package.json"
+      ]
+    },
+    {
+      "item": "Surfaced scheduler signal diagnostics in dashboard views",
+      "files": [
+        "src/pages/OverviewPage.tsx",
+        "src/fiori/pages/FioriOverviewPage.tsx"
+      ]
+    },
+    {
+      "item": "Calibrated opportunity multiplier lower bound from recent replay windows",
+      "files": [
+        "lib/schedulerSignals.ts",
+        ".planning/spec-kit/specs/scheduler-signal-isolation-slice1.json"
+      ],
+      "calibration_result": {
+        "historyLimit": 240,
+        "windowDays": 14,
+        "windowSize": 8,
+        "recommendation_before_tuning": "widen_bounds",
+        "suggested_bounds": {
+          "min": 0.83,
+          "max": 1.15
+        },
+        "recommendation_after_tuning": "hold_bounds"
+      }
+    },
+    {
+      "item": "Advanced P4 planning trackers and published slice 2 spec",
+      "files": [
+        ".planning/spec-kit/tasks/implementation.tasks.json",
+        ".planning/spec-kit/plans/state-authority-hardening.plan.json",
+        ".planning/spec-kit/specs/scheduler-signal-isolation-slice1.json",
+        ".planning/spec-kit/specs/scheduler-signal-isolation-slice2.json"
+      ]
+    }
+  ],
+  "validation": {
+    "lint": "pass",
+    "unit_tests": "pass",
+    "integration_tests": "pass",
+    "full_test": "pass",
+    "notes": [
+      "npm run lint succeeded",
+      "npm run test:integration succeeded (43/43 passing)",
+      "npm run test succeeded (lint + unit + integration + parser MCP)",
+      "npm run scheduler:replay:recent produced hold_bounds recommendation with suggested bounds 0.83-1.15"
+    ]
+  },
+  "pending_next": [
+    "P5 closeout: consolidate provenance visibility docs and archive final acceptance evidence",
+    "Optional: add compact scheduler signal diagnostics widget to controls route if operators request in-panel visibility",
+    "Optional: add scheduled timer/service for nightly scheduler replay runbook command"
+  ],
+  "session_boundary_recommendation": {
+    "boundary_now": true,
+    "recommended_cut": "Checkpoint after P4 slice 2 diagnostics/operationalization/calibration completion and full verification pass.",
+    "reason": [
+      "Signal isolation is now observable through diagnostics APIs and UI surfaces.",
+      "Replay harness operational path exists for operators, including calibration report output.",
+      "Recent-history calibration tuning was applied and validated to hold_bounds state."
+    ],
+    "next_session_start_scope": [
+      "P5 ops closeout and archive checklist",
+      "Optional scheduler signal diagnostics visibility refinements",
+      "Optional automation of replay runbook execution"
+    ]
+  },
+  "suggested_next_prompt": "Start P5 closeout: finalize provenance/runbook documentation, package acceptance evidence from P1-P4, and prepare archive-ready completion artifacts."
+}

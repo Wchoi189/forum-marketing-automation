@@ -12,6 +12,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { createApp } from "../../server.ts";
 
 // ---------------------------------------------------------------------------
@@ -21,6 +23,8 @@ import { createApp } from "../../server.ts";
 type BotDeps = NonNullable<Parameters<typeof createApp>[0]>;
 
 const AUTH_HEADER = "Bearer test-secret";
+const PROJECT_ROOT = process.env.PROJECT_ROOT || "/parent/marketing-automation";
+const RUNTIME_CONTROLS_PATH = path.join(PROJECT_ROOT, "artifacts", "runtime-controls.json");
 
 function makeMockDeps(): BotDeps {
   return {
@@ -121,6 +125,27 @@ async function withServer(
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve()))
     );
+  }
+}
+
+async function withRuntimeControlsSnapshot<T>(fn: () => Promise<T>): Promise<T> {
+  let hadFile = false;
+  let previous = "";
+  try {
+    previous = await fs.readFile(RUNTIME_CONTROLS_PATH, "utf-8");
+    hadFile = true;
+  } catch {
+    hadFile = false;
+  }
+
+  try {
+    return await fn();
+  } finally {
+    if (hadFile) {
+      await fs.writeFile(RUNTIME_CONTROLS_PATH, previous, "utf-8");
+    } else {
+      await fs.rm(RUNTIME_CONTROLS_PATH, { force: true }).catch(() => null);
+    }
   }
 }
 
@@ -232,6 +257,80 @@ test("POST /api/nl-command — status_query intent (dry_run)", async () => {
       const json = await res.json() as Record<string, unknown>;
       assert.equal(json["intent"], "status_query");
       assert.equal(json["dry_run"], true);
+    });
+  });
+});
+
+test("POST /api/nl-command — live set_gap_threshold returns authoritative state metadata", async () => {
+  await withRuntimeControlsSnapshot(async () => {
+    await withGrokMock("set_gap_threshold", { observerGapThresholdMin: 7 }, async () => {
+      await withServer(makeMockDeps(), async (baseUrl) => {
+        const res = await postNlCommand(baseUrl, {
+          message: "set gap threshold to 7",
+          dry_run: false,
+        });
+        assert.equal(res.status, 200);
+
+        const json = await res.json() as {
+          intent: string;
+          dry_run: boolean;
+          result?: {
+            observerGapThresholdMin?: number;
+            stateVersion?: number;
+            persistedAt?: string | null;
+            controlPanel?: {
+              stateVersion?: number;
+              persistedAt?: string | null;
+              observer?: { gapThresholdMin?: number; gapPersistedOverride?: number | null };
+            };
+          };
+        };
+
+        assert.equal(json.intent, "set_gap_threshold");
+        assert.equal(json.dry_run, false);
+        assert.equal(json.result?.observerGapThresholdMin, 7);
+        assert.equal(typeof json.result?.stateVersion, "number");
+        assert.ok((json.result?.stateVersion ?? 0) > 0);
+        assert.equal(typeof json.result?.persistedAt, "string");
+        assert.equal(json.result?.controlPanel?.observer?.gapThresholdMin, 7);
+        assert.equal(json.result?.controlPanel?.observer?.gapPersistedOverride, 7);
+        assert.equal(json.result?.controlPanel?.stateVersion, json.result?.stateVersion);
+        assert.equal(json.result?.controlPanel?.persistedAt, json.result?.persistedAt ?? null);
+      });
+    });
+  });
+});
+
+test("POST /api/nl-command — live pause_scheduler returns authoritative state metadata", async () => {
+  await withRuntimeControlsSnapshot(async () => {
+    await withGrokMock("pause_scheduler", {}, async () => {
+      await withServer(makeMockDeps(), async (baseUrl) => {
+        const res = await postNlCommand(baseUrl, {
+          message: "pause scheduler now",
+          dry_run: false,
+        });
+        assert.equal(res.status, 200);
+
+        const json = await res.json() as {
+          intent: string;
+          dry_run: boolean;
+          result?: {
+            schedulerEnabled?: boolean;
+            stateVersion?: number;
+            persistedAt?: string | null;
+            controlPanel?: { stateVersion?: number; persistedAt?: string | null };
+          };
+        };
+
+        assert.equal(json.intent, "pause_scheduler");
+        assert.equal(json.dry_run, false);
+        assert.equal(json.result?.schedulerEnabled, false);
+        assert.equal(typeof json.result?.stateVersion, "number");
+        assert.ok((json.result?.stateVersion ?? 0) > 0);
+        assert.equal(typeof json.result?.persistedAt, "string");
+        assert.equal(json.result?.controlPanel?.stateVersion, json.result?.stateVersion);
+        assert.equal(json.result?.controlPanel?.persistedAt, json.result?.persistedAt ?? null);
+      });
     });
   });
 });

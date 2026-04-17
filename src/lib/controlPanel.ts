@@ -79,6 +79,10 @@ export type PublisherControlState = {
 };
 
 export type ControlPanelState = {
+  /** Monotonic server state version used for optimistic concurrency on saves. */
+  stateVersion: number;
+  /** Last successful server persistence timestamp (UTC ISO), null before first write. */
+  persistedAt: string | null;
   preset: 'balanced' | 'night-safe' | 'day-aggressive';
   observer: ObserverControlState;
   publisher: PublisherControlState;
@@ -159,6 +163,8 @@ export function applyRuntimePreset(preset: ControlPanelState['preset'], current:
 }
 
 export const DEFAULT_CONTROL_PANEL: ControlPanelState = {
+  stateVersion: 0,
+  persistedAt: null,
   preset: 'balanced',
   nlWebhookEnabled: true,
   observer: {

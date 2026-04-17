@@ -16,3 +16,4 @@ This directory stores execution planning artifacts that are intentionally separa
 ## Governance Plans
 - `execution-loop.plan.json`: repo-wide planning and implementation execution loop.
 - `planning-brain-consolidation.plan.json`: consolidation plan + hard copy policy.
+- `state-authority-hardening.plan.json`: phased plan to achieve deterministic state authority and reliable publish opportunity capture.

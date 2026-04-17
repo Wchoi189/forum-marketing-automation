@@ -1,8 +1,15 @@
 # State Synchronization Architecture
 
-**Status:** Design / Planning  
-**Trigger:** Gap threshold shown in AI Advisor (8) diverges from Controls panel (5) after Apply Recommendation.  
+**Status:** Implemented through P3 (2026-04-17), monitoring for P4 handoff
+**Trigger:** Gap threshold shown in AI Advisor (8) diverges from Controls panel (5) after Apply Recommendation.
 **Scope:** All mutable runtime settings that cross the storage → server → frontend boundary.
+
+## Implementation Update (2026-04-17)
+
+- Completed stale-response suppression test coverage for control synchronization request ordering and state-version handling.
+- Extracted state reconciliation/ordering decisions into pure helper utilities used by `useAppData` so edge cases are regression-testable.
+- Tightened dirty-edit reconciliation so only editable fields are protected; authoritative metadata and computed runtime status fields continue to refresh from server responses.
+- Audited remaining frontend async flows that can affect control state and verified they route through guarded authoritative apply paths.
 
 ---
 

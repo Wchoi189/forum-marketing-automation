@@ -1,0 +1,150 @@
+{
+  "plan_id": "state-authority-hardening-v1",
+  "purpose": "Execute a phased, verifiable hardening plan to achieve deterministic state synchronization and reliable publish opportunity capture.",
+  "design_intent": "Use the existing file-based architecture, strengthen ordering and API authority guarantees, and isolate scheduler adaptation signals from recheck noise without relaxing fail-closed protections.",
+  "change_impact": "Introduces API metadata and concurrency controls, frontend sync discipline changes, scheduler adaptation signal refactor, and additional test/runbook obligations.",
+  "problem_statement": "Recent incidents showed that persistence, scheduler adaptation, and frontend polling can drift enough to reduce publish opportunity capture despite healthy gap margins.",
+  "goals": [
+    "Enforce one authoritative control-state write path with deterministic error handling",
+    "Guarantee server-authoritative state convergence across mutation, polling, and restart boundaries",
+    "Decouple adaptive scheduler signal quality from short-interval gap recheck behavior",
+    "Make state provenance and decision rationale auditable for operators"
+  ],
+  "non_goals": [
+    "Migrating to a database-backed control store",
+    "Full UI redesign or routing overhaul",
+    "Changing publisher success definition away from redirect verification"
+  ],
+  "phases": [
+    {
+      "phase_id": "P1",
+      "name": "Persistence Foundations",
+      "status": "done",
+      "scope": [
+        "Serialize runtime control writes in-process",
+        "Use atomic temp-write + rename commit path",
+        "Fail control-panel API requests on persistence failure",
+        "Rollback runtime-only toggles on failed persist"
+      ],
+      "done_evidence": [
+        "lib/runtimeControls.ts serialized atomic write queue",
+        "server.ts control-panel await + failure handling",
+        "lib/logEvents.ts persist-failed event"
+      ],
+      "exit_criteria": [
+        "No fire-and-forget control persistence paths remain in control-panel flow",
+        "Integration tests pass with persistence-failure expectations"
+      ]
+    },
+    {
+      "phase_id": "P2",
+      "name": "State Version and Concurrency",
+      "status": "done",
+      "scope": [
+        "Add stateVersion and persistedAt to control APIs",
+        "Reject stale updates using expectedVersion precondition",
+        "Persist and expose mutation provenance metadata"
+      ],
+      "deliverables": [
+        "Updated control-panel response contract",
+        "Concurrent write integration tests",
+        "Reviewer-pack contract delta notes"
+      ],
+      "exit_criteria": [
+        "Conflicting writes return deterministic conflict status",
+        "All mutation responses include authoritative version metadata"
+      ]
+    },
+    {
+      "phase_id": "P3",
+      "name": "Frontend Authoritative Sync",
+      "status": "done",
+      "scope": [
+        "Adopt invalidate-and-replace state updates after mutations",
+        "Discard stale poll results using request ordering/version guards",
+        "Constrain dirty-form protection to editable fields only"
+      ],
+      "deliverables": [
+        "useAppData stale-response guard updates",
+        "UI behavior tests for multi-request ordering",
+        "Updated state-sync behavior notes"
+      ],
+      "exit_criteria": [
+        "No mutation path relies on optimistic local merge for correctness",
+        "Out-of-order responses cannot regress rendered control state"
+      ]
+    },
+    {
+      "phase_id": "P4",
+      "name": "Scheduler Signal Isolation",
+      "status": "done",
+      "scope": [
+        "Separate gap-policy recheck cadence from adaptation signal window",
+        "Track opportunity-oriented publish signal metrics",
+        "Backtest interval adaptation against recent history"
+      ],
+      "done_evidence": [
+        "server.ts /api/scheduler-signals diagnostics endpoint and /api/trend-insights schedulerSignals payload",
+        "scripts/scheduler_signal_replay.ts calibration_report.json output and history-limit backtest support",
+        "ops/systemd/scheduler-replay-report.sh runbook command path and README/operator docs"
+      ],
+      "deliverables": [
+        "Refined trend/adaptation input model",
+        "Scheduler tests covering recheck and adaptation interactions",
+        "History replay report"
+      ],
+      "exit_criteria": [
+        "Adaptive interval remains stable under frequent gap-policy skips",
+        "Opportunity capture improves without violating gap policy"
+      ]
+    },
+    {
+      "phase_id": "P5",
+      "name": "Ops and Closeout",
+      "status": "not_started",
+      "scope": [
+        "Add operator-facing provenance visibility where missing",
+        "Finalize runbook and escalation toggles",
+        "Close verification budget and archive debt"
+      ],
+      "deliverables": [
+        "Runbook updates for persistence and scheduler diagnostics",
+        "Final acceptance checklist mapped to success criteria",
+        "Snapshot and archive updates per execution loop"
+      ],
+      "exit_criteria": [
+        "All success criteria in state-authority-final-goal-v1 are met",
+        "No open archive debt for this plan"
+      ]
+    }
+  ],
+  "verification_budget": {
+    "required_checks": ["npm run lint", "npm run test:integration"],
+    "expanded_checks_on_scheduler_changes": ["npm run test"],
+    "max_steps_default": 3
+  },
+  "risks": [
+    {
+      "id": "R-001",
+      "name": "Contract drift during API metadata rollout",
+      "mitigation": "Version API response fields and update reviewer-pack specs in same slice"
+    },
+    {
+      "id": "R-002",
+      "name": "Behavior regression in scheduler cadence",
+      "mitigation": "Backtest with publisher history replay and targeted integration tests"
+    },
+    {
+      "id": "R-003",
+      "name": "UI stale-state regressions in dirty edit mode",
+      "mitigation": "Automated stale-response tests plus manual multi-tab verification"
+    }
+  ],
+  "references": {
+    "final_goal_spec": ".planning/spec-kit/specs/state-authority-final-goal-v1.json",
+    "state_sync_architecture": ".planning/spec-kit/specs/state-sync-architecture.md",
+    "execution_loop_plan": ".planning/spec-kit/plans/execution-loop.plan.json",
+    "runtime_execution_contract": ".planning/spec-kit/specs/execution-loop.contract.json",
+    "planning_guidance": ".planning/spec-kit/plans/README.md"
+  }
+}

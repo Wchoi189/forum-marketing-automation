@@ -7,9 +7,13 @@ export default function PublisherStatusBanner({ app }: { app: UseAppDataReturn }
   const isRunning = s.running;
 
   const toggleEnabled = () => {
-    app.setControlPanel((c) => ({ ...c, autoPublisher: { ...c.autoPublisher, enabled: !isEnabled } }));
+    const next = {
+      ...app.controlPanel,
+      autoPublisher: { ...app.controlPanel.autoPublisher, enabled: !isEnabled }
+    };
+    app.setControlPanel(next);
     // Immediately persist the toggle without requiring manual "Apply Controls"
-    void app.saveControlPanel();
+    void app.saveControlPanel(next);
   };
 
   let etaLabel = '';

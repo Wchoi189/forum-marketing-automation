@@ -1,0 +1,68 @@
+{
+  "goal_id": "state-authority-final-goal-v1",
+  "purpose": "Define the final architecture goal for reliable publish opportunity capture and deterministic state synchronization.",
+  "design_intent": "Harden the existing file-based architecture so runtime controls, scheduler decisions, and UI state converge on one authoritative server state with explicit provenance and failure semantics.",
+  "change_impact": "Affects API contracts, scheduler behavior, frontend state orchestration, persistence flow, and operational runbooks; reduces missed publishes and restart drift risk.",
+  "constraints": {
+    "architecture_mode": "harden_existing_file_based_system",
+    "timeline": "3_plus_weeks",
+    "api_contract_changes_allowed": true,
+    "must_preserve_fail_closed_publisher": true
+  },
+  "problem_statement": "Runtime controls and publish cadence logic are currently vulnerable to drift across memory, file persistence, and UI polling windows, causing missed publish opportunities and inconsistent operator state.",
+  "final_goal": {
+    "name": "Deterministic state authority and opportunity capture",
+    "definition": "All mutable runtime controls are persisted through one serialized atomic path, surfaced via versioned server-authoritative APIs, consumed by stale-safe frontend sync, and used by scheduler adaptation that is insulated from short-interval gap recheck noise.",
+    "completion_gate": "No control-plane divergence across restart/reload paths and no adaptive interval inflation caused by gap-policy recheck sampling."
+  },
+  "success_criteria": [
+    {
+      "id": "SG-001",
+      "name": "Durable control persistence",
+      "metric": "0 silent persistence failures in control mutations; API returns explicit error on persistence failure",
+      "verification": ["integration_tests_control_panel", "failure_injection_write_path"]
+    },
+    {
+      "id": "SG-002",
+      "name": "State version convergence",
+      "metric": "Every control mutation response includes stateVersion and persistedAt; conflicting writes are rejected deterministically",
+      "verification": ["api_contract_tests", "concurrent_mutation_tests"]
+    },
+    {
+      "id": "SG-003",
+      "name": "Frontend stale-response immunity",
+      "metric": "Out-of-order poll/mutation responses cannot overwrite newer control state",
+      "verification": ["frontend_state_sync_tests", "manual_multi_tab_exercise"]
+    },
+    {
+      "id": "SG-004",
+      "name": "Opportunity-capture scheduler behavior",
+      "metric": "Adaptive interval uses publish-opportunity signal windows unaffected by gap-policy recheck cadence",
+      "verification": ["scheduler_unit_tests", "history_replay_backtest"]
+    },
+    {
+      "id": "SG-005",
+      "name": "Operational explainability",
+      "metric": "Operators can identify effective control values, source provenance, and decision reason from API + logs without code inspection",
+      "verification": ["reviewer_pack_check", "runbook_walkthrough"]
+    }
+  ],
+  "invariants": [
+    "Publisher success stays fail-closed and requires verified redirect out of write screen.",
+    "Control mutations are write-through and return authoritative re-read state, not optimistic echoes.",
+    "No new in-memory-only mutable control fields are introduced.",
+    "Env/schema/contract updates remain synchronized when env variables change."
+  ],
+  "non_goals": [
+    "Replace file persistence with a database in this initiative",
+    "Rewrite the entire frontend state layer or migrate to a new global state framework",
+    "Introduce websocket-only synchronization as a dependency for correctness"
+  ],
+  "references": {
+    "constitution": ".planning/spec-kit/constitution.md",
+    "execution_loop_plan": ".planning/spec-kit/plans/execution-loop.plan.json",
+    "runtime_contract": ".planning/spec-kit/specs/execution-loop.contract.json",
+    "state_sync_architecture": ".planning/spec-kit/specs/state-sync-architecture.md",
+    "project_manifest": ".planning/spec-kit/manifest/project.manifest.json"
+  }
+}

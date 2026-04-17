@@ -22,7 +22,8 @@ export const LOG_EVENT = {
   apiTrendInsightsFailed: 'api.trend-insights.failed',
   apiRunObserverFailed: 'api.run-observer.failed',
   apiRunPublisherFailed: 'api.run-publisher.failed',
-  apiControlPanelValidationFailed: 'api.control-panel.validation.failed'
+  apiControlPanelValidationFailed: 'api.control-panel.validation.failed',
+  apiControlPanelPersistFailed: 'api.control-panel.persist.failed'
 } as const;
 
 export type LogEventName = (typeof LOG_EVENT)[keyof typeof LOG_EVENT];

@@ -300,6 +300,30 @@ export default function OverviewPage({
                 </p>
               </div>
             </div>
+            {app.trendInsights.schedulerSignals && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <p className="text-[10px] opacity-40 uppercase tracking-widest mb-1">Signal multiplier</p>
+                  <p className="text-xl font-mono font-bold">×{app.trendInsights.schedulerSignals.summary.isolatedMultiplier.toFixed(2)}</p>
+                  <p className="text-[10px] opacity-50 mt-0.5">{app.trendInsights.schedulerSignals.summary.reason.replace(/_/g, ' ')}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <p className="text-[10px] opacity-40 uppercase tracking-widest mb-1">Attempt / recheck</p>
+                  <p className="text-xl font-mono font-bold">{app.trendInsights.schedulerSignals.summary.publishAttemptCount}/{app.trendInsights.schedulerSignals.summary.gapRecheckCount}</p>
+                  <p className="text-[10px] opacity-50 mt-0.5">{app.trendInsights.schedulerSignals.summary.adaptationEligibleCount} eligible</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <p className="text-[10px] opacity-40 uppercase tracking-widest mb-1">Calibration p10~p90</p>
+                  <p className="text-sm font-mono font-bold">{app.trendInsights.schedulerSignals.calibration.isolatedMultiplierP10.toFixed(2)} ~ {app.trendInsights.schedulerSignals.calibration.isolatedMultiplierP90.toFixed(2)}</p>
+                  <p className="text-[10px] opacity-50 mt-0.5">hit rate {Math.round(app.trendInsights.schedulerSignals.calibration.isolatedBoundHitRate * 100)}%</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <p className="text-[10px] opacity-40 uppercase tracking-widest mb-1">Bound suggestion</p>
+                  <p className="text-sm font-mono font-bold">{app.trendInsights.schedulerSignals.calibration.suggestedMinBound.toFixed(2)} ~ {app.trendInsights.schedulerSignals.calibration.suggestedMaxBound.toFixed(2)}</p>
+                  <p className="text-[10px] opacity-50 mt-0.5">{app.trendInsights.schedulerSignals.calibration.recommendation.replace(/_/g, ' ')}</p>
+                </div>
+              </div>
+            )}
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={app.trendInsights.hourlyProfile.map((h) => ({ label: `${h.hour}h`, rate: h.avgNewPostsPerHour }))}>

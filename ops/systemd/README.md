@@ -8,6 +8,7 @@
    - `chmod +x ops/systemd/load-env-from-ssm.sh`
    - `chmod +x ops/systemd/healthcheck.sh`
    - `chmod +x ops/systemd/cleanup-artifacts.sh`
+  - `chmod +x ops/systemd/scheduler-replay-report.sh`
 3. Reload and enable:
    - `sudo systemctl daemon-reload`
    - `sudo systemctl enable --now marketing-automation.service`
@@ -17,6 +18,28 @@
 - `systemctl status marketing-automation.service`
 - `journalctl -u marketing-automation.service -n 200 --no-pager`
 - Health check: `PORT=3000 ops/systemd/healthcheck.sh`
+
+## Scheduler Signal Replay Report
+
+- One-shot calibration report from recent publisher history:
+  - `npm run scheduler:replay:runbook`
+- Output directory pattern:
+  - `artifacts/scheduler-replay/runbook-<UTC timestamp>/`
+- Core report files:
+  - `window_summary.json`
+  - `comparison.json`
+  - `stability_report.json`
+  - `calibration_report.json`
+
+Optional environment overrides for the runbook script:
+- `SCHEDULER_REPLAY_WINDOW_DAYS` (default `14`)
+- `SCHEDULER_REPLAY_WINDOW_SIZE` (default `8`)
+- `SCHEDULER_REPLAY_HISTORY_LIMIT` (default `240`)
+- `SCHEDULER_REPLAY_HISTORY_DIR` (default `artifacts/publisher-history`)
+- `SCHEDULER_REPLAY_OUTPUT_ROOT` (default `artifacts/scheduler-replay`)
+
+Optional cron example (daily 03:20 UTC):
+- `20 3 * * * cd /opt/marketing-automation/current && npm run scheduler:replay:runbook >> /var/log/marketing-automation-scheduler-replay.log 2>&1`
 
 ## Daily artifact cleanup
 
