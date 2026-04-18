@@ -51,6 +51,7 @@ import {
 import { isValidKakaoPayload, logKakaoMessage, simpleTextResponse as kakaoSimpleText } from "./lib/kakaoSkill.js";
 import { getAutoReply as kakaoGetAutoReply } from "./lib/kakaoAutoReply.js";
 import * as kakaoDb from "./lib/kakaoDb.js";
+import { getCopilotHandler, scrubContext } from "./lib/copilotCoach.js";
 import {
   readPersistedObserverControls,
   readPersistedPublisherControls,
@@ -1265,6 +1266,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       openaiKeyPresent: !!ENV.OPENAI_API_KEY,
       todayLogCount,
       webhookUrl: "https://tortile-edmund-overboastful.ngrok-free.dev/kakao-webhook",
+      copilotEnabled: ENV.COPILOTKIT_ENABLED && ENV.KAKAO_DB_ENABLED,
     });
   });
 
@@ -1315,6 +1317,65 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     } catch (err) {
       logger.error({ event: "kakao_db_stats_error", err }, "[KakaoDb] Stats query failed");
       res.status(500).json({ error: "db_stats_failed" });
+    }
+  });
+
+  // ── CopilotKit coach endpoints ───────────────────────────────────────────────
+
+  app.use("/api/copilotkit", async (req, res, next) => {
+    if (!ENV.COPILOTKIT_ENABLED) {
+      res.status(503).json({ error: "copilotkit_disabled" });
+      return;
+    }
+    if (!ENV.KAKAO_DB_ENABLED) {
+      logger.warn({ event: "copilotkit_db_required" }, "[CopilotKit] KAKAO_DB_ENABLED must be true");
+      res.status(503).json({ error: "kakao_db_required" });
+      return;
+    }
+    try {
+      const handler = getCopilotHandler();
+      await handler(req, res);
+    } catch (err) {
+      logger.error({ event: "copilotkit_handler_error", err }, "[CopilotKit] Handler error");
+      next(err);
+    }
+  });
+
+  app.get("/api/kakao/thread/:userKey", async (req, res) => {
+    if (!ENV.KAKAO_DB_ENABLED) {
+      res.status(503).json({ error: "kakao_db_required" });
+      return;
+    }
+    const { userKey } = req.params;
+    if (!userKey || typeof userKey !== "string") {
+      res.status(400).json({ error: "invalid_user_key" });
+      return;
+    }
+    try {
+      const exists = await kakaoDb.userExists(userKey);
+      if (!exists) {
+        res.status(404).json({ error: "user_not_found" });
+        return;
+      }
+      const limit = ENV.COPILOT_CONTEXT_TURNS;
+      const turns = await kakaoDb.getThread(userKey, limit);
+      const scrubbed = turns.map((t) => ({
+        ...t,
+        utterance: t.utterance ? scrubContext(t.utterance) : null,
+      }));
+      // Cap total character count at 8000 chars
+      let charCount = 0;
+      const capped: typeof scrubbed = [];
+      for (const turn of scrubbed) {
+        const len = (turn.utterance ?? "").length;
+        if (charCount + len > 8000) break;
+        capped.push(turn);
+        charCount += len;
+      }
+      res.json({ userKey, turns: capped, total: capped.length });
+    } catch (err) {
+      logger.error({ event: "kakao_thread_error", err }, "[KakaoDb] Thread query failed");
+      res.status(500).json({ error: "thread_query_failed" });
     }
   });
 

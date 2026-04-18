@@ -55,6 +55,22 @@ This project runs a Playwright-based observer/publisher workflow for the Ppomppu
 - Update reviewer-pack docs in `.planning/spec-kit/specs/` with runtime-facing changes.
 - Favor deterministic acceptance criteria and explicit failure behavior over vague narratives.
 
+## Agent Memory Loop (MemPalace)
+- Goal: improve session continuity for agent handovers, decisions, and blockers without changing runtime behavior.
+- Source of truth remains local files:
+  - `.agent/state/state.index.json`
+  - `.agent/session-handovers/handover-*.json`
+- If MemPalace retrieval conflicts with local files, local files win.
+- Default indexing scope is memory/context artifacts only:
+  - include `.agent/state`, `.agent/session-handovers`, `.planning/spec-kit/specs`, relevant planning JSON docs
+  - exclude `src/**`, `lib/**`, `tests/**`, `.env*`, and large debug artifacts
+- Session flow:
+  - wake-up: `mempalace wake-up` (prefer wing-specific wake-up when configured), then confirm local state index + handover
+  - checkpoint: update handover draft and re-index memory artifacts after each micro-task
+  - handover: create new handover JSON from template, update `last_handover_file`, and re-index
+- Skill reference: `.agent/skills/mempalace-management.md`
+- Spec reference: `.planning/spec-kit/specs/mempalace-memory-loop-v1.json`
+
 ## Regression Prevention Checklist (Agents)
 - Run `npm run lint` after code edits.
 - Run `npm run test:integration` for API/publisher behavior changes.

@@ -20,7 +20,32 @@
         "archive_before_delete": true,
         "archive_path": ".planning/spec-kit/.completed/"
       }
+    },
+    {
+      "id": "mempalace-management",
+      "name": "MemPalace Management",
+      "description": "Wake-up, checkpoint, and handover memory loop using MemPalace with local handover/state authority.",
+      "triggers": ["mempalace-management", "memory-loop", "session-handover", "wake-up-context"],
+      "modes": {
+        "wake-up": "Read MemPalace context first, then confirm local state index + latest handover",
+        "checkpoint": "Update handover draft and mine memory artifacts after each micro-task",
+        "handover": "Finalize handover JSON, update state index, and refresh MemPalace index"
+      },
+      "safety": {
+        "authority_files": [
+          ".agent/state/state.index.json",
+          ".agent/session-handovers/handover-*.json"
+        ],
+        "default_exclusions": [
+          "src/**",
+          "lib/**",
+          "tests/**",
+          ".env*",
+          "artifacts/**"
+        ],
+        "never_store_secrets": true
+      }
     }
   ],
-  "notes": "context-hygiene skill added 2026-04-10 per audit recommendation"
+  "notes": "context-hygiene skill added 2026-04-10 per audit recommendation; mempalace-management added 2026-04-19 for session continuity"
 }

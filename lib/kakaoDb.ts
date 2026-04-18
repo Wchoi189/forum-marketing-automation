@@ -65,6 +65,24 @@ export async function ensureReady(): Promise<void> {
         WHERE intent IS NOT NULL
     `);
 
+    await client.query(
+      `ALTER TABLE "${s}".chat_history ADD COLUMN IF NOT EXISTS labels JSONB`
+    );
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${s}".coach_events (
+        id              BIGSERIAL     PRIMARY KEY,
+        user_key        VARCHAR(255),
+        action_name     VARCHAR(50),
+        event_type      VARCHAR(30)   NOT NULL,
+        input_length    INT,
+        output_length   INT,
+        latency_ms      INT,
+        operator_edited BOOLEAN,
+        created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+      )
+    `);
+
     logger.info(
       { event: "kakao_db_ready", host: ENV.KAKAO_DB_HOST, schema: s },
       "[KakaoDb] Schema and tables ready"
@@ -173,4 +191,79 @@ export async function getStats(): Promise<KakaoDbStats> {
     inboundToday: todayRes.rows[0].n,
     topIntents: intentsRes.rows as Array<{ intent: string; count: number }>,
   };
+}
+
+// ── Coach context ─────────────────────────────────────────────────────────────
+
+export type ThreadTurn = {
+  direction: "INBOUND" | "OUTBOUND";
+  utterance: string | null;
+  intent: string | null;
+  labels: unknown | null;
+  createdAt: string;
+};
+
+export async function userExists(userKey: string): Promise<boolean> {
+  if (!pool) return false;
+  const s = schema();
+  const res = await pool.query(
+    `SELECT 1 FROM "${s}".kakao_users WHERE user_key = $1 LIMIT 1`,
+    [userKey]
+  );
+  return res.rowCount !== null && res.rowCount > 0;
+}
+
+export async function getThread(userKey: string, limit: number): Promise<ThreadTurn[]> {
+  if (!pool) return [];
+  const s = schema();
+  const res = await pool.query(
+    `SELECT direction, utterance, intent, labels, created_at
+     FROM "${s}".chat_history
+     WHERE user_key = $1
+     ORDER BY created_at DESC
+     LIMIT $2`,
+    [userKey, limit]
+  );
+  return res.rows.map((r) => ({
+    direction: r.direction,
+    utterance: r.utterance,
+    intent: r.intent,
+    labels: r.labels,
+    createdAt: r.created_at,
+  }));
+}
+
+// ── Coach event logging ───────────────────────────────────────────────────────
+
+export type CoachEventInput = {
+  userKey?: string | null;
+  actionName?: string | null;
+  eventType: string;
+  inputLength?: number | null;
+  outputLength?: number | null;
+  latencyMs?: number | null;
+  operatorEdited?: boolean | null;
+};
+
+export async function logCoachEvent(event: CoachEventInput): Promise<void> {
+  if (!pool) return;
+  const s = schema();
+  try {
+    await pool.query(
+      `INSERT INTO "${s}".coach_events
+         (user_key, action_name, event_type, input_length, output_length, latency_ms, operator_edited)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        event.userKey ?? null,
+        event.actionName ?? null,
+        event.eventType,
+        event.inputLength ?? null,
+        event.outputLength ?? null,
+        event.latencyMs ?? null,
+        event.operatorEdited ?? null,
+      ]
+    );
+  } catch (err) {
+    logger.warn({ event: "coach_event_log_failed", err }, "[KakaoDb] Failed to log coach event");
+  }
 }

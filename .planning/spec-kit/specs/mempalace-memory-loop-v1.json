@@ -1,0 +1,80 @@
+{
+  "spec_id": "mempalace-memory-loop-v1",
+  "status": "ACTIVE",
+  "purpose": "Define a deterministic memory loop for AI session continuity using MemPalace while keeping local handover/state files authoritative.",
+  "design_intent": "Improve wake-up quality and handover reliability by indexing only working-memory artifacts instead of source code by default.",
+  "change_impact": "Affects agent startup, checkpoint discipline, and handover consistency; does not change runtime behavior.",
+  "scope": {
+    "in": [
+      ".agent/state/state.index.json",
+      ".agent/session-handovers/handover-*.json",
+      ".planning/spec-kit/specs/*.json",
+      ".planning/spec-kit/plans/**/*.json"
+    ],
+    "out": [
+      "src/**",
+      "lib/**",
+      "tests/**",
+      "artifacts/**",
+      ".env*"
+    ]
+  },
+  "authority": {
+    "source_of_truth": [
+      ".agent/state/state.index.json",
+      ".agent/session-handovers/handover-*.json"
+    ],
+    "conflict_policy": "If MemPalace retrieval conflicts with local authority files, local authority files take precedence."
+  },
+  "loop": {
+    "wake_up": {
+      "steps": [
+        "Run mempalace wake-up (prefer wing forum-marketing-automation).",
+        "Read state index and referenced handover file.",
+        "If MemPalace is unavailable, continue from local authority files only."
+      ],
+      "exit_criteria": [
+        "current_objective_known",
+        "next_atomic_action_known"
+      ]
+    },
+    "checkpoint": {
+      "cadence": "after each micro-task or architectural decision",
+      "steps": [
+        "Update handover draft with what changed, why, blockers, and next action.",
+        "Mine .agent/state, .agent/session-handovers, and .planning/spec-kit/specs.",
+        "Run one retrieval query to verify new context is discoverable."
+      ],
+      "exit_criteria": [
+        "decision_logged",
+        "retrieval_verified"
+      ]
+    },
+    "handover": {
+      "steps": [
+        "Create handover-YYYYMMDD-HHMM.json from template.",
+        "Update state.index.json last_handover_file.",
+        "Mine updated handover and state files.",
+        "Verify status/search output contains next action and known blockers."
+      ],
+      "exit_criteria": [
+        "handover_saved",
+        "state_index_updated",
+        "mempalace_index_refreshed"
+      ]
+    }
+  },
+  "quality_gates": {
+    "required": [
+      "No source-code indexing unless explicitly requested.",
+      "No secrets in handovers or mined context.",
+      "All handovers conform to .agent/session-handovers/template.json."
+    ]
+  },
+  "references": {
+    "agent_skill": ".agent/skills/mempalace-management.md",
+    "handover_template": ".agent/session-handovers/template.json",
+    "state_index": ".agent/state/state.index.json",
+    "folder_conventions": ".planning/spec-kit/specs/folder-conventions.json"
+  }
+}
