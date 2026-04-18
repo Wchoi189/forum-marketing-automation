@@ -1,7 +1,7 @@
 import path from "path";
 import dotenv from "dotenv";
 
-dotenv.config();
+dotenv.config({ override: true });
 
 type EnvConfig = {
   PROJECT_ROOT: string;
@@ -66,6 +66,20 @@ type EnvConfig = {
   KAKAO_AUTOREPLY_ENABLED: boolean;
   /** Per-call timeout in ms for Kakao auto-reply. Falls back to neutral ACK on timeout. */
   KAKAO_AUTOREPLY_TIMEOUT_MS: number;
+  /** Kill-switch for PostgreSQL persistence of Kakao messages. Default false. */
+  KAKAO_DB_ENABLED: boolean;
+  /** Postgres host for Kakao DB. Defaults to localhost. */
+  KAKAO_DB_HOST: string;
+  /** Postgres port for Kakao DB. */
+  KAKAO_DB_PORT: number;
+  /** Postgres database name for Kakao DB. */
+  KAKAO_DB_NAME: string;
+  /** Postgres user for Kakao DB. */
+  KAKAO_DB_USER: string;
+  /** Postgres password for Kakao DB. */
+  KAKAO_DB_PASSWORD: string;
+  /** Postgres schema name for Kakao tables. Isolated from other project schemas. */
+  KAKAO_DB_SCHEMA: string;
 };
 
 function requiredString(name: string): string {
@@ -186,6 +200,13 @@ function buildEnv(): EnvConfig {
     OPENAI_API_KEY: optionalStringOrNull("OPENAI_API_KEY"),
     KAKAO_AUTOREPLY_ENABLED: optionalBool("KAKAO_AUTOREPLY_ENABLED", false),
     KAKAO_AUTOREPLY_TIMEOUT_MS: optionalInt("KAKAO_AUTOREPLY_TIMEOUT_MS", 2400, 500, 5000),
+    KAKAO_DB_ENABLED: optionalBool("KAKAO_DB_ENABLED", false),
+    KAKAO_DB_HOST: optionalString("KAKAO_DB_HOST", "localhost"),
+    KAKAO_DB_PORT: optionalInt("KAKAO_DB_PORT", 5432, 1, 65535),
+    KAKAO_DB_NAME: optionalString("KAKAO_DB_NAME", "trading_system"),
+    KAKAO_DB_USER: optionalString("KAKAO_DB_USER", "postgres"),
+    KAKAO_DB_PASSWORD: optionalString("KAKAO_DB_PASSWORD", ""),
+    KAKAO_DB_SCHEMA: optionalString("KAKAO_DB_SCHEMA", "shareplan"),
   };
 }
 

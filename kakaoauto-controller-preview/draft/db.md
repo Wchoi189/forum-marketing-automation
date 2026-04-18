@@ -1,0 +1,8 @@
+# Existing Implementation (different project)
+
+TRADING_DB_HOST=ocr-postgres
+TRADING_DB_PORT=5432
+TRADING_DB_NAME=trading_system
+TRADING_DB_USER=db_user
+TRADING_DB_PASSWORD=your_password
+TRADING_DB_SCHEMA=trading_system

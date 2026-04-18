@@ -1,0 +1,277 @@
+{
+  "spec_id": "copilotkit-coach-v1",
+  "phase": 6,
+  "name": "CopilotKit Communications Coach",
+  "status": "PLANNING",
+  "purpose": "Embed a CopilotKit sidebar in KakaoDashboard that acts as a communications coach. It advises on tone, Korean business register, marketing rhetoric, and drafts replies — but never sends. The operator is always in the loop. This is a read-observe-suggest system, not an automation layer.",
+  "design_intent": "Human-in-the-loop first. The coach reads conversation context from PostgreSQL (chat_history), suggests phrasing, and lets the operator copy-paste into the Kakao admin center. No message is ever sent automatically. Toggle-able. PII never leaves the server boundary unredacted.",
+  "prerequisite": "Phase 5 (Auto-Reply) must be DONE and KAKAO_DB_ENABLED=true. Coach requires PostgreSQL chat_history for meaningful context.",
+  "isolation_guarantee": "No Kakao module may import or call publisher, scheduler, or observer code. CopilotKit modules live under src/copilot/ and lib/copilotCoach.ts only.",
+
+  "scope": {
+    "in": [
+      "CopilotSidebar embedded in KakaoDashboard — visible when COPILOTKIT_ENABLED=true",
+      "useCopilotReadable — feeds selected conversation thread (last 20 turns) + user subscription status",
+      "useCopilotAction — draftReply, refineMessage, suggestFollowUp, translateToKorean",
+      "CopilotRuntime — Express endpoint POST /api/copilotkit",
+      "Coach event logging — tracks suggestion shown/applied/edited/dismissed",
+      "PII scrubbing — strips bank account, phone, email before sending context to LLM",
+      "Conversation thread selector UI in KakaoDashboard",
+      "COPILOTKIT_ENABLED kill-switch"
+    ],
+    "out": [
+      "Auto-sending any message to Kakao (this remains Phase 5 / KAKAO_AUTOREPLY_ENABLED territory)",
+      "WhatsApp integration (future Phase 7)",
+      "Publisher, scheduler, or observer interaction of any kind",
+      "CopilotKit on any page other than KakaoDashboard"
+    ]
+  },
+
+  "context_model": {
+    "description": "What the coach 'sees' at runtime via useCopilotReadable",
+    "sources": [
+      {
+        "name": "active_thread",
+        "query": "SELECT direction, utterance, created_at FROM chat_history WHERE user_key = $1 ORDER BY created_at DESC LIMIT 20",
+        "purpose": "The live conversation the operator is looking at",
+        "pii_scrub": true
+      },
+      {
+        "name": "user_profile",
+        "query": "SELECT user_key, first_seen, last_active, user_properties FROM kakao_users WHERE user_key = $1",
+        "purpose": "Basic profile — first contact date, last active, any stored properties",
+        "pii_scrub": false
+      },
+      {
+        "name": "intent_summary",
+        "description": "Top 3 intent labels from annotated chat_history for this user_key",
+        "purpose": "Lets coach understand what the user typically wants",
+        "pii_scrub": false,
+        "migration_note": "chat_history currently has intent VARCHAR(50) only. Phase 3 annotation labels (topic[], sentiment) live in data/kakao-annotated/conversations.jsonl and are NOT in PostgreSQL. Sprint 6a must add ALTER TABLE chat_history ADD COLUMN labels JSONB to expose full annotation context. Until migration runs, intent_summary queries intent field only."
+      },
+      {
+        "name": "operator_style_hint",
+        "description": "Static prompt fragment describing SharePlan's preferred tone: casual-but-professional, Korean business register, concise, no filler phrases",
+        "source": "hardcoded in lib/copilotCoach.ts system prompt",
+        "pii_scrub": false
+      },
+      {
+        "name": "rules_engine",
+        "description": "Hardcoded service constraint block injected into every LLM call. Prevents hallucination of impossible service options (e.g., top-offs, extensions).",
+        "source": "hardcoded in lib/copilotCoach.ts COACH_SYSTEM_PROMPT as a non-negotiable rules block",
+        "pii_scrub": false,
+        "content": "Service rules (non-negotiable — never contradict these): No top-offs or extensions on existing slots. A new Google Family invite is required after expiry. 6-month plan: ₩25,000. 12-month plan: ₩50,000. Payment via IBK bank transfer only. If a user asks about extending, the only correct path is a new subscription."
+      }
+    ],
+    "context_cap": "Last 20 turns only. Never full history. Prevents token overflow and limits PII exposure surface."
+  },
+
+  "pii_scrubbing": {
+    "description": "Applied server-side in lib/copilotCoach.ts before context is passed to CopilotRuntime",
+    "strategy": "Two-pass. Pass 1 is fast regex. Pass 2 is keyword-triggered and catches space/dot-separated formats that bypass Pass 1.",
+    "pass_1_regex": [
+      { "label": "bank_account", "regex": "\\d{3,6}-\\d{2,6}-\\d{4,10}", "replacement": "[ACCOUNT]" },
+      { "label": "korean_phone", "regex": "01[016789]-?\\d{3,4}-?\\d{4}", "replacement": "[PHONE]" },
+      { "label": "email", "regex": "[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}", "replacement": "[EMAIL]" },
+      { "label": "rrn_partial", "regex": "\\d{6}-[1-4]\\d{6}", "replacement": "[RRN]" }
+    ],
+    "pass_2_keyword": [
+      {
+        "label": "bank_account_unformatted",
+        "triggers": ["계좌", "입금", "국민은행", "기업은행", "신한", "카카오뱅크"],
+        "action": "If trigger word present in utterance, redact any adjacent run of 8+ digits (with or without spaces/dashes) as [ACCOUNT]"
+      },
+      {
+        "label": "phone_unformatted",
+        "triggers": ["전화", "연락처", "번호"],
+        "action": "If trigger word present, redact any adjacent 10-11 digit sequence as [PHONE]"
+      }
+    ],
+    "validation": "Unit tests in tests/copilotCoach.pii.test.ts must cover all four regex types AND both keyword-trigger cases (space-separated account, dotted phone) before Sprint 6d is marked DONE",
+    "audit_log": "Each scrub event is counted and logged as copilot_event type=pii_scrub in coach_events table"
+  },
+
+  "actions": [
+    {
+      "name": "draftReply",
+      "description": "Generate a complete reply to the current conversation in SharePlan's natural style. Operator reviews before copying.",
+      "parameters": [
+        { "name": "tone", "type": "string", "enum": ["neutral", "warm", "formal", "apologetic"], "description": "Desired tone of the reply" }
+      ],
+      "output": "text — suggested reply string",
+      "constraint": "Max 400 characters (Kakao bubble practical limit)"
+    },
+    {
+      "name": "refineMessage",
+      "description": "Rewrite a draft the operator has typed for better rhetoric, politeness level, or marketing framing.",
+      "parameters": [
+        { "name": "draft", "type": "string", "description": "Operator's rough draft" },
+        { "name": "style", "type": "string", "enum": ["polish", "persuade", "shorten", "formalize", "casualize"] }
+      ],
+      "output": "text — rewritten message"
+    },
+    {
+      "name": "suggestFollowUp",
+      "description": "Given the conversation state, suggest the most appropriate next message to move the subscription flow forward.",
+      "parameters": [],
+      "output": "text — suggested next message with brief reasoning"
+    },
+    {
+      "name": "translateToKorean",
+      "description": "Translate or localize a message into natural Korean with correct business register (존댓말).",
+      "parameters": [
+        { "name": "text", "type": "string", "description": "Source text in any language" },
+        { "name": "register", "type": "string", "enum": ["합쇼체", "해요체"], "default": "해요체" }
+      ],
+      "output": "text — Korean translation"
+    }
+  ],
+
+  "logging": {
+    "description": "All coach interactions are logged for quality review and future fine-tuning",
+    "table": "coach_events (new PostgreSQL table in shareplan schema)",
+    "schema": {
+      "id": "BIGSERIAL PRIMARY KEY",
+      "user_key": "VARCHAR(255) — the Kakao user being coached on (nullable if no thread selected)",
+      "action_name": "VARCHAR(50) — which useCopilotAction was invoked, or 'sidebar_open'",
+      "event_type": "VARCHAR(30) — suggestion_shown | applied | edited | dismissed | pii_scrub | error",
+      "input_length": "INT — character count of context sent to LLM",
+      "output_length": "INT — character count of suggestion returned",
+      "latency_ms": "INT — wall-clock time from action call to response",
+      "operator_edited": "BOOLEAN — true if operator changed the suggestion before use",
+      "created_at": "TIMESTAMPTZ DEFAULT NOW()"
+    },
+    "migration": "Added in Sprint 6a via CREATE TABLE IF NOT EXISTS in lib/kakaoDb.ts ensureReady()",
+    "retention": "No automatic purge. Review after 30 days of prod use."
+  },
+
+  "server_architecture": {
+    "runtime_endpoint": "POST /api/copilotkit",
+    "handler_file": "lib/copilotCoach.ts",
+    "runtime_model": {
+      "provider": "OpenAI",
+      "model": "gpt-4o",
+      "rationale": "gpt-4o for coach (richer reasoning than gpt-4o-mini used by auto-reply). Same OPENAI_API_KEY env var — no new credential.",
+      "system_prompt_location": "lib/copilotCoach.ts COACH_SYSTEM_PROMPT constant"
+    },
+    "context_api": "GET /api/kakao/thread/:userKey — returns last 20 turns with PII scrubbed, suitable for useCopilotReadable",
+    "kill_switch_check": "Middleware on POST /api/copilotkit returns 503 if COPILOTKIT_ENABLED=false"
+  },
+
+  "frontend_architecture": {
+    "host_component": "src/pages/KakaoDashboard.tsx",
+    "new_files": [
+      "src/copilot/CoachSidebar.tsx — CopilotSidebar + useCopilotReadable + useCopilotAction hooks",
+      "src/copilot/ThreadSelector.tsx — dropdown/list to pick which user_key to coach on"
+    ],
+    "layout": "KakaoDashboard splits into two columns when COPILOTKIT_ENABLED: left = existing log terminal + stats, right = CoachSidebar",
+    "toggle_visibility": "CoachSidebar only mounts when status.copilotEnabled === true (fetched from /api/kakao/status)"
+  },
+
+  "env_additions": [
+    {
+      "var": "COPILOTKIT_ENABLED",
+      "default": "false",
+      "effect": "Kill-switch. When false, POST /api/copilotkit returns 503 and CoachSidebar is hidden."
+    },
+    {
+      "var": "COPILOT_CONTEXT_TURNS",
+      "default": "20",
+      "effect": "Number of most recent chat_history turns fed into useCopilotReadable. Max 50 for cost control."
+    }
+  ],
+
+  "data_validation": {
+    "inbound_payload": {
+      "description": "Validation applied to POST /api/copilotkit body before reaching CopilotRuntime",
+      "rules": [
+        "action name must be one of the four defined actions",
+        "draft parameter (refineMessage) max 1000 chars",
+        "text parameter (translateToKorean) max 1000 chars",
+        "tone/style/register must be one of the defined enum values — reject unknown values with 400"
+      ]
+    },
+    "context_payload": {
+      "description": "Validation applied to GET /api/kakao/thread/:userKey response before useCopilotReadable",
+      "rules": [
+        "user_key must exist in kakao_users table — 404 if not",
+        "PII scrub applied before response is returned",
+        "Total context character count capped at 8000 chars (GPT-4o context budget)"
+      ]
+    },
+    "output_validation": {
+      "description": "Coach suggestion returned to frontend",
+      "rules": [
+        "draftReply output truncated to 400 chars with ellipsis if LLM exceeds limit",
+        "Never return raw JSON — always plain text string to the CopilotAction handler"
+      ]
+    }
+  },
+
+  "safety_constraints": [
+    "Coach never sends a message. All output is copy-paste only. No Kakao API call is made from CopilotKit code paths.",
+    "COPILOTKIT_ENABLED defaults to false. Must be explicitly opted in.",
+    "COPILOTKIT_ENABLED requires KAKAO_DB_ENABLED=true — log warning and reject if DB is off.",
+    "PII scrubbing runs server-side before any LLM call. It is not optional.",
+    "coach_events logging is mandatory — if the DB insert fails, log a warning but do not fail the action.",
+    "No cross-import between copilot modules and publisher/scheduler/observer code."
+  ],
+
+  "phase_roadmap": [
+    {
+      "sprint": "6a",
+      "name": "Infrastructure",
+      "deliverables": [
+        "npm install @copilotkit/react-core @copilotkit/react-ui @copilotkit/runtime",
+        "COPILOTKIT_ENABLED + COPILOT_CONTEXT_TURNS added to config/env.ts",
+        "POST /api/copilotkit endpoint in server.ts — 503 when disabled",
+        "lib/copilotCoach.ts — CopilotRuntime setup, COACH_SYSTEM_PROMPT, model wiring",
+        "coach_events table + labels JSONB column on chat_history both added in lib/kakaoDb.ts ensureReady() (ALTER TABLE ... ADD COLUMN IF NOT EXISTS labels JSONB)",
+        "GET /api/kakao/thread/:userKey — returns PII-scrubbed last N turns",
+        "/api/kakao/status extended to include copilotEnabled field"
+      ],
+      "acceptance": "POST /api/copilotkit returns valid CopilotKit response; 503 when disabled; coach_events table exists"
+    },
+    {
+      "sprint": "6b",
+      "name": "Context Wiring + Sidebar Shell",
+      "deliverables": [
+        "src/copilot/ThreadSelector.tsx — lists kakao_users from /api/kakao/db-stats, lets operator pick one",
+        "src/copilot/CoachSidebar.tsx — CopilotSidebar shell with useCopilotReadable wired to selected thread",
+        "KakaoDashboard.tsx updated: two-column layout when copilotEnabled, ThreadSelector above log terminal",
+        "useCopilotReadable feeds: active_thread, user_profile, intent_summary, operator_style_hint"
+      ],
+      "acceptance": "Sidebar renders in dashboard; selecting a user populates Copilot context; sidebar is hidden when COPILOTKIT_ENABLED=false"
+    },
+    {
+      "sprint": "6c",
+      "name": "Actions (Coach Capabilities)",
+      "deliverables": [
+        "useCopilotAction: draftReply — generate reply in SharePlan style",
+        "useCopilotAction: refineMessage — rewrite operator draft for tone/style",
+        "useCopilotAction: suggestFollowUp — next message in subscription flow",
+        "useCopilotAction: translateToKorean — localize with 존댓말 register",
+        "Each action logs to coach_events on completion"
+      ],
+      "acceptance": "All four actions callable from sidebar; output is plain text; no Kakao API call is triggered; events appear in coach_events"
+    },
+    {
+      "sprint": "6d",
+      "name": "PII Validation + Quality Logging",
+      "deliverables": [
+        "PII scrubbing two-pass suite in lib/copilotCoach.ts scrubContext() — regex pass + keyword-triggered pass",
+        "tests/copilotCoach.pii.test.ts — covers all four regex types plus space-separated account and dotted phone edge cases",
+        "operator_edited field populated via CoachSidebar UX: after copy button is clicked, show two feedback chips ('Used as-is' / 'Edited it') — chip selection writes operator_edited boolean to coach_events with no clipboard permission required",
+        "latency_ms tracked per action call",
+        "Dashboard section in KakaoDashboard: coach event summary (total suggestions shown, apply rate)"
+      ],
+      "acceptance": "All PII tests pass; coach event summary visible in dashboard; latency logged for all four actions"
+    }
+  ],
+
+  "open_questions": [
+    "COPILOT_CONTEXT_TURNS default of 20 — validate against GPT-4o token budget with real chat_history row sizes before Sprint 6b. Also consider always pinning the first message of the thread so the original complaint is never lost when context window is full.",
+    "System prompt language: English prompt yields better LLM instruction-following but Korean examples needed. Hybrid prompt TBD.",
+    "Coach event retention: no purge policy set. Decide after 30 days of data."
+  ]
+}

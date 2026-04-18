@@ -1,5 +1,6 @@
 import express from "express";
 import fs from "fs";
+import { createServer as createHttpServer } from "http";
 import path from "path";
 import cors from "cors";
 import { pathToFileURL } from "url";
@@ -49,6 +50,7 @@ import {
 } from "./lib/nlWebhook.js";
 import { isValidKakaoPayload, logKakaoMessage, simpleTextResponse as kakaoSimpleText } from "./lib/kakaoSkill.js";
 import { getAutoReply as kakaoGetAutoReply } from "./lib/kakaoAutoReply.js";
+import * as kakaoDb from "./lib/kakaoDb.js";
 import {
   readPersistedObserverControls,
   readPersistedPublisherControls,
@@ -1228,11 +1230,92 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     }
 
     logKakaoMessage(req.body);
+    setImmediate(() => {
+      kakaoDb.logInbound(req.body).catch((err) =>
+        logger.warn({ event: "kakao_db_inbound_error", err }, "[KakaoDb] Failed to log inbound")
+      );
+    });
 
     // Auto-reply: attempt LLM response within KAKAO_AUTOREPLY_TIMEOUT_MS.
     // Falls back to neutral ACK when disabled, key absent, or timed out.
     const reply = await kakaoGetAutoReply(req.body.userRequest.utterance);
-    res.status(200).json(kakaoSimpleText(reply ?? "메시지를 받았습니다."));
+    const outboundText = reply ?? "메시지를 받았습니다.";
+    const outboundPayload = kakaoSimpleText(outboundText);
+    setImmediate(() => {
+      kakaoDb.logOutbound(req.body.userRequest.user.id, outboundText, outboundPayload).catch((err) =>
+        logger.warn({ event: "kakao_db_outbound_error", err }, "[KakaoDb] Failed to log outbound")
+      );
+    });
+    res.status(200).json(outboundPayload);
+  });
+
+  // ── Kakao Dashboard API ──────────────────────────────────────────────────────
+
+  app.get("/api/kakao/status", (_req, res) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const logPath = path.join("artifacts", "kakao-history", `${today}.jsonl`);
+    let todayLogCount = 0;
+    if (fs.existsSync(logPath)) {
+      const content = fs.readFileSync(logPath, "utf-8").trim();
+      if (content) todayLogCount = content.split("\n").length;
+    }
+    res.json({
+      webhookEnabled: ENV.KAKAO_WEBHOOK_ENABLED,
+      autoreplyEnabled: ENV.KAKAO_AUTOREPLY_ENABLED,
+      openaiKeyPresent: !!ENV.OPENAI_API_KEY,
+      todayLogCount,
+      webhookUrl: "https://tortile-edmund-overboastful.ngrok-free.dev/kakao-webhook",
+    });
+  });
+
+  app.post("/api/kakao/control", (req, res) => {
+    const { webhookEnabled, autoreplyEnabled } = req.body as {
+      webhookEnabled?: boolean;
+      autoreplyEnabled?: boolean;
+    };
+    if (typeof webhookEnabled === "boolean") ENV.KAKAO_WEBHOOK_ENABLED = webhookEnabled;
+    if (typeof autoreplyEnabled === "boolean") ENV.KAKAO_AUTOREPLY_ENABLED = autoreplyEnabled;
+    logger.info(
+      { event: "kakao_control_updated", webhookEnabled: ENV.KAKAO_WEBHOOK_ENABLED, autoreplyEnabled: ENV.KAKAO_AUTOREPLY_ENABLED },
+      "[Kakao] Runtime controls updated"
+    );
+    res.json({ webhookEnabled: ENV.KAKAO_WEBHOOK_ENABLED, autoreplyEnabled: ENV.KAKAO_AUTOREPLY_ENABLED });
+  });
+
+  app.get("/api/kakao/logs", (req, res) => {
+    const limit = parsePositiveIntQuery(req.query.limit, 100, 1, 500);
+    const today = new Date().toISOString().slice(0, 10);
+    const logPath = path.join("artifacts", "kakao-history", `${today}.jsonl`);
+    if (!fs.existsSync(logPath)) {
+      res.json([]);
+      return;
+    }
+    const lines = fs.readFileSync(logPath, "utf-8").trim().split("\n").filter(Boolean);
+    const entries = lines
+      .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean)
+      .reverse()
+      .slice(0, limit);
+    res.json(entries);
+  });
+
+  app.get("/api/kakao/kb-export", (_req, res) => {
+    const xlsxPath = path.join("data", "kakao-kb", "knowledge-base-import.xlsx");
+    if (!fs.existsSync(xlsxPath)) {
+      res.status(404).json({ error: "KB export not found — run: npm run kakao:kb-export" });
+      return;
+    }
+    res.download(xlsxPath, "knowledge-base-import.xlsx");
+  });
+
+  app.get("/api/kakao/db-stats", async (_req, res) => {
+    try {
+      const stats = await kakaoDb.getStats();
+      res.json(stats);
+    } catch (err) {
+      logger.error({ event: "kakao_db_stats_error", err }, "[KakaoDb] Stats query failed");
+      res.status(500).json({ error: "db_stats_failed" });
+    }
   });
 
   return app;
@@ -1240,6 +1323,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
 
 export async function startServer() {
   await validateRuntimeContracts();
+  await kakaoDb.ensureReady();
 
   // Load persisted control panel settings so state survives server restarts.
   const [persistedScheduler, persistedNlWebhookEnabled] = await Promise.all([
@@ -1255,12 +1339,23 @@ export async function startServer() {
   const app = createApp(defaultDeps, scheduler, {
     initialNlWebhookEnabled: persistedNlWebhookEnabled ?? ENV.NL_WEBHOOK_ENABLED,
   });
+  const PORT = ENV.PORT;
+
   if (process.env.NODE_ENV !== "production") {
+    const httpServer = createHttpServer(app);
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        // Share the same server/socket for HMR so clients don't need a second random port.
+        hmr: { server: httpServer },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
+    httpServer.listen(PORT, "0.0.0.0", () => {
+      logger.info({ event: LOG_EVENT.serverStarted, port: PORT, host: "0.0.0.0" }, `Server running on http://localhost:${PORT}`);
+    });
+    return;
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
@@ -1269,7 +1364,6 @@ export async function startServer() {
     });
   }
 
-  const PORT = ENV.PORT;
   app.listen(PORT, "0.0.0.0", () => {
     logger.info({ event: LOG_EVENT.serverStarted, port: PORT, host: "0.0.0.0" }, `Server running on http://localhost:${PORT}`);
   });

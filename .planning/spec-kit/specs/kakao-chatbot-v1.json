@@ -143,7 +143,7 @@
     {
       "phase": 2,
       "name": "Historical Data Ingestion",
-      "status": "PENDING",
+      "status": "DONE",
       "deliverables": [
         "scripts/kakao-ingest.ts — CLI that reads all CSVs and writes unified JSONL",
         "data/kakao-processed/conversations.jsonl — single merged output",
@@ -158,7 +158,7 @@
     {
       "phase": 3,
       "name": "Annotation & Labeling Tooling",
-      "status": "PENDING",
+      "status": "DONE",
       "deliverables": [
         "Label taxonomy definition (intent classes, topic tags, sentiment)",
         "scripts/kakao-annotate.ts — CLI or simple web UI for reviewing and labeling turns",
@@ -174,7 +174,7 @@
     {
       "phase": 4,
       "name": "Knowledge Base Population",
-      "status": "PENDING",
+      "status": "DONE",
       "deliverables": [
         "FAQ extraction from annotated data — identify high-frequency Q&A pairs",
         "scripts/kakao-kb-export.ts — generates knowledge-base-import.xlsx matching Kakao KB schema",

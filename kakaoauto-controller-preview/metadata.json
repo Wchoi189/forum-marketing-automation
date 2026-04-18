@@ -1,0 +1,6 @@
+{
+  "name": "KakaoAuto Controller",
+  "description": "A modern, user-friendly dashboard to configure and control the KakaoTalk Python automation script. Features include visual message editing, recipient management, and real-time log monitoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

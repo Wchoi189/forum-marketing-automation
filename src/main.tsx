@@ -1,11 +1,17 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { setLanguage } from '@ui5/webcomponents-base/dist/config/Language.js';
+import '@ui5/webcomponents/dist/Assets.js';
+import '@ui5/webcomponents-fiori/dist/Assets.js';
+import '@ui5/webcomponents-icons/dist/Assets.js';
 import App from './App.tsx';
 import { AnalyticsPage } from './AnalyticsPage.tsx';
 import FioriShell from './fiori/layouts/FioriShell.tsx';
 import FioriOverviewPage from './fiori/pages/FioriOverviewPage.tsx';
 import './index.css';
+
+setLanguage('ko');
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -16,6 +22,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/operations" element={<App />} />
         <Route path="/controls" element={<App />} />
         <Route path="/publisher-runs" element={<App />} />
+        <Route path="/kakao" element={<App />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
 
         {/* ── Fiori integration (branch: fiori-integration) ── */}

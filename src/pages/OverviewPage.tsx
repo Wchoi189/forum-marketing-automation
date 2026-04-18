@@ -324,7 +324,7 @@ export default function OverviewPage({
                 </div>
               </div>
             )}
-            <div className="h-52">
+            <div className="w-full h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={app.trendInsights.hourlyProfile.map((h) => ({ label: `${h.hour}h`, rate: h.avgNewPostsPerHour }))}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
