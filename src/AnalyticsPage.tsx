@@ -228,7 +228,7 @@ function AuthorDrawer({
             <div>
               <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2">Posting timeline</p>
               {payload.timeSeries.some((row) => (row[author] as number) > 0) ? (
-                <div className="h-[120px]">
+                <div className="h-[120px] min-w-[200px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={payload.timeSeries} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#ffffff0a" />
@@ -531,7 +531,7 @@ export function AnalyticsPage() {
                         <p className="text-sm text-white/40">No new post events in this window.</p>
                       ) : (
                         <>
-                          <div className="h-64">
+                          <div className="h-64 min-w-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
                               <LineChart data={payload.timeSeries}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff12" />
@@ -551,7 +551,7 @@ export function AnalyticsPage() {
                             </ResponsiveContainer>
                           </div>
 
-                          <div className="h-56">
+                          <div className="h-56 min-w-[300px]">
                             <p className="text-[10px] uppercase tracking-widest text-white/30 mb-3">Share of voice</p>
                             <ResponsiveContainer width="100%" height="100%">
                               <BarChart data={payload.timeSeries}>
@@ -594,7 +594,7 @@ export function AnalyticsPage() {
                         <p className="text-xs uppercase tracking-widest text-white/40">Posts / active day — top {rankedBarData.length}</p>
                       </div>
                       <div className="p-6">
-                        <div style={{ height: Math.max(180, rankedBarData.length * 20) }}>
+                        <div style={{ height: Math.max(180, rankedBarData.length * 20) }} className="min-w-[200px]">
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart
                               layout="vertical"

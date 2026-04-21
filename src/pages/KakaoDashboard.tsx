@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Bot, Database, Download, Power, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { CopilotKit } from '@copilotkit/react-core';
+import CoachSidebar from '../copilot/CoachSidebar';
+import ThreadSelector from '../copilot/ThreadSelector';
 
 interface KakaoStatus {
   webhookEnabled: boolean;
@@ -7,6 +10,8 @@ interface KakaoStatus {
   openaiKeyPresent: boolean;
   todayLogCount: number;
   webhookUrl: string;
+  dbConnected: boolean;
+  copilotEnabled: boolean;
 }
 
 interface KakaoDbStats {
@@ -38,7 +43,19 @@ export default function KakaoDashboard() {
   const [dbStats, setDbStats] = useState<KakaoDbStats | null>(null);
   const [logs, setLogs] = useState<KakaoLogEntry[]>([]);
   const [toggling, setToggling] = useState<'webhook' | 'autoreply' | null>(null);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
+
+  async function reconnectDb() {
+    setReconnecting(true);
+    try {
+      await fetch('/api/kakao/reconnect', { method: 'POST' });
+      await Promise.all([fetchStatus(), fetchDbStats()]);
+    } catch { /* ignore */ } finally {
+      setReconnecting(false);
+    }
+  }
 
   async function fetchStatus() {
     try {
@@ -93,8 +110,9 @@ export default function KakaoDashboard() {
 
   const webhookOn = status?.webhookEnabled ?? false;
   const autoreplyOn = status?.autoreplyEnabled ?? false;
+  const copilotEnabled = status?.copilotEnabled ?? false;
 
-  return (
+  const dashboardContent = (
     <div className="p-8 space-y-8 max-w-5xl">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -233,9 +251,30 @@ export default function KakaoDashboard() {
             )}
           </div>
         ) : (
-          <p className="text-xs text-white/30">Set <code className="bg-white/10 px-1 rounded">KAKAO_DB_ENABLED=true</code> and <code className="bg-white/10 px-1 rounded">KAKAO_DB_*</code> credentials in <code className="bg-white/10 px-1 rounded">.env</code> to persist messages to the <code className="bg-white/10 px-1 rounded">shareplan</code> schema.</p>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs text-white/30">
+              {status?.dbConnected === false
+                ? 'DB configured but pool is disconnected — start the container then reconnect.'
+                : 'Set KAKAO_DB_ENABLED=true and KAKAO_DB_* credentials in .env to persist messages.'}
+            </p>
+            {status?.dbConnected === false && (
+              <button
+                onClick={() => void reconnectDb()}
+                disabled={reconnecting}
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-xs font-semibold text-white transition-colors"
+              >
+                <RefreshCw className={`w-3 h-3 ${reconnecting ? 'animate-spin' : ''}`} />
+                {reconnecting ? 'Reconnecting…' : 'Reconnect'}
+              </button>
+            )}
+          </div>
         )}
       </div>
+
+      {/* Thread selector — only shown when coach is active */}
+      {copilotEnabled && (
+        <ThreadSelector selected={selectedUser} onSelect={setSelectedUser} />
+      )}
 
       {/* Live log terminal */}
       <div className="rounded-2xl overflow-hidden border border-white/10 bg-[#1a1a1a]">
@@ -283,4 +322,16 @@ export default function KakaoDashboard() {
       </div>
     </div>
   );
+
+  if (copilotEnabled) {
+    return (
+      <CopilotKit runtimeUrl="/api/copilotkit">
+        <CoachSidebar userKey={selectedUser}>
+          {dashboardContent}
+        </CoachSidebar>
+      </CopilotKit>
+    );
+  }
+
+  return dashboardContent;
 }

@@ -17,6 +17,7 @@ import {
   initBotControls,
   type ObserverControlsWithGap
 } from "./bot.js";
+import { PARSER_OPTIONS } from "./bot.js";
 import { ENV } from "./config/env.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
 import { buildCompetitorAnalyticsPayload, parseAnalyticsQuery } from "./lib/competitorAnalytics.js";
@@ -105,9 +106,16 @@ type ControlPanelResponse = {
     scheduleJitterMode: ScheduleJitterMode;
     /** 0 = off; otherwise blended with trend-based effective interval. */
     targetPublishIntervalMinutes: number;
+    gapRecheckIntervalMinutes: number;
     running: boolean;
     nextTickEta?: string | null;
   };
+  lastObserverResult?: {
+    status: string;
+    currentGap: number;
+    requiredGap: number;
+    checkedAt: string;
+  } | null;
 };
 
 function extractErrorCode(input: unknown): string {
@@ -265,6 +273,7 @@ async function buildControlPanelResponse(
         scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
         scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
         targetPublishIntervalMinutes: 0,
+        gapRecheckIntervalMinutes: 3,
         running: false,
       }
     ),
@@ -281,6 +290,7 @@ async function buildControlPanelResponse(
     observer,
     publisher,
     autoPublisher: autoPublisherState,
+    lastObserverResult: autoPublisherState.lastObserverResult ?? null,
   };
 }
 
@@ -316,16 +326,21 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   });
 
   app.get("/api/analytics/competitors", async (req, res) => {
-    const parsed = parseAnalyticsQuery({
-      query: req.query as Record<string, string | string[] | undefined>
-    });
-    if ("error" in parsed) {
-      res.status(400).json({ error: parsed.error });
-      return;
+    try {
+      const parsed = parseAnalyticsQuery({
+        query: req.query as Record<string, string | string[] | undefined>
+      });
+      if ("error" in parsed) {
+        res.status(400).json({ error: parsed.error });
+        return;
+      }
+      const logs = await deps.getLogs();
+      const payload = buildCompetitorAnalyticsPayload(logs, parsed);
+      res.json(payload);
+    } catch (err) {
+      logger.error({ event: "analytics_competitors_error", err }, "[Analytics] buildCompetitorAnalyticsPayload failed");
+      res.status(500).json({ error: "analytics_failed" });
     }
-    const logs = await deps.getLogs();
-    const payload = buildCompetitorAnalyticsPayload(logs, parsed);
-    res.json(payload);
   });
 
   app.get("/api/competitor-stats", async (req, res) => {
@@ -817,6 +832,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
         scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
         scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
         targetPublishIntervalMinutes: 0,
+        gapRecheckIntervalMinutes: 3,
         running: false
       };
 
@@ -847,6 +863,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
           scheduleJitterPercent: autoPublisherState.scheduleJitterPercent,
           scheduleJitterMode: autoPublisherState.scheduleJitterMode,
           targetPublishIntervalMinutes: autoPublisherState.targetPublishIntervalMinutes,
+          gapRecheckIntervalMinutes: autoPublisherState.gapRecheckIntervalMinutes,
         },
         preset: scheduler?.getPreset() ?? "balanced",
         observerControls: {
@@ -907,6 +924,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
             scheduleJitterPercent: persistedScheduler.scheduleJitterPercent,
             scheduleJitterMode: persistedScheduler.scheduleJitterMode,
             targetPublishIntervalMinutes: persistedScheduler.targetPublishIntervalMinutes,
+            gapRecheckIntervalMinutes: persistedScheduler.gapRecheckIntervalMinutes,
           });
         } else if (prevSchedulerState) {
           scheduler.setPreset(prevSchedulerPreset ?? "balanced");
@@ -924,6 +942,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
             scheduleJitterPercent: prevSchedulerState.scheduleJitterPercent,
             scheduleJitterMode: prevSchedulerState.scheduleJitterMode,
             targetPublishIntervalMinutes: prevSchedulerState.targetPublishIntervalMinutes,
+            gapRecheckIntervalMinutes: prevSchedulerState.gapRecheckIntervalMinutes,
           });
           scheduler.setEnabled(prevSchedulerState.enabled);
         }
@@ -1266,8 +1285,19 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       openaiKeyPresent: !!ENV.OPENAI_API_KEY,
       todayLogCount,
       webhookUrl: "https://tortile-edmund-overboastful.ngrok-free.dev/kakao-webhook",
-      copilotEnabled: ENV.COPILOTKIT_ENABLED && ENV.KAKAO_DB_ENABLED,
+      dbConnected: kakaoDb.isReady(),
+      copilotEnabled: ENV.COPILOTKIT_ENABLED && kakaoDb.isReady(),
     });
+  });
+
+  app.post("/api/kakao/reconnect", async (_req, res) => {
+    try {
+      await kakaoDb.ensureReady();
+      res.json({ connected: kakaoDb.isReady() });
+    } catch (err) {
+      logger.warn({ event: "kakao_db_reconnect_failed", err }, "[KakaoDB] Reconnect failed");
+      res.status(503).json({ connected: false, error: "reconnect_failed" });
+    }
   });
 
   app.post("/api/kakao/control", (req, res) => {
@@ -1320,9 +1350,32 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     }
   });
 
+  app.get("/api/kakao/users", async (_req, res) => {
+    if (!ENV.KAKAO_DB_ENABLED) {
+      res.status(503).json({ error: "kakao_db_required" });
+      return;
+    }
+    try {
+      const users = await kakaoDb.listUsers(50);
+      res.json(users);
+    } catch (err) {
+      logger.error({ event: "kakao_users_error", err }, "[KakaoDb] Users query failed");
+      res.status(500).json({ error: "users_query_failed" });
+    }
+  });
+
   // ── CopilotKit coach endpoints ───────────────────────────────────────────────
 
-  app.use("/api/copilotkit", async (req, res, next) => {
+  // Status endpoint for CopilotKit availability
+  app.get("/api/copilotkit/status", (req, res) => {
+    res.json({
+      enabled: ENV.COPILOTKIT_ENABLED,
+      kakaoDbEnabled: ENV.KAKAO_DB_ENABLED,
+      available: ENV.COPILOTKIT_ENABLED && ENV.KAKAO_DB_ENABLED
+    });
+  });
+
+  app.all("/api/copilotkit*", async (req, res, next) => {
     if (!ENV.COPILOTKIT_ENABLED) {
       res.status(503).json({ error: "copilotkit_disabled" });
       return;
@@ -1338,6 +1391,108 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     } catch (err) {
       logger.error({ event: "copilotkit_handler_error", err }, "[CopilotKit] Handler error");
       next(err);
+    }
+  });
+
+  app.get("/api/parser-metrics", (_req, res) => {
+    // Return parser-related metrics and settings
+    res.json({
+      customParserEnabled: ENV.CUSTOM_PARSER_ENABLED,
+      browserRequestLogging: ENV.BROWSER_REQUEST_LOGGING,
+      parserOptions: {
+        maxDepth: PARSER_OPTIONS.maxDepth,
+        maxSiblingsPerNode: PARSER_OPTIONS.maxSiblingsPerNode,
+        maxTotalNodes: PARSER_OPTIONS.maxTotalNodes,
+        maxTextLengthPerNode: PARSER_OPTIONS.maxTextLengthPerNode
+      }
+    });
+  });
+
+  app.post("/api/parser-metrics", async (req, res) => {
+    const { customParserEnabled, browserRequestLogging, logLevel, parserDetailedLogging } = req.body as {
+      customParserEnabled?: boolean;
+      browserRequestLogging?: boolean;
+      logLevel?: string;
+      parserDetailedLogging?: boolean;
+    };
+
+    try {
+      if (typeof customParserEnabled === "boolean") {
+        ENV.CUSTOM_PARSER_ENABLED = customParserEnabled;
+      }
+      if (typeof browserRequestLogging === "boolean") {
+        ENV.BROWSER_REQUEST_LOGGING = browserRequestLogging;
+      }
+      if (typeof logLevel === "string" && ['error', 'warn', 'info', 'debug'].includes(logLevel)) {
+        ENV.LOG_LEVEL = logLevel;
+      }
+      if (typeof parserDetailedLogging === "boolean") {
+        ENV.PARSER_DETAILED_LOGGING = parserDetailedLogging;
+      }
+
+      // Get current control panel state to preserve existing values
+      const currentState = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime);
+
+      // Persist these settings to runtime controls
+      await persistAllControlPanelSettings({
+        expectedVersion: undefined, // Skip version check for this call
+        customParserEnabled: typeof customParserEnabled === "boolean" ? customParserEnabled : undefined,
+        browserRequestLogging: typeof browserRequestLogging === "boolean" ? browserRequestLogging : undefined,
+        logLevel: typeof logLevel === "string" ? logLevel : undefined,
+        parserDetailedLogging: typeof parserDetailedLogging === "boolean" ? parserDetailedLogging : undefined,
+        // Preserve other settings by getting current values
+        gapPersistedOverride: undefined,
+        gapSourcePin: undefined,
+        nlWebhookEnabled: undefined,
+        schedulerEnabled: currentState.autoPublisher.enabled,
+        schedulerControls: {
+          baseIntervalMinutes: currentState.autoPublisher.baseIntervalMinutes,
+          quietHoursStart: currentState.autoPublisher.quietHoursStart,
+          quietHoursEnd: currentState.autoPublisher.quietHoursEnd,
+          quietHoursMultiplier: currentState.autoPublisher.quietHoursMultiplier,
+          activeHoursStart: currentState.autoPublisher.activeHoursStart,
+          activeHoursEnd: currentState.autoPublisher.activeHoursEnd,
+          activeHoursMultiplier: currentState.autoPublisher.activeHoursMultiplier,
+          trendAdaptiveEnabled: currentState.autoPublisher.trendAdaptiveEnabled,
+          trendWindowDays: currentState.autoPublisher.trendWindowDays,
+          trendRecalibrationDays: currentState.autoPublisher.trendRecalibrationDays,
+          scheduleJitterPercent: currentState.autoPublisher.scheduleJitterPercent,
+          scheduleJitterMode: currentState.autoPublisher.scheduleJitterMode,
+          targetPublishIntervalMinutes: currentState.autoPublisher.targetPublishIntervalMinutes,
+          gapRecheckIntervalMinutes: currentState.autoPublisher.gapRecheckIntervalMinutes,
+        },
+        preset: currentState.preset,
+        observerControls: {
+          enabled: currentState.observer.enabled,
+          minPreVisitDelayMs: currentState.observer.minPreVisitDelayMs,
+          maxPreVisitDelayMs: currentState.observer.maxPreVisitDelayMs,
+          minIntervalBetweenRunsMs: currentState.observer.minIntervalBetweenRunsMs,
+        },
+        publisherControls: {
+          draftItemIndex: currentState.publisher.draftItemIndex,
+        },
+      });
+
+      logger.info(
+        {
+          event: "parser_settings_updated",
+          customParserEnabled: ENV.CUSTOM_PARSER_ENABLED,
+          browserRequestLogging: ENV.BROWSER_REQUEST_LOGGING,
+          logLevel: ENV.LOG_LEVEL,
+          parserDetailedLogging: ENV.PARSER_DETAILED_LOGGING
+        },
+        "[Settings] Parser settings updated"
+      );
+
+      res.json({
+        customParserEnabled: ENV.CUSTOM_PARSER_ENABLED,
+        browserRequestLogging: ENV.BROWSER_REQUEST_LOGGING,
+        logLevel: ENV.LOG_LEVEL,
+        parserDetailedLogging: ENV.PARSER_DETAILED_LOGGING
+      });
+    } catch (err) {
+      logger.error({ event: "parser_settings_update_error", err }, "[Settings] Failed to update parser settings");
+      res.status(500).json({ error: "settings_update_failed" });
     }
   });
 
@@ -1359,10 +1514,21 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       }
       const limit = ENV.COPILOT_CONTEXT_TURNS;
       const turns = await kakaoDb.getThread(userKey, limit);
-      const scrubbed = turns.map((t) => ({
-        ...t,
-        utterance: t.utterance ? scrubContext(t.utterance) : null,
-      }));
+      let piiScrubCount = 0;
+      const scrubbed = turns.map((t) => {
+        if (!t.utterance) return { ...t, utterance: null };
+        const cleaned = scrubContext(t.utterance);
+        if (cleaned !== t.utterance) piiScrubCount++;
+        return { ...t, utterance: cleaned };
+      });
+      if (piiScrubCount > 0) {
+        kakaoDb.logCoachEvent({
+          userKey,
+          actionName: "thread_load",
+          eventType: "pii_scrub",
+          inputLength: piiScrubCount,
+        }).catch(() => {});
+      }
       // Cap total character count at 8000 chars
       let charCount = 0;
       const capped: typeof scrubbed = [];
@@ -1376,6 +1542,33 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     } catch (err) {
       logger.error({ event: "kakao_thread_error", err }, "[KakaoDb] Thread query failed");
       res.status(500).json({ error: "thread_query_failed" });
+    }
+  });
+
+  app.post("/api/kakao/coach-event", async (req, res) => {
+    if (!ENV.KAKAO_DB_ENABLED) {
+      res.status(503).json({ error: "kakao_db_required" });
+      return;
+    }
+    const { userKey, actionName, eventType, inputLength, outputLength, latencyMs, operatorEdited } = req.body;
+    if (typeof eventType !== "string") {
+      res.status(400).json({ error: "eventType_required" });
+      return;
+    }
+    try {
+      await kakaoDb.logCoachEvent({ userKey, actionName, eventType, inputLength, outputLength, latencyMs, operatorEdited });
+      res.json({ ok: true });
+    } catch (err) {
+      logger.warn({ event: "coach_event_post_error", err }, "[CopilotKit] coach-event log failed");
+      res.status(500).json({ error: "log_failed" });
+    }
+  });
+
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error({ event: "unhandled_route_error", err }, `[Express] Unhandled route error: ${message}`);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "internal_server_error" });
     }
   });
 

@@ -1,0 +1,107 @@
+{
+  "handover_id": "handover-20260420-2100",
+  "created_at": "2026-04-20T21:00:00+09:00",
+  "branch": "fiori-integration",
+  "focus": "CopilotKit Communications Coach — Phase 6 complete (Sprints 6c + 6d delivered)",
+
+  "system_context": {
+    "what_shareplan_is": "A subscription sharing intermediary. Sells YouTube Premium (6mo/12mo) and Coursera Plus to Korean customers acquired via ppomppu.co.kr forum. Payments via bank transfer. Operator manages conversations manually via Kakao Business Channel.",
+    "what_this_project_is": "A completely separate subsystem from the publisher/scheduler. Goal: capture all channel conversations, annotate them, populate a Kakao Knowledge Base, and automate replies using OpenAI. The publisher must never be touched by Kakao/CopilotKit code.",
+    "current_state": "Phase 6 complete. CopilotKit sidebar is fully wired: 3 readable context hooks, 4 coach actions with copy-to-clipboard render, PII scrubbing, and coach event logging to PostgreSQL."
+  },
+
+  "completed_this_session": [
+    {
+      "item": "Sprint 6c — 4 useCopilotAction hooks in CoachSidebar.tsx",
+      "detail": "draftReply(tone), refineMessage(draft, style), suggestFollowUp(), translateToKorean(text, register). Each renders a SuggestionCard with loading state and Copy button. LLM generates suggestion as a parameter value.",
+      "files": ["src/copilot/CoachSidebar.tsx"]
+    },
+    {
+      "item": "Sprint 6d — PII scrubber extracted to standalone module",
+      "detail": "lib/piiScrubber.ts created as a dependency-free module. Fixed a real bug: phone regex now runs before bank account regex in PASS_1 to prevent 010-XXXX-XXXX being misclassified as [ACCOUNT]. lib/copilotCoach.ts re-exports scrubContext from piiScrubber.",
+      "files": ["lib/piiScrubber.ts", "lib/copilotCoach.ts"]
+    },
+    {
+      "item": "Sprint 6d — PII unit tests (11 tests, all passing)",
+      "detail": "tests/unit/copilotCoach.pii.test.ts covers: bank account regex, IBK keyword trigger, phone (dash + no-dash), email, RRN, space-separated account, dot-separated phone, clean text, multi-PII. Added to test:unit script.",
+      "files": ["tests/unit/copilotCoach.pii.test.ts", "package.json"]
+    },
+    {
+      "item": "Sprint 6d — Coach event logging wired",
+      "detail": "server.ts: pii_scrub events logged fire-and-forget in /api/kakao/thread/:userKey when scrubbing changes any utterance. New POST /api/kakao/coach-event endpoint for client-side events. CoachSidebar.tsx: applied event posted when operator clicks Copy on any suggestion.",
+      "files": ["server.ts", "src/copilot/CoachSidebar.tsx"]
+    },
+    {
+      "item": "MemPalace handover workflow onboarded",
+      "detail": "Ran npm run mempalace:handover for handover-20260418-2200.json to sync stale state.index.json. Mempalace palace has 387 drawers. Session lifecycle: wake-up → checkpoint after tasks → handover at session end.",
+      "files": [".agent/state/state.index.json"]
+    }
+  ],
+
+  "phase_status": {
+    "kakao_phases_1_5": "DONE (2026-04-18)",
+    "phase_6a_infra": "DONE (2026-04-19)",
+    "phase_6b_context_wiring": "DONE (2026-04-19)",
+    "phase_6c_actions": "DONE (2026-04-20)",
+    "phase_6d_pii_logging": "DONE (2026-04-20)",
+    "phase_6_overall": "COMPLETE"
+  },
+
+  "infrastructure_state": {
+    "copilotkit": {
+      "runtime": "@copilotkit/runtime 1.56.2",
+      "endpoint": "POST /api/copilotkit",
+      "kill_switch": "COPILOTKIT_ENABLED (default false)",
+      "model": "gpt-4o via OpenAI adapter",
+      "requires": "COPILOTKIT_ENABLED=true + KAKAO_DB_ENABLED=true + OPENAI_API_KEY"
+    },
+    "coach_event_logging": {
+      "table": "shareplan.coach_events",
+      "server_events": "pii_scrub (logged per thread load when scrubs occur)",
+      "client_events": "applied (logged when Copy clicked, via POST /api/kakao/coach-event)"
+    },
+    "pii_scrubber": {
+      "module": "lib/piiScrubber.ts",
+      "pass_1_order": "phone → bank_account → email → rrn (order matters — phone before bank)",
+      "pass_2": "keyword-triggered for unformatted bank account and phone numbers",
+      "tests": "tests/unit/copilotCoach.pii.test.ts (11 tests, all green)"
+    }
+  },
+
+  "validation": {
+    "type_check": "pass (tsc --noEmit clean)",
+    "unit_tests": "30/30 pass (npm run test:unit)",
+    "integration_tests": "not run this session (no changes to integration test scope)"
+  },
+
+  "pending_next": [
+    {
+      "phase": 7,
+      "task": "Multi-channel orchestrator — extend to WhatsApp Business API for vendor order relay",
+      "notes": [
+        "User is acquiring WhatsApp API — not yet available",
+        "No spec written yet; wait until WhatsApp credentials are available before speccing",
+        "Completely separate from Kakao/CopilotKit subsystem"
+      ]
+    },
+    {
+      "phase": "6 polish (optional)",
+      "task": "Add dismissed and edited event types to POST /api/kakao/coach-event",
+      "notes": [
+        "Currently only applied is logged client-side",
+        "dismissed would require detecting when the CopilotSidebar closes without Copy being clicked",
+        "Low priority — applied events are sufficient for initial quality review"
+      ]
+    }
+  ],
+
+  "session_boundary_recommendation": {
+    "boundary_now": true,
+    "recommended_cut": "Phase 6 fully closed. Clean cut before Phase 7 (WhatsApp API) which depends on external credential availability.",
+    "reason": [
+      "All 4 sprints of Phase 6 are done and tested.",
+      "Phase 7 has no spec and depends on user acquiring WhatsApp Business API — no work can start yet.",
+      "MemPalace handover will capture this state cleanly for any future session."
+    ]
+  }
+}

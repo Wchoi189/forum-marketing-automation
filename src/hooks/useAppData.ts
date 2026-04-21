@@ -87,7 +87,8 @@ export interface UseAppDataReturn {
 
 export function useAppData(): UseAppDataReturn {
   const ACTIVITY_POLL_MS = 60_000;
-  const OBSERVER_REFRESH_MS = 5 * 60 * 1000;
+  const OBSERVER_REFRESH_MS = 3 * 60 * 1000;
+  const MIN_OBSERVER_INTERVAL_MS = 3 * 60 * 1000;
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [competitorStats, setCompetitorStats] = useState<CompetitorStat[]>([]);
   const [boardStats, setBoardStats] = useState<BoardStats | null>(null);
@@ -115,6 +116,7 @@ export function useAppData(): UseAppDataReturn {
   // Real publisher step — updated by polling /api/publisher-status during a run
   const [realPublisherStep, setRealPublisherStep] = useState<PipelineStepId | null>(null);
   const publisherPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastObserverRefreshRef = useRef<number>(0);
   const prevPublisherRunningRef = useRef(false);
   const publisherStatusRequestSeqRef = useRef(0);
   const publisherStatusAppliedSeqRef = useRef(0);
@@ -277,6 +279,9 @@ export function useAppData(): UseAppDataReturn {
   }, []);
 
   const silentRefreshObserver = useCallback(() => {
+    const now = Date.now();
+    if (now - lastObserverRefreshRef.current < MIN_OBSERVER_INTERVAL_MS) return;
+    lastObserverRefreshRef.current = now;
     fetch('/api/run-observer', { method: 'POST' })
       .then(r => r.json())
       .then(() => { fetchLogs(); fetchStats(); fetchControlPanel(); })

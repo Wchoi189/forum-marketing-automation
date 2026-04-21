@@ -2,9 +2,14 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { setLanguage } from '@ui5/webcomponents-base/dist/config/Language.js';
+import { attachLanguageChange } from '@ui5/webcomponents-base/dist/locale/languageChange.js';
 import '@ui5/webcomponents/dist/Assets.js';
 import '@ui5/webcomponents-fiori/dist/Assets.js';
 import '@ui5/webcomponents-icons/dist/Assets.js';
+// Import all UI5 icons to prevent loader warnings
+import '@ui5/webcomponents-icons/dist/AllIcons.js';
+// Load the Korean language bundle for UI5 components
+import '@ui5/webcomponents-localization/dist/Assets.js';
 import App from './App.tsx';
 import { AnalyticsPage } from './AnalyticsPage.tsx';
 import FioriShell from './fiori/layouts/FioriShell.tsx';

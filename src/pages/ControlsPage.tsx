@@ -9,9 +9,35 @@ import SchedulerDiagnosticsWidget from '../components/scheduler/SchedulerDiagnos
 import PublisherSettingsPanel from '../components/publisher/PublisherSettingsPanel';
 import AiAdvisorPanel from '../components/AiAdvisorPanel';
 
+function GapStatusBar({ app }: { app: UseAppDataReturn }) {
+  const obs = app.controlPanel.lastObserverResult;
+  if (!obs) return null;
+
+  const { status, currentGap, requiredGap, checkedAt } = obs;
+  const excess = currentGap - requiredGap;
+  const color =
+    excess <= 1 ? 'border-emerald-500/40 bg-emerald-900/20 text-emerald-300' :
+    excess <= 3 ? 'border-amber-500/40 bg-amber-900/20 text-amber-300' :
+                  'border-red-500/40 bg-red-900/20 text-red-300';
+  const label =
+    excess <= 1 ? 'OK' :
+    excess <= 3 ? 'WARN' : 'CRITICAL';
+  const age = Math.round((Date.now() - new Date(checkedAt).getTime()) / 1000);
+  const ageStr = age < 60 ? `${age}s ago` : `${Math.round(age / 60)}m ago`;
+
+  return (
+    <div className={`flex items-center justify-between px-4 py-2 rounded-xl border text-xs font-mono mb-4 ${color}`}>
+      <span className="font-bold">[{label}]</span>
+      <span>Last check: <span className="font-bold">{status.toUpperCase()}</span> · Gap <span className="font-bold">{currentGap}/{requiredGap}</span></span>
+      <span className="opacity-60">{ageStr}</span>
+    </div>
+  );
+}
+
 export default function ControlsPage({ app }: { app: UseAppDataReturn }) {
   return (
     <>
+      <GapStatusBar app={app} />
       <PublisherStatusBanner app={app} />
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-8 rounded-3xl border border-white/10 bg-white/5 space-y-6" onChangeCapture={() => app.setControlDirty(true)}>
         <div className="flex items-center justify-between">

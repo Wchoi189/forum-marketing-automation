@@ -29,6 +29,11 @@ export type PublisherRunResult = {
   decision: PublisherRunDecision;
   /** Project-relative artifact dir when publisher entered browser flow; null on gap-policy skip etc. */
   artifactDir: string | null;
+  /** Gap at the time of the run — set for gap_policy skips and publisher errors where gap was safe */
+  gapInfo?: {
+    currentGap: number;
+    requiredGap: number;
+  };
 };
 
 const USER_DATA_DIR = ENV.BOT_PROFILE_DIR;
@@ -142,8 +147,10 @@ export type PublisherControls = {
   draftItemIndex: number;
 };
 
+import { ENV } from "./config/env.js";
+
 const publisherControls: PublisherControls = {
-  draftItemIndex: 1
+  draftItemIndex: ENV.PUBLISHER_DRAFT_ITEM_INDEX
 };
 
 /** Shared promise for an in-progress observer run. Concurrent callers receive the same result instead of failing. */
@@ -153,7 +160,7 @@ let lastObserverRunStartedAt = 0;
 /** Prevents two concurrent publisher browser sessions from launching simultaneously. */
 let activePublisherRun: Promise<PublisherRunResult> | null = null;
 
-const PARSER_OPTIONS = {
+export const PARSER_OPTIONS = {
   maxDepth: 6,
   maxSiblingsPerNode: 80,
   maxTotalNodes: 750,
@@ -431,7 +438,7 @@ async function attemptPpomppuLoginFromBoard(page: import('playwright').Page, boa
   ]);
 
   if (!page.url().includes('zboard.php?id=gonggu')) {
-    await page.goto(boardUrl, { waitUntil: 'domcontentloaded', timeout: BOT_MAX_WAIT_MS });
+    await page.goto(boardUrl, { waitUntil: 'domcontentloaded', timeout: ENV.BOT_NAV_TIMEOUT_MS });
   }
 
   const after = await getBoardDiagnostics(page);
@@ -470,11 +477,83 @@ async function collectParserSignal(page: import('playwright').Page): Promise<{
   snapshot: ProjectedSnapshot;
   outline: Awaited<ReturnType<typeof pageOutline>>;
 }> {
+  if (!ENV.CUSTOM_PARSER_ENABLED) {
+    // Return minimal data when parser is disabled
+    logger.debug({ event: 'parser_disabled' }, '[Parser] Parser is disabled via environment variable');
+    return {
+      signal: {
+        projectedRowCount: 0,
+        parserConfidence: 0,
+        warnings: ['parser_disabled'],
+        diffSummary: { added: 0, removed: 0, changed: 0 }
+      },
+      snapshot: {
+        capturedAt: new Date().toISOString(),
+        url: await page.url().catch(() => ''),
+        title: await page.title().catch(() => 'N/A'),
+        rootSelector: null,
+        nodes: [],
+        stats: {
+          nodesScanned: 0,
+          nodesEmitted: 0,
+          truncatedDepth: false,
+          truncatedNodes: false,
+          truncatedSiblings: false
+        },
+        confidence: 0,
+        warnings: ['parser_disabled']
+      },
+      outline: {
+        url: await page.url().catch(() => ''),
+        title: await page.title().catch(() => 'N/A'),
+        landmarks: [],
+        headings: [],
+        forms: [],
+        interactives: [],
+        stats: {
+          nodesScanned: 0,
+          nodesEmitted: 0,
+          truncatedDepth: false,
+          truncatedNodes: false,
+          truncatedSiblings: false
+        },
+        confidence: 0,
+        warnings: ['parser_disabled']
+      }
+    };
+  }
+
+  const startTime = Date.now();
+  if (ENV.LOG_LEVEL === 'debug' || ENV.PARSER_DETAILED_LOGGING) {
+    logger.debug({ event: 'parser_start' }, '[Parser] Starting subtree projection');
+  }
+
   const snapshot = await subtree(page, 'table#revolution_main_table, form[name="bbs_list"], body', PARSER_OPTIONS);
   const outline = await pageOutline(page, { ...PARSER_OPTIONS, maxDepth: 4, maxTotalNodes: 260 });
   const rowLikeCount = flattenProjectedNodes(snapshot.nodes).filter((node) => node.tag === 'tr').length;
   const diff = snapshotDiff(previousBoardSnapshot, snapshot);
   previousBoardSnapshot = snapshot;
+
+  const duration = Date.now() - startTime;
+
+  if (ENV.LOG_LEVEL === 'debug' || ENV.PARSER_DETAILED_LOGGING) {
+    logger.debug({
+      event: 'parser_complete',
+      durationMs: duration,
+      nodeCount: snapshot.stats.nodesEmitted,
+      nodeScanCount: snapshot.stats.nodesScanned,
+      confidence: snapshot.confidence,
+      warnings: snapshot.warnings,
+      rowLikeCount,
+      diffSummary: { added: diff.added.length, removed: diff.removed.length, changed: diff.changed.length },
+      truncated: {
+        depth: snapshot.stats.truncatedDepth,
+        nodes: snapshot.stats.truncatedNodes,
+        siblings: snapshot.stats.truncatedSiblings
+      }
+    }, `[Parser] Subtree projection completed in ${duration}ms`);
+  }
+
   return {
     signal: {
       projectedRowCount: rowLikeCount,
@@ -681,13 +760,78 @@ async function _executeObserverRun(): Promise<ActivityLog> {
       headless: ENV.BROWSER_HEADLESS,
       args: [...CHROMIUM_LAUNCH_ARGS]
     });
-    const context = await browser.newContext(sharedBrowserContextOptions());
+    const contextOptions = sharedBrowserContextOptions();
+    // Add extra HTTP headers to bypass cache
+    contextOptions.extraHTTPHeaders = {
+      ...contextOptions.extraHTTPHeaders,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    };
+
+    const context = await browser.newContext(contextOptions);
     await addStealthInitScripts(context);
     const page = await context.newPage();
 
+    // Set up cache-busting for all requests
+    page.route('**/*', (route) => {
+      const headers = {
+        ...route.request().headers(),
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      };
+      route.continue({ headers });
+    });
+
+    // Enable request/response logging if debug is enabled
+    if (ENV.BROWSER_REQUEST_LOGGING) {
+      // Log all requests
+      page.on('request', request => {
+        if (ENV.LOG_LEVEL === 'debug') {
+          logger.debug({
+            event: 'browser_request',
+            url: request.url(),
+            method: request.method(),
+            headers: request.headers(),
+          }, '[Observer] Browser request');
+        }
+      });
+
+      // Log all responses
+      page.on('response', response => {
+        if (ENV.LOG_LEVEL === 'debug') {
+          logger.debug({
+            event: 'browser_response',
+            url: response.url(),
+            status: response.status(),
+            statusText: response.statusText(),
+          }, '[Observer] Browser response');
+        }
+      });
+
+      // Log initial cookies
+      if (ENV.LOG_LEVEL === 'debug') {
+        page.context().cookies().then(cookies => {
+          logger.debug({
+            event: 'browser_cookies_initial',
+            cookieCount: cookies.length,
+            cookies: cookies.map(cookie => ({
+              name: cookie.name,
+              domain: cookie.domain,
+              expires: cookie.expires
+            }))
+          }, '[Observer] Initial browser cookies');
+        });
+      }
+    }
+
     const policy = await loadObserverPolicy();
     logger.info({ event: LOG_EVENT.observerRunStarted, boardUrl: policy.boardUrl }, 'Running Observer');
-    const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: BOT_MAX_WAIT_MS });
+    const response = await page.goto(policy.boardUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: ENV.BOT_NAV_TIMEOUT_MS
+    });
     const statusCode = response?.status() ?? 0;
     const diagnostics = await getBoardDiagnostics(page);
     if (statusCode >= 400 || diagnostics.isForbidden) {
@@ -810,6 +954,16 @@ async function _executeObserverRun(): Promise<ActivityLog> {
     const parserConfidence = parserBundle.signal.parserConfidence;
     const effectiveParseConfidence = combinedConfidence(parseConfidence, parserConfidence);
 
+    logger.debug({
+      event: 'confidence_comparison',
+      legacyConfidence: parseConfidence,
+      parserConfidence,
+      combinedConfidence: effectiveParseConfidence,
+      parserWarnings: parserBundle.signal.warnings,
+      parserRowLikeCount: parserBundle.signal.projectedRowCount,
+      legacyValidRowCount: validRows.length
+    }, `[Observer] Confidence comparison - Legacy: ${parseConfidence.toFixed(2)}, Parser: ${parserConfidence.toFixed(2)}, Combined: ${effectiveParseConfidence.toFixed(2)}`);
+
     const sharePlanIndex = validRows.findIndex(
       (r) => r.author.toLowerCase().includes(policy.authorMatch.toLowerCase())
     );
@@ -834,6 +988,7 @@ async function _executeObserverRun(): Promise<ActivityLog> {
         : gap >= policy.gapThresholdMin
           ? 'safe'
           : 'unsafe';
+
     const allPosts: Post[] = validRows.map(({ title, author, date, views, isNotice }) => ({
       title,
       author,
@@ -841,6 +996,19 @@ async function _executeObserverRun(): Promise<ActivityLog> {
       views,
       isNotice
     }));
+
+    logger.info({
+      event: 'observer_decision',
+      status,
+      currentGap: gap,
+      requiredGap: policy.gapThresholdMin,
+      effectiveConfidence: effectiveParseConfidence,
+      minConfidence: policy.parseConfidenceMin,
+      parseConfidence: parseConfidence,
+      parserConfidence: parserConfidence,
+      validRowsCount: validRows.length,
+      allPostsCount: allPosts.length
+    }, `[Observer] Decision: ${status.toUpperCase()} - Gap: ${gap}/${policy.gapThresholdMin}, Confidence: ${effectiveParseConfidence.toFixed(2)}/${policy.parseConfidenceMin}`);
 
     const capturedAtIso = new Date().toISOString();
     const log: ActivityLog = {
@@ -943,14 +1111,16 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
   ) => {
     setPublisherRunning(false);
     const artifactAbs = debugDir;
-    await recordPublisherRun({
-      force,
-      success,
-      message,
-      runId,
-      artifactDir: artifactAbs,
-      decision
-    });
+    if (decision !== 'gap_policy') {
+      await recordPublisherRun({
+        force,
+        success,
+        message,
+        runId,
+        artifactDir: artifactAbs,
+        decision
+      });
+    }
     const artifactRel =
       artifactAbs === null || artifactAbs === undefined
         ? null
@@ -997,12 +1167,16 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
         { event: LOG_EVENT.publisherRunSkipped, runId, decision: 'gap_policy', status: 'unsafe', currentGap: gap, requiredGap: need, force, parseUnsafe: Boolean(log.error) },
         '[Publisher] gap_policy skip'
       );
-      return await finish(
+      const result = await finish(
         false,
         log.error || '[Publisher] Gap is too small to publish (safety / gap policy)',
         'gap_policy',
         log
       );
+      return {
+        ...result,
+        gapInfo: { currentGap: gap, requiredGap: need }
+      };
     }
 
     debugDir = publisherArtifactDirForRun();
@@ -1010,12 +1184,62 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
     /** When tracing ran: persist zip on failure or when success-path sampling hits. */
     let persistPublisherTraceZip = false;
     let publisherBrowserFlowFailed = false;
-    const context = await chromium.launchPersistentContext(USER_DATA_DIR, {
+    const contextOptions = {
       headless: ENV.BROWSER_HEADLESS,
       args: [...CHROMIUM_LAUNCH_ARGS],
       ...sharedBrowserContextOptions()
-    });
+    };
+    // Add extra HTTP headers to bypass cache
+    contextOptions.extraHTTPHeaders = {
+      ...contextOptions.extraHTTPHeaders,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    };
+
+    const context = await chromium.launchPersistentContext(USER_DATA_DIR, contextOptions);
     await addStealthInitScripts(context);
+    if (debugDir && ENV.BROWSER_REQUEST_LOGGING) {
+      // Enable request/response logging if debug is enabled
+      // Log all requests
+      context.on('request', request => {
+        if (ENV.LOG_LEVEL === 'debug') {
+          logger.debug({
+            event: 'browser_request',
+            url: request.url(),
+            method: request.method(),
+            headers: request.headers(),
+          }, '[Publisher] Browser request');
+        }
+      });
+
+      // Log all responses
+      context.on('response', response => {
+        if (ENV.LOG_LEVEL === 'debug') {
+          logger.debug({
+            event: 'browser_response',
+            url: response.url(),
+            status: response.status(),
+            statusText: response.statusText(),
+          }, '[Publisher] Browser response');
+        }
+      });
+
+      // Log initial cookies
+      if (ENV.LOG_LEVEL === 'debug') {
+        context.cookies().then(cookies => {
+          logger.debug({
+            event: 'browser_cookies_initial',
+            cookieCount: cookies.length,
+            cookies: cookies.map(cookie => ({
+              name: cookie.name,
+              domain: cookie.domain,
+              expires: cookie.expires
+            }))
+          }, '[Publisher] Initial browser cookies');
+        });
+      }
+    }
     if (debugDir) {
       await fs.mkdir(debugDir, { recursive: true });
     }
@@ -1033,7 +1257,18 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
         logger.info({ event: LOG_EVENT.publisherArtifactsDir, runId, debugDir }, '[Publisher] debug artifacts dir');
       }
       setPublisherStep('navigate');
-      const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: BOT_MAX_WAIT_MS });
+      // Apply cache-busting for publisher requests too
+      page.route('**/*', (route) => {
+        const headers = {
+          ...route.request().headers(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        };
+        route.continue({ headers });
+      });
+      // Navigate to the page
+      const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: ENV.BOT_NAV_TIMEOUT_MS });
       const statusCode = response?.status() ?? 0;
       const diagnostics = await getBoardDiagnostics(page);
       if (statusCode >= 400 || diagnostics.isForbidden) {
@@ -1090,7 +1325,8 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
       persistPublisherTraceZip =
         samplePct > 0 && Math.random() * 100 < samplePct;
       const flowMessage = appendDraftRowSelection(flow.message, playbookRuntime.draftRowSelection);
-      return await finish(true, flowMessage, flow.decision, log);
+      const successResult = await finish(true, flowMessage, flow.decision, log);
+      return { ...successResult, gapInfo: { currentGap: 0, requiredGap: policy.gapThresholdMin } };
     } catch (innerErr) {
       publisherBrowserFlowFailed = true;
       persistPublisherTraceZip = true;
@@ -1126,6 +1362,10 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
       { event: LOG_EVENT.publisherRunFailed, runId, status: 'error', errorCode: extractErrorCode(error), durationMs: Date.now() - publisherStartedAt, err: error },
       'Publisher Error'
     );
-    return await finish(false, `[Publisher] ${String(error?.message ?? error)}`, 'publisher_error', log);
+    const errorResult = await finish(false, `[Publisher] ${String(error?.message ?? error)}`, 'publisher_error', log);
+    if (log?.status === 'safe' && log.gap_threshold_min !== undefined) {
+      return { ...errorResult, gapInfo: { currentGap: log.current_gap_count, requiredGap: log.gap_threshold_min } };
+    }
+    return errorResult;
   }
 }

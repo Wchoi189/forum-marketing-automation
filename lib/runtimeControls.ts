@@ -119,6 +119,7 @@ export type RuntimeControlsFile = {
   schedulerJitterPercent?: number;
   schedulerJitterMode?: string;
   schedulerTargetPublishIntervalMinutes?: number;
+  schedulerGapRecheckIntervalMinutes?: number;
   preset?: string;
 
   // Observer pacing
@@ -129,6 +130,12 @@ export type RuntimeControlsFile = {
 
   // Publisher
   publisherDraftItemIndex?: number;
+
+  // Additional runtime configuration overrides
+  customParserEnabled?: boolean;
+  browserRequestLogging?: boolean;
+  logLevel?: string;
+  parserDetailedLogging?: boolean;
 };
 
 function clampGap(n: number): number {
@@ -215,6 +222,7 @@ export type PersistedSchedulerControls = {
   scheduleJitterPercent: number;
   scheduleJitterMode: "uniform" | "none";
   targetPublishIntervalMinutes: number;
+  gapRecheckIntervalMinutes: number;
   preset: string;
 };
 
@@ -249,6 +257,7 @@ export async function readPersistedSchedulerControls(): Promise<Partial<Persiste
   if (typeof data.schedulerJitterPercent === "number") result.scheduleJitterPercent = clampInt(data.schedulerJitterPercent, 0, 50);
   if (typeof data.schedulerJitterMode === "string") result.scheduleJitterMode = data.schedulerJitterMode === "none" ? "none" : "uniform";
   if (typeof data.schedulerTargetPublishIntervalMinutes === "number") result.targetPublishIntervalMinutes = clampInt(data.schedulerTargetPublishIntervalMinutes, 0, 1440);
+  if (typeof data.schedulerGapRecheckIntervalMinutes === "number") result.gapRecheckIntervalMinutes = clampInt(data.schedulerGapRecheckIntervalMinutes, 1, 60);
   if (typeof data.preset === "string") result.preset = data.preset;
   return result;
 }
@@ -306,6 +315,12 @@ export async function persistAllControlPanelSettings(opts: {
   gapSourcePin?: 'env' | 'spec' | null;
   nlWebhookEnabled?: boolean;
 
+  // Additional runtime configuration overrides
+  customParserEnabled?: boolean;
+  browserRequestLogging?: boolean;
+  logLevel?: string;
+  parserDetailedLogging?: boolean;
+
   schedulerEnabled: boolean;
   schedulerControls: {
     baseIntervalMinutes: number;
@@ -321,6 +336,7 @@ export async function persistAllControlPanelSettings(opts: {
     scheduleJitterPercent: number;
     scheduleJitterMode: string;
     targetPublishIntervalMinutes: number;
+    gapRecheckIntervalMinutes: number;
   };
   preset: string;
   observerControls: {
@@ -352,6 +368,7 @@ export async function persistAllControlPanelSettings(opts: {
         schedulerJitterPercent: opts.schedulerControls.scheduleJitterPercent,
         schedulerJitterMode: opts.schedulerControls.scheduleJitterMode,
         schedulerTargetPublishIntervalMinutes: opts.schedulerControls.targetPublishIntervalMinutes,
+        schedulerGapRecheckIntervalMinutes: opts.schedulerControls.gapRecheckIntervalMinutes,
         preset: opts.preset,
 
         observerEnabled: opts.observerControls.enabled,
@@ -360,6 +377,12 @@ export async function persistAllControlPanelSettings(opts: {
         observerMinIntervalBetweenRunsMs: opts.observerControls.minIntervalBetweenRunsMs,
 
         publisherDraftItemIndex: opts.publisherControls.draftItemIndex,
+
+        // Additional runtime configuration overrides
+        customParserEnabled: opts.customParserEnabled,
+        browserRequestLogging: opts.browserRequestLogging,
+        logLevel: opts.logLevel,
+        parserDetailedLogging: opts.parserDetailedLogging,
       };
 
       if (opts.gapPersistedOverride !== undefined) {

@@ -4,7 +4,7 @@ import type { AutoPublisherControlState } from '../../lib/controlPanel';
 import { NumField, SectionHeading } from '../ui/FormFields';
 
 const SECTIONS_KEY = 'scheduler-sections';
-type SectionId = 'base' | 'time-of-day' | 'trend' | 'jitter' | 'target';
+type SectionId = 'base' | 'time-of-day' | 'trend' | 'jitter' | 'gap-recheck' | 'target';
 
 function loadSectionState(): Record<SectionId, boolean> {
   try {
@@ -15,7 +15,7 @@ function loadSectionState(): Record<SectionId, boolean> {
 }
 
 function defaultSections(): Record<SectionId, boolean> {
-  return { base: true, 'time-of-day': true, trend: true, jitter: true, target: true };
+  return { base: true, 'time-of-day': true, trend: true, jitter: true, 'gap-recheck': true, target: true };
 }
 
 function saveSectionState(state: Record<SectionId, boolean>) {
@@ -370,6 +370,18 @@ export default function SchedulerPanel({ app }: { app: UseAppDataReturn }) {
             </select>
           </div>
         </>
+      )}
+
+      {/* ── Gap Recheck ─────────────────────────────────────────────────── */}
+      <SectionHeading label="Gap Recheck" collapsible open={sections['gap-recheck']} onToggle={() => toggleSection('gap-recheck')} />
+      {sections['gap-recheck'] && (
+        <NumField
+          label="Gap recheck interval (minutes) — how often to re-check when gap is not yet safe"
+          value={s.gapRecheckIntervalMinutes}
+          min={1}
+          max={60}
+          onChange={(v) => setSch({ gapRecheckIntervalMinutes: Math.max(1, Math.min(60, v)) })}
+        />
       )}
 
       {/* ── Target Cadence ───────────────────────────────────────────────── */}

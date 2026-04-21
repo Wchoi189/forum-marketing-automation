@@ -17,11 +17,21 @@ type EnvConfig = {
   BROWSER_HEADLESS: boolean;
   /** Desktop Chrome UA; reduces naive bot fingerprinting (override if the site still returns 403). */
   BROWSER_USER_AGENT: string;
+  /** Enable detailed logging of browser requests and responses for debugging. */
+  BROWSER_REQUEST_LOGGING: boolean;
+  /** Enable the custom parser to process HTML content (currently combined with legacy parser). */
+  CUSTOM_PARSER_ENABLED: boolean;
+  /** Logging level for the application. Options: 'error', 'warn', 'info', 'debug' */
+  LOG_LEVEL: string;
+  /** Enable detailed parser-specific logging (only active if LOG_LEVEL is 'debug') */
+  PARSER_DETAILED_LOGGING: boolean;
   PORT: number;
   MCP_PARSER_HOST: string;
   MCP_PARSER_PORT: number;
   MCP_PARSER_HEADLESS: boolean;
   MCP_PARSER_NAV_TIMEOUT_MS: number;
+  /** Playwright page.goto timeout for observer/publisher board navigation (ms). */
+  BOT_NAV_TIMEOUT_MS: number;
   MCP_PARSER_MAX_STORED_SNAPSHOTS: number;
   /** Full-page PNGs under artifacts/publisher-runs/<timestamp>/ during runPublisher. */
   PUBLISHER_DEBUG_SCREENSHOTS: boolean;
@@ -84,6 +94,8 @@ type EnvConfig = {
   COPILOTKIT_ENABLED: boolean;
   /** Number of most recent chat_history turns fed into useCopilotReadable. Max 50 for cost control. */
   COPILOT_CONTEXT_TURNS: number;
+  /** 1-based index of draft item to load from saved drafts (preview rows between items are skipped automatically). */
+  PUBLISHER_DRAFT_ITEM_INDEX: number;
 };
 
 function requiredString(name: string): string {
@@ -178,11 +190,16 @@ function buildEnv(): EnvConfig {
     DRY_RUN_MODE: optionalBool("DRY_RUN_MODE", true),
     BROWSER_HEADLESS: coerceHeadlessForLinux(optionalBool("BROWSER_HEADLESS", true), "BROWSER_HEADLESS"),
     BROWSER_USER_AGENT: optionalString("BROWSER_USER_AGENT", DEFAULT_BROWSER_USER_AGENT),
+    BROWSER_REQUEST_LOGGING: optionalBool("BROWSER_REQUEST_LOGGING", false),
+    CUSTOM_PARSER_ENABLED: optionalBool("CUSTOM_PARSER_ENABLED", true),
+    LOG_LEVEL: optionalString("LOG_LEVEL", "info"),
+    PARSER_DETAILED_LOGGING: optionalBool("PARSER_DETAILED_LOGGING", false),
     PORT: optionalInt("PORT", 3000, 1, 65535),
     MCP_PARSER_HOST: process.env.MCP_PARSER_HOST?.trim() || "127.0.0.1",
     MCP_PARSER_PORT: optionalInt("MCP_PARSER_PORT", 3333, 1, 65535),
     MCP_PARSER_HEADLESS: coerceHeadlessForLinux(optionalBool("MCP_PARSER_HEADLESS", true), "MCP_PARSER_HEADLESS"),
     MCP_PARSER_NAV_TIMEOUT_MS: optionalInt("MCP_PARSER_NAV_TIMEOUT_MS", 45000, 5000, 120000),
+    BOT_NAV_TIMEOUT_MS: optionalInt("BOT_NAV_TIMEOUT_MS", 30000, 5000, 120000),
     MCP_PARSER_MAX_STORED_SNAPSHOTS: optionalInt("MCP_PARSER_MAX_STORED_SNAPSHOTS", 200, 10, 1000),
     PUBLISHER_DEBUG_SCREENSHOTS: optionalBool("PUBLISHER_DEBUG_SCREENSHOTS", false),
     PUBLISHER_DEBUG_TRACE: optionalBool("PUBLISHER_DEBUG_TRACE", false),
@@ -213,6 +230,7 @@ function buildEnv(): EnvConfig {
     KAKAO_DB_SCHEMA: optionalString("KAKAO_DB_SCHEMA", "shareplan"),
     COPILOTKIT_ENABLED: optionalBool("COPILOTKIT_ENABLED", false),
     COPILOT_CONTEXT_TURNS: optionalInt("COPILOT_CONTEXT_TURNS", 20, 1, 50),
+    PUBLISHER_DRAFT_ITEM_INDEX: optionalInt("PUBLISHER_DRAFT_ITEM_INDEX", 1, 1, 50),
   };
 }
 

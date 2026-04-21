@@ -13,6 +13,7 @@ function schema(): string {
 
 export async function ensureReady(): Promise<void> {
   if (!ENV.KAKAO_DB_ENABLED) return;
+  if (pool !== null) return;
 
   pool = new pg.Pool({
     host: ENV.KAKAO_DB_HOST,
@@ -26,7 +27,14 @@ export async function ensureReady(): Promise<void> {
   });
 
   const s = schema();
-  const client = await pool.connect();
+  let client: pg.PoolClient;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    logger.warn({ event: "kakao_db_connect_failed", err }, "[KakaoDB] DB unreachable — Kakao features disabled");
+    pool = null;
+    return;
+  }
   try {
     await client.query(`CREATE SCHEMA IF NOT EXISTS "${s}"`);
 
@@ -92,6 +100,10 @@ export async function ensureReady(): Promise<void> {
   }
 }
 
+export function isReady(): boolean {
+  return pool !== null;
+}
+
 export async function close(): Promise<void> {
   if (pool) {
     await pool.end();
@@ -142,11 +154,23 @@ export async function logOutbound(
   const s = schema();
   const client = await pool.connect();
   try {
+    await client.query("BEGIN");
+    // Ensure user exists before inserting outbound message
+    await client.query(
+      `INSERT INTO "${s}".kakao_users (user_key)
+       VALUES ($1)
+       ON CONFLICT (user_key) DO UPDATE SET last_active = NOW()`,
+      [userKey]
+    );
     await client.query(
       `INSERT INTO "${s}".chat_history (user_key, direction, utterance, payload)
        VALUES ($1, 'OUTBOUND', $2, $3)`,
       [userKey, replyText, responsePayload]
     );
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
   } finally {
     client.release();
   }
@@ -230,6 +254,33 @@ export async function getThread(userKey: string, limit: number): Promise<ThreadT
     intent: r.intent,
     labels: r.labels,
     createdAt: r.created_at,
+  }));
+}
+
+// ── User list ─────────────────────────────────────────────────────────────────
+
+export type KakaoUserSummary = {
+  userKey: string;
+  lastActive: string | null;
+  totalMessages: number;
+};
+
+export async function listUsers(limit = 50): Promise<KakaoUserSummary[]> {
+  if (!pool) return [];
+  const s = schema();
+  const res = await pool.query(
+    `SELECT u.user_key, u.last_active, COUNT(h.id)::int AS total_messages
+     FROM "${s}".kakao_users u
+     LEFT JOIN "${s}".chat_history h ON h.user_key = u.user_key
+     GROUP BY u.user_key, u.last_active
+     ORDER BY u.last_active DESC NULLS LAST
+     LIMIT $1`,
+    [limit]
+  );
+  return res.rows.map((r) => ({
+    userKey: r.user_key,
+    lastActive: r.last_active ? new Date(r.last_active).toISOString() : null,
+    totalMessages: r.total_messages,
   }));
 }
 

@@ -2,6 +2,10 @@ import '@ui5/webcomponents-react/styles.css';
 import { ThemeProvider, ShellBar, SideNavigation, SideNavigationItem, FlexBox } from '@ui5/webcomponents-react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 
+// Import required UI5 icons
+import '@ui5/webcomponents-icons/dist/home.js';
+import '@ui5/webcomponents-icons/dist/activity-items.js';
+
 const NAV_ITEMS: { text: string; icon: string; route: string }[] = [
   { text: 'Overview',       icon: 'home',           route: '/fiori' },
   { text: 'Publisher Runs', icon: 'activity-items', route: '/fiori/publisher-runs' },

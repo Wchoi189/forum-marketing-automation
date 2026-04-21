@@ -5,7 +5,7 @@
  * previously inlined constants in `bot.ts` and `lib/playbookRunner.ts`.
  */
 
-/** Upper bound for Playwright navigation/locator/URL waits in `bot.ts`. */
+/** Upper bound for in-page locator/URL waits in `bot.ts` (after navigation). */
 export const BOT_MAX_WAIT_MS = 3000;
 
 /** Upper bound for verify_text waits when not overridden at runtime. */

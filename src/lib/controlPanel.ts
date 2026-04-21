@@ -69,6 +69,7 @@ export type AutoPublisherControlState = {
   scheduleJitterMode: 'none' | 'uniform';
   /** 0 = disabled; blended with trend-based interval when > 0. */
   targetPublishIntervalMinutes: number;
+  gapRecheckIntervalMinutes: number;
   running: boolean;
   nextTickEta?: string | null;
 };
@@ -76,6 +77,13 @@ export type AutoPublisherControlState = {
 export type PublisherControlState = {
   /** 1-based item in the saved-drafts table (preview rows between items are skipped automatically). */
   draftItemIndex: number;
+};
+
+export type LastObserverResult = {
+  status: string;
+  currentGap: number;
+  requiredGap: number;
+  checkedAt: string;
 };
 
 export type ControlPanelState = {
@@ -88,6 +96,7 @@ export type ControlPanelState = {
   publisher: PublisherControlState;
   autoPublisher: AutoPublisherControlState;
   nlWebhookEnabled: boolean;
+  lastObserverResult?: LastObserverResult | null;
 };
 
 export function gapPolicySourceLabel(o: ObserverControlState): string {
@@ -198,6 +207,8 @@ export const DEFAULT_CONTROL_PANEL: ControlPanelState = {
     scheduleJitterPercent: 15,
     scheduleJitterMode: 'uniform',
     targetPublishIntervalMinutes: 0,
+    gapRecheckIntervalMinutes: 3,
     running: false
-  }
+  },
+  lastObserverResult: null,
 };

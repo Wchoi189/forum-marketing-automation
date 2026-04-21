@@ -8,8 +8,11 @@ import { LOG_EVENT } from "../../logEvents.js";
 const DRAFT_MODAL_FALLBACK_VISIBLE_TIMEOUT_MS = 500;
 const DRAFT_MODAL_ACTION_TIMEOUT_MS = 500;
 
+import { ENV } from "../../../config/env.js";
+
 function getDraftIndex(runtime: PlaybookRuntimeContext): number {
-  return Math.max(1, Math.floor(runtime.draftItemIndex ?? 1));
+  // Prioritize runtime value from UI controls, fall back to environment variable, then to default of 1
+  return Math.max(1, Math.floor(runtime.draftItemIndex ?? ENV.PUBLISHER_DRAFT_ITEM_INDEX ?? 1));
 }
 
 function getDraftModalRoot(page: Page): Locator {

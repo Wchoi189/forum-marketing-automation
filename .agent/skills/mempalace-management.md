@@ -4,6 +4,13 @@
 
 **Invocation:** Run as an agent skill when the user requests `/mempalace-management wake-up`, `/mempalace-management checkpoint`, or `/mempalace-management handover`.
 
+**CLI Wrapper:** Use `scripts/mempalace-loop.sh` for a consistent local command flow (global palace: `/parent/project-artifacts/mempalace/palace`, wing: `marketing_automation`), or npm aliases:
+- `npm run mempalace:seed`
+- `npm run mempalace:wake-up`
+- `npm run mempalace:checkpoint`
+- `npm run mempalace:handover -- --file .agent/session-handovers/handover-YYYYMMDD-HHMM.json`
+- By default, helper commands sync `~/.mempalace/identity.txt` to this project context; pass `--no-sync-identity` to opt out.
+
 ---
 
 ## Scope
@@ -26,7 +33,7 @@ The default behavior is memory/context-first. Source code mining is opt-in only 
 ## Wake-up Mode
 
 ### 1. Pull MemPalace context
-- Run `mempalace wake-up --wing forum-marketing-automation`.
+- Run `mempalace wake-up --wing marketing_automation`.
 - If wing-specific wake-up is unavailable, run `mempalace wake-up`.
 
 ### 2. Confirm local state authority
@@ -56,7 +63,7 @@ Use this after each meaningful micro-task (decision, blocker, accepted slice).
 - `mempalace mine .planning/spec-kit/specs`
 
 3. Validate retrieval:
-- `mempalace search "current objective" --wing forum-marketing-automation`
+- `mempalace search "current objective" --wing marketing_automation`
 
 ---
 
@@ -73,7 +80,7 @@ At session end:
 - `mempalace mine .agent/state`
 4. Sanity-check continuity:
 - `mempalace status`
-- `mempalace search "next action" --wing forum-marketing-automation`
+- `mempalace search "next action" --wing marketing_automation`
 
 ---
 

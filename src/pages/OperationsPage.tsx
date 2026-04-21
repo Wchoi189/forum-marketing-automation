@@ -57,7 +57,7 @@ export default function OperationsPage({ app }: { app: UseAppDataReturn }) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="p-8 rounded-3xl border border-white/10 bg-white/5 space-y-6">
         <div className="flex items-center justify-between"><h2 className="text-xs font-medium opacity-50 uppercase tracking-widest">Post Velocity (Views)</h2><Eye className="w-4 h-4 opacity-30" /></div>
-        <div className="h-[300px] w-full">
+        <div className="h-[300px] w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%"><LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} /><XAxis dataKey="time" stroke="#ffffff40" fontSize={10} tickLine={false} axisLine={false} /><YAxis stroke="#ffffff40" fontSize={10} tickLine={false} axisLine={false} /><Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px' }} itemStyle={{ color: '#fff' }} /><Line type="monotone" dataKey="views" stroke="#ea580c" strokeWidth={3} dot={{ fill: '#ea580c', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, strokeWidth: 0 }} /></LineChart></ResponsiveContainer>
         </div>
       </motion.div>

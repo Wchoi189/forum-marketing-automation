@@ -39,6 +39,7 @@ export type AutoPublisherControls = {
   scheduleJitterPercent: number;
   scheduleJitterMode: ScheduleJitterMode;
   targetPublishIntervalMinutes: number;
+  gapRecheckIntervalMinutes: number;
 };
 
 // Observer pacing subset used by presets (matches Partial<ObserverControls> shape).
@@ -99,6 +100,13 @@ export function normalizeAutoPublisherControls(
         : base.targetPublishIntervalMinutes,
       0,
       1440
+    ),
+    gapRecheckIntervalMinutes: clampInt(
+      typeof merged.gapRecheckIntervalMinutes === 'number'
+        ? merged.gapRecheckIntervalMinutes
+        : base.gapRecheckIntervalMinutes,
+      1,
+      60
     ),
   };
 }
@@ -200,6 +208,7 @@ export function startScheduler(
     scheduleJitterPercent: persistedState?.scheduleJitterPercent ?? ENV.SCHEDULER_JITTER_PERCENT,
     scheduleJitterMode: persistedState?.scheduleJitterMode ?? ENV.SCHEDULER_JITTER_MODE,
     targetPublishIntervalMinutes: persistedState?.targetPublishIntervalMinutes ?? 0,
+    gapRecheckIntervalMinutes: persistedState?.gapRecheckIntervalMinutes ?? 3,
   };
   let controls = normalizeAutoPublisherControls(baseDefaults);
   let timer: NodeJS.Timeout | null = null;
@@ -208,6 +217,7 @@ export function startScheduler(
   let nextTickEta: string | null = null;
   let lastTrendRecalculatedAt = 0;
   let trendFactor = 1;
+  let lastObserverResult: { status: string; currentGap: number; requiredGap: number; checkedAt: string } | null = null;
 
   const recalcTrendFactor = async (): Promise<number> => {
     if (!controls.trendAdaptiveEnabled) {
@@ -297,12 +307,10 @@ export function startScheduler(
     return effective;
   };
 
-  // When gap_policy skips, re-check at this short interval so we catch the window
-  // as soon as it opens rather than waiting the full base interval.
-  const GAP_RECHECK_INTERVAL_MINUTES = 3;
+  // Dynamic gap recheck intervals based on how close the gap is to becoming safe
+  const PUBLISHER_FAIL_RECHECK_INTERVAL = 5; // 5 minutes after a failed publish attempt when gap was safe
 
-  // Returns true if the run was a gap_policy skip (gap not yet safe).
-  const tick = async (): Promise<boolean> => {
+  const tick = async (): Promise<{ currentGap: number; requiredGap: number } | false | undefined> => {
     if (!enabled) {
       return false;
     }
@@ -317,10 +325,31 @@ export function startScheduler(
     running = true;
     const tickStartedAt = Date.now();
     let wasGapSkip = false;
+    let wasSuccessPublish = false;
+    let wasPublisherFailGapSafe = false;
+    let gapInfo: { currentGap: number; requiredGap: number } | undefined = undefined;
     try {
       logger.info({ event: LOG_EVENT.schedulerTickStarted }, '[Scheduler] Tick started');
       const result = await deps.runPublisher(false);
       wasGapSkip = result.decision === 'gap_policy';
+      if (wasGapSkip) {
+        gapInfo = result.gapInfo;
+      } else if (result.decision === 'published_verified' || result.decision === 'dry_run') {
+        wasSuccessPublish = true;
+        gapInfo = result.gapInfo; // { currentGap: 0, requiredGap: N }
+      } else if (result.gapInfo) {
+        // Publisher failed but the gap was already safe — retry sooner than the full interval
+        wasPublisherFailGapSafe = true;
+        gapInfo = result.gapInfo;
+      }
+      if (result.log) {
+        lastObserverResult = {
+          status: result.log.status,
+          currentGap: result.log.current_gap_count,
+          requiredGap: result.log.gap_threshold_min ?? gapInfo?.requiredGap ?? 0,
+          checkedAt: result.log.timestamp,
+        };
+      }
     } catch (error: any) {
       logger.error(
         { event: LOG_EVENT.schedulerTickFailed, status: 'error', error: String(error?.message ?? error) },
@@ -333,19 +362,37 @@ export function startScheduler(
       );
       running = false;
     }
-    return wasGapSkip;
+
+    // After a successful publish, enter gap-recheck mode immediately so the gap
+    // never grows unchecked for a full interval before the next post.
+    if (wasGapSkip || wasSuccessPublish || wasPublisherFailGapSafe) {
+      return gapInfo;
+    }
+    return false;
   };
 
-  const scheduleNext = async (fromGapSkip = false) => {
+  const scheduleNext = async (fromGapSkip: boolean | { currentGap: number; requiredGap: number } = false) => {
     if (timer) {
       clearTimeout(timer);
     }
     let nextMinutes: number;
     let baseMinutes: number;
-    if (fromGapSkip) {
+
+    if (fromGapSkip && typeof fromGapSkip === 'object') {
+      // Gap is not yet safe but we have gap information - use dynamic interval based on how close we are
+      const gapDiff = fromGapSkip.requiredGap - fromGapSkip.currentGap;
+      if (gapDiff <= 0) {
+        // Gap was already safe but publish failed — retry in 5 minutes to avoid hammering on persistent errors
+        baseMinutes = PUBLISHER_FAIL_RECHECK_INTERVAL;
+        nextMinutes = PUBLISHER_FAIL_RECHECK_INTERVAL;
+      } else {
+        baseMinutes = controls.gapRecheckIntervalMinutes;
+        nextMinutes = controls.gapRecheckIntervalMinutes;
+      }
+    } else if (fromGapSkip) {
       // Gap is not yet safe — re-check soon rather than waiting the full interval.
-      baseMinutes = GAP_RECHECK_INTERVAL_MINUTES;
-      nextMinutes = GAP_RECHECK_INTERVAL_MINUTES;
+      baseMinutes = controls.gapRecheckIntervalMinutes;
+      nextMinutes = controls.gapRecheckIntervalMinutes;
     } else {
       baseMinutes = await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes);
       nextMinutes = applyScheduleJitter(
@@ -366,7 +413,7 @@ export function startScheduler(
         reason: fromGapSkip ? 'gap_recheck' : 'normal',
       },
       fromGapSkip
-        ? `[Scheduler] Gap not safe — re-checking in ${nextMinutes} minute(s)`
+        ? `[Scheduler] Gap not safe — re-checking in ${nextMinutes} minute(s) (current=${typeof fromGapSkip === 'object' ? fromGapSkip.currentGap : 'unknown'}, required=${typeof fromGapSkip === 'object' ? fromGapSkip.requiredGap : 'unknown'})`
         : '[Scheduler] Next tick scheduled'
     );
     timer = setTimeout(() => {
@@ -387,7 +434,7 @@ export function startScheduler(
     void (async () => {
       nextTickEta = null;
       const gapSkip = await tick();
-      await scheduleNext(gapSkip);
+      await scheduleNext(gapSkip ?? false);
     })();
   }, STARTUP_TICK_DELAY_MS);
 
@@ -437,6 +484,7 @@ export function startScheduler(
       effectiveIntervalMinutes: await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes),
       running,
       nextTickEta: enabled ? nextTickEta : null,
+      lastObserverResult,
     }),
   };
 }
