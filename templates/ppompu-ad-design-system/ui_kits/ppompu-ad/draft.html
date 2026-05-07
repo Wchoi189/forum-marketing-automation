@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SharePlan — 제품 섹션 리디자인 v3</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #e5e7eb;
+      font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+      padding: 44px 0 60px;
+    }
+
+    .toolbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: #0f172a;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      font-size: 12px;
+    }
+
+    .toolbar strong {
+      color: #3a7d3a;
+      font-size: 14px;
+    }
+
+    .tag {
+      background: #1e293b;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .toc {
+      max-width: 800px;
+      margin: 16px auto;
+      width: calc(100% - 24px);
+      background: #fff;
+      border-radius: 10px;
+      padding: 14px 20px;
+      font-size: 12px;
+      color: #64748b;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      border: 1px solid #e2e8f0;
+    }
+
+    .toc a {
+      color: #0284c7;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .toc a:hover {
+      text-decoration: underline;
+    }
+
+    .ad-root {
+      max-width: 800px;
+      margin: 16px auto;
+      width: calc(100% - 24px);
+      background-color: #ffffff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="toolbar">
+    <strong>SharePlan</strong>
+    <span class="tag">리디자인 v3</span>
+    <span style="color:#94a3b8;">— 모든 콘텐츠는 인라인 스타일만 사용합니다</span>
+  </div>
+
+  <div class="toc">
+    <span>섹션 이동:</span>
+    <a href="#youtube">유튜브</a>
+    <a href="#google-ai">구글 AI 프로</a>
+    <a href="#coursera">코세라</a>
+    <a href="#start">신청 안내</a>
+  </div>
+
+  <div class="ad-root">
+    <div style="padding: 15px 20px;">
+
+      <!-- 소개 -->
+      <div style="max-width: 800px; margin: 0 auto 40px; text-align: center;">
+        <h2 style="font-size: 20px; font-weight: 800; color: #1e293b; margin-bottom: 12px;">회원 모집 안내</h2>
+        <p
+          style="font-size: 14px; color: #64748b; margin: 0 0 24px 0; line-height: 1.7; word-break: keep-all; overflow-wrap: break-word;">
+          정식 사업자 등록을 마친 구독 관리 서비스로, 합리적인 비용으로 다양한 온라인 서비스를 안전하게 이용하실 수 있습니다.
+        </p>
+        <div
+          style="background-color: #ffffff; padding: 10px; border-radius: 12px; text-align: left; word-break: keep-all; overflow-wrap: break-word; border: 1px solid #e2e8f0;">
+          <b style="font-size: 13px;"><span style="color: #0066cc;">- SharePlan</span></b><span
+            style="font-size: 13px; color: #000000;">은 타사와 운용 방식이 다르며,</span><br>
+          <span style="font-size: 13px; color: #000000;">&nbsp; 링크 발송에 그치지 않으며 </span><u
+            style="font-size: 13px;"><b><span style="color: #000000;">전체 사용 기간을 책임집니다.</span></b></u><br>
+          <span style="font-size: 13px; color: #000000;">- 문의에 </span><b style="font-size: 13px;"><span
+              style="color: #000000;">빠르고 친절하게</span></b><span style="font-size: 13px; color: #000000;"> 응답, </span><b
+            style="font-size: 13px;"><span style="color: #000000;">24/7 365일</span></b><span
+            style="font-size: 13px; color: #000000;"> 관리합니다.</span><br>
+          <b style="font-size: 13px;"><span style="color: #000000;">- VPN 우회 없이</span></b><span
+            style="font-size: 13px; color: #000000;"> 국내에서 편하게 이용 가능한 방식만 안내드립니다.</span><br>
+          <b style="font-size: 13px;"><span style="color: #000000;">- 선불/후불</span></b><span
+            style="font-size: 13px; color: #000000;"> 등 원하시는 결제 방식으로 맞춥니다.</span><br>
+          <span style="font-size: 13px; color: #000000;">- 타인 </span><b style="font-size: 13px;"><span
+              style="color: #000000;">계정 양도·대여·불법 공유는 취급하지</span></b><span style="font-size: 13px; color: #000000;">
+            않습니다.</span>
+        </div>
+      </div>
+
+      <!-- 유튜브 -->
+      <div id="youtube" style="margin-bottom: 36px; scroll-margin-top: 60px;">
+        <div
+          style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px; border-bottom: 2px solid #fecaca; padding-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 20px; font-weight: 700; color: #b91c1c;">유튜브 프리미엄 <span
+              style="font-size: 14px; font-weight: 500; color: #64748b;">(뮤직 포함)</span></h3>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+          <div
+            style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; text-align: center; background-color: #fff;">
+            <span style="font-size: 13px; font-weight: 600; color: #64748b; display: block; margin-bottom: 8px;">월간
+              요금제</span>
+            <div style="font-size: 16px; font-weight: 700; margin-bottom: 4px; color: #1e293b;">6개월 이용권(가족)</div>
+            <div style="font-size: 24px; font-weight: 800; color: #b91c1c; margin-bottom: 4px;">품절</div>
+            <span style="font-size: 12px; color: #64748b;">월:4,166원, 일:137원</span>
+          </div>
+          <div
+            style="padding: 24px; border: 2px solid #b91c1c; border-radius: 12px; text-align: center; background-color: #fff1f2; position: relative;">
+            <div
+              style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background-color: #b91c1c; color: #ffffff; padding: 2px 12px; border-radius: 99px; font-size: 12px; font-weight: 700;">
+              추천</div>
+            <span style="font-size: 13px; font-weight: 600; color: #b91c1c; display: block; margin-bottom: 8px;">연간
+              요금제</span>
+            <div style="font-size: 16px; font-weight: 700; margin-bottom: 4px; color: #1e293b;">12개월 이용권(가족)</div>
+            <div style="font-size: 24px; font-weight: 800; color: #881337; margin-bottom: 4px;">품절</div>
+            <span style="font-size: 12px; color: #881337;">월:4,166원, 일:137원</span>
+          </div>
+          <div
+            style="padding: 24px; border: 2px solid #e2e8f0; border-radius: 12px; text-align: center; background-color: #ffffff; position: relative;">
+            <div
+              style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background-color: #9f1239; color: #ffffff; padding: 2px 12px; border-radius: 99px; font-size: 12px; font-weight: 700;">
+              독립형</div>
+            <span style="font-size: 13px; font-weight: 600; color: #9f1239; display: block; margin-bottom: 8px;">개인
+              요금제</span>
+            <div style="font-size: 16px; font-weight: 700; margin-bottom: 4px; color: #1e293b;">12개월 이용권(개인)</div>
+            <div style="font-size: 24px; font-weight: 800; color: #881337; margin-bottom: 4px;">55,000원</div>
+            <div style="font-size: 12px; color: #334155; line-height: 1.5;">월 4,583원; 일 151원</div>
+          </div>
+        </div>
+        <div
+          style="margin-top: 12px; padding: 16px; font-size: 12px; color: #334155; background-color: #ffffff; border-radius: 8px; line-height: 1.6;">
+          - 본인 이메일로 직접 활성화하는 <b>정식 개인 구독</b> 방식입니다.<br>
+          - 개인 요금제는 가족 초대 방식이 아닌 독립적인 개인 구독입니다.<br><br>
+          <b style="color: #64748b; font-size: 12px;">개인 구독 vs 가족 초대, 무엇이 다른가요?</b><br>
+          가족 초대: 기존 그룹 이동 필수. 구글 정책상 그룹 변경 연 1회 제한.<br>
+          개인 구독: 그룹 변경 제한 없음. 제약 없이 상시 연장 가능.
+        </div>
+      </div>
+
+      <!-- 구글 AI 프로 -->
+      <div id="google-ai" style="margin-bottom: 36px; scroll-margin-top: 60px;">
+        <div
+          style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px; border-bottom: 2px solid #dbeafe; padding-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 20px; font-weight: 700; color: #1e3a5f;">구글 AI 프로</h3>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+          <div
+            style="padding: 24px; border: 1px solid #dbeafe; border-radius: 12px; text-align: center; background-color: #ffffff; position: relative;">
+            <span style="font-size: 13px; font-weight: 600; color: #64748b; display: block; margin-bottom: 8px;">월간
+              요금제</span>
+            <div style="font-size: 16px; font-weight: 700; margin-bottom: 4px; color: #1e293b;">3개월 이용권 (개인)</div>
+            <div style="font-size: 24px; font-weight: 800; color: #1e3a5f; margin-bottom: 4px;">12,000원</div>
+            <span style="font-size: 12px; color: #64748b;">월 평균 4,000원</span>
+          </div>
+          <div
+            style="padding: 24px; border: 2px solid #1e3a5f; border-radius: 12px; text-align: center; background-color: #f8faff; position: relative;">
+            <div
+              style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background-color: #1e3a5f; color: #ffffff; padding: 2px 12px; border-radius: 99px; font-size: 12px; font-weight: 700;">
+              추천</div>
+            <span style="font-size: 13px; font-weight: 600; color: #1e3a5f; display: block; margin-bottom: 8px;">연간
+              요금제</span>
+            <div style="font-size: 16px; font-weight: 700; margin-bottom: 4px; color: #1e293b;">12개월 이용권 (개인)</div>
+            <div style="font-size: 24px; font-weight: 800; color: #1e3a5f; margin-bottom: 4px;">40,000원</div>
+            <span style="font-size: 12px; color: #64748b;">월 평균 3,333원</span>
+          </div>
+        </div>
+        <div
+          style="margin-top: 12px; padding: 16px; font-size: 12px; color: #334155; background-color: #ffffff; border-radius: 8px; line-height: 1.6;">
+          - 본인 계정으로 직접 활성화하는 <b>정식 개인 구독</b> 방식입니다.<br>
+          - VPN 없이 이용 가능하며, 고급 연구와 생산성 작업에 적합합니다.<br>
+          - <b>환불 안내:</b> 서비스 안정성이 예측과 다를 경우 구독 취소와 잔여 기간 환불이 가능합니다.
+        </div>
+      </div>
+
+      <!-- 코세라 -->
+      <div id="coursera" style="margin-bottom: 36px; scroll-margin-top: 60px;">
+        <div
+          style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 20px; font-weight: 700; color: #1e3a5f;">코세라 플러스</h3>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+          <div
+            style="padding: 24px; background-color: #f8faff; border-radius: 12px; text-align: center; border: 1px solid #dbeafe;">
+            <span style="font-size: 13px; font-weight: 600; color: #64748b; display: block; margin-bottom: 8px;">기본
+              요금제</span>
+            <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">1개월 이용권</div>
+            <div style="font-size: 24px; font-weight: 800; color: #1e3a5f; margin-bottom: 4px;">품절</div>
+            <span style="font-size: 12px; color: #64748b;">(월 25,000원)</span>
+          </div>
+          <div
+            style="padding: 24px; background-color: #f8faff; border-radius: 12px; text-align: center; border: 1px solid #dbeafe;">
+            <span style="font-size: 13px; font-weight: 600; color: #64748b; display: block; margin-bottom: 8px;">표준
+              요금제</span>
+            <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">6개월 이용권</div>
+            <div style="font-size: 24px; font-weight: 800; color: #1e3a5f; margin-bottom: 4px;">품절</div>
+            <span style="font-size: 12px; color: #64748b;">월 평균 10,833원</span>
+          </div>
+          <div
+            style="padding: 24px; background-color: #f8faff; border-radius: 12px; text-align: center; border: 2px solid #1e3a5f; position: relative;">
+            <div
+              style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background-color: #1e3a5f; color: #ffffff; padding: 2px 12px; border-radius: 99px; font-size: 12px; font-weight: 700;">
+              추천</div>
+            <span style="font-size: 13px; font-weight: 600; color: #1e3a5f; display: block; margin-bottom: 8px;">연간
+              요금제</span>
+            <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">12개월 이용권</div>
+            <div style="font-size: 24px; font-weight: 800; color: #1e3a5f; margin-bottom: 4px;">120,000원</div>
+            <span style="font-size: 12px; color: #1e3a5f;">월 평균 9,583원</span>
+          </div>
+        </div>
+        <div
+          style="margin-top: 12px; padding: 16px; font-size: 12px; color: #334155; background-color: #ffffff; border-radius: 8px; line-height: 1.6;">
+          - 본인 이메일로 직접 활성화하는 <b>정식 개인 구독</b> 방식입니다.<br>
+          - 본인 실명으로 수료증 발급, 대부분의 강의를 자유롭게 수강 가능합니다.<br>
+          - <b>추천 용도:</b> 프리미엄 교육 콘텐츠를 찾는 시간을 줄이고, 남는 시간을 <b>집중 학습</b>에 쓰고 싶은 분들께 적합합니다.
+        </div>
+      </div>
+
+      <!-- 안내 -->
+      <div
+        style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #9f1239; border-radius: 8px; margin-bottom: 44px; padding: 14px 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); word-break: keep-all; overflow-wrap: break-word;">
+        <div
+          style="margin: 0 0 10px 0; font-size: 15px; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 6px; line-height: 1.4;">
+          <span style="color: #9f1239; font-size: 18px;">📢</span> 필독 유의사항 및 보장 안내
+        </div>
+        <div style="font-size: 11.5px; color: #334155; line-height: 1.65;">
+          <b style="color: #881337;">- 서비스 보장:</b>&nbsp;자동 취소 등 문제가 발생해도 재설정·대체 제공·환불 등 가능한 방법을 안내드리며, 최대한 불이익이 없도록
+          처리합니다.<br>
+          <b style="color: #38bdf8;">- 환불 안내:</b> 예측 불가능한 서비스 중단 시 구독 취소와 잔여 기간 환불이 가능합니다.<br>
+          <b style="color: #94a3b8;">- 새로운 계정:</b> 구글 정책상 가족 그룹 이동은 <b style="color: #1e293b;">연 1회만</b> 가능합니다. 특히 6개월
+          구독 시, 연장이 안될 수도 있어서 기존 계정보다 <u
+            style="text-decoration-color: rgba(251,64,99,0.6); text-decoration-thickness: 2px;">새로운 전용 계정</u> 사용을
+          권장드립니다.<br>
+          - 정상적인 서비스 이용을 위해, 초대장 수락 전 기존 패밀리 그룹에서 반드시 탈퇴해 주세요.
+        </div>
+      </div>
+
+      <!-- 시작 -->
+      <div id="start"
+        style="background-color: #f1f5f9; border-radius: 16px; padding: 32px 20px; color: #1e293b; border: 1px solid #e2e8f0; scroll-margin-top: 72px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+          <h3 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 800; color: #0f172a;">지금 바로 시작하기</h3>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 32px;">
+          <div style="text-align: center; width: 100%;">
+            <p style="margin: 0 0 6px 0; font-size: 16px; color: #1e293b; font-weight: 700;">카카오톡 채널 상담 안내</p>
+            <p style="margin: 0 0 14px 0; font-size: 12px; color: #64748b; line-height: 1.6;">카카오톡 채널을 중심으로 안내드리는 정식 구독
+              관리 프로세스로, 문의·신청을 남겨주시면 빠르게 답변드리겠습니다.</p>
+            <a href="https://pf.kakao.com/_xnCFRn/chat" target="_blank"
+              style="display: block; max-width: 360px; margin: 0 auto; background-color: #9f1239; color: white; padding: 18px 20px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 16px; box-shadow: 0 4px 6px rgba(159,18,57,0.15);">카카오톡채널로
+              문의/신청하기</a>
+          </div>
+          <div style="position: relative; width: 100%; max-width: 240px; height: 1px; background-color: #cbd5e1;">
+            <span
+              style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #f1f5f9; padding: 0 12px; font-size: 14px; color: #94a3b8; font-weight: 600;">또는</span>
+          </div>
+          <div
+            style="background-color: #ffffff; padding: 14px 12px; border-radius: 12px; border: 2px dashed #94a3b8; width: 100%; box-sizing: border-box; max-width: 480px;">
+            <div style="text-align: center; margin-bottom: 12px;">
+              <span style="font-size: 20px; display: block; margin-bottom: 6px;">📩</span>
+              <p style="margin: 0; font-size: 15px; font-weight: 800; color: #1e293b;">문자로 직접 신청하기</p>
+              <p style="margin: 3px 0 0 0; font-size: 12px; color: #64748b;">(가입 완료 후 결제 가능)</p>
+            </div>
+            <div
+              style="font-size: 13px; color: #334155; background-color: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; line-height: 1.5;">
+              <div style="margin-bottom: 6px; font-weight: 700; color: #475569; font-size: 12px;">작성 양식:</div>
+              <div
+                style="font-family: monospace; color: #0f172a; word-break: break-all; line-height: 1.5; font-size: 12px;">
+                이메일ID, 서비스명(기간), 금액, 입금자명</div>
+              <div style="margin-top: 8px; margin-bottom: 6px; font-weight: 700; color: #059669; font-size: 12px;">예시:
+              </div>
+              <div
+                style="font-family: monospace; color: #059669; word-break: break-all; line-height: 1.5; font-size: 12px;">
+                user123@gmail.com, youtube 6개월, 25,000, 홍길동</div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style="background-color: #ececec; border-radius: 12px; border: 1px solid #bcc8d6; margin-top: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <div style="padding: 20px; text-align: center; background-color: #f8fafc; border: 1px solid #e2e7ec;">
+            <div style="font-size: 14px; color: #64748b; margin-bottom: 8px; font-weight: 500;">담당자 연락처</div>
+            <div style="font-size: 20px; font-weight: 800; margin-bottom: 6px; color: #0f172a; letter-spacing: 0.5px;">
+              010-2364-8676</div>
+          </div>
+          <div style="padding: 18px 14px; text-align: center; background-color: #f8fafc; border: 1px solid #e2e7ec;">
+            <div style="font-size: 14px; color: #64748b; margin-bottom: 8px; font-weight: 500;">입금 계좌</div>
+            <div style="font-size: 20px; font-weight: 800; margin-bottom: 6px; color: #0f172a; letter-spacing: 0.5px;">
+              108-179305-04-017</div>
+            <div style="font-size: 15px; color: #334155; font-weight: 600; line-height: 1.5;">은행명: IBK
+              기업은행&nbsp;<br>예금주: 최웅비 쉐어플랜(shareplan)</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /body padding -->
+  </div><!-- /ad-root -->
+</body>
+
+</html>
