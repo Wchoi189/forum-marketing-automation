@@ -1,0 +1,13 @@
+# Agent OS Standards Index
+
+system-design:
+  tech-stack:
+    description: Technology stack and architecture patterns for the marketing automation system
+  automation-workflow:
+    description: Standards for the observer/publisher automation workflow
+  parser-system:
+    description: Standards for the HTML parsing system and MCP server
+  mempalace-memory-loop:
+    description: Standards for the agent memory loop (MemPalace) system
+  environment-config:
+    description: Standards for environment variables and configuration management

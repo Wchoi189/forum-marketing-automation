@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SharePlan — Card Builder</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0;
+  font-family: "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  background: #f1f5f9;
+  color: #1e293b;
+  min-height: 100vh;
+}
+
+/* Layout */
+.layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  min-height: 100vh;
+}
+@media (max-width: 780px) {
+  .layout { grid-template-columns: 1fr; }
+  .preview-col { border-left: none; border-top: 2px solid #e2e8f0; }
+}
+
+/* Form panel */
+.form-col {
+  background: #fff;
+  border-right: 1px solid #e2e8f0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.form-header {
+  padding: 20px 20px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  position: sticky; top: 0; background: #fff; z-index: 10;
+}
+.form-header h1 { margin: 0; font-size: 16px; font-weight: 800; color: #0f172a; }
+.form-header p  { margin: 4px 0 0; font-size: 12px; color: #64748b; }
+
+.form-body { padding: 16px 20px; flex: 1; }
+
+.section-label {
+  font-size: 11px; font-weight: 700; color: #94a3b8;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  margin: 18px 0 8px;
+}
+.section-label:first-child { margin-top: 0; }
+
+label { display: block; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 4px; }
+input[type=text], input[type=color], select, textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid #e2e8f0;
+  border-radius: 8px; font-size: 13px; color: #0f172a;
+  font-family: inherit; background: #f8fafc;
+  outline: none; transition: border 0.15s;
+}
+input[type=text]:focus, select:focus, textarea:focus {
+  border-color: #0284c7; background: #fff;
+}
+textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+input[type=color] {
+  padding: 2px 4px; height: 36px; cursor: pointer;
+}
+
+.field { margin-bottom: 10px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+/* Color presets */
+.presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.preset-btn {
+  width: 28px; height: 28px; border-radius: 6px; cursor: pointer;
+  border: 2px solid transparent; transition: transform 0.1s, border 0.1s;
+  flex-shrink: 0;
+}
+.preset-btn:hover { transform: scale(1.15); }
+.preset-btn.active { border-color: #0f172a; }
+
+/* Cards list */
+.cards-list { display: flex; flex-direction: column; gap: 10px; }
+.card-row {
+  border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 12px; background: #f8fafc; position: relative;
+}
+.card-row-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.card-row-title { font-size: 12px; font-weight: 700; color: #475569; }
+.remove-btn {
+  background: none; border: none; cursor: pointer;
+  color: #94a3b8; font-size: 16px; padding: 0 2px; line-height: 1;
+}
+.remove-btn:hover { color: #e11d48; }
+
+.add-card-btn {
+  width: 100%; padding: 10px; border: 2px dashed #cbd5e1;
+  border-radius: 8px; background: none; cursor: pointer;
+  font-size: 13px; color: #64748b; font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+}
+.add-card-btn:hover { border-color: #0284c7; color: #0284c7; }
+
+/* Featured toggle */
+.toggle-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.toggle-row label { margin: 0; cursor: pointer; }
+input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: #0284c7; }
+
+/* Actions */
+.form-footer {
+  padding: 14px 20px;
+  border-top: 1px solid #f1f5f9;
+  position: sticky; bottom: 0; background: #fff;
+  display: flex; gap: 8px;
+}
+.btn-primary {
+  flex: 1; padding: 11px; background: #e63946; color: #fff;
+  border: none; border-radius: 10px; font-size: 13px; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+  transition: background 0.15s;
+}
+.btn-primary:hover { background: #be123c; }
+.btn-secondary {
+  padding: 11px 16px; background: #f1f5f9; color: #334155;
+  border: 1px solid #e2e8f0; border-radius: 10px; font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+  transition: background 0.15s;
+}
+.btn-secondary:hover { background: #e2e8f0; }
+
+/* Preview panel */
+.preview-col {
+  overflow-y: auto;
+  padding: 20px;
+  background: #e5e7eb;
+}
+.preview-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.preview-header h2 { margin: 0; font-size: 13px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.preview-tabs { display: flex; gap: 6px; }
+.tab-btn {
+  padding: 5px 12px; border-radius: 6px; border: 1px solid #e2e8f0;
+  background: #fff; font-size: 12px; font-weight: 600; color: #64748b;
+  cursor: pointer; font-family: inherit;
+}
+.tab-btn.active { background: #0f172a; color: #fff; border-color: #0f172a; }
+
+/* Preview box */
+#preview-visual {
+  background: #fff; border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08);
+  padding: 20px; margin-bottom: 14px;
+  overflow: hidden;
+}
+
+/* Code output */
+#preview-code {
+  display: none;
+  background: #0f172a; border-radius: 12px;
+  padding: 16px; margin-bottom: 14px;
+  position: relative;
+}
+#code-output {
+  font-family: "Consolas","Courier New",monospace;
+  font-size: 11px; color: #e2e8f0; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-all;
+  margin: 0; max-height: 480px; overflow-y: auto;
+}
+.copy-btn {
+  position: absolute; top: 10px; right: 10px;
+  background: #1e293b; color: #94a3b8; border: 1px solid #334155;
+  border-radius: 6px; padding: 4px 10px; font-size: 11px;
+  cursor: pointer; font-family: inherit;
+}
+.copy-btn:hover { background: #334155; color: #fff; }
+.copy-btn.copied { background: #059669; color: #fff; border-color: #059669; }
+
+.hint { font-size: 11px; color: #94a3b8; text-align: center; margin-top: 8px; }
+
+/* ── Tweaks Panel ──────────────────────────────────────── */
+#tweaks-panel {
+  display: none;
+  position: fixed; bottom: 20px; right: 20px; z-index: 1000;
+  width: 264px;
+  background: #0f172a; color: #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.07);
+  font-family: "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  user-select: none;
+  overflow: hidden;
+}
+#tweaks-panel.visible { display: block; }
+.tp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px 10px;
+  cursor: grab;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.tp-header:active { cursor: grabbing; }
+.tp-title { font-size: 12px; font-weight: 700; color: #94a3b8; letter-spacing: 0.08em; text-transform: uppercase; }
+.tp-close {
+  background: none; border: none; color: #475569; cursor: pointer;
+  font-size: 16px; padding: 0; line-height: 1;
+}
+.tp-close:hover { color: #e2e8f0; }
+.tp-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 14px; }
+.tp-control-label {
+  font-size: 10px; font-weight: 700; color: #475569;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  margin-bottom: 7px;
+}
+.tp-pills { display: flex; gap: 4px; }
+.tp-pill {
+  flex: 1; padding: 7px 4px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  font-size: 11px; font-weight: 600; color: #64748b;
+  cursor: pointer; text-align: center;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  font-family: inherit;
+}
+.tp-pill:hover { background: rgba(255,255,255,0.08); color: #94a3b8; }
+.tp-pill.tp-active {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.22);
+  color: #f1f5f9;
+}
+.tp-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 0 -14px; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ── FORM ── -->
+  <div class="form-col">
+    <div class="form-header">
+      <h1>SharePlan 카드 빌더</h1>
+      <p>서비스와 요금제를 입력하면 Ppompu용 HTML이 자동 생성됩니다</p>
+    </div>
+
+    <div class="form-body">
+
+      <!-- Service info -->
+      <div class="section-label">서비스 정보</div>
+      <div class="field">
+        <label>서비스명 (한글/영문)</label>
+        <input type="text" id="svc-name" placeholder="예: Netflix, Spotify Premium" value="Netflix">
+      </div>
+      <div class="field">
+        <label>서비스 설명 (선택, 카드 하단 주석)</label>
+        <textarea id="svc-note" placeholder="예: 본인 이메일로 직접 활성화하는 정식 개인 구독 방식입니다.">본인 이메일로 직접 활성화하는 정식 개인 구독 방식입니다.</textarea>
+      </div>
+
+      <!-- Accent color -->
+      <div class="section-label">섹션 컬러</div>
+      <div class="presets" id="presets"></div>
+      <div class="row2">
+        <div class="field">
+          <label>메인 컬러 (헤딩/배지)</label>
+          <input type="color" id="color-main" value="#b91c1c">
+        </div>
+        <div class="field">
+          <label>밝은 컬러 (배경/테두리)</label>
+          <input type="color" id="color-light" value="#fff1f2">
+        </div>
+      </div>
+
+      <!-- Cards -->
+      <div class="section-label">요금제 카드</div>
+      <div class="cards-list" id="cards-list"></div>
+      <button class="add-card-btn" id="add-card-btn" style="margin-top:8px;">+ 카드 추가</button>
+
+    </div>
+
+    <div class="form-footer">
+      <button class="btn-secondary" id="reset-btn">초기화</button>
+      <button class="btn-primary" id="generate-btn">HTML 생성 →</button>
+    </div>
+  </div>
+
+  <!-- ── PREVIEW ── -->
+  <div class="preview-col">
+    <div class="preview-header">
+      <h2>미리보기</h2>
+      <div class="preview-tabs">
+        <button class="tab-btn active" id="tab-visual" onclick="switchTab('visual')">시각</button>
+        <button class="tab-btn" id="tab-code" onclick="switchTab('code')">HTML</button>
+      </div>
+    </div>
+    <div id="preview-visual"></div>
+    <div id="preview-code">
+      <button class="copy-btn" id="copy-btn" onclick="copyCode()">복사</button>
+      <pre id="code-output"></pre>
+    </div>
+    <p class="hint">생성된 HTML을 template.html의 제품 섹션 위치에 붙여넣기 하세요</p>
+  </div>
+
+</div>
+
+<!-- ── Tweaks Panel ── -->
+<div id="tweaks-panel">
+  <div class="tp-header" id="tp-drag-handle">
+    <span class="tp-title">Tweaks</span>
+    <button class="tp-close" id="tp-close">✕</button>
+  </div>
+  <div class="tp-body">
+
+    <div>
+      <div class="tp-control-label">Card Personality</div>
+      <div class="tp-pills" id="tp-personality">
+        <button class="tp-pill tp-active" data-val="clean">Clean</button>
+        <button class="tp-pill" data-val="bold">Bold</button>
+        <button class="tp-pill" data-val="outlined">Outlined</button>
+      </div>
+    </div>
+
+    <div class="tp-divider"></div>
+
+    <div>
+      <div class="tp-control-label">Density</div>
+      <div class="tp-pills" id="tp-density">
+        <button class="tp-pill" data-val="compact">Compact</button>
+        <button class="tp-pill tp-active" data-val="standard">Standard</button>
+        <button class="tp-pill" data-val="airy">Airy</button>
+      </div>
+    </div>
+
+    <div class="tp-divider"></div>
+
+    <div>
+      <div class="tp-control-label">Badge Shape</div>
+      <div class="tp-pills" id="tp-badge">
+        <button class="tp-pill tp-active" data-val="pill">Pill</button>
+        <button class="tp-pill" data-val="bar">Bar</button>
+        <button class="tp-pill" data-val="none">None</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Preset colors ──────────────────────────────────────────
+const PRESETS = [
+  { name:'YouTube',  main:'#be123c', light:'#fff1f2', border:'#fecaca' },
+  { name:'Coursera', main:'#0369a1', light:'#f0f9ff', border:'#bae6fd' },
+  { name:'Netflix',  main:'#b91c1c', light:'#fff1f2', border:'#fecaca' },
+  { name:'ChatGPT',  main:'#065f46', light:'#ecfdf5', border:'#a7f3d0' },
+  { name:'Spotify',  main:'#15803d', light:'#f0fdf4', border:'#bbf7d0' },
+  { name:'Gemini',   main:'#4338ca', light:'#eef2ff', border:'#c7d2fe' },
+  { name:'LinkedIn', main:'#1d4ed8', light:'#eff6ff', border:'#bfdbfe' },
+  { name:'Slate',    main:'#334155', light:'#f8fafc', border:'#e2e8f0' },
+];
+
+// Build preset buttons
+const presetsEl = document.getElementById('presets');
+PRESETS.forEach((p, i) => {
+  const btn = document.createElement('div');
+  btn.className = 'preset-btn' + (i === 2 ? ' active' : '');
+  btn.style.background = p.main;
+  btn.title = p.name;
+  btn.onclick = () => {
+    document.getElementById('color-main').value = p.main;
+    document.getElementById('color-light').value = p.light;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    liveUpdate();
+  };
+  presetsEl.appendChild(btn);
+});
+
+// ── Card management ───────────────────────────────────────
+let cardCount = 0;
+const cardsList = document.getElementById('cards-list');
+
+function addCard(data = {}) {
+  cardCount++;
+  const id = cardCount;
+  const div = document.createElement('div');
+  div.className = 'card-row';
+  div.dataset.id = id;
+  div.innerHTML = `
+    <div class="card-row-header">
+      <span class="card-row-title">카드 ${id}</span>
+      <button class="remove-btn" onclick="removeCard(${id})" title="삭제">✕</button>
+    </div>
+    <div class="row2">
+      <div class="field"><label>플랜 레이블 (영문)</label><input type="text" class="c-tier" placeholder="AnnualPlan" value="${data.tier||''}"></div>
+      <div class="field"><label>요금제명 (한글)</label><input type="text" class="c-name" placeholder="12개월 이용권" value="${data.name||''}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>가격</label><input type="text" class="c-price" placeholder="162,434원 또는 품절" value="${data.price||''}"></div>
+      <div class="field"><label>소가격 (월/일 단위)</label><input type="text" class="c-sub" placeholder="월 13,536원" value="${data.sub||''}"></div>
+    </div>
+    <div class="toggle-row">
+      <input type="checkbox" class="c-featured" id="feat-${id}" ${data.featured ? 'checked' : ''}>
+      <label for="feat-${id}">추천 카드 (BEST CHOICE 배지)</label>
+    </div>
+    <div class="field c-badge-wrap" style="${data.featured ? '' : 'display:none'}">
+      <label>배지 텍스트</label>
+      <input type="text" class="c-badge" placeholder="BEST CHOICE" value="${data.badge||'BEST CHOICE'}">
+    </div>
+  `;
+  // Toggle badge field visibility
+  const chk = div.querySelector('.c-featured');
+  const bw  = div.querySelector('.c-badge-wrap');
+  chk.addEventListener('change', () => { bw.style.display = chk.checked ? '' : 'none'; liveUpdate(); });
+  div.querySelectorAll('input,textarea').forEach(el => el.addEventListener('input', liveUpdate));
+  cardsList.appendChild(div);
+  liveUpdate();
+}
+
+function removeCard(id) {
+  const el = cardsList.querySelector(`[data-id="${id}"]`);
+  if (el) { el.remove(); liveUpdate(); }
+}
+
+document.getElementById('add-card-btn').onclick = () => addCard();
+
+// ── Seed default cards ─────────────────────────────────────
+addCard({ tier:'MonthlyPlan', name:'1개월 이용권', price:'20,673원', sub:'일 688원', featured:false });
+addCard({ tier:'AnnualPlan',  name:'12개월 이용권', price:'162,434원', sub:'월 13,536원 · 일 445원', featured:true, badge:'BEST CHOICE' });
+
+// ── Live update ────────────────────────────────────────────
+function getFormData() {
+  const main  = document.getElementById('color-main').value;
+  const light = document.getElementById('color-light').value;
+  // derive a slightly darker version for text
+  const dark  = darken(main);
+  const border = lighten(main);
+
+  const cards = [...cardsList.querySelectorAll('.card-row')].map(row => ({
+    tier:     row.querySelector('.c-tier').value.trim(),
+    name:     row.querySelector('.c-name').value.trim(),
+    price:    row.querySelector('.c-price').value.trim(),
+    sub:      row.querySelector('.c-sub').value.trim(),
+    featured: row.querySelector('.c-featured').checked,
+    badge:    row.querySelector('.c-badge')?.value.trim() || 'BEST CHOICE',
+  }));
+
+  return {
+    svcName: document.getElementById('svc-name').value.trim() || '서비스명',
+    svcNote: document.getElementById('svc-note').value.trim(),
+    main, light, dark, border, cards
+  };
+}
+
+function darken(hex) {
+  // simple: blend toward black by 15%
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return '#' + [r,g,b].map(v => Math.max(0,Math.round(v*0.80)).toString(16).padStart(2,'0')).join('');
+}
+function lighten(hex) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return '#' + [r,g,b].map(v => Math.min(255,Math.round(v + (255-v)*0.60)).toString(16).padStart(2,'0')).join('');
+}
+
+function buildHTML(d, forCode = false) {
+  const nl = forCode ? '\n' : '';
+  const sectionId = d.svcName.toLowerCase().replace(/\s+/g,'-');
+
+  const cards = d.cards.map(c => {
+    if (c.featured) {
+      return `        <div style="padding: 24px; border: 2px solid ${d.main}; border-radius: 12px; text-align: center; background-color: ${d.light}; position: relative;">
+          <div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background-color: ${d.main}; color: #ffffff; padding: 2px 12px; border-radius: 99px; font-size: 12px; font-weight: 700;">${c.badge}</div>
+          <span style="font-size: 13px; font-weight: 600; color: ${d.main}; display: block; margin-bottom: 8px;">${c.tier}</span>
+          <div style="font-size: 16px; font-weight: 700; margin-bottom: 4px; color: #1e293b;">${c.name}</div>
+          <div style="font-size: 24px; font-weight: 800; color: ${d.dark}; margin-bottom: 4px;">${c.price}</div>
+          <span style="font-size: 12px; color: ${d.main};">${c.sub}</span>
+        </div>`;
+    } else {
+      return `        <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; text-align: center; background-color: #fff;">
+          <span style="font-size: 13px; font-weight: 600; color: #64748b; display: block; margin-bottom: 8px;">${c.tier}</span>
+          <div style="font-size: 16px; font-weight: 700; margin-bottom: 4px; color: #1e293b;">${c.name}</div>
+          <div style="font-size: 24px; font-weight: 800; color: ${d.dark}; margin-bottom: 4px;">${c.price}</div>
+          <span style="font-size: 12px; color: #64748b;">${c.sub}</span>
+        </div>`;
+    }
+  }).join('\n\n');
+
+  const noteHtml = d.svcNote
+    ? `\n      <div style="margin-top: 12px; padding: 16px; font-size: 12px; color: #334155; background-color: #ffffff; border-radius: 8px; line-height: 1.6;">\n        ${d.svcNote.split('\n').join('<br>')}\n      </div>` : '';
+
+  return `    <!-- PRODUCT SECTION START: ${d.svcName} -->
+    <div style="margin-bottom: 36px;">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px; border-bottom: 2px solid ${d.border}; padding-bottom: 8px;">
+        <h3 style="margin: 0; font-size: 20px; font-weight: 700; color: ${d.main};">${d.svcName}</h3>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+
+${cards}
+
+      </div>${noteHtml}
+    </div>
+    <!-- PRODUCT SECTION END: ${d.svcName} -->`;
+}
+
+function liveUpdate() {
+  const d = getFormData();
+  document.getElementById('preview-visual').innerHTML = `<div style="font-family:'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;">${buildHTML(d, false)}</div>`;
+  document.getElementById('code-output').textContent = buildHTML(d, true);
+}
+
+// ── Tab switching ──────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('preview-visual').style.display = tab === 'visual' ? '' : 'none';
+  document.getElementById('preview-code').style.display   = tab === 'code'   ? '' : 'none';
+  document.getElementById('tab-visual').classList.toggle('active', tab === 'visual');
+  document.getElementById('tab-code').classList.toggle('active',   tab === 'code');
+}
+
+// ── Copy ──────────────────────────────────────────────────
+function copyCode() {
+  const code = document.getElementById('code-output').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '복사 완료!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '복사'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ── Generate button (switch to code tab) ──────────────────
+document.getElementById('generate-btn').onclick = () => {
+  liveUpdate();
+  switchTab('code');
+};
+
+// ── Reset ────────────────────────────────────────────────
+document.getElementById('reset-btn').onclick = () => {
+  document.getElementById('svc-name').value = 'Netflix';
+  document.getElementById('svc-note').value = '본인 이메일로 직접 활성화하는 정식 개인 구독 방식입니다.';
+  document.getElementById('color-main').value  = '#b91c1c';
+  document.getElementById('color-light').value = '#fff1f2';
+  cardsList.innerHTML = '';
+  cardCount = 0;
+  addCard({ tier:'MonthlyPlan', name:'1개월 이용권', price:'20,673원', sub:'일 688원', featured:false });
+  addCard({ tier:'AnnualPlan',  name:'12개월 이용권', price:'162,434원', sub:'월 13,536원 · 일 445원', featured:true, badge:'BEST CHOICE' });
+};
+
+// ── Color pickers live update ─────────────────────────────
+document.getElementById('color-main').addEventListener('input', liveUpdate);
+document.getElementById('color-light').addEventListener('input', liveUpdate);
+document.getElementById('svc-name').addEventListener('input', liveUpdate);
+document.getElementById('svc-note').addEventListener('input', liveUpdate);
+
+// init
+liveUpdate();
+
+// ── Tweaks state ───────────────────────────────────────────
+const TWEAKS = /*EDITMODE-BEGIN*/{
+  "personality": "clean",
+  "density": "standard",
+  "badge": "pill"
+}/*EDITMODE-END*/;
+
+// ── Tweaks → buildHTML config ──────────────────────────────
+const DENSITY_MAP = {
+  compact:  { pad: '16px', priceSize: '20px', minw: '160px', gap: '10px', nameSz: '14px' },
+  standard: { pad: '24px', priceSize: '24px', minw: '200px', gap: '16px', nameSz: '16px' },
+  airy:     { pad: '32px', priceSize: '30px', minw: '240px', gap: '20px', nameSz: '18px' },
+};
+
+function cardStyles(d, c, isFeatured) {
+  const dens = DENSITY_MAP[TWEAKS.density];
+  const pers = TWEAKS.personality;
+  const badge = TWEAKS.badge;
+
+  // Border style per personality
+  let borderStyle, bgColor, cardShadow = '';
+  if (pers === 'clean') {
+    borderStyle = isFeatured ? `2px solid ${d.main}` : '1px solid #e2e8f0';
+    bgColor     = isFeatured ? d.light : '#fff';
+  } else if (pers === 'bold') {
+    borderStyle = isFeatured ? `3px solid ${d.main}` : `2px solid #cbd5e1`;
+    bgColor     = isFeatured ? d.light : '#fff';
+    cardShadow  = isFeatured
+      ? `box-shadow: 0 6px 20px rgba(0,0,0,0.12);`
+      : `box-shadow: 0 2px 8px rgba(0,0,0,0.06);`;
+  } else { // outlined
+    borderStyle = `2px solid ${isFeatured ? d.main : '#cbd5e1'}`;
+    bgColor     = '#fff';
+  }
+
+  const tierColor = isFeatured ? d.main : '#64748b';
+  const tierExtra = pers === 'bold'
+    ? `text-transform: uppercase; letter-spacing: 0.06em;` : '';
+  const priceColor = isFeatured ? d.dark : d.dark;
+
+  // Badge markup
+  let badgeHtml = '';
+  if (isFeatured && c.badge && badge !== 'none') {
+    if (badge === 'pill') {
+      badgeHtml = `<div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background-color: ${d.main}; color: #ffffff; padding: 2px 12px; border-radius: 99px; font-size: 12px; font-weight: 700;">${c.badge}</div>`;
+    }
+    // bar is handled via wrapper restructure below
+  }
+
+  // Wrapper needs position:relative only for pill
+  const wrapPos = (isFeatured && badge === 'pill') ? 'position: relative;' : '';
+
+  // Bar: restructure card entirely
+  if (isFeatured && badge === 'bar') {
+    const innerPad = `padding: ${dens.pad};`;
+    return `<div style="${cardShadow} border: ${borderStyle}; border-radius: 12px; text-align: center; background-color: ${bgColor}; overflow: hidden;">
+          <div style="background-color: ${d.main}; color: #ffffff; padding: 6px 12px; font-size: 12px; font-weight: 700; text-align: center;">${c.badge}</div>
+          <div style="${innerPad}">
+            <span style="font-size: 13px; font-weight: 600; color: ${tierColor}; ${tierExtra} display: block; margin-bottom: 8px;">${c.tier}</span>
+            <div style="font-size: ${dens.nameSz}; font-weight: 700; margin-bottom: 4px; color: #1e293b;">${c.name}</div>
+            <div style="font-size: ${dens.priceSize}; font-weight: 800; color: ${priceColor}; margin-bottom: 4px;">${c.price}</div>
+            <span style="font-size: 12px; color: ${tierColor};">${c.sub}</span>
+          </div>
+        </div>`;
+  }
+
+  return `<div style="${wrapPos} padding: ${dens.pad}; border: ${borderStyle}; border-radius: 12px; text-align: center; background-color: ${bgColor}; ${cardShadow}">
+          ${badgeHtml}
+          <span style="font-size: 13px; font-weight: 600; color: ${tierColor}; ${tierExtra} display: block; margin-bottom: 8px;">${c.tier}</span>
+          <div style="font-size: ${dens.nameSz}; font-weight: 700; margin-bottom: 4px; color: #1e293b;">${c.name}</div>
+          <div style="font-size: ${dens.priceSize}; font-weight: 800; color: ${priceColor}; margin-bottom: 4px;">${c.price}</div>
+          <span style="font-size: 12px; color: ${isFeatured ? tierColor : '#64748b'};">${c.sub}</span>
+        </div>`;
+}
+
+// Patch buildHTML to use tweaks
+const _origBuild = buildHTML;
+buildHTML = function(d, forCode) {
+  const dens = DENSITY_MAP[TWEAKS.density];
+  const sectionId = d.svcName.toLowerCase().replace(/\s+/g,'-');
+
+  const cards = d.cards.map(c => cardStyles(d, c, c.featured)).join('\n\n');
+
+  const noteHtml = d.svcNote
+    ? `\n      <div style="margin-top: 12px; padding: 16px; font-size: 12px; color: #334155; background-color: #ffffff; border-radius: 8px; line-height: 1.6;">\n        ${d.svcNote.split('\n').join('<br>')}\n      </div>` : '';
+
+  return `    <!-- PRODUCT SECTION START: ${d.svcName} -->
+    <div style="margin-bottom: 36px;">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px; border-bottom: 2px solid ${d.border}; padding-bottom: 8px;">
+        <h3 style="margin: 0; font-size: 20px; font-weight: 700; color: ${d.main};">${d.svcName}</h3>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(${dens.minw}, 1fr)); gap: ${dens.gap};">
+
+${cards}
+
+      </div>${noteHtml}
+    </div>
+    <!-- PRODUCT SECTION END: ${d.svcName} -->`;
+};
+
+// ── Tweaks panel UI ────────────────────────────────────────
+const panel = document.getElementById('tweaks-panel');
+
+function setPill(groupId, val) {
+  document.querySelectorAll(`#${groupId} .tp-pill`).forEach(btn => {
+    btn.classList.toggle('tp-active', btn.dataset.val === val);
+  });
+}
+
+function initPillGroup(groupId, key) {
+  document.querySelectorAll(`#${groupId} .tp-pill`).forEach(btn => {
+    btn.addEventListener('click', () => {
+      TWEAKS[key] = btn.dataset.val;
+      setPill(groupId, btn.dataset.val);
+      window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [key]: btn.dataset.val } }, '*');
+      liveUpdate();
+    });
+  });
+  setPill(groupId, TWEAKS[key]);
+}
+
+initPillGroup('tp-personality', 'personality');
+initPillGroup('tp-density',     'density');
+initPillGroup('tp-badge',       'badge');
+
+// ── Close button ───────────────────────────────────────────
+document.getElementById('tp-close').addEventListener('click', () => {
+  panel.classList.remove('visible');
+  window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
+});
+
+// ── Drag ──────────────────────────────────────────────────
+(function() {
+  let ox = 0, oy = 0, startX = 0, startY = 0;
+  const handle = document.getElementById('tp-drag-handle');
+  handle.addEventListener('mousedown', e => {
+    const rect = panel.getBoundingClientRect();
+    startX = e.clientX; startY = e.clientY;
+    ox = window.innerWidth  - rect.right;
+    oy = window.innerHeight - rect.bottom;
+    const onMove = ev => {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      panel.style.right  = Math.max(8, ox - dx) + 'px';
+      panel.style.bottom = Math.max(8, oy - dy) + 'px';
+    };
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+})();
+
+// ── Host protocol ──────────────────────────────────────────
+window.addEventListener('message', e => {
+  if (e.data?.type === '__activate_edit_mode')   panel.classList.add('visible');
+  if (e.data?.type === '__deactivate_edit_mode') panel.classList.remove('visible');
+});
+window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+</script>
+</body>
+</html>

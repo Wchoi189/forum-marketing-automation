@@ -180,8 +180,8 @@ function createDraftModalPage(state: DraftModalMockState) {
       },
       locator: (selector: string) => {
         if (selector === "table tr") return rowLocator;
-        if (selector === 'button:has-text("불러오기")') return previewLoadButton;
-        if (selector === 'button:has-text("닫기")') return closeButton;
+        if (selector === 'button:has-text("불러오기"):visible') return previewLoadButton;
+        if (selector === 'button:has-text("닫기"):visible') return closeButton;
         return { first: () => ({ count: async () => 0 }) };
       }
     })
@@ -202,7 +202,7 @@ function createDraftModalPage(state: DraftModalMockState) {
           last: () => ({
             waitFor: async () => undefined,
             locator: (innerSelector: string) =>
-              innerSelector === 'button:has-text("불러오기")' ? previewLoadButton : { first: () => ({}) }
+              innerSelector === 'button:has-text("불러오기"):visible' ? previewLoadButton : { first: () => ({}) }
           })
         };
       }

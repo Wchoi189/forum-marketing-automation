@@ -27,7 +27,7 @@ function getDraftModalFallbackRoot(page: Page): Locator {
   return page
     .locator("div")
     .filter({ hasText: "임시저장된 게시글" })
-    .filter({ has: page.locator("button:has-text('닫기')") })
+    .filter({ has: page.locator("button:has-text('닫기'):visible") })
     .first();
 }
 
@@ -113,17 +113,21 @@ async function clickPreviewLoadButton(page: Page, draftModalShell: Locator): Pro
   const previewRoot = page.locator("div.tempas-preview").last();
   await previewRoot.waitFor({ state: "visible", timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS }).catch(() => null);
 
-  const previewLoadBtn = previewRoot.locator('button:has-text("불러오기")').first();
-  if ((await previewLoadBtn.count().catch(() => 0)) === 0) return;
+  const previewLoadBtn = previewRoot.locator('button:has-text("불러오기"):visible').first();
+  const fallbackLoadBtn = draftModalShell.locator('button:has-text("불러오기"):visible').first();
+  const previewLoadBtnCount = await previewLoadBtn.count().catch(() => 0);
 
-  await previewLoadBtn
-    .click({ noWaitAfter: true, force: true, timeout: DRAFT_MODAL_ACTION_TIMEOUT_MS })
-    .catch(async () => {
-      await draftModalShell
-        .locator('button:has-text("불러오기")')
-        .first()
-        .click({ noWaitAfter: true, force: true, timeout: DRAFT_MODAL_ACTION_TIMEOUT_MS });
-    });
+  if (previewLoadBtnCount > 0) {
+    await previewLoadBtn
+      .click({ noWaitAfter: true, force: true, timeout: DRAFT_MODAL_ACTION_TIMEOUT_MS })
+      .catch(async () => {
+        await fallbackLoadBtn.click({ noWaitAfter: true, force: true, timeout: DRAFT_MODAL_ACTION_TIMEOUT_MS });
+      });
+    return;
+  }
+
+  if ((await fallbackLoadBtn.count().catch(() => 0)) === 0) return;
+  await fallbackLoadBtn.click({ noWaitAfter: true, force: true, timeout: DRAFT_MODAL_ACTION_TIMEOUT_MS });
 }
 
 async function waitForBodyUnfreeze(page: Page): Promise<void> {
@@ -135,7 +139,7 @@ async function waitForBodyUnfreeze(page: Page): Promise<void> {
 }
 
 async function clearFreezeWithCloseFallbacks(page: Page, draftModalShell: Locator): Promise<void> {
-  const closeBtn = draftModalShell.locator('button:has-text("닫기")').first();
+  const closeBtn = draftModalShell.locator('button:has-text("닫기"):visible').first();
   if (await page.evaluate(() => document.body.classList.contains("freeze"))) {
     if (await closeBtn.isVisible().catch(() => false)) {
       await closeBtn.click({
@@ -170,11 +174,7 @@ export async function confirmLoadDraftFromModal(
     throw new Error(`[Playbook] ${stepId}: no matching selector candidate`);
   }
 
-  const draftModalShell = page
-    .locator("div")
-    .filter({ has: page.locator('button:has-text("불러오기")') })
-    .filter({ has: page.locator('button:has-text("닫기")') })
-    .first();
+  const draftModalShell = modalRoot;
 
   const rowResolution = await resolveDraftRow(modalRoot, page, draftIndex);
   if (!rowResolution.selection) {

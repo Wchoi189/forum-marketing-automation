@@ -43,3 +43,4 @@ artifacts/publisher-runs/
 .planning/spec-kit/**/mempalace.yaml
 .agent/**/entities.json
 .planning/spec-kit/**/entities.json
+artifacts/publisher-history/
