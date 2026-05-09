@@ -31,6 +31,75 @@ Node + Playwright automation bot for observing and posting to the Ppomppu OTT bo
   - `npm run test:integration` — Express API contracts (uses env vars on the command line; loads `.env` if present)
   - `npm run test:mcp:parser` — Parser MCP server tools (`page_outline`, `subtree`, `interactive_elements`, `snapshot_diff`) against synthetic HTML
 
+## Competitor Ads Intelligence (Manual)
+
+Collects structured data from Ppomppu OTT board competitor ads into an auditable JSONL dataset.
+
+### Quick Start
+1. Prepare a CSV with vendor IDs and post URLs:
+   - Format: `vendor_id,post_url,notes_override`
+   - Sample: `examples/competitor-ads-intel.sample.csv`
+2. Run:
+   ```bash
+   npm run competitor-ads:intel -- --input-csv examples/competitor-ads-intel.sample.csv --run-id 2026-05-09 --rate-limit-rps 1
+   ```
+
+### Output
+| File | Content |
+|------|---------|
+| `artifacts/competitor-ads/<run_id>/data/records.jsonl.gz` | Compressed JSONL of extracted records |
+| `artifacts/competitor-ads/<run_id>/data/run-summary.json` | Run metadata (success/failure counts, errors) |
+| `artifacts/competitor-ads/<run_id>/raw_html/` | Full HTML snapshots per post |
+| `artifacts/competitor-ads/<run_id>/images/` | Screenshots of ad creatives |
+| `artifacts/competitor-ads/<run_id>/ocr/` | OCR text output per image |
+| `artifacts/competitor-ads/<run_id>/vlm/` | VLM structured parse JSON (when triggered) |
+| `artifacts/competitor-ads/<run_id>/logs/` | Per-post error logs |
+
+### Extraction Pipeline
+The pipeline uses a **deterministic-first, OCR/VLM-fallback** strategy:
+
+1. **Fetch HTML** via Playwright (per-post browser isolation with 2 retries)
+2. **Deterministic Cheerio parser** (`lib/competitor-ad-parser/`) — extracts title, vendor, posted date, landing URL, product prices/durations, trust signals, account type, image URLs via CSS selectors and regex
+3. **Confidence gate** — if confidence ≥ 0.9 AND products found → record complete, skip OCR/VLM
+4. **Fallback** — if confidence < 0.9 → screenshot → OCR (Qwen2.5-VL) → VLM parse (validated against deterministic fields to reject hallucinations)
+
+### Confidence Scoring
+| Signal | Weight |
+|--------|--------|
+| Title present (>5 chars) | 0.15 |
+| Vendor extracted | 0.15 |
+| Posted date parsed | 0.15 |
+| Products found (≥1) | 0.35 |
+| Image URLs found | 0.10 |
+| Trust signals found | 0.10 |
+
+### Deterministic Parser Module
+The Ppomppu parser is available as a reusable library:
+
+```typescript
+import { parsePpomppuPost } from "./lib/competitor-ad-parser/index.js";
+
+const record = parsePpomppuPost(htmlString, postUrl);
+// Returns: { title, vendor, posted_at, landing_url, products[], trust_signals[], account_type, image_urls[], confidence, warnings[] }
+```
+
+Works on any Ppomppu post HTML string — no browser needed. Useful for:
+- Batch processing pre-captured HTML snapshots
+- Building API endpoints that serve parsed ad data
+- Testing extraction logic against saved HTML fixtures
+
+### Idempotency
+Re-running with the same `--input-csv` skips posts already in `records.jsonl.gz` (matched by `record_id = sha256(vendor|post_url)`).
+
+### OCR/VLM Env Knobs
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `OLLAMA_ENDPOINT` | `http://ollama:11434` | Ollama API URL |
+| `OLLAMA_OCR_MODEL` | `qwen2.5vl:7b` | Vision model for OCR/VLM |
+| `OLLAMA_REQUEST_TIMEOUT_MS` | `60000` | Per-request timeout |
+| `OLLAMA_MAX_RETRIES` | `2` | Retry count on failure |
+| `OLLAMA_CONCURRENCY_MAX` | `2` | Max concurrent OCR requests |
+
 ## AWS Remote Ops (Spec-Driven)
 
 - Spec contracts:

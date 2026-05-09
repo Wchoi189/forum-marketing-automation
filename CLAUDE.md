@@ -23,6 +23,8 @@ Short version: `src/components/` = existing Tailwind world (stable). `src/fiori/
 | `lib/publisherHistory.ts` | Append-only JSONL + Parquet log of every publisher run. |
 | `lib/trendInsights.ts` | Hourly post-rate profile and scheduler interval multiplier from activity logs. |
 | `lib/runtimeControls.ts` | Persisted gap threshold file override (read/write). |
+| `lib/competitor-ad-parser/` | Deterministic Cheerio-based Ppomppu ad HTML parser (`parsePpomppuPost`). No browser needed. Used by `scripts/competitor-ads-intel.ts`. |
+| `lib/parser/` | DOM projection system (`subtree`, `pageOutline`, `snapshotDiff`). Used by observer and parser MCP. |
 
 ## Frontend
 

@@ -1,0 +1,83 @@
+{
+  "handover_id": "handover-20260508-2324",
+  "timestamp_utc": "2026-05-08T14:24:47Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "github-copilot",
+  "target_agent": "github-copilot",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "planning",
+  "objective": "Plan manual competitor ads intelligence extraction for Ppomppu OTT board.",
+  "non_goals": [
+    "Implementation",
+    "Scheduler or publisher changes"
+  ],
+  "current_state": {
+    "completed": [
+      "Spec, contract, and plan created for competitor ads intelligence",
+      "Schema locked (pricing removed, terms optional, evidence required)",
+      "CSV intake format defined (vendor_id, post_url, notes_override)",
+      "HTML extraction path documented (DOM projection + evidence capture)",
+      "OCR/VLM fallback rules documented with thresholds",
+      "Storage layout and artifact paths documented",
+      "Manual trigger defined as CLI-first with optional API wrapper",
+      "Validation sampling plan and checklist added"
+    ],
+    "gaps": [
+      "No implementation work started",
+      "OCR/VLM model endpoints not wired"
+    ]
+  },
+  "status": "in_progress",
+  "decisions_locked": [
+    "Manual-only pipeline; no automation",
+    "CSV intake format",
+    "CLI-first entry point",
+    "Evidence required for structured fields"
+  ],
+  "acceptance_criteria": [
+    "Planning artifacts stored under .planning/spec-kit",
+    "Validation sampling plan documented",
+    "No runtime behavior changes"
+  ],
+  "implementation_plan": [
+    "Define CLI command and wiring",
+    "Implement HTML extraction and OCR/VLM pipeline",
+    "Persist JSONL + artifacts per run",
+    "Add minimal validation checks"
+  ],
+  "practical_recommendations": [
+    "Start implementation in a new session",
+    "Keep extraction fail-closed with evidence capture"
+  ],
+  "completed_items": [
+    "P-001 to P-007 planning tasks complete"
+  ],
+  "pending_items": [
+    "Implementation of competitor ads collection",
+    "Model endpoint configuration"
+  ],
+  "decisions": [
+    "Store Ollama model catalog under .planning/spec-kit/reference",
+    "Use DOM projection for HTML extraction",
+    "Use OCR thresholds: accept >=0.85, VLM trigger <0.75"
+  ],
+  "constraints": [
+    "Manual-only execution",
+    "Polite rate limiting",
+    "Korean-only content"
+  ],
+  "env_requirements": [],
+  "next_actions": [
+    "If approved, begin implementation from the planning spec",
+    "Define CLI interface and input CSV schema",
+    "Confirm OCR/VLM container endpoints"
+  ],
+  "artifacts_touched": [
+    ".planning/spec-kit/specs/ppomppu-ott-competitor-ads-intel-v1.json",
+    ".planning/spec-kit/specs/ppomppu-ott-competitor-ads-intel.contract.json",
+    ".planning/spec-kit/plans/competitor-ads-intel.plan.json",
+    ".planning/spec-kit/plans/snapshots/planning-hardcopy-20260508.json",
+    ".planning/spec-kit/reference/agent-infra-ollama.md"
+  ]
+}

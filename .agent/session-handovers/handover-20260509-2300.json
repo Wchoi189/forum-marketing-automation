@@ -1,0 +1,96 @@
+{
+  "handover_id": "handover-20260509-2300",
+  "timestamp_utc": "2026-05-09T23:00:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "claude-code",
+  "target_agent": "claude-code",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-ott-competitor-ads-intel-v1",
+  "phase": "implementation",
+  "objective": "Fix image API errors, add SQLite-based vendor profile storage with cross-run dedup.",
+  "non_goals": [
+    "No automated scheduling or background publishing",
+    "No production rollout changes",
+    "No separate vendor discovery/scanning — CSV remains the input source"
+  ],
+  "current_state": {
+    "completed": [
+      "Image filtering fix: getImageDimensions() with proper JPEG+PNG header parsing replaces fragile SOF0 byte-scan.",
+      "validateImageForVlm() guards added in runOcr() and runVlmParse() — rejects images < 16px before any API call.",
+      "SQLite module created at lib/competitor-ad-sqlite.ts with records + vendor_profiles tables (WAL mode).",
+      "author_name promoted to top-level CompetitorAdRecord field (from parsed.vendor HTML extraction).",
+      "buildRecordBase() and buildRecordFromDeterministic() updated to pass author_name.",
+      "loadExistingRecords() removed — replaced with SQLite isRecordKnown() for cross-run dedup.",
+      "--show-vendors CLI flag added (standalone read-only, no CSV needed).",
+      "DB stats printed in run summary (db_total_records, db_distinct_vendors).",
+      "JSONL output remains backward compatible."
+    ],
+    "gaps": [
+      "No unit tests written for lib/competitor-ad-sqlite.ts yet.",
+      "No schema migration system — only CREATE TABLE IF NOT EXISTS.",
+      "author_name is undefined in OCR/VLM fallback path (HTML parse failed). This is expected but means those records won't have author_name in DB.",
+      "DB file location is artifacts/competitor-ads/competitor-ads.db — if artifact dirs are cleaned, DB is lost."
+    ]
+  },
+  "status": "complete",
+  "acceptance_criteria_met": [
+    "CLI run outputs artifacts/competitor-ads/<run_id>/data/records.jsonl.gz and run-summary.json — YES",
+    "Cross-run dedup works — re-running same CSV skips all rows — YES",
+    "--show-vendors prints vendor profiles — YES",
+    "Image API error (400 tiny image) prevented — YES (pre-API dimension guard)",
+    "DB file exists at artifacts/competitor-ads/competitor-ads.db with 2 records, 2 vendors — YES"
+  ],
+  "decisions": [
+    "better-sqlite3 (sync API) chosen over async sqlite3 for simplicity.",
+    "DB is shared across runs at artifacts/competitor-ads/competitor-ads.db, not per-run.",
+    "Products stored as JSON arrays in SQLite (not normalized to separate tables).",
+    "CSV remains the sole vendor input source; no auto-discovery of posters.",
+    "JSONL output kept for backward compatibility; DB is the canonical source for cross-run queries."
+  ],
+  "constraints": [
+    "Manual execution only; no automated scheduler for competitor intel.",
+    "Do not log secrets or credentials.",
+    "Publisher/observer systems must remain fail-closed for missing evidence."
+  ],
+  "env_requirements": [
+    "OLLAMA_ENDPOINT=http://ollama:11434",
+    "OLLAMA_OCR_MODEL=qwen2.5vl:7b (fallback qwen2.5vl:3b)",
+    "OLLAMA_REQUEST_TIMEOUT_MS (default 30000)",
+    "BROWSER_HEADLESS (default true)"
+  ],
+  "artifacts_touched": [
+    "scripts/competitor-ads-intel.ts",
+    "lib/competitor-ad-sqlite.ts (new)",
+    "lib/competitor-ad-parser/ppomppu-parser.ts (reference only)",
+    "artifacts/competitor-ads/competitor-ads.db (created)",
+    "artifacts/competitor-ads/sample-20260509-sqlite-test/ (test run)",
+    "artifacts/competitor-ads/sample-20260509-dedup-test/ (dedup test, empty JSONL)"
+  ],
+  "files_modified": [
+    "scripts/competitor-ads-intel.ts",
+    "lib/competitor-ad-sqlite.ts",
+    "package.json",
+    "package-lock.json"
+  ],
+  "key_code_changes": {
+    "getImageDimensions": "Proper JPEG (0xFFD8 + SOF markers) and PNG (IHDR chunk) dimension decoding.",
+    "validateImageForVlm": "Pre-API guard: rejects images < 16px in either dimension.",
+    "runOcr/runVlmParse": "Both now call validateImageForVlm before callOllamaGenerate().",
+    "CompetitorAdRecord": "Added author_name?: string field.",
+    "buildRecordBase": "Accepts authorName param.",
+    "buildRecordFromDeterministic": "Passes parsed.vendor as authorName.",
+    "main()": "SQLite open/close, --show-vendors flag, isRecordKnown dedup, insertRecord + upsertVendorProfile per record.",
+    "loadExistingRecords": "Removed entirely."
+  },
+  "next_actions": [
+    "Consider adding unit tests for lib/competitor-ad-sqlite.ts.",
+    "If vendor discovery is needed later, consider adding a --scan-board flag to enumerate posters.",
+    "If DB becomes large, consider adding a schema migration system."
+  ],
+  "practical_recommendations": [
+    "Run: npx tsx scripts/competitor-ads-intel.ts --input-csv <csv> --run-id <id> --rate-limit-rps 1",
+    "Check vendors: npx tsx scripts/competitor-ads-intel.ts --show-vendors",
+    "Re-running same CSV will skip already-processed records (cross-run dedup via SQLite).",
+    "DB location: artifacts/competitor-ads/competitor-ads.db"
+  ]
+}

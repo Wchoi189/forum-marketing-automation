@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(zcat /parent/marketing-automation/artifacts/competitor-ads/sample-20260509-v2/data/records.jsonl.gz)"
+    ]
+  }
+}

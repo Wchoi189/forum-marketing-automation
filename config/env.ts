@@ -33,6 +33,18 @@ type EnvConfig = {
   /** Playwright page.goto timeout for observer/publisher board navigation (ms). */
   BOT_NAV_TIMEOUT_MS: number;
   MCP_PARSER_MAX_STORED_SNAPSHOTS: number;
+  /** Ollama endpoint for OCR/VLM requests. */
+  OLLAMA_ENDPOINT: string;
+  /** OCR/VLM model to use for image extraction. */
+  OLLAMA_OCR_MODEL: string;
+  /** Per-request timeout for Ollama OCR/VLM (ms). */
+  OLLAMA_REQUEST_TIMEOUT_MS: number;
+  /** Max retries for Ollama OCR/VLM calls. */
+  OLLAMA_MAX_RETRIES: number;
+  /** Max image size in megapixels before downscaling. */
+  OLLAMA_MAX_IMAGE_MEGAPIXELS: number;
+  /** Max concurrent OCR/VLM requests. */
+  OLLAMA_CONCURRENCY_MAX: number;
   /** Full-page PNGs under artifacts/publisher-runs/<timestamp>/ during runPublisher. */
   PUBLISHER_DEBUG_SCREENSHOTS: boolean;
   /** Playwright trace.zip (open with `npx playwright show-trace <path>`). */
@@ -201,6 +213,12 @@ function buildEnv(): EnvConfig {
     MCP_PARSER_NAV_TIMEOUT_MS: optionalInt("MCP_PARSER_NAV_TIMEOUT_MS", 45000, 5000, 120000),
     BOT_NAV_TIMEOUT_MS: optionalInt("BOT_NAV_TIMEOUT_MS", 30000, 5000, 120000),
     MCP_PARSER_MAX_STORED_SNAPSHOTS: optionalInt("MCP_PARSER_MAX_STORED_SNAPSHOTS", 200, 10, 1000),
+    OLLAMA_ENDPOINT: optionalString("OLLAMA_ENDPOINT", "http://ollama:11434"),
+    OLLAMA_OCR_MODEL: optionalString("OLLAMA_OCR_MODEL", "qwen2.5vl:7b"),
+    OLLAMA_REQUEST_TIMEOUT_MS: optionalInt("OLLAMA_REQUEST_TIMEOUT_MS", 30000, 1000, 120000),
+    OLLAMA_MAX_RETRIES: optionalInt("OLLAMA_MAX_RETRIES", 1, 0, 10),
+    OLLAMA_MAX_IMAGE_MEGAPIXELS: optionalInt("OLLAMA_MAX_IMAGE_MEGAPIXELS", 8, 1, 64),
+    OLLAMA_CONCURRENCY_MAX: optionalInt("OLLAMA_CONCURRENCY_MAX", 2, 1, 8),
     PUBLISHER_DEBUG_SCREENSHOTS: optionalBool("PUBLISHER_DEBUG_SCREENSHOTS", false),
     PUBLISHER_DEBUG_TRACE: optionalBool("PUBLISHER_DEBUG_TRACE", false),
     PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT: optionalInt("PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT", 0, 0, 100),

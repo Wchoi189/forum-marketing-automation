@@ -1,0 +1,35 @@
+{
+  "raw": "```json\n{\n  \"products\": [\n    {\n      \"name\": \"PPOMPPU\",\n      \"plan_tier\": \"Basic\",\n      \"duration_months\": 1,\n      \"price_krw\": 10000,\n      \"price_per_month_krw\": 10000,\n      \"constraints\": [\n        \"No additional features included\"\n      ]\n    }\n  ],\n  \"terms\": {\n    \"payment_method\": \"Credit Card\",\n    \"delivery_method\": \"Instant\",\n    \"refund_policy\": \"No Refunds\",\n    \"notes\": \"Service starts immediately after purchase.\"\n  },\n  \"account_type\": \"Individual\",\n  \"region\": \"Korea\",\n  \"bundle\": false,\n  \"promo\": false,\n  \"conditions\": [\n    \"No cancellation allowed within 30 days of purchase.\"\n  ],\n  \"contact\": {\n    \"email\": \"support@ppomppu.com\",\n    \"phone\": \"+82 10-1234-5678\"\n  },\n  \"notes\": \"Service is only available in Korea.\"\n}\n```",
+  "parsed": {
+    "products": [
+      {
+        "name": "PPOMPPU",
+        "plan_tier": "Basic",
+        "duration_months": 1,
+        "price_krw": 10000,
+        "price_per_month_krw": 10000,
+        "constraints": [
+          "No additional features included"
+        ]
+      }
+    ],
+    "terms": {
+      "payment_method": "Credit Card",
+      "delivery_method": "Instant",
+      "refund_policy": "No Refunds",
+      "notes": "Service starts immediately after purchase."
+    },
+    "account_type": "Individual",
+    "region": "Korea",
+    "bundle": false,
+    "promo": false,
+    "conditions": [
+      "No cancellation allowed within 30 days of purchase."
+    ],
+    "contact": {
+      "email": "support@ppomppu.com",
+      "phone": "+82 10-1234-5678"
+    },
+    "notes": "Service is only available in Korea."
+  }
+}

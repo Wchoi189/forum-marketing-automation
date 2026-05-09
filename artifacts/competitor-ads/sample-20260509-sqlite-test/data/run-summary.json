@@ -1,0 +1,15 @@
+{
+  "run_id": "sample-20260509-sqlite-test",
+  "started_at": "2026-05-09T13:45:16.853Z",
+  "finished_at": "2026-05-09T13:45:21.099Z",
+  "total_posts": 2,
+  "success_count": 2,
+  "failure_count": 0,
+  "skipped_count": 0,
+  "records_written": 2,
+  "artifact_dir": "/parent/marketing-automation/artifacts/competitor-ads/sample-20260509-sqlite-test",
+  "output_path": "/parent/marketing-automation/artifacts/competitor-ads/sample-20260509-sqlite-test/data/records.jsonl.gz",
+  "db_total_records": 2,
+  "db_distinct_vendors": 2,
+  "errors": []
+}

@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contract_id": "competitor-ads-intel-contract-v1",
+  "purpose": "Define the structured data contract for manual competitor ad extraction runs and records.",
+  "design_intent": "Keep the schema compact, evidence-linked, and stable across vendors so extraction is auditable and comparable.",
+  "change_impact": "Introduces a new data contract for ad intelligence records and run summaries.",
+  "definitions": {
+    "adProduct": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "plan_tier": { "type": "string" },
+        "duration_months": { "type": "integer", "minimum": 1 },
+        "price_krw": { "type": "integer", "minimum": 0 },
+        "price_per_month_krw": { "type": "integer", "minimum": 0 },
+        "constraints": { "type": "string" }
+      }
+    },
+    "adTerms": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "payment_method": { "type": "string" },
+        "delivery_method": { "type": "string" },
+        "refund_policy": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    },
+    "adEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sources"],
+      "properties": {
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/evidenceSource" }
+        },
+        "field_evidence": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/evidenceSource" }
+          }
+        }
+      }
+    },
+    "evidenceSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "excerpt"],
+      "properties": {
+        "type": { "type": "string", "enum": ["html", "ocr", "vlm"] },
+        "excerpt": { "type": "string", "minLength": 1 },
+        "image_ref": { "type": "string" },
+        "source_block": { "type": "string" }
+      }
+    },
+    "competitorAdRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_id",
+        "run_id",
+        "vendor",
+        "post_url",
+        "post_title",
+        "posted_at",
+        "captured_at",
+        "products",
+        "evidence"
+      ],
+      "properties": {
+        "record_id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "vendor": { "type": "string" },
+        "post_url": { "type": "string", "format": "uri" },
+        "post_title": { "type": "string" },
+        "posted_at": { "type": "string", "format": "date-time" },
+        "posted_at_raw": { "type": "string" },
+        "captured_at": { "type": "string", "format": "date-time" },
+        "products": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/adProduct" }
+        },
+        "terms": { "$ref": "#/definitions/adTerms" },
+        "account_type": { "type": "string" },
+        "region": { "type": "string" },
+        "bundle": { "type": "string" },
+        "promo": { "type": "string" },
+        "conditions": { "type": "string" },
+        "contact": { "type": "string" },
+        "notes": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "extraction_source": {
+          "type": "string",
+          "enum": ["html", "ocr", "vlm", "mixed"]
+        },
+        "evidence": { "$ref": "#/definitions/adEvidence" }
+      }
+    },
+    "competitorAdRecordArray": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/competitorAdRecord" }
+    },
+    "collectionRunInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vendor_list", "post_urls", "run_id"],
+      "properties": {
+        "vendor_list": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "post_urls": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" }
+        },
+        "run_id": { "type": "string", "minLength": 1 },
+        "rate_limit_rps": { "type": "number", "minimum": 0.1, "maximum": 5 }
+      }
+    },
+    "collectionRunError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["post_url", "reason"],
+      "properties": {
+        "post_url": { "type": "string", "format": "uri" },
+        "reason": { "type": "string" },
+        "artifact_ref": { "type": "string" }
+      }
+    },
+    "collectionRunResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "started_at",
+        "finished_at",
+        "total_posts",
+        "success_count",
+        "failure_count",
+        "records_written",
+        "artifact_dir",
+        "output_path"
+      ],
+      "properties": {
+        "run_id": { "type": "string", "minLength": 1 },
+        "started_at": { "type": "string", "format": "date-time" },
+        "finished_at": { "type": "string", "format": "date-time" },
+        "total_posts": { "type": "integer", "minimum": 0 },
+        "success_count": { "type": "integer", "minimum": 0 },
+        "failure_count": { "type": "integer", "minimum": 0 },
+        "skipped_count": { "type": "integer", "minimum": 0 },
+        "records_written": { "type": "integer", "minimum": 0 },
+        "artifact_dir": { "type": "string" },
+        "output_path": { "type": "string" },
+        "errors": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/collectionRunError" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "plan_id": "competitor-ads-intel-plan-v1",
+  "purpose": "Plan the manual competitor ads intelligence collection workflow from intake to audited dataset output.",
+  "design_intent": "Keep planning artifacts small, deterministic, and aligned to the manual-only scope while preserving auditability and evidence capture.",
+  "change_impact": "Introduces a new planning slice for competitor ad extraction without changing runtime automation.",
+  "problem_statement": "Competitor ad details are scattered across text and image posts, making manual analysis slow and non-repeatable without a structured extraction workflow.",
+  "goals": [
+    "Define a stable schema for competitor ad records",
+    "Document a manual, fail-closed extraction pipeline",
+    "Preserve evidence artifacts for audit and debugging",
+    "Enable low-volume, polite scraping that avoids detection"
+  ],
+  "non_goals": [
+    "Autonomous or scheduled scraping",
+    "Dashboard implementation",
+    "Integration with scheduler or publisher flows",
+    "Automated notification or alerting"
+  ],
+  "work_items": [
+    {
+      "id": "P-001",
+      "name": "Finalize planning spec and data contract",
+      "status": "done",
+      "actions": [
+        "Create spec in .planning/spec-kit/specs",
+        "Create data contract in .planning/spec-kit/specs",
+        "Lock schema: remove redundant pricing object, move terms to optional, require evidence"
+      ],
+      "acceptance": [
+        "Spec includes purpose/design_intent/change_impact",
+        "Contract defines record and run schemas with locked required/optional boundaries"
+      ]
+    },
+    {
+      "id": "P-002",
+      "name": "Define vendor and post intake list",
+      "status": "done",
+      "actions": [
+        "Decide vendor list source: manual curation by operators",
+        "Define post URL intake format: CSV with columns vendor_id, post_url, notes_override"
+      ],
+      "acceptance": [
+        "Vendor list and post URL list format documented as a flat CSV structure"
+      ]
+    },
+    {
+      "id": "P-003",
+      "name": "Design HTML extraction path",
+      "status": "done",
+      "actions": [
+        "Reuse lib/parser DOM projection (page_outline + subtree) for text extraction",
+        "Define selector discovery using page_outline on sample posts",
+        "Define HTML evidence capture (raw HTML + node path excerpts)"
+      ],
+      "acceptance": [
+        "HTML extraction strategy documented",
+        "Evidence excerpts recorded for text ads",
+        "Fallback path defined when parser confidence is low"
+      ]
+    },
+    {
+      "id": "P-004",
+      "name": "Define OCR and VLM fallback",
+      "status": "done",
+      "actions": [
+        "Set OCR confidence thresholds (accept >=0.85, VLM trigger <0.75)",
+        "Define VLM schema-constrained prompt output",
+        "Define OCR/VLM evidence retention and rejection rules",
+        "Document runtime config (endpoint, timeouts, retries, max image size)"
+      ],
+      "acceptance": [
+        "OCR/VLM routing rules documented",
+        "Evidence retention policy defined",
+        "VLM rejection rules documented",
+        "Runtime config fields documented"
+      ]
+    },
+    {
+      "id": "P-005",
+      "name": "Define storage and artifact layout",
+      "status": "done",
+      "actions": [
+        "Choose primary output format (JSONL + gzip)",
+        "Define artifact folder structure",
+        "Define explicit path patterns for data and artifacts"
+      ],
+      "acceptance": [
+        "Output format and partitioning documented",
+        "Artifact retention path documented",
+        "Path patterns documented for data and evidence"
+      ]
+    },
+    {
+      "id": "P-006",
+      "name": "Plan manual trigger entry point",
+      "status": "done",
+      "actions": [
+        "Choose CLI-first trigger with optional API wrapper",
+        "Define idempotency and failure behavior",
+        "Include rate_limit_rps in manual inputs"
+      ],
+      "acceptance": [
+        "Manual trigger contract documented",
+        "Fail-closed handling documented",
+        "CLI preferred path is explicit"
+      ]
+    },
+    {
+      "id": "P-007",
+      "name": "Define validation checklist",
+      "status": "done",
+      "actions": [
+        "Document a dry-run sampling checklist",
+        "Define acceptance sampling size",
+        "Define minimum coverage requirements (text and image ads)"
+      ],
+      "acceptance": [
+        "Checklist stored in planning artifacts",
+        "Sampling plan documented with coverage rules"
+      ]
+    }
+  ],
+  "acceptance": [
+    "Spec and contract are stored under .planning/spec-kit/specs",
+    "Manual pipeline scope and artifacts are documented",
+    "Planning remains manual-only and non-automated"
+  ],
+  "references": {
+    "spec": "../specs/ppomppu-ott-competitor-ads-intel-v1.json",
+    "data_contract": "../specs/ppomppu-ott-competitor-ads-intel.contract.json",
+    "execution_loop_plan": "execution-loop.plan.json",
+    "ollama_model_catalog_ref": "../reference/agent-infra-ollama.md"
+  }
+}

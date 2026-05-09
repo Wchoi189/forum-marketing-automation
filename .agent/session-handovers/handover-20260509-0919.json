@@ -1,0 +1,107 @@
+{
+  "handover_id": "handover-20260509-0919",
+  "timestamp_utc": "2026-05-09T09:19:18Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "github-copilot",
+  "target_agent": "github-copilot",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-ott-competitor-ads-intel-v1",
+  "phase": "implementation",
+  "objective": "Deliver manual competitor ads intelligence CLI with deterministic parser + OCR/VLM fallback, and validate with a sample run.",
+  "non_goals": [
+    "No automated scheduling or background publishing",
+    "No production rollout changes",
+    "No weakening of fail-closed evidence requirements"
+  ],
+  "current_state": {
+    "completed": [
+      "Deterministic Cheerio parser implemented in lib/competitor-ad-parser (parsePpomppuPost).",
+      "CLI script scripts/competitor-ads-intel.ts uses deterministic parse and falls back to OCR/VLM when confidence < 0.9 or products missing.",
+      "OCR/VLM env vars added and wired (OLLAMA_* + defaults in config/env.ts and runtime validation).",
+      "Docs and samples updated (README, CLAUDE, examples/competitor-ads-intel.sample.csv)."
+    ],
+    "gaps": [
+      "Sample run still failing with Playwright errors: 'Target page, context or browser has been closed'.",
+      "Need to re-run sample pipeline and confirm JSONL output + run-summary success.",
+      "Validate OCR/VLM stability (Ollama) if fallback path is used."
+    ]
+  },
+  "status": "in_progress",
+  "decisions_locked": [
+    "Ollama endpoint default: http://ollama:11434 (Docker DNS).",
+    "Fallback model: qwen2.5vl:3b when primary model fails.",
+    "Fail-closed: missing products or evidence must throw error.",
+    "Manual-only competitor ads intel pipeline."
+  ],
+  "acceptance_criteria": [
+    "CLI run outputs artifacts/competitor-ads/<run_id>/data/records.jsonl.gz and run-summary.json.",
+    "Each record includes products, posted_at, and non-empty evidence sources.",
+    "Failures log per-post errors under artifacts/competitor-ads/<run_id>/logs/*.json.",
+    "Deterministic parser is used first; OCR/VLM is fallback only."
+  ],
+  "implementation_plan": [
+    "Re-run sample CLI with examples/competitor-ads-intel.sample.csv.",
+    "If Playwright 'page closed' errors persist, audit processPostWithRetry + closeQuietly flow for premature closure.",
+    "Verify deterministic parse output (products, posted_at, vendor) meets evidence requirements.",
+    "Update docs or error handling only if new findings require changes."
+  ],
+  "practical_recommendations": [
+    "Start the next session with npm run mempalace:wake-up and confirm mempalace_status.",
+    "Run: npm run competitor-ads:intel -- --input-csv examples/competitor-ads-intel.sample.csv --run-id sample-YYYYMMDD --rate-limit-rps 1.",
+    "Inspect artifacts/competitor-ads/<run_id>/logs/*.json for errors and raw_html for parser debugging.",
+    "If Ollama errors reappear, lower concurrency and verify image format (JPEG) and size caps."
+  ],
+  "completed_items": [
+    "Created scripts/competitor-ads-intel.ts CLI pipeline with deterministic parse + OCR/VLM fallback.",
+    "Added lib/competitor-ad-parser (parsePpomppuPost) and exported types.",
+    "Updated env parsing/validation and spec-kit schema/contract for OLLAMA_* vars.",
+    "Expanded README and CLAUDE.md with competitor ads intel docs.",
+    "Added examples/competitor-ads-intel.sample.csv."
+  ],
+  "pending_items": [
+    "Re-run sample extraction and confirm successful records output.",
+    "Resolve Playwright 'Target page, context or browser has been closed' errors from sample run.",
+    "Validate OCR/VLM fallback behavior with Ollama if deterministic parse is insufficient."
+  ],
+  "decisions": [
+    "Prefer deterministic HTML parsing (Cheerio) and use OCR/VLM only when confidence is low.",
+    "Keep evidence sources non-empty and fail the run if evidence is missing.",
+    "Use JPEG screenshots for OCR/VLM to avoid format errors."
+  ],
+  "constraints": [
+    "Manual execution only; no automated scheduler for competitor intel.",
+    "Do not log secrets or credentials.",
+    "Publisher/observer systems must remain fail-closed for missing evidence." 
+  ],
+  "env_requirements": [
+    "OLLAMA_ENDPOINT=http://ollama:11434",
+    "OLLAMA_OCR_MODEL=qwen2.5vl:7b (fallback qwen2.5vl:3b)",
+    "OLLAMA_REQUEST_TIMEOUT_MS (default 20000)",
+    "OLLAMA_MAX_RETRIES (default 2)",
+    "OLLAMA_MAX_IMAGE_MEGAPIXELS (default 6)",
+    "OLLAMA_CONCURRENCY_MAX (default 2)",
+    "BROWSER_HEADLESS (default true)"
+  ],
+  "next_actions": [
+    "Run mempalace wake-up and check status at session start.",
+    "Re-run sample CLI and review artifacts for errors.",
+    "Fix Playwright lifetime issues if page closed errors persist."
+  ],
+  "artifacts_touched": [
+    "scripts/competitor-ads-intel.ts",
+    "lib/competitor-ad-parser/index.ts",
+    "lib/competitor-ad-parser/ppomppu-parser.ts",
+    "config/env.ts",
+    "config/runtime-validation.ts",
+    ".agent/contracts/env.contract.json",
+    ".planning/spec-kit/manifest/schemas/env.schema.json",
+    ".planning/spec-kit/specs/ppomppu-ott-competitor-ads-intel-v1.json",
+    ".planning/spec-kit/plans/competitor-ads-intel.plan.json",
+    ".planning/spec-kit/reference/agent-infra-ollama.md",
+    "README.md",
+    "CLAUDE.md",
+    "package.json",
+    "examples/competitor-ads-intel.sample.csv",
+    "artifacts/competitor-ads/sample-2026-05-09/"
+  ]
+}

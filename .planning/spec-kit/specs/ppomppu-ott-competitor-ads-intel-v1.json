@@ -1,0 +1,358 @@
+{
+  "spec_id": "ppomppu-ott-competitor-ads-intel-v1",
+  "title": "Ppomppu OTT Competitor Ads Intelligence (Manual Collection)",
+  "status": "implemented",
+  "implemented_at": "2026-05-09",
+  "purpose": "Define a manual, one-time-per-post collection workflow that extracts competitor ad details from Ppomppu OTT board posts into a structured dataset with audit artifacts.",
+  "design_intent": "Prefer deterministic, low-volume scraping and extraction with strong evidence retention. Use HTML parsing for text ads first, then OCR and VLM only when needed. Keep the pipeline manual and fail-closed on ambiguous extraction.",
+  "change_impact": "Adds a new manual collection module and data schema. No changes to scheduler, publisher, or existing observer behavior.",
+
+  "references": {
+    "board_url": "https://www.ppomppu.co.kr/zboard/zboard.php?id=gonggu",
+    "execution_loop_contract": "execution-loop.contract.json",
+    "module_boundaries": "module-boundaries.json",
+    "ai_design_guidelines": "ai-design-guidelines.json",
+    "data_contract_ref": "ppomppu-ott-competitor-ads-intel.contract.json",
+    "planning_plan_ref": "../plans/competitor-ads-intel.plan.json",
+    "ollama_model_catalog_ref": "../reference/agent-infra-ollama.md"
+  },
+
+  "scope": {
+    "in": [
+      "Manual trigger only (CLI or internal API)",
+      "One-time extraction per vendor post",
+      "HTML text parsing for text-based ads",
+      "Image pipeline for embedded ad images (OCR first, VLM fallback)",
+      "Structured output table + raw evidence retention",
+      "Vendor-driven crawl input list"
+    ],
+    "out": [
+      "Autonomous or scheduled scraping",
+      "Auto-posting or auto-response",
+      "Real-time monitoring or alerting",
+      "Login-required flows",
+      "Dashboard implementation"
+    ]
+  },
+
+  "assumptions": [
+    "Approx. 20 unique vendors, one-time per vendor post",
+    "Korean-language content only",
+    "Local GPU available (RTX 24GB VRAM, 64 GB RAM)",
+    "OCR and VLM models are available in a local Docker container (model list provided later)",
+    "Rate limits should be conservative to avoid triggering site defenses"
+  ],
+
+  "constraints": {
+    "execution_mode": "manual_only",
+    "polite_rate_limit": {
+      "requests_per_second_max": 1,
+      "concurrency_max": 2,
+      "jitter_ms": "100-400"
+    },
+    "language": "ko",
+    "one_time_per_post": true,
+    "no_secrets_in_specs": true
+  },
+
+  "entry_points": [
+    {
+      "id": "manual_cli",
+      "intent": "Run a bounded collection job for a vendor list and a post URL list.",
+      "idempotency": "Skip posts already recorded in the output dataset.",
+      "failure_policy": "Fail-closed on extraction errors; record error artifact and continue to next post.",
+      "inputs": ["vendor_list", "post_urls", "run_id", "rate_limit_rps"],
+      "preferred": true
+    },
+    {
+      "id": "manual_api",
+      "intent": "Optional internal endpoint to run the same job from the UI or a script.",
+      "idempotency": "Same as CLI.",
+      "failure_policy": "Same as CLI.",
+      "inputs": ["vendor_list", "post_urls", "run_id", "rate_limit_rps"],
+      "preferred": false
+    }
+  ],
+
+  "pipeline": [
+    {
+      "step": "discover_posts",
+      "inputs": ["vendor_list", "board_url"],
+      "outputs": ["post_urls"],
+      "notes": "Manual list is the source of truth; discovery only supplements if needed."
+    },
+    {
+      "step": "fetch_html",
+      "inputs": ["post_url"],
+      "outputs": ["html"],
+      "notes": "Use a stable fetcher (Playwright or HTTP) based on site behavior."
+    },
+    {
+      "step": "extract_text",
+      "inputs": ["html"],
+      "outputs": ["text_blocks", "image_urls"],
+      "notes": "Reuse the existing HTML parser for text-based ads when possible."
+    },
+    {
+      "step": "ocr_images",
+      "inputs": ["image_urls"],
+      "outputs": ["ocr_text"],
+      "notes": "Run OCR first for speed and determinism."
+    },
+    {
+      "step": "vlm_parse",
+      "inputs": ["ocr_text", "image_urls"],
+      "outputs": ["structured_fields"],
+      "notes": "Fallback to VLM when OCR confidence is low or layout is complex."
+    },
+    {
+      "step": "normalize",
+      "inputs": ["text_blocks", "structured_fields"],
+      "outputs": ["normalized_record"],
+      "notes": "Normalize to a stable schema and attach confidence + evidence links."
+    },
+    {
+      "step": "persist",
+      "inputs": ["normalized_record", "artifacts"],
+      "outputs": ["dataset_entry", "artifact_bundle"],
+      "notes": "Write structured data and retain raw evidence for auditing."
+    }
+  ],
+
+  "html_extraction": {
+    "primary_method": "Playwright fetch + DOM projection (lib/parser/subtree)",
+    "selector_strategy": {
+      "discovery": "Use parser page_outline on sample posts to identify a stable post-content container.",
+      "allowlist_policy": "Persist a small allowlist of selectors; fall back to body when none match."
+    },
+    "text_block_rules": {
+      "source": "ProjectedNode.text and ProjectedNode.name",
+      "min_length": 2,
+      "max_excerpt_len": 160
+    },
+    "image_url_rules": {
+      "source": "img[src] within the selected content container",
+      "normalization": "Resolve relative URLs against the page URL"
+    },
+    "evidence_capture": {
+      "raw_html": "Persist full post HTML for audit and repro",
+      "source_blocks": "Store node path + excerpt as evidence.sources(type=html)",
+      "selector_used": "Record selector choice in normalization logs"
+    },
+    "fallback": "If no text blocks or parser confidence < 0.6, capture a screenshot and route to OCR/VLM."
+  },
+
+  "ocr_vlm_fallback": {
+    "runtime_config": {
+      "endpoint": "http://ollama:11434",
+      "endpoint_env_override": "OLLAMA_ENDPOINT",
+      "request_timeout_ms": 60000,
+      "request_timeout_env_override": "OLLAMA_REQUEST_TIMEOUT_MS",
+      "max_retries": 2,
+      "max_retries_env_override": "OLLAMA_MAX_RETRIES",
+      "max_image_megapixels": 8,
+      "max_image_megapixels_env_override": "OLLAMA_MAX_IMAGE_MEGAPIXELS",
+      "concurrency_max": 2,
+      "concurrency_env_override": "OLLAMA_CONCURRENCY_MAX"
+    },
+    "primary_ocr": {
+      "model_catalog_ref": "../reference/agent-infra-ollama.md",
+      "model": "qwen2.5vl:7b",
+      "model_env_override": "OLLAMA_OCR_MODEL",
+      "fallback_models": ["qwen2.5vl:3b"],
+      "confidence_accept_min": 0.85,
+      "confidence_vlm_trigger": 0.75
+    },
+    "vlm_parser": {
+      "role": "schema-constrained parser",
+      "input": ["image", "ocr_text"],
+      "output_format": "json_object",
+      "rejection_rules": ["missing products", "missing product name"],
+      "consistency_checks": [
+        "prefer OCR numeric tokens unless VLM explicitly confirms",
+        "do not fabricate price_krw when OCR shows no price tokens"
+      ]
+    },
+    "evidence_capture": {
+      "ocr_text": "Persist full OCR text per image",
+      "vlm_output": "Persist raw JSON output",
+      "field_evidence": "Map fields to evidence sources with image_ref when relevant"
+    }
+  },
+
+  "extraction_policy": {
+    "text_first": true,
+    "image_pipeline": {
+      "ocr_first": true,
+      "vlm_fallback": true,
+      "vlm_role": "schema-constrained parser, not free-form summarizer",
+      "confidence_gate": "Use VLM when OCR confidence < 0.75 or required fields missing."
+    },
+    "schema_validation": "Strict schema validation for required fields; unknown fields stored as notes.",
+    "language": "ko",
+    "evidence_requirement": "Each structured field must link to text evidence (HTML or OCR/VLM excerpt)."
+  },
+
+  "validation": {
+    "sampling_plan": {
+      "sample_size": "min(10, max(5, ceil(total_posts * 0.2)))",
+      "coverage_requirements": [
+        "At least 1 text-only ad",
+        "At least 1 image-based ad",
+        "At least 2 distinct vendors"
+      ]
+    },
+    "checklist": [
+      "Each sampled record has required fields populated",
+      "Each sampled record has evidence.sources with at least one excerpt",
+      "Product name and price_krw match source evidence",
+      "posted_at is ISO format; posted_at_raw captured when source is non-ISO",
+      "OCR/VLM outputs stored for image-based ads",
+      "Record marked failed when evidence is missing"
+    ],
+    "acceptance": {
+      "critical_field_accuracy_min": 0.9,
+      "evidence_link_coverage_min": 1.0,
+      "fail_closed_enforced": true
+    }
+  },
+
+  "data_model": {
+    "record_id": "string (hash of post_url + vendor)",
+    "required_fields": [
+      "record_id",
+      "run_id",
+      "vendor",
+      "post_url",
+      "post_title",
+      "posted_at",
+      "captured_at",
+      "products",
+      "evidence"
+    ],
+    "optional_fields": [
+      "account_type",
+      "region",
+      "bundle",
+      "promo",
+      "conditions",
+      "terms",
+      "contact",
+      "notes",
+      "confidence",
+      "extraction_source",
+      "posted_at_raw"
+    ],
+    "products": [
+      {
+        "name": "string",
+        "plan_tier": "string",
+        "duration_months": "number",
+        "price_krw": "number",
+        "price_per_month_krw": "number",
+        "constraints": "string"
+      }
+    ],
+    "terms": {
+      "payment_method": "string",
+      "delivery_method": "string",
+      "refund_policy": "string"
+    },
+    "evidence": {
+      "sources": [
+        {
+          "type": "html | ocr | vlm",
+          "excerpt": "string",
+          "image_ref": "string?",
+          "source_block": "string?"
+        }
+      ],
+      "field_evidence": "optional map of field -> evidence sources"
+    }
+  },
+
+  "storage": {
+    "structured_output": {
+      "primary_format": "jsonl",
+      "compression": "gzip",
+      "partitioning": "by run_id and vendor",
+      "parquet_export": "optional for EDA",
+      "path_pattern": "artifacts/competitor-ads/<run_id>/data/records.jsonl.gz",
+      "manifest_path": "artifacts/competitor-ads/<run_id>/data/run-summary.json"
+    },
+    "artifact_bundle": {
+      "path": "artifacts/competitor-ads/<run_id>/",
+      "retain": true,
+      "includes": ["raw_html", "images", "ocr_text", "vlm_output", "normalization_logs"],
+      "layout": {
+        "raw_html": "artifacts/competitor-ads/<run_id>/raw_html/<post_id>.html",
+        "images": "artifacts/competitor-ads/<run_id>/images/<post_id>/<image_id>.<ext>",
+        "ocr_text": "artifacts/competitor-ads/<run_id>/ocr/<post_id>/<image_id>.txt",
+        "vlm_output": "artifacts/competitor-ads/<run_id>/vlm/<post_id>/<image_id>.json",
+        "normalization_logs": "artifacts/competitor-ads/<run_id>/logs/<post_id>.json"
+      }
+    }
+  },
+
+  "resource_budget": {
+    "volume_estimate": {
+      "vendors": 20,
+      "posts_per_vendor": 1,
+      "images_per_post": "0-2"
+    },
+    "network": "100-300 MB per run",
+    "cpu": "OCR-only: 2-5 minutes per run",
+    "gpu": "VLM fallback: 5-15 minutes per run",
+    "storage": "0.5-2 GB per run with artifacts"
+  },
+
+  "open_source_foundation_candidates": [
+    {
+      "name": "Playwright",
+      "role": "Stable fetch and image capture when HTML requires JS.",
+      "reason": "Already used in repo; consistent tooling."
+    },
+    {
+      "name": "Trafilatura or Readability",
+      "role": "HTML to clean text blocks.",
+      "reason": "High signal extraction for forum HTML."
+    },
+    {
+      "name": "Ollama + Qwen2.5-VL",
+      "role": "OCR and VLM parsing for embedded ad images.",
+      "reason": "Local inference with schema-constrained parsing and OCR extraction."
+    }
+  ],
+
+  "risk_register": [
+    {
+      "id": "R-001",
+      "risk": "OCR or VLM hallucination introduces incorrect pricing.",
+      "mitigation": "Require evidence excerpts per field; fail-closed when missing evidence."
+    },
+    {
+      "id": "R-002",
+      "risk": "Forum HTML changes break parsers.",
+      "mitigation": "Fallback to screenshot + OCR pipeline; retain raw HTML for repro."
+    },
+    {
+      "id": "R-003",
+      "risk": "Rate limiting triggers blocking.",
+      "mitigation": "Polite throttling, low concurrency, manual-only runs."
+    },
+    {
+      "id": "R-004",
+      "risk": "Schema drift or missing fields across vendors.",
+      "mitigation": "Allow optional fields and store raw notes; keep core required fields minimal."
+    }
+  ],
+
+  "acceptance_criteria": [
+    "Manual run can process a vendor list with idempotent skips for already-seen posts",
+    "Text-based ads parse into structured fields without OCR",
+    "Image-based ads extract at least product and price with evidence links",
+    "Artifacts are retained for every processed post",
+    "Structured output is written as compressed JSONL with run_id partitioning",
+    "No scheduler or publisher behavior is modified"
+  ]
+}

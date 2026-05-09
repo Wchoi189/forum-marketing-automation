@@ -15,6 +15,7 @@
     "kakao:ingest": "tsx scripts/kakao-ingest.ts",
     "kakao:annotate": "tsx scripts/kakao-annotate.ts",
     "kakao:kb-export": "tsx scripts/kakao-kb-export.ts",
+    "competitor-ads:intel": "tsx scripts/competitor-ads-intel.ts",
     "mempalace:seed": "bash scripts/mempalace-loop.sh seed",
     "mempalace:wake-up": "bash scripts/mempalace-loop.sh wake-up",
     "mempalace:checkpoint": "bash scripts/mempalace-loop.sh checkpoint",
@@ -44,6 +45,8 @@
     "@xyflow/react": "^12.10.2",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
+    "better-sqlite3": "^12.9.0",
+    "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
@@ -64,6 +67,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",

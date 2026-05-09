@@ -1,0 +1,27 @@
+{
+  "raw": "```json\n{\n  \"products\": [\n    {\n      \"name\": \"PPOMPPU\",\n      \"plan_tier\": \"Basic\",\n      \"duration_months\": 12,\n      \"price_krw\": 120000,\n      \"price_per_month_krw\": 10000\n    }\n  ],\n  \"terms\": {\n    \"payment_method\": \"Credit Card\",\n    \"delivery_method\": \"Instant\",\n    \"refund_policy\": \"No Refunds\",\n    \"notes\": \"No additional fees\"\n  },\n  \"account_type\": \"Individual\",\n  \"region\": \"Korea\",\n  \"bundle\": \"Standard\",\n  \"promo\": \"No\",\n  \"conditions\": \"No\",\n  \"contact\": \"support@ppomppu.com\",\n  \"notes\": \"No\"\n}\n```",
+  "parsed": {
+    "products": [
+      {
+        "name": "PPOMPPU",
+        "plan_tier": "Basic",
+        "duration_months": 12,
+        "price_krw": 120000,
+        "price_per_month_krw": 10000
+      }
+    ],
+    "terms": {
+      "payment_method": "Credit Card",
+      "delivery_method": "Instant",
+      "refund_policy": "No Refunds",
+      "notes": "No additional fees"
+    },
+    "account_type": "Individual",
+    "region": "Korea",
+    "bundle": "Standard",
+    "promo": "No",
+    "conditions": "No",
+    "contact": "support@ppomppu.com",
+    "notes": "No"
+  }
+}

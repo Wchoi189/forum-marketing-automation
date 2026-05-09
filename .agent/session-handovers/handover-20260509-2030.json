@@ -1,0 +1,116 @@
+{
+  "handover_id": "handover-20260509-2030",
+  "timestamp_utc": "2026-05-09T20:30:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "claude-code",
+  "target_agent": "claude-code",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-ott-competitor-ads-intel-v1",
+  "phase": "implementation",
+  "objective": "Fix Playwright hangs, add image content filtering, re-run sample CLI to validate.",
+  "non_goals": [
+    "No automated scheduling or background publishing",
+    "No production rollout changes",
+    "No weakening of fail-closed evidence requirements"
+  ],
+  "current_state": {
+    "completed": [
+      "Deterministic Cheerio parser (lib/competitor-ad-parser) already implemented.",
+      "Browser close-early: Browser closes after collectImages, before OCR/VLM loop (prevents idle crash during long Ollama calls).",
+      "Image content filtering: isUserContentImage() path filter (zboard/data only) + isImageLargeEnough() size filter (>=100px, JPEG header parse).",
+      "Content selector specificity: chooseContentSelector now picks first specific selector (td.board-contents) instead of sorting by text length which caused body to win.",
+      "Per-image error isolation: try/catch around each image's OCR/VLM in the loop so one failure doesn't kill the entire post or trigger full retries.",
+      "Progress logging: Every step logs (navigation, parsing, selector, images, OCR, VLM).",
+      "Ollama defaults: timeout 30s (was 60s), retries 1 (was 2) in config/env.ts.",
+      "collectImages: .catch() guards on count() and getAttribute(), MAX_IMAGES=20 cap, 60s screenshot timeout.",
+      "Browser close flag: browserClosed boolean prevents double-close in finally block."
+    ],
+    "gaps": [
+      "Sample CLI has NOT been run successfully yet with all fixes applied.",
+      "Post 501129d1c17f has NO user content images (0 zboard/data images). It will fall back to fullPage screenshot. Need to verify this path works or decide if it should be treated as 'no images' gracefully.",
+      "Post 8b04be29c969 has 4 user content images after filter. This should work.",
+      "run-summary.json has never been written (all prior runs were killed/timed out)."
+    ]
+  },
+  "status": "ready_for_test",
+  "decisions_locked": [
+    "Ollama endpoint default: http://ollama:11434 (Docker DNS).",
+    "Fallback model: qwen2.5vl:3b when primary (qwen2.5vl:7b) fails.",
+    "Fail-closed: missing products or evidence must throw error.",
+    "Manual-only competitor ads intel pipeline.",
+    "Image filter: path-based (zboard/data) + size heuristic (>=100px, JPEG header parse).",
+    "Content selector: specific selectors preferred over body, regardless of text length.",
+    "Per-image try/catch: single image failure logs warning, continues with remaining images."
+  ],
+  "acceptance_criteria": [
+    "CLI run outputs artifacts/competitor-ads/<run_id>/data/records.jsonl.gz and run-summary.json.",
+    "Each record includes products, posted_at, and non-empty evidence sources.",
+    "Deterministic parser is used first; OCR/VLM is fallback only.",
+    "No hangs or indefinite waits — all Playwright calls have timeouts.",
+    "Post with 0 user images either uses deterministic parse or fullPage fallback."
+  ],
+  "implementation_plan": [
+    "Run: npm run competitor-ads:intel -- --input-csv examples/competitor-ads-intel.sample.csv --run-id sample-20260509-v7 --rate-limit-rps 1",
+    "If post 501129d1c17f fails (0 user images), check if deterministic parse is sufficient or if fullPage screenshot fallback path needs debugging.",
+    "Verify artifacts/competitor-ads/<run_id>/data/records.jsonl.gz has valid records.",
+    "Verify run-summary.json shows success_count.",
+    "Inspect artifacts/competitor-ads/<run_id>/logs/*.json for any per-post errors."
+  ],
+  "practical_recommendations": [
+    "Start with npm run competitor-ads:intel -- --input-csv examples/competitor-ads-intel.sample.csv --run-id sample-20260509-v7 --rate-limit-rps 1",
+    "Watch for: [postId] selector matched: div.JS_ContentMain td.board-contents (confirms selector fix)",
+    "Watch for: [postId] kept N user content images (confirms image filter)",
+    "If 501129d1c17f has 0 images and fails: the fullPage screenshot at line 758-761 should create a fallback image. Check if that path works.",
+    "If still hangs: check which step the last log message was at — it's the next operation to investigate.",
+    "Kill stuck processes: pkill -f competitor-ads-intel"
+  ],
+  "pending_items": [
+    "Run sample CLI and confirm successful records output.",
+    "Handle post 501129d1c17f (0 user content images) — either deterministic parse covers it or fullPage fallback needs fixing.",
+    "Write run-summary.json successfully."
+  ],
+  "decisions": [
+    "Prefer deterministic HTML parsing (Cheerio), use OCR/VLM only when confidence < 0.9 or products missing.",
+    "Keep evidence sources non-empty and fail the run if evidence is missing.",
+    "Use JPEG screenshots for OCR/VLM."
+  ],
+  "constraints": [
+    "Manual execution only; no automated scheduler for competitor intel.",
+    "Do not log secrets or credentials.",
+    "Publisher/observer systems must remain fail-closed for missing evidence."
+  ],
+  "env_requirements": [
+    "OLLAMA_ENDPOINT=http://ollama:11434",
+    "OLLAMA_OCR_MODEL=qwen2.5vl:7b (fallback qwen2.5vl:3b)",
+    "OLLAMA_REQUEST_TIMEOUT_MS (default 30000)",
+    "OLLAMA_MAX_RETRIES (default 1)",
+    "OLLAMA_MAX_IMAGE_MEGAPIXELS (default 8)",
+    "OLLAMA_CONCURRENCY_MAX (default 2)",
+    "BROWSER_HEADLESS (default true)"
+  ],
+  "next_actions": [
+    "Run sample CLI: npm run competitor-ads:intel -- --input-csv examples/competitor-ads-intel.sample.csv --run-id sample-20260509-v7 --rate-limit-rps 1",
+    "Monitor output for selector match, image count, OCR/VLM progress.",
+    "If 501129d1c17f fails with 0 images, investigate fullPage fallback path.",
+    "Verify artifacts and run-summary.json."
+  ],
+  "artifacts_touched": [
+    "scripts/competitor-ads-intel.ts",
+    "config/env.ts",
+    "artifacts/competitor-ads/sample-20260509-v2/ (previous failed run, stale)",
+    "artifacts/competitor-ads/sample-20260509-v4/ (previous failed run, stale)",
+    "artifacts/competitor-ads/sample-20260509-v5/ (previous failed run, stale)"
+  ],
+  "files_modified": [
+    "scripts/competitor-ads-intel.ts",
+    "config/env.ts"
+  ],
+  "key_code_changes": {
+    "chooseContentSelector": "Iterates selectors specific->generic, picks first with >20 chars text. Returns 'body' as last resort.",
+    "collectImages": "Filters by isUserContentImage(src) + isImageLargeEnough(buffer, 100). MAX_IMAGES=20.",
+    "isUserContentImage": "Returns true if src includes 'zboard/data' or starts with 'data:'",
+    "isImageLargeEnough": "JPEG header parse for SOF0 dimensions; fallback to buffer.length >= 2048.",
+    "processPostIsolated": "Browser closed after collectImages via closeQuietly + browserClosed flag. Per-image try/catch in OCR/VLM loop.",
+    "callOllamaGenerate": "Logs model name, attempt count, response length on every call."
+  }
+}
