@@ -64,13 +64,22 @@ export async function runPublisherPlaybook(
   page: Page,
   playbook: PublisherPlaybook,
   runtime: PlaybookRuntimeContext,
-  onStepStart?: (stepId: string) => void
+  onStepStart?: (stepId: string) => void,
+  onStepEnd?: (stepId: string) => Promise<void>
 ): Promise<void> {
   for (const step of playbook.steps) {
     onStepStart?.(step.step_id);
     if (step.action === "navigate") {
       const target = step.url ?? runtime.boardEntryUrl;
-      await page.goto(target, { waitUntil: "domcontentloaded" });
+      // Skip if we're already on the target URL (avoids redundant navigation that can
+      // trigger rate limits on the publisher's source server).
+      const currentUrl = page.url();
+      if (currentUrl === target || currentUrl.replace(/\/$/, "") === target.replace(/\/$/, "")) {
+        await onStepEnd?.(step.step_id);
+        continue;
+      }
+      await page.goto(target, { waitUntil: "domcontentloaded", timeout: 5000 });
+      await onStepEnd?.(step.step_id);
       continue;
     }
 
@@ -82,11 +91,13 @@ export async function runPublisherPlaybook(
       } catch {
         throw new Error(`[Playbook] ${step.step_id}: expected text not found: ${step.expected_text}`);
       }
+      await onStepEnd?.(step.step_id);
       continue;
     }
 
     if (step.step_id === "confirm-load-draft-modal") {
       await confirmLoadDraftFromModal(page, runtime, step.step_id);
+      await onStepEnd?.(step.step_id);
       continue;
     }
 
@@ -96,21 +107,34 @@ export async function runPublisherPlaybook(
     }
     const locator = resolvedVisible.locator;
     if (step.action === "click") {
-      await locator.click();
+      // Explicitly wait for actionability before clicking — ensures element is stable,
+      // not covered by overlays, and fully interactive.
+      await locator.waitFor({ state: "visible", timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS });
+      try {
+        await locator.click({ noWaitAfter: true, timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS });
+      } catch (clickErr) {
+        // Fallback: JS click via Playwright locator evaluation — handles Playwright-only
+        // selectors (e.g. :has-text()) that document.querySelector cannot parse.
+        await locator.evaluate((el) => (el as HTMLElement).click());
+      }
+      await onStepEnd?.(step.step_id);
       continue;
     }
     if (step.action === "change") {
-      await locator.fill(step.value ?? "");
+      await locator.fill(step.value ?? "", { noWaitAfter: true, timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS });
+      await onStepEnd?.(step.step_id);
       continue;
     }
     if (step.action === "select") {
-      await locator.selectOption({ label: step.value ?? "" });
+      await locator.selectOption({ label: step.value ?? "" }, { noWaitAfter: true, timeout: PLAYBOOK_LOCATOR_TIMEOUT_MS });
+      await onStepEnd?.(step.step_id);
       continue;
     }
     if (step.action === "submit") {
       // Do not wait for navigation here: bot.ts runs waitForPublishLandingUrl in parallel; waiting
       // in both places can block click() until nav-timeout (~30s) while the URL waiter fails first.
       await clickSubmitButton(locator);
+      await onStepEnd?.(step.step_id);
       continue;
     }
 

@@ -5,66 +5,22 @@
  */
 
 import * as fs from "node:fs";
+import { createHash } from "node:crypto";
 import * as cheerio from "cheerio";
 import { parsePpomppuPost } from "../lib/competitor-ad-parser/ppomppu-parser.js";
 import { cleanProductName, deduplicateProducts } from "../lib/competitor-ad-parser/product-name-utils.js";
 import { extractProductsFromText } from "../lib/competitor-intel/extraction/pipeline.js";
 import { runTextExtraction } from "../lib/competitor-intel/extraction/text-extraction.js";
-import { openDatabase, insertRecord } from "../lib/competitor-ad-sqlite.js";
-import type { EvidenceSource, AdProduct } from "../lib/competitor-intel/types.js";
+import { extractContentTextForLlm, productsLookJunk, extractLeafTextBlocks, computeCompletenessScore } from "../lib/competitor-intel/extraction/content-utils.js";
+import { openDatabase, insertRecord, upsertVendorProfile } from "../lib/competitor-ad-sqlite.js";
+import type { AdProduct } from "../lib/competitor-intel/types.js";
 
 const HTML_DIR =
   "/parent/marketing-automation/artifacts/competitor-ads/test-pipeline-1page-v2/raw_html";
 
-function productsLookJunk(products: Array<{ name: string; price_krw?: number }>): boolean {
-  if (products.length === 0) return false;
-  return products.filter((p) => {
-    if (p.name === "OTT 구독" || p.name === "구독") return true;
-    if (p.name.length <= 3 && /^\d+$/.test(p.name)) return true;
-    if (/변경|가능|문의|상담|해지|가입|완료/.test(p.name)) return true;
-    // Field labels that got paired with nearby prices (not actual product names)
-    if (/가[\s]?격|이용\s?기간|기\s?간|할인|쿠폰/.test(p.name)) return true;
-    if (p.price_krw === undefined && p.name.length < 15) return true;
-    return false;
-  }).length > products.length * 0.5;
-}
+const INCREMENTAL = process.argv.includes("--incremental");
 
-function extractContentTextForLlm(html: string): string {
-  const $ = cheerio.load(html);
-  const selectors = [
-    "div.JS_ContentMain td.board-contents",
-    "td.board-contents",
-    "div.JS_ContentMain",
-    "#bbsview",
-    "#bbsContents",
-    "#view",
-    "#viewContent",
-    "article",
-  ];
-  for (const selector of selectors) {
-    const el = $(selector);
-    if (el.length > 0) {
-      const text = el.text().replace(/\s+/g, " ").trim();
-      if (text.length > 50) return text;
-    }
-  }
-  return $("body").text().replace(/\s+/g, " ").trim();
-}
-
-function extractLeafTextBlocks($: cheerio.CheerioAPI, selector: string): EvidenceSource[] {
-  const sources: EvidenceSource[] = [];
-  $(selector).find("p, div, span, td, th, li, b, strong, em, h1, h2, h3").each((_i, el) => {
-    if ($(el).children().length === 0) {
-      const text = $(el).text().replace(/\s+/g, " ").trim().slice(0, 160);
-      if (text.length >= 2) {
-        sources.push({ type: "html", excerpt: text, source_block: el.tagName || "unknown" });
-      }
-    }
-  });
-  return sources;
-}
-
-async function extractFromFile(htmlPath: string, fileId: string): Promise<{
+type ExtractResult = {
   vendor: string;
   postTitle: string;
   postedAt: string;
@@ -72,13 +28,25 @@ async function extractFromFile(htmlPath: string, fileId: string): Promise<{
   confidence: number;
   extractionSource: string;
   products: AdProduct[];
-}> {
+  contentHash: string;
+};
+
+async function extractFromFile(
+  htmlPath: string,
+  fileId: string,
+  contentHashCache: Map<string, ExtractResult | null>,
+): Promise<ExtractResult | null> {
   const html = fs.readFileSync(htmlPath, "utf-8");
+  const contentHash = createHash("md5").update(html).digest("hex");
+
+  if (contentHashCache.has(contentHash)) {
+    return contentHashCache.get(contentHash) ?? null;
+  }
   const parsed = parsePpomppuPost(html, `https://www.ppomppu.co.kr/zboard/view.php?id=${fileId}`);
 
   // High-confidence Cheerio parse — skip LLM
   if (parsed.confidence >= 0.9 && parsed.products.length > 0) {
-    return {
+    const result: ExtractResult = {
       vendor: parsed.vendor || "(unknown)",
       postTitle: parsed.title || "(untitled)",
       postedAt: parsed.posted_at || "",
@@ -86,7 +54,10 @@ async function extractFromFile(htmlPath: string, fileId: string): Promise<{
       confidence: parsed.confidence,
       extractionSource: "html",
       products: parsed.products,
+      contentHash,
     };
+    contentHashCache.set(contentHash, result);
+    return result;
   }
 
   // LLM text extraction path
@@ -109,9 +80,7 @@ async function extractFromFile(htmlPath: string, fileId: string): Promise<{
   const htmlJunk = productsLookJunk(htmlProducts);
 
   // Quality score: fraction of products that have BOTH price AND duration
-  const completenessScore = (prods: Array<{ price_krw?: number; duration_months?: number }>): number =>
-    prods.length === 0 ? 0 : prods.filter((p) => p.price_krw !== undefined && p.duration_months !== undefined).length / prods.length;
-  const llmQualityWins = llmProducts.length > 0 && completenessScore(llmProducts) >= 0.9 && completenessScore(htmlProducts) < 0.7 && llmProducts.length >= htmlProducts.length * 0.5;
+  const llmQualityWins = llmProducts.length > 0 && computeCompletenessScore(llmProducts) >= 0.9 && computeCompletenessScore(htmlProducts) < 0.7 && llmProducts.length >= htmlProducts.length * 0.5;
   // Priority logic (same as request-handler.ts)
   const llmWins = llmProducts.length > 0 && (htmlProducts.length === 0 || htmlJunk || llmProducts.length >= htmlProducts.length || llmQualityWins);
   const useHtml = htmlProducts.length > 0 && !htmlJunk;
@@ -123,7 +92,7 @@ async function extractFromFile(htmlPath: string, fileId: string): Promise<{
     finalProducts.map((p) => ({ ...p, name: cleanProductName(p.name) }))
   ).filter((p) => p.name.length > 0);
 
-  return {
+  const result: ExtractResult = {
     vendor: parsed.vendor || "(unknown)",
     postTitle: parsed.title || "(untitled)",
     postedAt: parsed.posted_at || "",
@@ -131,33 +100,55 @@ async function extractFromFile(htmlPath: string, fileId: string): Promise<{
     confidence: extractionSource === "llm-text" ? 0.8 : extractionSource === "html" ? 0.7 : parsed.confidence,
     extractionSource,
     products: cleanedProducts,
+    contentHash,
   };
+
+  contentHashCache.set(contentHash, result);
+  return result;
 }
 
 // ── Main ──
 const db = openDatabase();
 
-// Clear old data — the old extraction produced junk, we want clean slate
-console.log("Clearing old records from database...");
-const oldCount = db.prepare("SELECT COUNT(*) as c FROM records").get() as { c: number };
-console.log(`  Removing ${oldCount.c} old records`);
-db.exec("DELETE FROM records");
-db.exec("DELETE FROM vendor_profiles");
+if (INCREMENTAL) {
+  console.log("Running in incremental mode — only processing new/changed files");
+} else {
+  // Clear old data — the old extraction produced junk, we want clean slate
+  console.log("Clearing old records from database...");
+  const oldCount = db.prepare("SELECT COUNT(*) as c FROM records").get() as { c: number };
+  console.log(`  Removing ${oldCount.c} old records`);
+  db.exec("DELETE FROM records");
+  db.exec("DELETE FROM vendor_profiles");
+}
 
 const htmlFiles = fs.readdirSync(HTML_DIR).filter((f) => f.endsWith(".html"));
 console.log(`\nProcessing ${htmlFiles.length} HTML files through hybrid extraction pipeline...`);
 
 const runId = `re-extract-${new Date().toISOString().slice(0, 10)}`;
+const contentHashCache = new Map<string, ExtractResult | null>();
+let cacheHits = 0;
 
 for (const file of htmlFiles) {
   const fileId = file.replace(".html", "");
   const htmlPath = `${HTML_DIR}/${file}`;
 
-  try {
-    const result = await extractFromFile(htmlPath, fileId);
+  // Incremental mode: skip if record exists with matching content hash
+  if (INCREMENTAL) {
+    const html = fs.readFileSync(htmlPath, "utf-8");
+    const contentHash = createHash("md5").update(html).digest("hex");
+    const existing = db.prepare("SELECT content_hash FROM records WHERE record_id = ?").get(fileId) as { content_hash?: string } | undefined;
+    if (existing && existing.content_hash === contentHash) {
+      console.log(`  SKIP ${fileId}: already in DB with matching content hash`);
+      continue;
+    }
+  }
 
-    if (result.products.length === 0) {
-      console.log(`  SKIP ${fileId}: no products extracted via ${result.extractionSource}`);
+  try {
+    const result = await extractFromFile(htmlPath, fileId, contentHashCache);
+
+    if (!result || result.products.length === 0) {
+      console.log(`  SKIP ${fileId}: no products extracted${result ? ` via ${result.extractionSource}` : ""}`);
+      if (!result) cacheHits++;
       continue;
     }
 
@@ -175,6 +166,15 @@ for (const file of htmlFiles) {
       extraction_source: result.extractionSource,
       account_type: result.accountType || undefined,
       confidence: result.confidence,
+      content_hash: result.contentHash,
+    });
+
+    // Rebuild vendor profile from the record
+    upsertVendorProfile(db, result.vendor, {
+      author_name: result.vendor || undefined,
+      post_url: `https://www.ppomppu.co.kr/zboard/view.php?id=${fileId}`,
+      posted_at: result.postedAt || undefined,
+      product_names: result.products.map((p) => p.name),
     });
 
     console.log(`  OK ${fileId}: ${result.vendor} — ${result.products.length} products via ${result.extractionSource}`);
@@ -186,6 +186,10 @@ for (const file of htmlFiles) {
   } catch (err) {
     console.log(`  FAIL ${fileId}: ${err instanceof Error ? err.message : String(err)}`);
   }
+}
+
+if (cacheHits > 0) {
+  console.log(`\n  (skipped ${cacheHits} content-identical files via cache)`);
 }
 
 const newCount = db.prepare("SELECT COUNT(*) as c FROM records").get() as { c: number };

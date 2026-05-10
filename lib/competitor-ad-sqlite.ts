@@ -68,6 +68,13 @@ export function openDatabase(dbPath?: string): Db {
     db.exec("ALTER TABLE records ADD COLUMN account_type TEXT");
   }
 
+  // Migration: add content_hash column for incremental extraction
+  const hasContentHash = db.prepare("PRAGMA table_info(records)").all()
+    .some((col: { name: string }) => col.name === "content_hash");
+  if (!hasContentHash) {
+    db.exec("ALTER TABLE records ADD COLUMN content_hash TEXT");
+  }
+
   return db;
 }
 
@@ -90,11 +97,12 @@ export function insertRecord(db: Db, record: {
   confidence?: number;
   productsFull?: unknown[];
   account_type?: string;
+  content_hash?: string;
 }): void {
   const stmt = db.prepare(`
     INSERT OR IGNORE INTO records
-      (record_id, run_id, vendor, author_name, post_url, post_title, posted_at, captured_at, products_json, products_full_json, extraction_source, account_type, confidence)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (record_id, run_id, vendor, author_name, post_url, post_title, posted_at, captured_at, products_json, products_full_json, extraction_source, account_type, confidence, content_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   stmt.run(
     record.record_id,
@@ -110,6 +118,7 @@ export function insertRecord(db: Db, record: {
     record.extraction_source || null,
     record.account_type || null,
     record.confidence ?? null,
+    record.content_hash || null,
   );
 }
 

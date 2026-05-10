@@ -9,6 +9,7 @@
 import { ENV } from "../../../config/env.js";
 import { callOllamaGenerate } from "./ocr.js";
 import { extractJsonObject } from "./vlm.js";
+import { cacheGet, cachePut } from "../cache/llmCache.js";
 
 const PRODUCT_EXTRACTION_PROMPT = `You are a structured data extractor for Korean competitor ad intelligence.
 
@@ -109,10 +110,23 @@ export async function runTextExtraction(
 
   const title = postTitle || "(unknown)";
   const prompt = PRODUCT_EXTRACTION_PROMPT.replace("{title}", title) + contentText.slice(0, 5000);
+  const cacheModel = ENV.OLLAMA_OCR_MODEL;
+
+  const cached = await cacheGet(prompt, cacheModel);
+  let raw: string;
+  let modelUsed: string;
+
+  if (cached) {
+    raw = cached.raw;
+    modelUsed = cached.modelUsed;
+  } else {
+    const result = await callOllamaGenerate(prompt, undefined, cacheModel, ["qwen2.5vl:3b"]);
+    raw = result.text;
+    modelUsed = result.modelUsed;
+    await cachePut(prompt, cacheModel, { raw, modelUsed });
+  }
 
   try {
-    const result = await callOllamaGenerate(prompt, undefined, ENV.OLLAMA_OCR_MODEL, ["qwen2.5vl:3b"]);
-    const raw = result.text;
     const parsed = extractJsonObject(raw) as Record<string, unknown> | null;
 
     if (parsed && Array.isArray(parsed.products)) {

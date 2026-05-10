@@ -71,7 +71,7 @@
   "constraints": [
     "Manual execution only; no automated scheduler for competitor intel.",
     "Do not log secrets or credentials.",
-    "Publisher/observer systems must remain fail-closed for missing evidence." 
+    "Publisher/observer systems must remain fail-closed for missing evidence."
   ],
   "env_requirements": [
     "OLLAMA_ENDPOINT=http://ollama:11434",

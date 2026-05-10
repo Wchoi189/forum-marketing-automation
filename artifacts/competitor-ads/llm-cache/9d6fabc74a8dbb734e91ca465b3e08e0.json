@@ -1,0 +1,1 @@
+{"raw":"```json\n{\n\"products\": [\n{\n\"name\": \"YouTube Premium 가족계정\",\n\"duration_months\": 1,\n\"price_krw\": 4000\n},\n{\n\"name\": \"YouTube Premium 가족계정\",\n\"duration_months\": 6,\n\"price_krw\": 20000\n},\n{\n\"name\": \"YouTube Premium 개인계정\",\n\"duration_months\": 3,\n\"price_krw\": 17000\n}\n]\n}\n```","modelUsed":"gemma2:27b","cachedAt":1778431344956}

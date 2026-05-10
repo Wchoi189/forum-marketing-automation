@@ -10,7 +10,7 @@
     {
       "step_id": "click-write",
       "action": "click",
-      "selectors": [["a:has-text(\"글쓰기\")"]]
+      "selectors": [["a.write_btn"], ["a:has-text(\"글쓰기\")"]]
     },
     {
       "step_id": "open-saved-drafts",

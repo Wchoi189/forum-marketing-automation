@@ -416,33 +416,85 @@ async function getBoardDiagnostics(page: import('playwright').Page) {
   };
 }
 
+async function fillAndSubmitLoginForm(page: import('playwright').Page): Promise<boolean> {
+  // Fill credentials — works on both overlay and standalone login page
+  const userIdInput = page.locator('input[name="user_id"]').first();
+  const passwordInput = page.locator('input[name="password"]').first();
+  if ((await userIdInput.count()) === 0 || (await passwordInput.count()) === 0) {
+    return false;
+  }
+
+  await userIdInput.fill(ENV.PPOMPPU_USER_ID);
+  await passwordInput.fill(ENV.PPOMPPU_USER_PW);
+
+  // Set auto_login via JS — the checkbox onclick handler can prevent Playwright clicks
+  await page.evaluate(() => {
+    const cb = document.querySelector('input[name="auto_login"]') as HTMLInputElement;
+    if (cb && !cb.checked) { cb.checked = true; }
+  });
+
+  // Submit the form via JS — the submit button is input[type="image"] with no text label
+  await page.evaluate(() => {
+    const form = document.querySelector('form[name="zb_login"]') as HTMLFormElement
+      || document.querySelector('form#zb_login') as HTMLFormElement;
+    if (form) form.submit();
+  });
+
+  // Wait for the redirect to complete after login
+  try {
+    await page.waitForURL('**/zboard.php**', { timeout: 10000 });
+  } catch {
+    // If URL didn't change, give it a moment more
+    await page.waitForTimeout(3000);
+  }
+
+  return true;
+}
+
 async function attemptPpomppuLoginFromBoard(page: import('playwright').Page, boardUrl: string): Promise<boolean> {
-  const loginLink = page.locator('a:has-text("로그인")').first();
-  if ((await loginLink.count()) === 0) {
-    return false;
+  // Strategy 1: Try the login overlay on the board page
+  const loginLink = page.locator('a.loginsmbtn, a:has-text("로그인")').first();
+  const hasLoginLink = (await loginLink.count()) > 0;
+
+  if (hasLoginLink) {
+    try {
+      await loginLink.click({ timeout: 5000 });
+      await page.waitForTimeout(500);
+
+      const submitted = await fillAndSubmitLoginForm(page);
+      if (submitted) {
+        // Check if we're now logged in
+        if (!page.url().includes('zboard.php?id=gonggu')) {
+          await page.goto(boardUrl, { waitUntil: 'domcontentloaded', timeout: ENV.BOT_NAV_TIMEOUT_MS });
+          await page.waitForTimeout(2000);
+        }
+        const after = await getBoardDiagnostics(page);
+        if (after.writeButtonCount > 0) return true;
+      }
+    } catch {
+      // Overlay failed, fall through to Strategy 2
+    }
   }
 
-  await Promise.all([page.waitForLoadState('domcontentloaded'), loginLink.click()]);
+  // Strategy 2: Navigate directly to login.php
+  try {
+    await page.goto('https://www.ppomppu.co.kr/zboard/login.php', { waitUntil: 'domcontentloaded', timeout: ENV.BOT_NAV_TIMEOUT_MS });
+    await page.waitForTimeout(500);
 
-  const loginForm = page.locator('form#zb_login');
-  if ((await loginForm.count()) === 0) {
-    return false;
+    const submitted = await fillAndSubmitLoginForm(page);
+    if (submitted) {
+      if (!page.url().includes('zboard.php?id=gonggu')) {
+        await page.goto(boardUrl, { waitUntil: 'domcontentloaded', timeout: ENV.BOT_NAV_TIMEOUT_MS });
+        await page.waitForTimeout(2000);
+      }
+      const after = await getBoardDiagnostics(page);
+      if (after.writeButtonCount > 0) return true;
+    }
+  } catch {
+    // Direct login also failed
   }
 
-  await page.fill('input[name="user_id"]', ENV.PPOMPPU_USER_ID);
-  await page.fill('input[name="password"]', ENV.PPOMPPU_USER_PW);
-
-  await Promise.all([
-    page.waitForURL(/zboard\.php\?id=gonggu/, { timeout: BOT_MAX_WAIT_MS }).catch(() => null),
-    page.locator('form#zb_login').locator('a:has-text("로그인")').first().click()
-  ]);
-
-  if (!page.url().includes('zboard.php?id=gonggu')) {
-    await page.goto(boardUrl, { waitUntil: 'domcontentloaded', timeout: ENV.BOT_NAV_TIMEOUT_MS });
-  }
-
-  const after = await getBoardDiagnostics(page);
-  return after.writeButtonCount > 0;
+  return false;
 }
 
 export async function getLogs(): Promise<ActivityLog[]> {
@@ -1281,9 +1333,7 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
       }
       if (diagnostics.writeButtonCount === 0) {
         setPublisherStep('login-page');
-        const loginRecovered = diagnostics.loginPromptVisible
-          ? await attemptPpomppuLoginFromBoard(page, policy.boardUrl).catch(() => false)
-          : false;
+        const loginRecovered = await attemptPpomppuLoginFromBoard(page, policy.boardUrl).catch(() => false);
         if (!loginRecovered) {
           const latest = await getBoardDiagnostics(page);
           const reason = latest.loginPromptVisible
@@ -1308,6 +1358,10 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
         dryRunMode: ENV.DRY_RUN_MODE,
         onStepStart: (stepId) => {
           setPublisherStep(playbookStepToCanvasStep(stepId));
+        },
+        onStepEnd: async (stepId) => {
+          // Diagnostic screenshot after each step for visibility into intermediate page states
+          if (page && debugDir) await publisherDebugScreenshot(page, debugDir, `step-${stepId}`);
         },
         onBeforeSubmit: async () => {
           if (page) await publisherDebugScreenshot(page, debugDir, '05-before-submit');

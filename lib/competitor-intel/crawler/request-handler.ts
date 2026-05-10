@@ -21,6 +21,7 @@ import { chooseContentSelector, collectImages, extractTextBlocks, findPostedAt, 
 import { runOcr } from "../extraction/ocr.js";
 import { runVlmParse } from "../extraction/vlm.js";
 import { runTextExtraction } from "../extraction/text-extraction.js";
+import { extractContentTextForLlm, productsLookJunk, computeCompletenessScore } from "../extraction/content-utils.js";
 import { validateVlmAgainstHtml } from "../extraction/validation.js";
 
 type HandlerDeps = {
@@ -30,59 +31,6 @@ type HandlerDeps = {
 
 function clampText(value: string, maxLen: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, maxLen);
-}
-
-/**
- * Extract the content body as cleaned text for LLM consumption.
- * Targets the main content area, strips navigation/boilerplate.
- */
-function extractContentTextForLlm(html: string): { contentText: string } {
-  const $ = cheerio.load(html);
-  const selectors = [
-    "div.JS_ContentMain td.board-contents",
-    "td.board-contents",
-    "div.JS_ContentMain",
-    "#bbsview",
-    "#bbsContents",
-    "#view",
-    "#viewContent",
-    "article",
-  ];
-
-  for (const selector of selectors) {
-    const el = $(selector);
-    if (el.length > 0) {
-      const text = el.text().replace(/\s+/g, " ").trim();
-      if (text.length > 50) {
-        return { contentText: text };
-      }
-    }
-  }
-
-  // Fallback: full page text
-  return { contentText: $("body").text().replace(/\s+/g, " ").trim() };
-}
-
-/**
- * Quality check: are Cheerio-extracted products likely junk?
- * Returns true if most products have generic names or missing prices.
- */
-function productsLookJunk(products: Array<{ name: string; price_krw?: number }>): boolean {
-  if (products.length === 0) return false; // no products is not "junk", it's "missing"
-  const junkSignals = products.filter((p) => {
-    // Generic fallback names
-    if (p.name === "OTT 구독" || p.name === "구독") return true;
-    // Very short names that are just digits or single word
-    if (p.name.length <= 3 && /^\d+$/.test(p.name)) return true;
-    // Names that look like sentence fragments
-    if (/변경|가능|문의|상담|해지|가입|완료/.test(p.name)) return true;
-    // Field labels that got paired with nearby prices (not actual product names)
-    if (/가[\s]?격|이용\s?기간|기\s?간|할인|쿠폰/.test(p.name)) return true;
-    // No price AND name doesn't look like a product
-    if (p.price_krw === undefined && p.name.length < 15) return true;
-    return false;
-  });
-  return junkSignals.length > products.length * 0.5;
 }
 
 async function extractWithBrowserFallback(
@@ -123,7 +71,7 @@ async function extractWithBrowserFallback(
   }
 
   // Extract cleaned content text for LLM fallback
-  const { contentText } = extractContentTextForLlm(html);
+  const contentText = extractContentTextForLlm(html);
 
   // Fallback: selector + subtree + images + OCR/VLM
   const rootSelector = await chooseContentSelector(page);
@@ -159,14 +107,8 @@ async function extractWithBrowserFallback(
   const htmlProductsLookBad = productsLookJunk(htmlProducts);
 
   // Quality score: fraction of products that have BOTH price AND duration
-  function completenessScore(prods: Array<{ price_krw?: number; duration_months?: number }>): number {
-    if (prods.length === 0) return 0;
-    const complete = prods.filter((p) => p.price_krw !== undefined && p.duration_months !== undefined).length;
-    return complete / prods.length;
-  }
-
-  const htmlComplete = completenessScore(htmlProducts);
-  const llmComplete = completenessScore(llmProducts);
+  const htmlComplete = computeCompletenessScore(htmlProducts);
+  const llmComplete = computeCompletenessScore(llmProducts);
   // LLM wins if it found products AND either:
   // - HTML found nothing, or
   // - HTML products look junk, or

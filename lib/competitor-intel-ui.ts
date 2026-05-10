@@ -251,7 +251,7 @@ export function getProductPrices(db: Database): ProductPriceRow[] {
     `SELECT vendor, post_url, posted_at, products_full_json
      FROM records
      WHERE products_full_json IS NOT NULL AND products_full_json != '[]'
-     ORDER BY vendor`
+     ORDER BY vendor, posted_at DESC`
   ).all() as Array<{
     vendor: string;
     post_url: string;
@@ -259,44 +259,52 @@ export function getProductPrices(db: Database): ProductPriceRow[] {
     products_full_json: string;
   }>;
 
-  const result: ProductPriceRow[] = [];
-  const seen = new Set<string>();
+  const latest = new Map<string, ProductPriceRow>();
+  const variantCounts = new Map<string, Set<string>>();
 
   for (const row of rows) {
     try {
       const products: AdProduct[] = JSON.parse(row.products_full_json);
       for (const p of products) {
         const cleanName = cleanProductName(p.name, 50);
-        const sig = `${cleanName}|${row.vendor}|${p.price_krw ?? ""}|${p.duration_months ?? ""}`;
-        if (seen.has(sig)) continue;
-        seen.add(sig);
+        const key = `${cleanName}|${row.vendor}`;
 
-        result.push({
-          productName: cleanName,
-          vendor: row.vendor,
-          priceKrw: p.price_krw ?? null,
-          pricePerMonthKrw: p.price_per_month_krw ?? null,
-          durationMonths: p.duration_months ?? null,
-          planTier: p.plan_tier ?? null,
-          constraints: p.constraints ?? null,
-          postUrl: row.post_url,
-          postedAt: row.posted_at,
-        });
+        if (latest.has(key)) {
+          // Track distinct price/duration variants for same product+vendor
+          const sig = `${p.price_krw ?? ""}|${p.duration_months ?? ""}`;
+          const vs = variantCounts.get(key)!;
+          if (!vs.has(sig)) vs.add(sig);
+        } else {
+          latest.set(key, {
+            productName: cleanName,
+            vendor: row.vendor,
+            priceKrw: p.price_krw ?? null,
+            pricePerMonthKrw: p.price_per_month_krw ?? null,
+            durationMonths: p.duration_months ?? null,
+            planTier: p.plan_tier ?? null,
+            constraints: p.constraints ?? null,
+            postUrl: row.post_url,
+            postedAt: row.posted_at,
+          });
+          variantCounts.set(key, new Set([`${p.price_krw ?? ""}|${p.duration_months ?? ""}`]));
+        }
       }
     } catch {
       // Skip records with malformed JSON
     }
   }
 
-  return result.sort((a, b) => a.productName.localeCompare(b.productName) || (a.priceKrw ?? Infinity) - (b.priceKrw ?? Infinity));
+  return Array.from(latest.values()).sort(
+    (a, b) => a.productName.localeCompare(b.productName) || (a.priceKrw ?? Infinity) - (b.priceKrw ?? Infinity)
+  );
 }
 
 export function getActivityTimeline(db: Database, bucketDays: number = 30): TimelineBucket[] {
   const rows = db.prepare(
-    `SELECT DATE(posted_at) as date, vendor, COUNT(*) as count
+    `SELECT strftime('%Y-%m-%d', posted_at) as date, vendor, COUNT(*) as count
      FROM records
      WHERE posted_at IS NOT NULL
-       AND posted_at >= DATE('now', ?)
+       AND strftime('%Y-%m-%d', posted_at) >= strftime('%Y-%m-%d', 'now', ?)
      GROUP BY date, vendor
      ORDER BY date, vendor`
   ).all([`-${bucketDays} days`]) as Array<{ date: string; vendor: string; count: number }>;

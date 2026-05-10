@@ -36,6 +36,10 @@
 
 **Scheduler:** Calls `runPublisher(false)` on each tick. Skips tick if `running=true`. Gap-policy skip is logged as non-success but is normal operation, not an error.
 
+**ppomppu login recovery gotchas:**
+- The `loginPromptVisible` diagnostic is **unreliable on the redirect hop**. When ppomppu redirects unauthenticated requests to `login.php?r_url=...`, the intermediate page shows "403 Forbidden" (nginx) or "Loading..." as its title — no "로그인" text exists in the body. The code now attempts login unconditionally whenever the write button is missing.
+- ppomppu WAF returns 403 on Playwright's default headless user agent. `DEFAULT_BROWSER_USER_AGENT` in `config/env.ts` is required, not optional.
+
 **Pipeline step tracking:** `publisherStepStore.ts` → `GET /api/publisher-status` (non-blocking). App.tsx polls every 1.5s when `loading || autoPublisher.running`. Mapping: `playbookStepToCanvasStep()` in `publisherStepStore.ts`.
 
 **Observer refresh:** `POST /api/run-observer` blocks for 5–30s. App.tsx fires `silentRefreshObserver()` (no loading state) on mount and after every publish run.

@@ -28,6 +28,8 @@ export type RunPublisherFlowInput = {
   onSuccess?: () => Promise<void>;
   /** Called before each playbook step with the step's ID, for real-time progress tracking. */
   onStepStart?: (stepId: string) => void;
+  /** Called after each playbook step completes, for diagnostics like screenshots. */
+  onStepEnd?: (stepId: string) => Promise<void>;
 };
 
 export function splitSubmitSteps(playbook: PublisherPlaybook): {
@@ -41,13 +43,13 @@ export function splitSubmitSteps(playbook: PublisherPlaybook): {
 }
 
 export async function runPublisherFlow(input: RunPublisherFlowInput): Promise<PublisherFlowOutcome> {
-  const { page, runtime, postSubmitWaitMs, dryRunMode, workflowId, onBeforeSubmit, onSuccess, onStepStart } = input;
+  const { page, runtime, postSubmitWaitMs, dryRunMode, workflowId, onBeforeSubmit, onSuccess, onStepStart, onStepEnd } = input;
   const playbook = await loadPublisherPlaybook(workflowId);
   const { nonSubmitSteps, submitSteps } = splitSubmitSteps(playbook);
 
   assertSubmitStepsPresent(submitSteps.length);
 
-  await runPublisherPlaybook(page, { ...playbook, steps: nonSubmitSteps }, runtime, onStepStart);
+  await runPublisherPlaybook(page, { ...playbook, steps: nonSubmitSteps }, runtime, onStepStart, onStepEnd);
   await onBeforeSubmit?.();
 
   if (dryRunMode) {
@@ -62,7 +64,7 @@ export async function runPublisherFlow(input: RunPublisherFlowInput): Promise<Pu
   onStepStart?.('submit-post');
   await Promise.all([
     waitForPublishLandingUrl(page, boardId, postSubmitWaitMs),
-    runPublisherPlaybook(page, { ...playbook, steps: submitSteps }, runtime)
+    runPublisherPlaybook(page, { ...playbook, steps: submitSteps }, runtime, undefined, onStepEnd)
   ]);
 
   assertVerifiedPublishRedirect(page.url(), boardId);
