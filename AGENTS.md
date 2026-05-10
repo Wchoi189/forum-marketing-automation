@@ -121,3 +121,92 @@ add an entry: copy the frontmatter from an existing entry, increment the ID, fil
 - Run full `npm run test` for broader parser/runtime changes.
 - Do not weaken fail-closed checks without explicit approval.
 
+## Competitor Intelligence — Operational Guide
+
+### Architecture Overview
+
+The competitor intel system extracts structured product data from Korean OTT reseller ads on ppomppu.co.kr. It uses a **hybrid extraction pipeline**: Cheerio strips HTML noise, then an Ollama LLM extracts structured JSON.
+
+**Entry point:** `scripts/competitor-ads-intel.ts`
+- `--scan-board <url>` — Discover vendors by scanning board listings
+- `--csv <file>` — Process a CSV of post URLs
+- `--show-vendors` — List known vendors in SQLite DB
+
+**Module tree:** `lib/competitor-intel/` — see `.planning/spec-kit/refs/competitor-intel-roadmap.md` for the full architecture map.
+
+### Hybrid Extraction Pipeline
+
+```
+Post HTML → Cheerio parse (confidence score)
+  ├─ confidence ≥ 0.9, products > 0 → fast path: use Cheerio results directly
+  └─ otherwise → hybrid:
+      ├─ Cheerio leaf text blocks → extractProductsFromText() (heuristic fallback)
+      ├─ Content text → Ollama LLM (runTextExtraction with post title)
+      └─ Priority logic picks the winner:
+          • LLM wins if it has products AND (HTML is empty/junk, OR LLM has more products, OR LLM has high completeness)
+          • HTML wins if it has products AND isn't junk
+          • Cheerio fallback if neither produces usable results
+```
+
+### Key Functions and Their Roles
+
+| Function | File | Role |
+|----------|------|------|
+| `parsePpomppuPost()` | `lib/competitor-ad-parser/ppomppu-parser.ts` | Deterministic Cheerio parse — returns vendor, title, products, confidence |
+| `runTextExtraction(content, postTitle)` | `lib/competitor-intel/extraction/text-extraction.ts` | Ollama LLM call — **must pass postTitle** for implicit product name resolution |
+| `extractProductsFromText(evidenceSources)` | `lib/competitor-intel/extraction/pipeline.ts` | Heuristic text extraction from Cheerio leaf blocks |
+| `productsLookJunk()` | `lib/competitor-intel/crawler/request-handler.ts` | Quality gate — rejects generic/junk product names |
+| `filterCrossPairedArtifacts()` | `lib/competitor-intel/extraction/text-extraction.ts` | Removes LLM cross-pairing errors between product tiers |
+| `completenessScore()` | `lib/competitor-intel/crawler/request-handler.ts` | Fraction of products with BOTH price AND duration |
+
+### Known Extraction Pitfalls
+
+**1. Implicit product names from title**
+Korean OTT ads (e.g., 기프티콩~) use shorthand like "가족계정" (family account) or "개인계정" (individual account) in the body, relying on the post title to specify the product. The LLM **must receive the post title** to resolve these. Without it, output is generic junk like "가족계정" with no product context.
+
+**2. Cross-pairing between product tiers**
+The LLM sometimes pairs a price from one tier with the name of another. E.g., assigns the 6-month price to the 3-month product name. `filterCrossPairedArtifacts()` catches this using shared-prefix detection.
+
+**3. Field labels paired with prices**
+HTML parser sometimes pairs Korean labels ("가 격" = price, "이용 기간" = duration) with nearby prices, producing fake product entries. The junk regex `/가[\s]?격|이용\s?기간|기\s?간|할인|쿠폰/` catches these.
+
+**4. Policy text mistaken for products**
+Numbers in constraint text (e.g., "12개월에 한번만 변경가능" = can change once per 12 months) are NOT product durations. The LLM prompt explicitly guards against this, but verify.
+
+**5. Cheerio confidence threshold**
+Ads with Cheerio confidence exactly at 0.9 trigger the fast path. This is fine for simple structures but can miss complexity. Files like `551b849c00f1` and `9446cd3682da` (구독트리) are known cases where HTML path wins but LLM would find fewer products.
+
+### Testing Workflow
+
+```bash
+# Full pipeline test on all stored HTML files
+npx tsx scripts/test-full-pipeline.ts
+
+# Re-extract price matrix into SQLite DB
+npx tsx scripts/re-extract-price-matrix.ts
+
+# Unit + integration tests (83 tests)
+npm run test:competitor-intel
+
+# Model comparison on hardest file
+npx tsx scripts/analyze-problems.ts
+```
+
+### Model Selection
+
+Default Ollama model: **gemma2:27b** (configured in `config/env.ts` as `OLLAMA_OCR_MODEL`). Selected after benchmarking against qwen2.5vl:7b, qwen3:8b, qwen3.5:9b, and gemma2:9b on the hardest files. It recovers more products correctly and produces deterministic results. Trade-off: ~4x larger, slower per-request.
+
+Override at runtime via `OLLAMA_OCR_MODEL=<model>` in `.env`. Available models: run `ollama list`.
+
+### Known Problematic Files
+
+| File ID | Vendor | Issue | Status |
+|---------|--------|-------|--------|
+| `eb67ebba985c` | 기프티콩~ | Implicit product names; LLM non-determinism | Acceptable with gemma2:27b |
+| `551b849c00f1` | 구독트리 | Cheerio confidence 0.9 triggers fast path; complex Gemini+YouTube pricing | HTML path wins |
+| `9446cd3682da` | 구독트리 | LLM finds fewer products than HTML | HTML path wins |
+
+Full pipeline success rate: **97.0%** (32/33 clean, 1 with minor missing duration).
+
+See `.planning/competitor-intel-playbook.md` for the detailed knowledge base.
+

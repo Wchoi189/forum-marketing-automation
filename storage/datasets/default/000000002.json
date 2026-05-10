@@ -1,0 +1,161 @@
+{
+	"record_id": "574fd21433c1db34",
+	"run_id": "test-final-v5",
+	"vendor": "ppomppu",
+	"author_name": "기프티콩~",
+	"post_url": "https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207768",
+	"post_title": "유튜브 프리미엄,뮤직 가족계정,개인계정 1달4000원 - 뽐뿌:공동구매",
+	"posted_at": "2026-05-09T21:31:00.000Z",
+	"posted_at_raw": "2026-05-10 06:31",
+	"captured_at": "2026-05-10T11:47:26.513Z",
+	"products": [
+		{
+			"name": "가족계정 프리미엄",
+			"duration_months": 1,
+			"price_krw": 4000
+		},
+		{
+			"name": "가족계정 프리미엄",
+			"duration_months": 6,
+			"price_krw": 20000
+		},
+		{
+			"name": "개인계정",
+			"duration_months": 3,
+			"price_krw": 17000
+		}
+	],
+	"evidence": {
+		"sources": [
+			{
+				"type": "html",
+				"excerpt": "1 가족계정",
+				"source_block": "td[0]>div[0]"
+			},
+			{
+				"type": "html",
+				"excerpt": "프리미엄 1달 4000원",
+				"source_block": "td[0]>div[2]"
+			},
+			{
+				"type": "html",
+				"excerpt": "프리미엄 6달 2만원",
+				"source_block": "td[0]>div[3]"
+			},
+			{
+				"type": "html",
+				"excerpt": "가족그룹은 12개월에 한번만 변경가능합니다",
+				"source_block": "td[0]>div[5]"
+			},
+			{
+				"type": "html",
+				"excerpt": "계정만든뒤 가족그룹 한번만 가입후 탈퇴했어면 가입가능, 2번째면 1번째 탈퇴후 1년 지나야 됩니다",
+				"source_block": "td[0]>div[6]"
+			},
+			{
+				"type": "html",
+				"excerpt": "신규 아이디 가입가능합니다",
+				"source_block": "td[0]>div[7]"
+			},
+			{
+				"type": "html",
+				"excerpt": "아이디 주시면 초대 이메일 드립니다",
+				"source_block": "td[0]>div[8]"
+			},
+			{
+				"type": "html",
+				"excerpt": "문제시 남은기간 100% 환불 a/s가능합니다",
+				"source_block": "td[0]>div[9]"
+			},
+			{
+				"type": "html",
+				"excerpt": "개인계정1년은 일부 취소 되고 있습니다(환불안됨)만 가족계정은 취소되지 않고 유지중입니다",
+				"source_block": "td[0]>div[10]"
+			},
+			{
+				"type": "html",
+				"excerpt": "2 개인계정",
+				"source_block": "td[0]>div[12]"
+			},
+			{
+				"type": "html",
+				"excerpt": "3달 17000원",
+				"source_block": "td[0]>div[14]"
+			},
+			{
+				"type": "html",
+				"excerpt": "가족계정에서 프리미엄 안되는 사람들도 모두 가입됩니다",
+				"source_block": "td[0]>div[16]"
+			},
+			{
+				"type": "html",
+				"excerpt": "3달 선결제해서 만기일은 3달뒤 오늘날자까지 입니다",
+				"source_block": "td[0]>div[17]"
+			},
+			{
+				"type": "html",
+				"excerpt": "만기일표시는 안나옵니다만 결제한 기간만큼 프리미엄유지됩니다",
+				"source_block": "td[0]>div[18]"
+			},
+			{
+				"type": "html",
+				"excerpt": "계속연장가능합니다 만기일전에 연장문자드립니다",
+				"source_block": "td[0]>div[19]"
+			},
+			{
+				"type": "html",
+				"excerpt": "사용은 vpn 필요없이 전세계 어디서던지 tv,폰 등 모든기기로",
+				"source_block": "td[0]>div[20]"
+			},
+			{
+				"type": "html",
+				"excerpt": "프리미엄,뮤직 사용됩니다",
+				"source_block": "td[0]>div[21]"
+			},
+			{
+				"type": "html",
+				"excerpt": "만약 문제 생길경우 환불,재결제해 드립니다",
+				"source_block": "td[0]>div[22]"
+			},
+			{
+				"type": "html",
+				"excerpt": "유튜브 사용하실 구글이메일아이디 비번 알려주시면 프리미엄 등록해 드립니다",
+				"source_block": "td[0]>div[24]"
+			},
+			{
+				"type": "html",
+				"excerpt": "다른 기기에서 로그인할 경우엔 폰인증해주셔야 됩니다",
+				"source_block": "td[0]>div[25]"
+			},
+			{
+				"type": "html",
+				"excerpt": "(선결제시 가입링크 드릴수도 있습니다)",
+				"source_block": "td[0]>div[26]"
+			},
+			{
+				"type": "html",
+				"excerpt": "뽐뿌에서 넷플 유튜브 광고올린지 5년 넘었습니다 계정 문제생겨도 최대한 빠른시일내에 해결해 드렸습니다",
+				"source_block": "td[0]>div[28]"
+			},
+			{
+				"type": "html",
+				"excerpt": "유튜브프리미엄 이용못할시 환불보장합니다",
+				"source_block": "td[0]>div[29]"
+			},
+			{
+				"type": "html",
+				"excerpt": "010 8888 0716",
+				"source_block": "td[0]>div[31]"
+			},
+			{
+				"type": "html",
+				"excerpt": "으로 문자나 카talk 신청해 주세요",
+				"source_block": "td[0]>div[32]"
+			}
+		]
+	},
+	"extraction_source": "llm-text",
+	"confidence": 0.8,
+	"notes": "test-cleanup",
+	"account_type": "family_share"
+}

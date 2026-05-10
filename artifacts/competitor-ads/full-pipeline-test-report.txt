@@ -1,0 +1,34 @@
+File ID	Vendor	Products	Source	Errors
+0b80b387d62a	다시봄을	1	llm-text	OK
+1ac7d06aaf06	구독플레이스	6	llm-text	OK
+befa16e37fb3	DENMARK	1	llm-text	OK
+eb67ebba985c	기프티콩~	3	llm-text	OK
+fca4be0ea775	DENMARK	1	llm-text	OK
+03e5be3da448	SharePlan	8	cheerio	OK
+072d2fc590eb	-테크몽-	4	llm-text	OK
+093e4cacf6d2	구독플레이스	6	llm-text	OK
+0a8926b239e6	구독플레이스	6	llm-text	OK
+1277763b90e3	하이맨777	1	llm-text	OK
+167a0717c3ad	SharePlan	8	cheerio	OK
+224b8e998132	구독플레이스	6	llm-text	OK
+2f6be599ee88	OTT대장	1	llm-text	OK
+3e9a51e5a296	뽐빠이203	1	llm-text	OK
+551b849c00f1	구독트리	1	llm-text	OK
+559b369ac4c8	구독플레이스	5	llm-text	OK
+5a2a6deaf480	DENMARK	1	llm-text	OK
+60f83a2bc47e	SharePlan	8	cheerio	OK
+615ed9ad8774	호야굿	6	llm-text	OK
+6525bcf491bb	하이맨777	3	llm-text	2 products missing duration
+6bcf3193d328	SharePlan	8	cheerio	OK
+6facf9cbb810	OTT대장	4	llm-text	OK
+734987c0f191	팡이누나	7	llm-text	OK
+9446cd3682da	구독트리	3	html	OK
+97337203d665	팡이누나	7	llm-text	OK
+9f6af301a000	OTT에푹빠졌어	8	llm-text	OK
+ae9ec302cfca	무스탕	2	llm-text	OK
+aedea9fa96e3	구독플레이스	6	llm-text	OK
+d1a7b2731ab3	DENMARK	1	llm-text	OK
+d20092659e69	호야굿	6	llm-text	OK
+d5f5c2ea3154	구독플레이스	6	llm-text	OK
+f00c1937e593	무스탕	3	llm-text	OK
+faaf6e64e762	구독플레이스	6	llm-text	OK

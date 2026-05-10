@@ -1,0 +1,71 @@
+{
+  "handover_id": "handover-20260511-0330",
+  "timestamp_utc": "2026-05-11T03:30:00Z",
+  "session_type": "implementation",
+  "source_agent": "claude-code",
+  "target_agent": "claude-code",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "competitor-intel-parser-quality",
+  "phase": "session-7-price-matrix-fix-and-full-pipeline-testing",
+  "objective": "Fix Price Matrix extraction to use hybrid pipeline (Cheerio noise reduction → Ollama structured extraction) and test on all stored HTML files.",
+  "status": "completed",
+  "completed_this_session": [
+    "Price Matrix: 566 junk entries → 12 clean entries (0 junk, 0 empty, 0 missing price, 0 missing duration)",
+    "Added postTitle parameter to runTextExtraction() so implicit product names are resolved from ad title (e.g., '가족계정' → 'YouTube Premium 가족계정')",
+    "Added filterCrossPairedArtifacts() to remove LLM cross-pairing errors between product tiers",
+    "Added field-label junk detection: /가[\\s]?격|이용\\s?기간|기\\s?간|할인|쿠폰/ catches HTML parser mis-pairing labels with prices",
+    "Added completenessScore() to priority logic: LLM wins when it has high completeness even with fewer products than HTML",
+    "Full pipeline test on 33 unique HTML files: 97.0% success rate, 32/33 via llm-text, 1/33 via html",
+    "All 5 curated test vendors pass consistently",
+    "Re-extracted SQLite DB with clean data for Price Matrix UI"
+  ],
+  "full_pipeline_results": {
+    "files_processed": 33,
+    "total_products": 124,
+    "success_rate": "97.0%",
+    "extraction_sources": {"llm-text": 32, "html": 1},
+    "known_flaky_file": "eb67ebba985c (기프티콩~) — LLM non-determinism on this complex ad sometimes produces 2 clean products, sometimes 4 with 1 missing price. Acceptable with 7b model."
+  },
+  "key_changes": {
+    "lib/competitor-intel/extraction/text-extraction.ts": [
+      "Added postTitle?: string parameter to runTextExtraction()",
+      "Updated PRODUCT_EXTRACTION_PROMPT with title context and section-boundary rules",
+      "Added namesAreCloseVariants() + filterCrossPairedArtifacts() post-processing"
+    ],
+    "lib/competitor-intel/crawler/request-handler.ts": [
+      "Line 78: Added field-label junk regex to productsLookJunk()",
+      "Lines 161-177: Added completenessScore() and llmQualityWins to priority logic",
+      "Line 148: Passes parsed.title to runTextExtraction()"
+    ],
+    "scripts/updated": [
+      "test-all-vendors.ts — updated expectation, passes title, completeness logic",
+      "demo-extraction.ts — passes title, completeness logic",
+      "generate-demo-report.ts — passes title, completeness logic",
+      "re-extract-price-matrix.ts — passes title, completeness logic",
+      "test-full-pipeline.ts — NEW, tests all 33 unique HTML files",
+      "debug-techmong.ts, debug-html-path.ts, debug-wave.ts, debug-gifti.ts — debug scripts (can be deleted)"
+    ]
+  },
+  "scripts_to_clean_up": [
+    "scripts/debug-techmong.ts",
+    "scripts/debug-html-path.ts",
+    "scripts/debug-wave.ts",
+    "scripts/debug-gifti.ts",
+    "scripts/demo-extraction.ts",
+    "scripts/generate-demo-report.ts",
+    "scripts/check-llm-content.ts (already deleted)",
+    "scripts/trace-pipeline.ts (already deleted)",
+    "scripts/inspect-html.ts (already deleted)",
+    "scripts/test-text-extraction.ts"
+  ],
+  "commands_to_run_next": [
+    "Re-extract DB: npx tsx scripts/re-extract-price-matrix.ts",
+    "Full pipeline test: npx tsx scripts/test-full-pipeline.ts",
+    "5-vendor test: npx tsx scripts/test-all-vendors.ts",
+    "Type check: npx tsc --noEmit --skipLibCheck"
+  ],
+  "artifacts_touched": [
+    "artifacts/competitor-ads/competitor-ads.db — UPDATED (clean re-extraction)",
+    "artifacts/competitor-ads/full-pipeline-test-report.txt — GENERATED"
+  ]
+}

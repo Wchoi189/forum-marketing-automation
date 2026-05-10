@@ -1,0 +1,90 @@
+{
+  "handover_id": "handover-20260511-0000",
+  "timestamp_utc": "2026-05-11T00:00:00Z",
+  "session_type": "planning",
+  "source_agent": "claude-code",
+  "target_agent": "claude-code",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "competitor-intel-ui-v1",
+  "phase": "session-5-planning",
+  "objective": "Plan and gather requirements for a SAP Fiori-quality UI to display competitor intelligence data gathered by the refactored competitor-intel pipeline.",
+  "non_goals": [
+    "No changes to the crawler/extraction pipeline itself",
+    "No new backend infrastructure (Express only, no CAP)",
+    "No mobile/responsive design — desktop dashboard only"
+  ],
+  "current_state": {
+    "completed": [
+      "Session 1: Abstraction Layer — VendorStrategy interface, PpomppuStrategy, extraction modules",
+      "Session 2: Crawlee Integration — PlaywrightCrawler, Dataset, JSONL export",
+      "Session 3: Vendor Discovery — board scanner, discoverAndEnqueue, --scan-board CLI",
+      "Session 4: Tests + Polish — 83 tests green, sqlite-adapter extracted, live Ollama verified"
+    ],
+    "what_exists_backend": [
+      "lib/competitor-ad-sqlite.ts — SQLite DB at artifacts/competitor-ads/competitor-ads.db with tables: records, vendor_profiles",
+      "lib/competitor-intel/types.ts — CompetitorAdRecord type (25 fields: record_id, vendor, author_name, post_url, post_title, posted_at, products[], terms, account_type, region, bundle, promo, conditions, contact, confidence, evidence[], etc.)",
+      "lib/competitor-intel/storage/record-builder.ts — buildRecordBase(), recordIdFrom(), postIdFromUrl()",
+      "lib/competitor-intel/storage/sqlite-adapter.ts — syncDatasetToSqlite(), openWithKnownCheck()",
+      "scripts/competitor-ads-intel.ts — CLI tool with --scan-board and --input-csv modes",
+      "server.ts — NO existing API endpoint serves competitor-ad SQLite data to the frontend",
+      "lib/competitorAnalytics.ts — Separate analytics layer (heatmap, author summaries) — already has /api/analytics/competitors endpoint"
+    ],
+    "what_exists_frontend": [
+      "src/AnalyticsPage.tsx — Tailwind + Recharts competitor EDA dashboard (existing world). Tabs: market, rankings, bot-intel. Heatmap charts, author summary table with BotBadge",
+      "src/fiori/ — Fiori landing zone with @ui5/webcomponents-react",
+      "src/fiori/pages/FioriOverviewPage.tsx — Example Fiori page with Cards (Scheduler, Observer, BoardStats, PublisherHistory). Pattern: Card + CardHeader + FlexBox + Tag + Text",
+      "src/fiori/components/ — Empty directory, ready for new components",
+      "src/fiori/README.md — Rules: no Tailwind, use @ui5/webcomponents-react only, follow SAP Fiori guidelines",
+      "src/main.tsx — BrowserRouter with /fiori/* nested routes under FioriShell",
+      "FIORI.md — Two-worlds architecture doc: src/components/ = Tailwind (stable), src/fiori/ = Fiori (new). Never mix."
+    ],
+    "gaps": [
+      "No API endpoint serves CompetitorAdRecord data from SQLite to the frontend",
+      "No UI (Fiori or otherwise) displays the extracted competitor ad intelligence",
+      "Vendor profiles (listVendorProfiles) not exposed via API",
+      "No way to browse/search/filter historical competitor ad records in the UI"
+    ]
+  },
+  "status": "ready-for-planning",
+  "architecture_context": {
+    "data_model": {
+      "CompetitorAdRecord": "record_id, run_id, vendor, author_name, post_url, post_title, posted_at, captured_at, products[], terms, account_type, region, bundle, promo, conditions, contact, notes, confidence, extraction_source, evidence",
+      "AdProduct": "name, plan_tier, duration_months, price_krw, price_per_month_krw, constraints",
+      "VendorProfile": "vendor_id, author_name, first_seen_post_url, first_seen_at, last_seen_post_url, last_seen_at, total_posts, products[], updated_at"
+    },
+    "sqlite_tables": {
+      "records": "record_id PK, run_id, vendor, author_name, post_url, post_title, posted_at, captured_at, products_json (JSON array of product names), extraction_source, confidence, created_at",
+      "vendor_profiles": "vendor_id PK, author_name, first_seen_post_url, first_seen_at, last_seen_post_url, last_seen_at, total_posts, products_json, updated_at"
+    },
+    "existing_api_surface": {
+      "GET /api/analytics/competitors": "Returns CompetitorAnalyticsPayload (heatmap cells, author summaries, gap analysis) — used by AnalyticsPage.tsx",
+      "GET /api/competitor-stats": "Returns CompetitorStat[] from activity logs (different from SQLite competitor-ad records)",
+      "No endpoint yet for": "SQLite records, vendor profiles, product-level data"
+    },
+    "fiori_pattern": "Cards with CardHeader for KPIs, FlexBox with wrap for grid layouts, Tag for status badges, Text for labels. See FioriOverviewPage.tsx for established pattern."
+  },
+  "design_considerations": [
+    "What floorplan fits? Analytical List Page (ALP) seems right — it's for data exploration with KPIs, filters, charts, and a table. FIORI.md maps Analytics → ALP.",
+    "Key user stories: (1) See which vendors/competitors are active, (2) Compare pricing across vendors, (3) Browse individual ad records with evidence, (4) Track vendor activity over time, (5) Identify pricing trends/opportunities",
+    "Data needs aggregation: products[] is JSON in SQLite — needs parsing for price comparisons",
+    "Evidence is rich (HTML excerpts, OCR text, VLM output) — needs a detail view",
+    "Consider: should this be a new /fiori/intelligence route, or extend /analytics with a Fiori view?",
+    "The existing AnalyticsPage.tsx (Tailwind) already shows heatmap + rankings — the Fiori UI could complement or replace it",
+    "SAP Fiori ALP floorplan features: KPI header row, filter bar, chart area, data table with smart pagination, object page for details"
+  ],
+  "next_actions": [
+    "Research: Read sap-fiori-elements-developer and sap-fiori-designer skills for ALP guidance",
+    "Research: Check @ui5/webcomponents-react docs for AnalyticalTable, FilterBar, KPI components",
+    "Requirements: Define which data points need API endpoints (records list, vendor profiles, product aggregation)",
+    "Design: Sketch the Fiori UI layout — KPI cards, filter bar, data table, detail panel",
+    "Plan: Break into sprints — API layer first, then KPI/overview cards, then data table, then detail view"
+  ],
+  "practical_recommendations": [
+    "Start by reading FIORI.md and src/fiori/README.md to understand the two-worlds constraint",
+    "Read src/fiori/pages/FioriOverviewPage.tsx for the established component pattern",
+    "The sqlite-adapter.ts is the model for how to add new API endpoints (see server.ts pattern)",
+    "Products are stored as JSON in SQLite — the API should parse and flatten them for price comparison queries",
+    "Consider a dedicated /api/competitor-intel/* API prefix for the new endpoints",
+    "The existing AnalyticsPage.tsx at /analytics is a Tailwind component — don't modify it; build the Fiori version in src/fiori/"
+  ]
+}

@@ -1,0 +1,355 @@
+/**
+ * Crawlee request handler for competitor ad extraction.
+ *
+ * Crawlee manages browser lifecycle, retries, and concurrency.
+ * This handler focuses on: navigation → HTML parse → OCR/VLM → Dataset push.
+ */
+
+import fsp from "node:fs/promises";
+import path from "node:path";
+import * as cheerio from "cheerio";
+import type { PlaywrightCrawlingContext } from "crawlee";
+import { Dataset } from "crawlee";
+import type { VendorRegistry as VendorRegistryType } from "../index.js";
+import { parsePpomppuPost } from "../../competitor-ad-parser/index.js";
+import { cleanProductName, deduplicateProducts } from "../../competitor-ad-parser/product-name-utils.js";
+import { subtree } from "../../parser/index.js";
+import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from "../../playwright/browser-eval-polyfill.js";
+import type { CompetitorAdRecord, AdProduct, EvidenceSource, AdEvidence } from "../types.js";
+import { postIdFromUrl, buildRecordBase } from "../storage/record-builder.js";
+import { chooseContentSelector, collectImages, extractTextBlocks, findPostedAt, extractProductsFromText } from "../extraction/pipeline.js";
+import { runOcr } from "../extraction/ocr.js";
+import { runVlmParse } from "../extraction/vlm.js";
+import { runTextExtraction } from "../extraction/text-extraction.js";
+import { validateVlmAgainstHtml } from "../extraction/validation.js";
+
+type HandlerDeps = {
+  artifactRoot: string;
+  registry: VendorRegistryType;
+};
+
+function clampText(value: string, maxLen: number): string {
+  return value.replace(/\s+/g, " ").trim().slice(0, maxLen);
+}
+
+/**
+ * Extract the content body as cleaned text for LLM consumption.
+ * Targets the main content area, strips navigation/boilerplate.
+ */
+function extractContentTextForLlm(html: string): { contentText: string } {
+  const $ = cheerio.load(html);
+  const selectors = [
+    "div.JS_ContentMain td.board-contents",
+    "td.board-contents",
+    "div.JS_ContentMain",
+    "#bbsview",
+    "#bbsContents",
+    "#view",
+    "#viewContent",
+    "article",
+  ];
+
+  for (const selector of selectors) {
+    const el = $(selector);
+    if (el.length > 0) {
+      const text = el.text().replace(/\s+/g, " ").trim();
+      if (text.length > 50) {
+        return { contentText: text };
+      }
+    }
+  }
+
+  // Fallback: full page text
+  return { contentText: $("body").text().replace(/\s+/g, " ").trim() };
+}
+
+/**
+ * Quality check: are Cheerio-extracted products likely junk?
+ * Returns true if most products have generic names or missing prices.
+ */
+function productsLookJunk(products: Array<{ name: string; price_krw?: number }>): boolean {
+  if (products.length === 0) return false; // no products is not "junk", it's "missing"
+  const junkSignals = products.filter((p) => {
+    // Generic fallback names
+    if (p.name === "OTT 구독" || p.name === "구독") return true;
+    // Very short names that are just digits or single word
+    if (p.name.length <= 3 && /^\d+$/.test(p.name)) return true;
+    // Names that look like sentence fragments
+    if (/변경|가능|문의|상담|해지|가입|완료/.test(p.name)) return true;
+    // Field labels that got paired with nearby prices (not actual product names)
+    if (/가[\s]?격|이용\s?기간|기\s?간|할인|쿠폰/.test(p.name)) return true;
+    // No price AND name doesn't look like a product
+    if (p.price_krw === undefined && p.name.length < 15) return true;
+    return false;
+  });
+  return junkSignals.length > products.length * 0.5;
+}
+
+async function extractWithBrowserFallback(
+  page: PlaywrightCrawlingContext["page"],
+  postId: string,
+  artifactRoot: string,
+  postUrl: string,
+): Promise<{
+  products: AdProduct[];
+  extractionSource: CompetitorAdRecord["extraction_source"];
+  confidence: number;
+  evidenceSources: EvidenceSource[];
+  postedAt: { iso: string; raw?: string } | null;
+  pageTitle: string;
+  parsedHtml: ReturnType<typeof parsePpomppuPost>;
+  imageBuffers: Awaited<ReturnType<typeof collectImages>>;
+}> {
+  const root = artifactRoot;
+  const pageTitle = (await page.title()) || "";
+  const html = await page.content();
+  const rawHtmlPath = path.join(root, "raw_html", `${postId}.html`);
+  await fsp.writeFile(rawHtmlPath, html, "utf-8");
+
+  const parsed = parsePpomppuPost(html, postUrl);
+
+  // High-confidence Cheerio parse → skip LLM
+  if (parsed.confidence >= 0.9 && parsed.products.length > 0) {
+    return {
+      products: parsed.products,
+      extractionSource: "html",
+      confidence: parsed.confidence,
+      evidenceSources: [],
+      postedAt: { iso: parsed.posted_at, raw: parsed.posted_at_raw },
+      pageTitle,
+      parsedHtml: parsed,
+      imageBuffers: [],
+    };
+  }
+
+  // Extract cleaned content text for LLM fallback
+  const { contentText } = extractContentTextForLlm(html);
+
+  // Fallback: selector + subtree + images + OCR/VLM
+  const rootSelector = await chooseContentSelector(page);
+  const snapshot = await subtree(page, rootSelector, {
+    maxDepth: 5,
+    maxSiblingsPerNode: 40,
+    maxTotalNodes: 400,
+    maxTextLengthPerNode: 160,
+  });
+
+  const htmlEvidence = extractTextBlocks(snapshot.nodes);
+  let imageBuffers = await collectImages(page, rootSelector, postId);
+  const postedAt = findPostedAt(htmlEvidence.map((s) => s.excerpt))
+    || (parsed.posted_at ? { iso: parsed.posted_at, raw: parsed.posted_at_raw } : null);
+
+  const { products: htmlProducts } = extractProductsFromText(htmlEvidence);
+
+  // Always run LLM text extraction in the fallback path (text-only, ~5s).
+  // Prefer LLM results when they produce >= products than the best regex-based path.
+  let llmProducts: AdProduct[] = [];
+
+  const textResult = await runTextExtraction(contentText, parsed.title);
+  if (textResult && textResult.products.length > 0) {
+    llmProducts = textResult.products.map((p) => {
+      const product: AdProduct = { name: p.name };
+      if (p.duration_months) product.duration_months = p.duration_months;
+      if (p.price_krw) product.price_krw = p.price_krw;
+      return product;
+    });
+    console.log(`  [llm-text] extracted ${llmProducts.length} products from content text`);
+  }
+
+  const htmlProductsLookBad = productsLookJunk(htmlProducts);
+
+  // Quality score: fraction of products that have BOTH price AND duration
+  function completenessScore(prods: Array<{ price_krw?: number; duration_months?: number }>): number {
+    if (prods.length === 0) return 0;
+    const complete = prods.filter((p) => p.price_krw !== undefined && p.duration_months !== undefined).length;
+    return complete / prods.length;
+  }
+
+  const htmlComplete = completenessScore(htmlProducts);
+  const llmComplete = completenessScore(llmProducts);
+  // LLM wins if it found products AND either:
+  // - HTML found nothing, or
+  // - HTML products look junk, or
+  // - LLM found >= products, or
+  // - LLM has significantly better completeness (e.g., 100% vs < 70%)
+  const llmQualityWins = llmProducts.length > 0 && llmComplete >= 0.9 && htmlComplete < 0.7 && llmProducts.length >= htmlProducts.length * 0.5;
+  const llmWins = llmProducts.length > 0 && (htmlProducts.length === 0 || htmlProductsLookBad || llmProducts.length >= htmlProducts.length || llmQualityWins);
+  // When LLM didn't win and HTML products are junk, fall back to Cheerio parser
+  const useHtml = htmlProducts.length > 0 && !htmlProductsLookBad;
+  let products: AdProduct[] = llmWins ? llmProducts : (useHtml ? htmlProducts : parsed.products);
+  let extractionSource: CompetitorAdRecord["extraction_source"] = llmWins ? "llm-text" : (useHtml ? "html" : undefined);
+  let confidence = llmWins ? 0.8 : (useHtml ? 0.7 : Math.max(0, parsed.confidence));
+
+  const ocrEvidence: EvidenceSource[] = [];
+  const vlmEvidence: EvidenceSource[] = [];
+  let vlmProducts: AdProduct[] = [];
+
+  if (imageBuffers.length === 0 && htmlProducts.length === 0) {
+    const screenshotPath = path.join(root, "images", postId, `${postId}-screenshot.jpg`);
+    await fsp.mkdir(path.dirname(screenshotPath), { recursive: true });
+    const screenshot = await page.screenshot({ fullPage: true, type: "jpeg", quality: 70 });
+    await fsp.writeFile(screenshotPath, screenshot);
+    imageBuffers.push({ id: `${postId}-screenshot`, buffer: Buffer.from(screenshot), ext: ".jpg" });
+  }
+
+  for (const image of imageBuffers) {
+    const imgPath = path.join(root, "images", postId, `${image.id}${image.ext}`);
+    await fsp.mkdir(path.dirname(imgPath), { recursive: true });
+    await fsp.writeFile(imgPath, image.buffer);
+  }
+
+  for (const image of imageBuffers) {
+    try {
+      const ocr = await runOcr(image.buffer);
+      if (!ocr) continue;
+
+      const ocrPath = path.join(root, "ocr", postId, `${image.id}.txt`);
+      await fsp.mkdir(path.dirname(ocrPath), { recursive: true });
+      await fsp.writeFile(ocrPath, ocr.text, "utf-8");
+
+      const ocrExcerpt = clampText(ocr.text, 160);
+      if (ocrExcerpt.length > 0) {
+        ocrEvidence.push({ type: "ocr", excerpt: ocrExcerpt, image_ref: image.id });
+      }
+
+      if (ocr.confidence < 0.75) {
+        const vlm = await runVlmParse(image.buffer, ocr.text);
+        const vlmPath = path.join(root, "vlm", postId, `${image.id}.json`);
+        await fsp.mkdir(path.dirname(vlmPath), { recursive: true });
+        await fsp.writeFile(vlmPath, JSON.stringify({ raw: vlm.raw, parsed: vlm.parsed }, null, 2));
+
+        const vlmExcerpt = clampText(vlm.raw, 160);
+        if (vlmExcerpt.length > 0) {
+          vlmEvidence.push({ type: "vlm", excerpt: vlmExcerpt, image_ref: image.id });
+        }
+
+        if (vlm.parsed && Array.isArray(vlm.parsed.products)) {
+          const parsedProducts = (vlm.parsed.products as Record<string, unknown>[])
+            .filter((p): p is Record<string, unknown> => p && typeof p === "object" && typeof (p as { name?: string }).name === "string")
+            .map((p) => {
+              const name = cleanProductName(String(p.name).trim());
+              const product: AdProduct = { name };
+              if (typeof p.plan_tier === "string") product.plan_tier = p.plan_tier;
+              if (typeof p.duration_months === "number") product.duration_months = Math.round(p.duration_months);
+              if (typeof p.price_krw === "number") product.price_krw = Math.round(p.price_krw);
+              if (typeof p.price_per_month_krw === "number") product.price_per_month_krw = Math.round(p.price_per_month_krw);
+              if (typeof p.constraints === "string") product.constraints = p.constraints;
+              return product;
+            })
+            .filter((p) => p.name.length > 0);
+          if (parsedProducts.length > 0) {
+            vlmProducts = parsedProducts;
+          }
+        }
+      }
+
+      if (ocr.confidence >= 0.85 && ocr.text.trim().length > 0 && htmlProducts.length === 0) {
+        const fromOcr = extractProductsFromText([{ type: "ocr", excerpt: clampText(ocr.text, 160), image_ref: image.id }]);
+        if (fromOcr.products.length > 0) {
+          products = fromOcr.products;
+          confidence = Math.max(confidence, 0.8);
+          extractionSource = extractionSource ? "mixed" : "ocr";
+        }
+      }
+    } catch {
+      // OCR/VLM failure is non-fatal; continue with next image
+    }
+  }
+
+  if (vlmProducts.length > 0) {
+    const { validated } = validateVlmAgainstHtml(vlmProducts, parsed);
+    products = validated;
+    extractionSource = extractionSource ? "mixed" : "vlm";
+    confidence = Math.max(confidence, 0.85);
+  }
+
+  const evidenceSources = [...htmlEvidence, ...ocrEvidence, ...vlmEvidence];
+
+  return {
+    products,
+    extractionSource,
+    confidence,
+    evidenceSources,
+    postedAt,
+    pageTitle,
+    parsedHtml: parsed,
+    imageBuffers,
+  };
+}
+
+/**
+ * Crawlee request handler. Resolves vendor strategy from URL, extracts ad data,
+ * and pushes to Crawlee Dataset.
+ */
+export function createRequestHandler(deps: HandlerDeps) {
+  return async function handler(context: PlaywrightCrawleeContext): Promise<void> {
+    const { page, request } = context;
+    const { artifactRoot, registry } = deps;
+
+    // Inject polyfill needed for page.evaluate() (dom-projector subtree)
+    await page.context().addInitScript({ content: BROWSER_EVAL_NAME_POLYFILL_SCRIPT });
+    // Re-navigate so polyfill is active on the page context
+    await page.goto(request.url, { waitUntil: "domcontentloaded", timeout: 30000 });
+
+    const strategy = registry.resolveFromUrl(request.url);
+    const vendor = strategy?.vendorId ?? "unknown";
+    const postId = postIdFromUrl(request.url);
+    const runId = (request.userData as { runId?: string }).runId ?? "unknown";
+    const notesOverride = (request.userData as { notesOverride?: string }).notesOverride;
+    const authorFromBoard = (request.userData as { authorName?: string }).authorName;
+
+    // Use board-discovered author as the actual vendor; fall back to platform name
+    const effectiveVendor = authorFromBoard || vendor;
+    console.log(`Processing: ${effectiveVendor} / ${postId}`);
+
+    const result = await extractWithBrowserFallback(page, postId, artifactRoot, request.url);
+
+    if (!result.postedAt) {
+      throw new Error(`Missing posted_at; no parseable date found for ${postId}`);
+    }
+
+    if (result.products.length === 0) {
+      throw new Error(`Missing products; no structured product rows extracted for ${postId}`);
+    }
+
+    const sources = result.evidenceSources.length > 0
+      ? result.evidenceSources.filter((s) => s.excerpt.trim().length > 0)
+      : [];
+
+    if (sources.length === 0 && result.extractionSource === "html") {
+      // Deterministic path — minimal evidence is fine
+    } else if (sources.length === 0) {
+      throw new Error(`Missing evidence sources; no non-empty excerpts captured for ${postId}`);
+    }
+
+    const evidence: AdEvidence = { sources: sources.length > 0 ? sources : [] };
+
+    // Final pass: clean all product names and deduplicate
+    const cleanedProducts = deduplicateProducts(
+      result.products.map((p) => ({ ...p, name: cleanProductName(p.name) }))
+    ).filter((p) => p.name.length > 0);
+
+    const record = buildRecordBase({
+      runId,
+      vendor: effectiveVendor,
+      authorName: result.parsedHtml.vendor || undefined,
+      postUrl: request.url,
+      postTitle: result.pageTitle.trim() || "(untitled)",
+      postedAt: result.postedAt.iso,
+      postedAtRaw: result.postedAt.raw,
+      capturedAt: new Date().toISOString(),
+      products: cleanedProducts,
+      evidence,
+      extractionSource: result.extractionSource || "mixed",
+      confidence: result.confidence,
+      notes: notesOverride,
+    });
+
+    if (result.parsedHtml.account_type && !record.account_type) {
+      record.account_type = result.parsedHtml.account_type;
+    }
+
+    await Dataset.pushData(record);
+    console.log(`  [${postId}] pushed to dataset: ${cleanedProducts.length} products, source=${result.extractionSource}`);
+  };
+}

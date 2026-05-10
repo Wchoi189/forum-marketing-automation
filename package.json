@@ -28,7 +28,8 @@
     "test": "npm run lint && npm run test:unit && npm run test:integration && npm run test:mcp:parser",
     "test:unit": "tsx --test tests/unit/competitorAnalytics.test.ts tests/unit/controlPanelSync.test.ts tests/unit/schedulerSignals.test.ts tests/unit/copilotCoach.pii.test.ts",
     "test:mcp:parser": "tsx --test tests/integration/parser-mcp.integration.test.ts",
-    "test:integration": "PROJECT_ROOT=/parent/marketing-automation FORUM_PRIMARY_ID=ppomppu PPOMPPU_USER_ID=test-user PPOMPPU_USER_PW=test-pass BOT_PROFILE_DIR=/tmp/ppomppu-profile ACTIVITY_LOG_PATH=/tmp/activity-log.json XAI_API_KEY=test-xai-key NL_WEBHOOK_SECRET=test-secret tsx --test tests/integration/api.integration.test.ts tests/integration/playbook-runner.integration.test.ts tests/integration/nlWebhook.test.ts"
+    "test:integration": "PROJECT_ROOT=/parent/marketing-automation FORUM_PRIMARY_ID=ppomppu PPOMPPU_USER_ID=test-user PPOMPPU_USER_PW=test-pass BOT_PROFILE_DIR=/tmp/ppomppu-profile ACTIVITY_LOG_PATH=/tmp/activity-log.json XAI_API_KEY=test-xai-key NL_WEBHOOK_SECRET=test-secret tsx --test tests/integration/api.integration.test.ts tests/integration/playbook-runner.integration.test.ts tests/integration/nlWebhook.test.ts",
+    "test:competitor-intel": "tsx --test 'tests/unit/competitor-intel/*.test.ts' 'tests/integration/competitor-intel.integration.test.ts'"
   },
   "dependencies": {
     "@copilotkit/react-core": "^1.56.2",
@@ -37,10 +38,6 @@
     "@google/genai": "^1.29.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
-    "@ui5/webcomponents": "^2.10.0",
-    "@ui5/webcomponents-fiori": "^2.10.0",
-    "@ui5/webcomponents-icons": "^2.10.0",
-    "@ui5/webcomponents-react": "^2.10.0",
     "@vitejs/plugin-react": "^5.0.4",
     "@xyflow/react": "^12.10.2",
     "ajv": "^8.18.0",
@@ -49,6 +46,7 @@
     "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
+    "crawlee": "^3.16.0",
     "dotenv": "^17.2.3",
     "express": "^4.22.1",
     "lucide-react": "^0.546.0",

@@ -1,0 +1,62 @@
+{
+  "handover_id": "handover-20260511-0230",
+  "timestamp_utc": "2026-05-11T02:30:00Z",
+  "session_type": "implementation",
+  "source_agent": "claude-code",
+  "target_agent": "claude-code",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "competitor-intel-parser-quality",
+  "phase": "session-7-price-matrix-fix-and-full-pipeline-testing",
+  "objective": "Fix Price Matrix extraction to use hybrid pipeline (Cheerio noise reduction → Ollama structured extraction) and test on all 64 stored HTML files.",
+  "status": "in_progress",
+  "completed_this_session": [
+    "Updated text-extraction.ts: added postTitle parameter to LLM prompt so implicit product names (e.g., '가족계정' → 'YouTube Premium 가족계정') are resolved from the ad title",
+    "Added filterCrossPairedArtifacts() to remove LLM cross-pairing errors (e.g., price from 가족계정 section paired with 개인계정 name)",
+    "Updated request-handler.ts:146 to pass parsed.title to runTextExtraction()",
+    "Created scripts/re-extract-price-matrix.ts — re-processes all HTML files and writes clean records to SQLite",
+    "Created scripts/test-full-pipeline.ts — tests all 64 unique HTML files across all test directories",
+    "Price Matrix: 566 junk entries → 12 clean entries (0 junk, 0 empty, 0 missing price, 0 missing duration)",
+    "All 5 curated test vendors pass: 구독플레이스 (1 prod), 기프티콩 (7 prod), 다시봄을 (1 prod), DENMARK (3 prod), 행복shms (1 prod)",
+    "Fixed test expectation in test-all-vendors.ts: '프리미엄' → 'YouTube Premium' (LLM now uses English names)"
+  ],
+  "key_changes": {
+    "lib/competitor-intel/extraction/text-extraction.ts": [
+      "Added postTitle?: string parameter to runTextExtraction()",
+      "Updated PRODUCT_EXTRACTION_PROMPT to include title context for product name inference",
+      "Added namesAreCloseVariants() + filterCrossPairedArtifacts() post-processing filter"
+    ],
+    "lib/competitor-intel/crawler/request-handler.ts:146": "Passes parsed.title to runTextExtraction(contentText, parsed.title)",
+    "scripts/test-all-vendors.ts:28,129": "Updated expectation + passes title",
+    "scripts/demo-extraction.ts:73": "Passes title",
+    "scripts/generate-demo-report.ts:53": "Passes title",
+    "scripts/re-extract-price-matrix.ts": "NEW — re-extracts DB with title-aware pipeline",
+    "scripts/test-full-pipeline.ts": "NEW — tests all 64 HTML files"
+  },
+  "current_task": "Re-running test-full-pipeline.ts with updated productsLookJunk heuristic. Added detection for field labels (가격, 이용 기간, 기간, 할인, 쿠폰) that get incorrectly paired with nearby prices by HTML text block parser. Check: cat /tmp/claude-1000/-parent-marketing-automation/7a0fc7f3-6789-440b-ac4a-f65fca7305d6/tasks/bd4ulq0gs.output",
+  "known_issues": {
+    "cross_pairing_heuristic": "filterCrossPairedArtifacts uses substring/shared-prefix matching — works well for 가족계정/개인계정 variants but may miss edge cases. Monitor for false positives in full 64-file run.",
+    "llm_model": "Using qwen2.5vl:7b (ENV.OLLAMA_OCR_MODEL). Results may vary with different models.",
+    "field_label_junk_detection": "ADDED 2026-05-11: regex /가[\\s]?격|이용\\s?기간|기\\s?간|할인|쿠폰/ detects field labels that get incorrectly paired with prices. This should fix the -테크몽- case where 13 HTML products included entries like '- 가 격', '이용 기간' etc."
+  },
+  "test_files": {
+    "curated_5": ["0b80b387d62a", "1ac7d06aaf06", "befa16e37fb3", "eb67ebba985c", "fca4be0ea775"],
+    "additional_59": "Found in test-pipeline-1page-v2 and other test directories — same extraction pipeline, different vendors/ads. See scripts/test-full-pipeline.ts TEST_DIRS array for all paths."
+  },
+  "commands_to_run_next": [
+    "Check background task output: cat /tmp/claude-1000/-parent-marketing-automation/7a0fc7f3-6789-440b-ac4a-f65fca7305d6/tasks/b4rygun85.output",
+    "If incomplete, re-run: npx tsx scripts/test-full-pipeline.ts",
+    "Review the report: cat artifacts/competitor-ads/full-pipeline-test-report.txt",
+    "Fix any failing vendors and re-run"
+  ],
+  "artifacts_touched": [
+    "lib/competitor-intel/extraction/text-extraction.ts — MODIFIED (title context + cross-pair filter)",
+    "lib/competitor-intel/crawler/request-handler.ts — MODIFIED (pass title)",
+    "scripts/test-all-vendors.ts — MODIFIED (updated expectation, pass title)",
+    "scripts/demo-extraction.ts — MODIFIED (pass title)",
+    "scripts/generate-demo-report.ts — MODIFIED (pass title)",
+    "scripts/re-extract-price-matrix.ts — NEW",
+    "scripts/test-full-pipeline.ts — NEW",
+    "artifacts/competitor-ads/competitor-ads.db — UPDATED (clean re-extraction)",
+    "artifacts/competitor-ads/full-pipeline-test-report.txt — GENERATED (pending)"
+  ]
+}

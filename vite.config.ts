@@ -22,7 +22,7 @@ export default defineConfig(({mode}) => {
       watch: {
         // Exclude server-written runtime files so observer/publisher writes don't
         // trigger a full page reload via Vite HMR.
-        ignored: ['**/activity_log.json', '**/artifacts/**', '**/.agent/**'],
+        ignored: ['**/activity_log.json', '**/artifacts/**', '**/.agent/**', '**/storage/**'],
       },
     },
   };

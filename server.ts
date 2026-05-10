@@ -72,6 +72,21 @@ import {
   summarizeSchedulerSignals,
 } from "./lib/schedulerSignals.js";
 import type { SchedulerSignalDiagnostics, PublisherHistoryEntry } from "./contracts/models.js";
+import {
+  getOverview,
+  getVendorSummaries,
+  listRecords,
+  getRecord,
+  getProductPrices,
+  getActivityTimeline,
+} from "./lib/competitor-intel-ui.js";
+import { openDatabase } from "./lib/competitor-ad-sqlite.js";
+
+// ── Simple in-memory response cache for expensive endpoints ──
+type ResponseCache<T> = { data: T; expiresAt: number };
+const ANALYTICS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+let cachedAnalytics: ResponseCache<{ key: string; payload: unknown }> | null = null;
 
 const defaultDeps: BotDeps = {
   runObserver,
@@ -334,8 +349,24 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
         res.status(400).json({ error: parsed.error });
         return;
       }
+
+      const cacheKey = JSON.stringify({
+        fromMs: parsed.fromMs,
+        toMs: parsed.toMs,
+        bucket: parsed.bucket,
+        excludeNotices: parsed.excludeNotices,
+        authorFilter: parsed.authorFilter,
+        focusAuthor: parsed.focusAuthor
+      });
+
+      if (cachedAnalytics && Date.now() < cachedAnalytics.expiresAt && cachedAnalytics.key === cacheKey) {
+        res.json(cachedAnalytics.payload);
+        return;
+      }
+
       const logs = await deps.getLogs();
       const payload = buildCompetitorAnalyticsPayload(logs, parsed);
+      cachedAnalytics = { data: { key: cacheKey, payload }, expiresAt: Date.now() + ANALYTICS_CACHE_TTL_MS };
       res.json(payload);
     } catch (err) {
       logger.error({ event: "analytics_competitors_error", err }, "[Analytics] buildCompetitorAnalyticsPayload failed");
@@ -412,6 +443,89 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     const shareOfVoice = latest.all_posts?.length ? Math.round((ourPosts / latest.all_posts.length) * 100) : 0;
 
     res.json({ turnoverRate, shareOfVoice });
+  });
+
+  // ── Competitor Intelligence UI API ──────────────────────────────────────
+
+  app.get("/api/competitor-intel/overview", (_req, res) => {
+    try {
+      const db = openDatabase();
+      const payload = getOverview(db);
+      db.close();
+      res.json(payload);
+    } catch (err) {
+      logger.error({ event: "competitor_intel_overview_error", err }, "[CompetitorIntel] overview failed");
+      res.status(500).json({ error: "Failed to fetch overview" });
+    }
+  });
+
+  app.get("/api/competitor-intel/vendors", (_req, res) => {
+    try {
+      const db = openDatabase();
+      const payload = getVendorSummaries(db);
+      db.close();
+      res.json(payload);
+    } catch (err) {
+      logger.error({ event: "competitor_intel_vendors_error", err }, "[CompetitorIntel] vendors failed");
+      res.status(500).json({ error: "Failed to fetch vendors" });
+    }
+  });
+
+  app.get("/api/competitor-intel/records", (req, res) => {
+    try {
+      const vendor = typeof req.query.vendor === "string" ? req.query.vendor : undefined;
+      const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+      const db = openDatabase();
+      const { entries, total } = listRecords(db, { vendor, limit, offset });
+      db.close();
+      res.json({ entries, total, limit, offset });
+    } catch (err) {
+      logger.error({ event: "competitor_intel_records_error", err }, "[CompetitorIntel] records failed");
+      res.status(500).json({ error: "Failed to fetch records" });
+    }
+  });
+
+  app.get("/api/competitor-intel/records/:recordId", (req, res) => {
+    try {
+      const db = openDatabase();
+      const detail = getRecord(db, req.params.recordId);
+      db.close();
+      if (!detail) {
+        res.status(404).json({ error: "Record not found" });
+        return;
+      }
+      res.json(detail);
+    } catch (err) {
+      logger.error({ event: "competitor_intel_record_error", err }, "[CompetitorIntel] record failed");
+      res.status(500).json({ error: "Failed to fetch record" });
+    }
+  });
+
+  app.get("/api/competitor-intel/products", (_req, res) => {
+    try {
+      const db = openDatabase();
+      const payload = getProductPrices(db);
+      db.close();
+      res.json(payload);
+    } catch (err) {
+      logger.error({ event: "competitor_intel_products_error", err }, "[CompetitorIntel] products failed");
+      res.status(500).json({ error: "Failed to fetch products" });
+    }
+  });
+
+  app.get("/api/competitor-intel/timeline", (req, res) => {
+    try {
+      const bucketDays = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
+      const db = openDatabase();
+      const payload = getActivityTimeline(db, bucketDays);
+      db.close();
+      res.json(payload);
+    } catch (err) {
+      logger.error({ event: "competitor_intel_timeline_error", err }, "[CompetitorIntel] timeline failed");
+      res.status(500).json({ error: "Failed to fetch timeline" });
+    }
   });
 
   app.get("/api/trend-insights", async (req, res) => {

@@ -1,0 +1,88 @@
+{
+  "handover_id": "handover-20260510-0130",
+  "timestamp_utc": "2026-05-10T01:30:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "claude-code",
+  "target_agent": "claude-code",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "competitor-intel-refactoring-v1",
+  "phase": "session-2-complete",
+  "objective": "Replace manual browser lifecycle with Crawlee PlaywrightCrawler. Delete boilerplate (retry, rate-limit, browser management). Maintain backward-compatible JSONL output.",
+  "non_goals": [
+    "No vendor discovery yet — Session 3",
+    "No unit tests yet — Session 4",
+    "No automated scheduler for competitor intel"
+  ],
+  "current_state": {
+    "completed": [
+      "Session 1: Abstraction Layer — COMPLETE.",
+      "Session 2: Crawlee Integration — COMPLETE.",
+      "Installed crawlee v3.16.0 via npm.",
+      "Created lib/competitor-intel/crawler/request-handler.ts (252 lines).",
+      "Created lib/competitor-intel/crawler/crawlee-config.ts (41 lines).",
+      "Created lib/competitor-intel/storage/jsonl-export.ts (38 lines).",
+      "Rewrote scripts/competitor-ads-intel.ts (268 lines, was 285 after S1).",
+      "Deleted ~326 lines from pipeline.ts (was 546, now 220): browser lifecycle, retry, sleep/jitter, processPostWithRetry, processPostIsolated.",
+      "TypeScript compiles cleanly (npx tsc --noEmit passes)."
+    ],
+    "gaps": [
+      "No end-to-end verification run performed yet (needs Ollama + Playwright available).",
+      "No unit tests for new modules yet.",
+      "Vendor discovery (--scan-board) not implemented yet.",
+      "crawler/ and discovery/ directories: crawler/ done, discovery/ still empty (Session 3)."
+    ]
+  },
+  "status": "session-2-complete",
+  "acceptance_criteria_met": [
+    "crawlee installed (npm install crawlee) — YES",
+    "lib/competitor-intel/crawler/request-handler.ts — Crawlee handler with extraction — YES",
+    "lib/competitor-intel/crawler/crawlee-config.ts — PlaywrightCrawler factory — YES",
+    "lib/competitor-intel/storage/jsonl-export.ts — Dataset -> JSONL gzip — YES",
+    "scripts/competitor-ads-intel.ts uses RequestQueue + crawler.run() — YES",
+    "Manual browser lifecycle deleted from pipeline.ts — YES",
+    "Manual retry loop deleted from pipeline.ts — YES",
+    "Manual rate limiting deleted from pipeline.ts — YES",
+    "TypeScript compiles without errors — YES"
+  ],
+  "decisions": [
+    "Polyfill injected via page.context().addInitScript() in handler, then page re-navigated to same URL.",
+    "OCR/VLM calls happen within the same request handler; 300s requestHandlerTimeoutSecs covers them.",
+    "Within-run dedup moved to pre-queue filtering (SQLite isRecordKnown before queue.addRequest).",
+    "SQLite sync happens after crawler.run() completes, iterating Dataset items for insertRecord/upsertVendorProfile.",
+    "maxConcurrency=1, maxRequestsPerMinute derived from --rate-limit-rps arg.",
+    "pipeline.ts reduced to pure utilities: CSV parser, content selector, image collector, text extractors."
+  ],
+  "constraints": [
+    "Manual execution only; no automated scheduler for competitor intel.",
+    "Do not log secrets or credentials.",
+    "JSONL output format must remain backward compatible through all refactoring sessions."
+  ],
+  "env_requirements": [
+    "OLLAMA_ENDPOINT=http://ollama:11434",
+    "OLLAMA_OCR_MODEL=qwen2.5vl:7b (fallback qwen2.5vl:3b)",
+    "OLLAMA_REQUEST_TIMEOUT_MS (default 30000)",
+    "BROWSER_HEADLESS (default true)",
+    "BOT_NAV_TIMEOUT_MS (default 30000)"
+  ],
+  "artifacts_touched": [
+    "scripts/competitor-ads-intel.ts (rewritten, 285 -> 268 lines)",
+    "lib/competitor-intel/crawler/request-handler.ts (new, 252 lines)",
+    "lib/competitor-intel/crawler/crawlee-config.ts (new, 41 lines)",
+    "lib/competitor-intel/storage/jsonl-export.ts (new, 38 lines)",
+    "lib/competitor-intel/extraction/pipeline.ts (reduced, 546 -> 220 lines)",
+    "lib/competitor-intel/index.ts (barrel export updated)"
+  ],
+  "next_actions": [
+    "Session 3: Add --scan-board vendor discovery.",
+    "Create lib/competitor-intel/discovery/board-scanner.ts — CheerioCrawler for board pagination.",
+    "Create lib/competitor-intel/discovery/vendor-discovery.ts — scan -> filter -> queue orchestration.",
+    "Add --scan-board <url> and --vendor-key <pattern> flags to CLI.",
+    "Session 4: Add unit tests for pure functions."
+  ],
+  "practical_recommendations": [
+    "Run: npx tsc --noEmit to verify TypeScript compilation.",
+    "End-to-end verification: run with same CSV as before, compare JSONL output to pre-refactoring baseline.",
+    "See /parent/marketing-automation/.planning/spec-kit/refs/competitor-intel-roadmap.md for the full multi-session plan.",
+    "Crawlee stores data in local Dataset (SQLite-based at ./storage/datasets/default) — this is separate from our competitor-ad-sqlite.db."
+  ]
+}

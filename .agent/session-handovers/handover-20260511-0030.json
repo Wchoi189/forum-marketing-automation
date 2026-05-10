@@ -1,0 +1,99 @@
+{
+  "handover_id": "handover-20260511-0030",
+  "timestamp_utc": "2026-05-11T00:30:00Z",
+  "session_type": "implementation",
+  "source_agent": "claude-code",
+  "target_agent": "claude-code",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "competitor-intel-ui-v1",
+  "phase": "session-5-data-quality-fixes",
+  "objective": "Fix three critical data quality issues that make the Competitor Intelligence UI unusable: (1) products_full_json is NULL for all records, (2) account_type column missing from records table causing SQL crash, (3) pricing matrix shows 0 entries because product data is names-only.",
+  "status": "in_progress",
+  "current_state": {
+    "completed": [
+      "Session 1-4: Competitor Intel refactoring — 83 tests green, Crawlee-based pipeline live",
+      "Session 5 (Sprint 1-5): Competitor Intelligence UI built — 3 tabs at /fiori/intelligence",
+      "API layer: 6 endpoints at /api/competitor-intel/ (overview, vendors, records, products, timeline)",
+      "Fiori components: VendorOverviewTab, RecordBrowserTab, PricingTab",
+      "Route added: /fiori/intelligence in main.tsx + FioriShell nav",
+      "TypeScript compiles clean, 83 tests pass"
+    ],
+    "gaps": [
+      "ISSUE 1: products_full_json is NULL for all 2 existing records — data was ingested before the column migration",
+      "ISSUE 2: account_type column missing from records table — causes SQL crash in getVendorSummaries() at lib/competitor-intel-ui.ts:116",
+      "ISSUE 3: products_json stores names-only arrays [\"유튜브 프리미엄\",\"유튜브 프리미엄\",...] — no prices, no durations",
+      "DB: artifacts/competitor-ads/competitor-ads.db has 2 records, both with NULL products_full_json, no account_type column",
+      "Schema has 13 columns in records table — account_type was never added"
+    ]
+  },
+  "decisions_locked": [
+    "Do NOT modify the parser — it already correctly extracts prices, durations, tiers, constraints, account_type from HTML",
+    "Do NOT modify the sync adapter's productsFull passing — it already works",
+    "The fix is schema-level (add account_type column) + data re-population (re-run ingestion to populate products_full_json)"
+  ],
+  "implementation_plan": [
+    {
+      "step": 1,
+      "action": "Add account_type TEXT to SCHEMA in lib/competitor-ad-sqlite.ts",
+      "file": "lib/competitor-ad-sqlite.ts"
+    },
+    {
+      "step": 2,
+      "action": "Add ALTER TABLE migration for account_type in openDatabase() (same pattern as products_full_json migration on lines 56-61)",
+      "file": "lib/competitor-ad-sqlite.ts"
+    },
+    {
+      "step": 3,
+      "action": "Update insertRecord() to accept and store account_type field",
+      "file": "lib/competitor-ad-sqlite.ts"
+    },
+    {
+      "step": 4,
+      "action": "Pass account_type from dataset item to insertRecord() — add account_type: record.account_type to the insertRecord call",
+      "file": "lib/competitor-intel/storage/sqlite-adapter.ts"
+    },
+    {
+      "step": 5,
+      "action": "Re-run data ingestion to populate products_full_json and account_type. Check if Crawlee Dataset still has data, or re-ingest from CSV/HTML source",
+      "file": "scripts/competitor-ads-intel.ts"
+    },
+    {
+      "step": 6,
+      "action": "Verify: npx tsc --noEmit clean, 83 tests pass, products_full_json has data, account_type column exists, Pricing tab shows prices",
+      "verification": true
+    }
+  ],
+  "acceptance_criteria": [
+    "npx tsc --noEmit — clean compilation",
+    "83 competitor-intel tests pass",
+    "No SQL error on /api/competitor-intel/vendors endpoint",
+    "products_full_json contains full AdProduct objects with price_krw, duration_months, etc.",
+    "account_type column exists in records table",
+    "Pricing tab shows non-zero price entries",
+    "Vendor cards display correct account type tags (direct_login/family_share/group_invite)"
+  ],
+  "artifacts_touched": [
+    "lib/competitor-ad-sqlite.ts — SCHEMA + insertRecord + migration",
+    "lib/competitor-intel/storage/sqlite-adapter.ts — pass account_type to insertRecord",
+    "lib/competitor-intel-ui.ts — getVendorSummaries (SQL references account_type)",
+    "lib/competitor-ad-parser/ppomppu-parser.ts — reference only (already correct)",
+    "scripts/competitor-ads-intel.ts — re-run ingestion",
+    "artifacts/competitor-ads/competitor-ads.db — needs data refresh"
+  ],
+  "key_code_references": {
+    "parser_extracts_products": "lib/competitor-ad-parser/ppomppu-parser.ts:147-217 — extractProducts() already produces PpomppuProduct[] with name, price_krw, duration_months, price_per_month_krw, constraints, plan_tier",
+    "parser_extracts_account_type": "lib/competitor-ad-parser/ppomppu-parser.ts:237-246 — classifyAccountType() returns direct_login|family_share|group_invite",
+    "sync_passes_productsFull": "lib/competitor-intel/storage/sqlite-adapter.ts:52 — productsFull: record.products as unknown[]",
+    "insertRecord_signature": "lib/competitor-ad-sqlite.ts:71-103 — insertRecord() accepts productsFull? but NOT account_type",
+    "vendors_sql_crashes": "lib/competitor-intel-ui.ts:116 — SELECT vendor, COALESCE(account_type, 'unknown') as type FROM records GROUP BY vendor, type",
+    "products_full_json_migration_pattern": "lib/competitor-ad-sqlite.ts:56-61 — ALTER TABLE pattern for reference"
+  },
+  "data_ingestion_note": "Before re-running ingestion, check if Crawlee Dataset still has data: `npx tsx -e 'const {Dataset}=require(\"crawlee\"); (async()=>{const ds=await Dataset.open(); const items=await ds.export(); console.log(\"Dataset items:\", items.length); console.log(\"First item products:\", JSON.stringify(items[0]?.products, null, 2));})();'`. If Dataset is empty, need original CSV/HTML source data.",
+  "next_actions": [
+    "Add account_type column to schema + migration",
+    "Update insertRecord() to store account_type",
+    "Update sqlite-adapter.ts to pass account_type",
+    "Re-run data ingestion to populate products_full_json + account_type",
+    "Verify UI shows correct data in Pricing tab and Vendor cards"
+  ]
+}

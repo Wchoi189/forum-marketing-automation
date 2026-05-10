@@ -1,0 +1,87 @@
+{
+  "handover_id": "handover-20260510-0230",
+  "timestamp_utc": "2026-05-10T02:30:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "claude-code",
+  "target_agent": "claude-code",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "competitor-intel-refactoring-v1",
+  "phase": "session-3-complete",
+  "objective": "Add --scan-board vendor discovery: board pagination scanning, author filtering, queue orchestration.",
+  "non_goals": [
+    "No unit tests yet — Session 4",
+    "No end-to-end verification run (needs Ollama + Playwright available)",
+    "No multi-platform board support yet (only Ppomppu)"
+  ],
+  "current_state": {
+    "completed": [
+      "Session 1: Abstraction Layer — COMPLETE.",
+      "Session 2: Crawlee Integration — COMPLETE.",
+      "Session 3: Vendor Discovery — COMPLETE.",
+      "Created lib/competitor-intel/discovery/board-scanner.ts (210 lines).",
+      "Created lib/competitor-intel/discovery/vendor-discovery.ts (83 lines).",
+      "Updated scripts/competitor-ads-intel.ts — added --scan-board, --max-pages, --vendor-key CLI flags.",
+      "Refactored CLI args into discriminated union (show-vendors | csv | scan-board).",
+      "Extracted syncDatasetToSqlite() shared function.",
+      "Exported Database type from lib/competitor-ad-sqlite.ts.",
+      "Updated barrel exports in index.ts.",
+      "TypeScript compiles cleanly (npx tsc --noEmit passes)."
+    ],
+    "gaps": [
+      "No end-to-end verification run with --scan-board yet.",
+      "No unit tests for new modules yet.",
+      "Board scanner only supports Ppomppu board layout."
+    ]
+  },
+  "status": "session-3-complete",
+  "acceptance_criteria_met": [
+    "lib/competitor-intel/discovery/board-scanner.ts — board pagination scanner — YES",
+    "lib/competitor-intel/discovery/vendor-discovery.ts — scan -> filter -> queue — YES",
+    "--scan-board <url> CLI flag works — YES",
+    "--vendor-key <pattern> CLI filter works — YES",
+    "--max-pages <n> pagination depth works — YES",
+    "TypeScript compiles without errors — YES",
+    "Backward compatible (CSV mode unchanged) — YES"
+  ],
+  "decisions": [
+    "Board scanner uses plain fetch() with UA headers, not Crawlee CheerioCrawler — simpler, no Playwright needed.",
+    "Pagination follows '다음'/'next' links or page number links up to maxPages.",
+    "createBoardScanHandler also exported for CheerioCrawler mode if needed later.",
+    "Vendor filtering at board level: matches author name OR post title against vendorKey.",
+    "syncDatasetToSqlite() extracted from duplicated code — now shared between csv and scan-board modes.",
+    "Database type exported as `Db as Database` from better-sqlite3 re-export."
+  ],
+  "constraints": [
+    "Manual execution only; no automated scheduler for competitor intel.",
+    "Do not log secrets or credentials.",
+    "JSONL output format must remain backward compatible."
+  ],
+  "env_requirements": [
+    "OLLAMA_ENDPOINT=http://ollama:11434",
+    "OLLAMA_OCR_MODEL=qwen2.5vl:7b (fallback qwen2.5vl:3b)",
+    "OLLAMA_REQUEST_TIMEOUT_MS (default 30000)",
+    "BROWSER_HEADLESS (default true)",
+    "BOT_NAV_TIMEOUT_MS (default 30000)"
+  ],
+  "artifacts_touched": [
+    "lib/competitor-intel/discovery/board-scanner.ts (new, 210 lines)",
+    "lib/competitor-intel/discovery/vendor-discovery.ts (new, 83 lines)",
+    "lib/competitor-intel/index.ts (updated barrel exports)",
+    "lib/competitor-intel/vendor-registry.ts (unchanged)",
+    "lib/competitor-intel/extraction/pipeline.ts (unchanged)",
+    "scripts/competitor-ads-intel.ts (updated, added scan-board mode)",
+    "lib/competitor-ad-sqlite.ts (added Database type export)",
+    ".planning/spec-kit/refs/competitor-intel-roadmap.md (updated Session 3 status)"
+  ],
+  "next_actions": [
+    "Session 4: Add unit tests for pure functions (parser, registry, validation, image-utils, board-scanner).",
+    "End-to-end: run --scan-board with a real board URL, verify discovered vendors match known posters.",
+    "End-to-end: run with same CSV as Session 2, compare JSONL output to pre-refactoring baseline."
+  ],
+  "practical_recommendations": [
+    "Run: npx tsc --noEmit to verify TypeScript compilation.",
+    "Board scan test: npx tsx scripts/competitor-ads-intel.ts --scan-board \"https://ppomppu.co.kr/bbs/board.php?bo_table=share\" --max-pages 3 --vendor-key \"shareplan\"",
+    "See /parent/marketing-automation/.planning/spec-kit/refs/competitor-intel-roadmap.md for the full multi-session plan.",
+    "Crawlee stores data in local Dataset (SQLite-based at ./storage/datasets/default) — separate from competitor-ads.db."
+  ]
+}

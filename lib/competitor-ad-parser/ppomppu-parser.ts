@@ -1,4 +1,6 @@
 import * as cheerio from "cheerio";
+import type { AnyNode } from "domhandler";
+import { cleanProductName, deduplicateProducts } from "./product-name-utils.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -147,38 +149,74 @@ function extractContentBody($: cheerio.CheerioAPI): { contentText: string; $cont
 function extractProducts($: cheerio.CheerioAPI, $content: cheerio.Cheerio<any>): PpomppuProduct[] {
   const products: PpomppuProduct[] = [];
   const priceRe = /(\d{1,3}(?:,\d{3})+|\d+)\s*원/;
+  const priceWonRe = /₩\s*(\d{1,3}(?:,\d{3})+|\d+)/;
   const durationRe = /(\d{1,2})\s*개월/;
+  const durationYearRe = /(\d{1,2})\s*년/;
   const saleRe = /판매\s*중단/;
 
   // Product category keywords — used both as heading detection and fallback name
-  const productCategories = ["유튜브 프리미엄", "유튜브프리미엄", "넷플릭스", "디즈니", "웨이브", "티빙", "멜론", "지니뮤직", "쿠팡플레이", "애플뮤직"];
-  const normalizeCategory = (name: string) => name === "유튜브프리미엄" ? "유튜브 프리미엄" : name;
+  const productCategories = [
+    "유튜브 프리미엄", "유튜브프리미엄", "넷플릭스", "디즈니", "웨이브", "티빙", "멜론", "지니뮤직", "쿠팡플레이", "애플뮤직",
+    "YouTube Premium", "YouTube Music", "Netflix", "Gemini", "Disney+", "WAVVE", "TVING",
+  ];
 
-  // Track the most recent product heading as we walk paragraphs
+  // Noise patterns for fallback name rejection
+  const noiseStarts = [
+    /^Q[.：\s]/i, /^A[.：\s]/i, /^질문/i, /^답변/i,
+    /^공식\s*가격/i, /^원가/i, /^이메일/i, /^문자/i,
+    /^카톡/i, /^상품\s*결제/i, /^입금/i, /^계좌/i,
+    /^쪽지/i, /^PPOMPPU\s*장터/i, /^뽐뿌\s*정보/i,
+    /^회원가입/i, /^로그인/i, /^홈페이지/i,
+    /^새로운\s*구독/i, /^유프리/i, /^검증된/i,
+    /^이런\s*리스크/i, /^편리한\s*연장/i, /^먹튀/i,
+    /^클릭하시면/i, /^최근\s*뽐뿌/i,
+  ];
+
+  // Track the most recent product heading as we walk elements
   let currentProductName = "";
 
+  // ── Phase 1: try <p> elements ──
   const paragraphs = $content.find("p").toArray();
   for (const p of paragraphs) {
-    const text = $(p).text().trim();
-    if (!text) continue;
+    processElement($, p);
+  }
 
-    // Check if this paragraph is a product heading (contains a category keyword)
+  // ── Phase 2: if no products found, try <div> product cards ──
+  if (products.length === 0) {
+    const divElements = findProductDivs($, $content, productCategories, noiseStarts);
+    for (const el of divElements) {
+      processElement($, el);
+    }
+  }
+
+  return deduplicateProducts(products);
+
+  // ── Inner helper ──
+  function processElement(_$: cheerio.CheerioAPI, el: AnyNode): void {
+    const text = $(el).text().trim();
+    if (!text) return;
+
+    // Check if this element is a product heading
     for (const cat of productCategories) {
       if (text.includes(cat)) {
-        currentProductName = normalizeCategory(cat);
+        currentProductName = normalizeProductName(cat);
         break;
       }
     }
 
-    const priceMatch = text.match(priceRe);
-    const durationMatch = text.match(durationRe);
+    const hasPrice = text.match(priceRe) || text.match(priceWonRe);
     const isSaleStopped = saleRe.test(text);
 
-    // Only treat as a product row if it has a price signal
-    if (!priceMatch && !isSaleStopped) continue;
+    if (!hasPrice && !isSaleStopped) return;
 
-    const price = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : undefined;
-    const duration = durationMatch ? Number(durationMatch[1]) : undefined;
+    const price = hasPrice ? Number(hasPrice[1].replace(/,/g, "")) : undefined;
+    const durationMonths = text.match(durationRe);
+    const durationYears = text.match(durationYearRe);
+    const duration = durationMonths
+      ? Number(durationMonths[1])
+      : durationYears
+        ? Number(durationYears[1]) * 12
+        : undefined;
 
     if (isSaleStopped && !price) {
       products.push({
@@ -187,33 +225,76 @@ function extractProducts($: cheerio.CheerioAPI, $content: cheerio.Cheerio<any>):
         constraints: "판매 중단",
         plan_tier: "highlighted",
       });
-      continue;
+      return;
     }
 
-    // Extract constraint text from parentheses (e.g. "기존 계정에 적용 가능")
     const parenMatch = text.match(/[（(]([^）)]+)[）)]/);
     const constraintText = parenMatch ? parenMatch[1].trim() : "";
 
-    const name = currentProductName || (duration ? `${duration}개월` : clampText(text.replace(priceRe, "").replace(durationRe, "").replace(/[()（）]/g, "").trim(), 120));
-    if (!name || name.length < 2) continue;
+    let rawName = text
+      .replace(priceRe, "")
+      .replace(priceWonRe, "")
+      .replace(durationRe, "")
+      .replace(durationYearRe, "")
+      .replace(/[()（）]/g, "")
+      .trim();
 
-    const product: PpomppuProduct = { name: clampText(name, 120) };
+    if (!currentProductName && noiseStarts.some((n) => n.test(rawName))) return;
+    if (!currentProductName && rawName.length > 60) return;
+
+    const fallbackName = duration
+      ? `${duration}개월`
+      : normalizeProductName(cleanProductName(clampText(rawName, 120)));
+    const name = currentProductName || fallbackName;
+    if (!name || name.length < 2) return;
+    if (name.length > 50 && !currentProductName) return;
+
+    // Reject fallback names that are short meaningless phrases
+    // (e.g. "월 환산 시 약" from "월 환산 시 약4,580원")
+    if (!currentProductName && name.length < 10 && !/\d/.test(name)) return;
+
+    const product: PpomppuProduct = { name: cleanProductName(clampText(name, 120)) };
     if (duration) product.duration_months = duration;
     if (price !== undefined) product.price_krw = price;
     if (price !== undefined && duration) {
       product.price_per_month_krw = Math.round(price / duration);
     }
-    if (constraintText) {
-      product.constraints = constraintText;
-    }
-    if ($(p).find("mark").length > 0 || $(p).find("b").length > 0) {
+    if (constraintText) product.constraints = constraintText;
+    if ($(el).find("mark").length > 0 || $(el).find("b").length > 0) {
       product.plan_tier = "highlighted";
     }
 
     products.push(product);
   }
+}
 
-  return products;
+/**
+ * Find divs that contain product keywords and price/duration info.
+ * Only returns divs that are actual product cards, not generic containers.
+ */
+function findProductDivs(
+  $: cheerio.CheerioAPI,
+  $root: cheerio.Cheerio<any>,
+  categories: string[],
+  noiseStarts: RegExp[],
+): AnyNode[] {
+  const results: AnyNode[] = [];
+  $root.find("div").each((_, el) => {
+    const text = $(el).text().trim();
+    if (text.length < 5 || text.length > 200) return;
+
+    // Must contain at least one product category keyword OR be a compact price/duration div
+    const hasCategory = categories.some((cat) => text.includes(cat));
+    const isCompactPrice = /\d{1,3}(?:,\d{3})+/.test(text) || /₩/.test(text);
+    const hasDuration = /(\d{1,2})\s*(개월|년|달)/.test(text);
+    if (!hasCategory && !(isCompactPrice && hasDuration)) return;
+
+    // Reject noise blocks
+    if (noiseStarts.some((n) => n.test(text))) return;
+
+    results.push(el);
+  });
+  return results;
 }
 
 function extractTrustSignals(bodyText: string, titleText: string): string[] {
@@ -278,4 +359,25 @@ function computeConfidence(record: PpomppuParsedRecord): number {
 
 function clampText(value: string, maxLen: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, maxLen);
+}
+
+// Map Korean product variants to standardized names
+const PRODUCT_NAME_MAP: Array<[RegExp, string]> = [
+  [/유튜브.*프리미엄.*뮤직/i, "YouTube Premium + Music"],
+  [/유튜브.*프리미엄/i, "YouTube Premium"],
+  [/넷플릭스|넷플/i, "Netflix"],
+  [/디즈니.*플러스|디즈니/i, "Disney+"],
+  [/웨이브|WAVVE/i, "WAVVE"],
+  [/티빙|TVING/i, "TVING"],
+  [/멜론/i, "Melon"],
+  [/지니.*뮤직/i, "Genie Music"],
+  [/쿠팡.*플레이/i, "Coupang Play"],
+  [/애플.*뮤직/i, "Apple Music"],
+];
+
+function normalizeProductName(raw: string): string {
+  for (const [pattern, normalized] of PRODUCT_NAME_MAP) {
+    if (pattern.test(raw)) return normalized;
+  }
+  return cleanProductName(raw);
 }

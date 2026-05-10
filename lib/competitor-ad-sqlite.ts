@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import type { Database as Db } from "better-sqlite3";
+
+export type { Db as Database };
 import { ENV } from "../config/env.js";
 
 const DB_DIR = path.join(ENV.PROJECT_ROOT, "artifacts", "competitor-ads");
@@ -9,18 +11,20 @@ const DB_FILE = path.join(DB_DIR, "competitor-ads.db");
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS records (
-    record_id   TEXT PRIMARY KEY,
-    run_id      TEXT NOT NULL,
-    vendor      TEXT NOT NULL,
-    author_name TEXT,
-    post_url    TEXT NOT NULL,
-    post_title  TEXT,
-    posted_at   TEXT,
-    captured_at TEXT NOT NULL,
-    products_json TEXT,
+    record_id       TEXT PRIMARY KEY,
+    run_id          TEXT NOT NULL,
+    vendor          TEXT NOT NULL,
+    author_name     TEXT,
+    post_url        TEXT NOT NULL,
+    post_title      TEXT,
+    posted_at       TEXT,
+    captured_at     TEXT NOT NULL,
+    products_json   TEXT,
+    products_full_json TEXT,
     extraction_source TEXT,
-    confidence  REAL,
-    created_at  TEXT DEFAULT (datetime('now'))
+    account_type      TEXT,
+    confidence      REAL,
+    created_at      TEXT DEFAULT (datetime('now'))
   );
 
   CREATE TABLE IF NOT EXISTS vendor_profiles (
@@ -49,6 +53,21 @@ export function openDatabase(dbPath?: string): Db {
   const db = new Database(filePath);
   db.pragma("journal_mode = WAL");
   db.exec(SCHEMA);
+
+  // Migration: add products_full_json column to existing databases
+  const hasColumn = db.prepare("PRAGMA table_info(records)").all()
+    .some((col: { name: string }) => col.name === "products_full_json");
+  if (!hasColumn) {
+    db.exec("ALTER TABLE records ADD COLUMN products_full_json TEXT");
+  }
+
+  // Migration: add account_type column to existing databases
+  const hasAccountType = db.prepare("PRAGMA table_info(records)").all()
+    .some((col: { name: string }) => col.name === "account_type");
+  if (!hasAccountType) {
+    db.exec("ALTER TABLE records ADD COLUMN account_type TEXT");
+  }
+
   return db;
 }
 
@@ -69,11 +88,13 @@ export function insertRecord(db: Db, record: {
   products: Array<{ name: string }>;
   extraction_source?: string;
   confidence?: number;
+  productsFull?: unknown[];
+  account_type?: string;
 }): void {
   const stmt = db.prepare(`
     INSERT OR IGNORE INTO records
-      (record_id, run_id, vendor, author_name, post_url, post_title, posted_at, captured_at, products_json, extraction_source, confidence)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (record_id, run_id, vendor, author_name, post_url, post_title, posted_at, captured_at, products_json, products_full_json, extraction_source, account_type, confidence)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   stmt.run(
     record.record_id,
@@ -85,7 +106,9 @@ export function insertRecord(db: Db, record: {
     record.posted_at || null,
     record.captured_at,
     JSON.stringify(record.products.map((p) => p.name)),
+    record.productsFull ? JSON.stringify(record.productsFull) : null,
     record.extraction_source || null,
+    record.account_type || null,
     record.confidence ?? null,
   );
 }

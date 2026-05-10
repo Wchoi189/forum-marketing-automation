@@ -1,0 +1,35 @@
+{
+  "handover_id": "handover-20260511-0100",
+  "timestamp_utc": "2026-05-11T01:00:00Z",
+  "session_type": "implementation",
+  "source_agent": "claude-code",
+  "target_agent": "claude-code",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "competitor-intel-parser-quality",
+  "phase": "session-6-llm-text-extraction-and-parser-fixes",
+  "objective": "Replace brittle deterministic parser with hybrid approach: Cheerio for clean HTML, local Ollama LLM for complex ads.",
+  "status": "completed",
+  "completed_this_session": [
+    "Created scripts/test-all-vendors.ts — comprehensive 5-vendor verification test",
+    "Fixed bug in request-handler.ts: when HTML products are junk AND LLM produced nothing, the code now falls back to Cheerio parser instead of returning junk",
+    "Verified: 기프티콩 (6 products via Cheerio), 다시봄을 (2 via Cheerio), 행복shms (2 via Cheerio) all pass",
+    "Verified: 구독플레이스 and DENMARK produce products via HTML path (partial pass — full verification needs Ollama LLM)",
+    "TypeScript compiles clean (npx tsc --noEmit)",
+    "All 96 unit/integration tests pass (npm run test:competitor-intel)",
+    "Confirmed DB migrations for account_type and products_full_json columns already applied"
+  ],
+  "key_change": {
+    "file": "lib/competitor-intel/crawler/request-handler.ts:159-165",
+    "what": "Added `useHtml = htmlProducts.length > 0 && !htmlProductsLookBad` guard so junk HTML products fall back to Cheerio parser when LLM is absent",
+    "why": "Without this, vendors like 기프티콩 would get 9 'OTT 구독' junk products from HTML path instead of 6 clean Cheerio products"
+  },
+  "still_needs_ollama": [
+    "구독플레이스: Cheerio=0, HTML=1 junk sentence fragment. LLM expected to extract 2+ products (Netflix, etc.)",
+    "DENMARK: Cheerio=0, HTML=2 products with generic names ('프리미엄 1달', '3달'). LLM expected to produce cleaner names like 'YouTube Premium' with proper durations",
+    "Install Ollama and run `scripts/test-all-vendors.ts` with Ollama available for full verification"
+  ],
+  "artifacts_touched": [
+    "lib/competitor-intel/crawler/request-handler.ts — MODIFIED (junk HTML fallback fix)",
+    "scripts/test-all-vendors.ts — NEW (5-vendor verification test)"
+  ]
+}

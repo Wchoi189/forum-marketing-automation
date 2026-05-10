@@ -1,0 +1,120 @@
+{
+  "handover_id": "handover-20260510-0030",
+  "timestamp_utc": "2026-05-10T00:30:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "claude-code",
+  "target_agent": "claude-code",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "competitor-intel-refactoring-v1",
+  "phase": "session-1-complete",
+  "objective": "Refactor competitor-ads-intel monolith into modular architecture with VendorStrategy interface, preparing for Crawlee integration and vendor discovery.",
+  "non_goals": [
+    "No Crawlee integration yet — Session 2",
+    "No vendor discovery yet — Session 3",
+    "No automated tests yet — Session 4",
+    "No production rollout changes"
+  ],
+  "current_state": {
+    "completed": [
+      "Session 1: Abstraction Layer — COMPLETE.",
+      "Monolith (scripts/competitor-ads-intel.ts) reduced from 1145 lines to 285 lines.",
+      "New lib/competitor-intel/ module tree created with 1035 lines across 12 files.",
+      "VendorStrategy interface defined — enables multi-platform vendor registration.",
+      "PpomppuStrategy wraps existing parsePpomppuPost without changing behavior.",
+      "Extraction pipeline extracted: image-utils, ocr, vlm, validation, pipeline modules.",
+      "Record builder extracted with recordIdFrom, postIdFromUrl, buildRecordBase.",
+      "VendorRegistry with URL-based strategy resolution.",
+      "Barrel export at lib/competitor-intel/index.ts.",
+      "TypeScript compiles cleanly (npx tsc --noEmit passes).",
+      "Script CLI interface and output format remain identical (behavioral invariant)."
+    ],
+    "gaps": [
+      "No unit tests for new modules yet.",
+      "VendorStrategy interface is defined but only PpomppuStrategy implemented.",
+      "crawler/ and discovery/ directories are empty placeholders (for Sessions 2 and 3).",
+      "CSV parsing still bundled inside extraction/pipeline.ts (will move to input source layer later).",
+      "No end-to-end verification run performed yet (needs Ollama + Playwright available)."
+    ]
+  },
+  "status": "session-1-complete",
+  "acceptance_criteria_met": [
+    "lib/competitor-intel/types.ts — canonical type definitions — YES",
+    "lib/competitor-intel/vendor-strategy.ts — VendorStrategy interface — YES",
+    "lib/competitor-intel/vendor-registry.ts — Registry with URL resolution — YES",
+    "lib/competitor-intel/ppomppu/ppomppu-strategy.ts — PpomppuStrategy wrapping parser — YES",
+    "lib/competitor-intel/extraction/ — image-utils, ocr, vlm, validation, pipeline — YES",
+    "lib/competitor-intel/storage/record-builder.ts — record ID + builder — YES",
+    "lib/competitor-intel/index.ts — barrel export — YES",
+    "scripts/competitor-ads-intel.ts rewritten to import from new modules — YES",
+    "TypeScript compiles without errors — YES"
+  ],
+  "decisions": [
+    "VendorStrategy interface with 7 methods: contentSelectors(), parse(), isUserContentImage(), classifyAccountType(), pricePattern(), durationPattern(), vendorId.",
+    "VendorRegistry is a singleton (export const registry) for convenience.",
+    "PpomppuStrategy delegates to existing parsePpomppuPost — parser module unchanged.",
+    "CSV parsing stays in pipeline.ts for Session 1; will be abstracted as input source in later sessions.",
+    "artifactRoot is passed as parameter to processPostWithRetry/processPostIsolated instead of computed internally.",
+    "Existing lib/competitor-ad-parser/ppomppu-parser.ts is NOT modified — wrapped, not changed.",
+    "Existing lib/competitor-ad-sqlite.ts is NOT modified — stays alongside new modules."
+  ],
+  "constraints": [
+    "Manual execution only; no automated scheduler for competitor intel.",
+    "Do not log secrets or credentials.",
+    "Publisher/observer systems must remain fail-closed for missing evidence.",
+    "JSONL output format must remain backward compatible through all refactoring sessions."
+  ],
+  "env_requirements": [
+    "OLLAMA_ENDPOINT=http://ollama:11434",
+    "OLLAMA_OCR_MODEL=qwen2.5vl:7b (fallback qwen2.5vl:3b)",
+    "OLLAMA_REQUEST_TIMEOUT_MS (default 30000)",
+    "BROWSER_HEADLESS (default true)",
+    "BOT_NAV_TIMEOUT_MS (default 30000)"
+  ],
+  "artifacts_touched": [
+    "scripts/competitor-ads-intel.ts (rewritten, 1145 -> 285 lines)",
+    "lib/competitor-intel/types.ts (new)",
+    "lib/competitor-intel/vendor-strategy.ts (new)",
+    "lib/competitor-intel/vendor-registry.ts (new)",
+    "lib/competitor-intel/ppomppu/patterns.ts (new)",
+    "lib/competitor-intel/ppomppu/ppomppu-strategy.ts (new)",
+    "lib/competitor-intel/extraction/image-utils.ts (new)",
+    "lib/competitor-intel/extraction/ocr.ts (new)",
+    "lib/competitor-intel/extraction/vlm.ts (new)",
+    "lib/competitor-intel/extraction/validation.ts (new)",
+    "lib/competitor-intel/extraction/pipeline.ts (new)",
+    "lib/competitor-intel/storage/record-builder.ts (new)",
+    "lib/competitor-intel/index.ts (new)"
+  ],
+  "files_modified": [
+    "scripts/competitor-ads-intel.ts"
+  ],
+  "files_created": [
+    "lib/competitor-intel/types.ts",
+    "lib/competitor-intel/vendor-strategy.ts",
+    "lib/competitor-intel/vendor-registry.ts",
+    "lib/competitor-intel/ppomppu/patterns.ts",
+    "lib/competitor-intel/ppomppu/ppomppu-strategy.ts",
+    "lib/competitor-intel/extraction/image-utils.ts",
+    "lib/competitor-intel/extraction/ocr.ts",
+    "lib/competitor-intel/extraction/vlm.ts",
+    "lib/competitor-intel/extraction/validation.ts",
+    "lib/competitor-intel/extraction/pipeline.ts",
+    "lib/competitor-intel/storage/record-builder.ts",
+    "lib/competitor-intel/index.ts"
+  ],
+  "next_actions": [
+    "Session 2: Install crawlee (npm install crawlee), replace main loop with PlaywrightCrawler.",
+    "Create lib/competitor-intel/crawler/request-handler.ts and crawlee-config.ts.",
+    "Create lib/competitor-intel/storage/jsonl-export.ts for backward-compatible JSONL gzip export.",
+    "Rewrite main() to use RequestQueue + crawler.run() + Dataset.pushData().",
+    "Session 3: Add --scan-board vendor discovery.",
+    "Session 4: Add unit tests for pure functions."
+  ],
+  "practical_recommendations": [
+    "Run: npx tsc --noEmit to verify TypeScript compilation.",
+    "The VendorStrategy interface is the key abstraction — adding a new vendor means implementing it and registering.",
+    "See /parent/marketing-automation/.planning/spec-kit/refs/competitor-intel-roadmap.md for the full multi-session plan.",
+    "Cloned repos at /parent/WEB_CRAWLER/crawlee (TypeScript) and /parent/WEB_CRAWLER/crawl4ai (Python) for reference.",
+    "Crawlee is the chosen integration target — native TypeScript, same Playwright version."
+  ]
+}

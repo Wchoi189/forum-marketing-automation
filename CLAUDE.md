@@ -1,14 +1,5 @@
 # Code Map
 
-## Fiori Integration (Branch: `fiori-integration`)
-
-This branch experiments with adopting SAP Fiori design principles. **See [`FIORI.md`](FIORI.md) for the full context map before working on anything Fiori-related.**
-
-Short version: `src/components/` = existing Tailwind world (stable). `src/fiori/` = new Fiori world (`@ui5/webcomponents-react`). Never mix the two. CAP skills (`sap-cap-developer`, `sap-cap-deployment`) do not apply — this is an Express backend.
-
----
-
-
 ## Server / Bot
 
 | File | Role |
@@ -23,6 +14,7 @@ Short version: `src/components/` = existing Tailwind world (stable). `src/fiori/
 | `lib/publisherHistory.ts` | Append-only JSONL + Parquet log of every publisher run. |
 | `lib/trendInsights.ts` | Hourly post-rate profile and scheduler interval multiplier from activity logs. |
 | `lib/runtimeControls.ts` | Persisted gap threshold file override (read/write). |
+| `lib/competitor-intel/` | Crawlee-based competitor ad extraction pipeline. Hybrid: Cheerio noise reduction → Ollama structured extraction. Entry: `scripts/competitor-ads-intel.ts`. See AGENTS.md for operational guide and `.planning/competitor-intel-playbook.md` for extraction knowledge base. |
 | `lib/competitor-ad-parser/` | Deterministic Cheerio-based Ppomppu ad HTML parser (`parsePpomppuPost`). No browser needed. Used by `scripts/competitor-ads-intel.ts`. |
 | `lib/parser/` | DOM projection system (`subtree`, `pageOutline`, `snapshotDiff`). Used by observer and parser MCP. |
 

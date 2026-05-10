@@ -10,6 +10,7 @@ import OperationsPage from './pages/OperationsPage';
 import ControlsPage from './pages/ControlsPage';
 import PublisherRunsPage from './pages/PublisherRunsPage';
 import KakaoDashboard from './pages/KakaoDashboard';
+import CompetitorIntelPage from './pages/CompetitorIntelPage';
 
 export default function App() {
   const location = useLocation();
@@ -18,6 +19,7 @@ export default function App() {
   const onControls = location.pathname === '/controls';
   const onPublisherRuns = location.pathname === '/publisher-runs';
   const onKakao = location.pathname === '/kakao';
+  const onCompetitorIntel = location.pathname === '/competitor-intel';
 
   const app = useAppData();
   const [simulationIndex, setSimulationIndex] = useState<number>(-1);
@@ -53,7 +55,7 @@ export default function App() {
             { to: '/publisher-runs', label: 'Publisher Runs' },
             { to: '/analytics', label: 'Competitor EDA' },
             { to: '/kakao', label: 'Kakao Channel' },
-            { to: '/fiori', label: 'Fiori View ↗' }
+            { to: '/competitor-intel', label: 'Competitor Intel' }
           ].map((item) => (
             <NavLink
               key={item.to}
@@ -129,6 +131,7 @@ export default function App() {
           {onControls && <ControlsPage app={app} />}
           {onOperations && <OperationsPage app={app} />}
           {onKakao && <KakaoDashboard />}
+          {onCompetitorIntel && <CompetitorIntelPage />}
         </main>
 
         {app.selectedLog && <LogDetailModal log={app.selectedLog} onClose={() => app.setSelectedLog(null)} />}

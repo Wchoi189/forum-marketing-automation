@@ -1,0 +1,7 @@
+{
+  "raw": "```json\n{\n  \"promo\": \"112EBFE1\",\n  \"conditions\": \"등록하실 쿠폰 코드를 입력해 주세요.\"\n}\n```",
+  "parsed": {
+    "promo": "112EBFE1",
+    "conditions": "등록하실 쿠폰 코드를 입력해 주세요."
+  }
+}
