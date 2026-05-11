@@ -1,73 +1,62 @@
-================================================
-Korean Competitor Ad Intelligence Report
-================================================
+= Korean Competitor Ad Intelligence Report =
+- Extracted from social media posts, May 2026 -
 
 - Vendor: 다시봄을
-- Post Title: 넷플릭스 프리미엄 개인 공유(모바일/태블릿 만 이용, 한달씩 결제(매월 4,000원))
-- Posted Date: 2026-05-09
-- Account Type: group_invite
-- Extraction Source: llm-text
+Post Title: 넷플릭스 프리미엄 개인 공유(모바일/태블릿 만 이용, 한달씩 결제(매월 4,000원))
+Posted Date: 2026-05-09
+Account Type: group_invite
+Extraction Source: llm-text
 
 Product Name        Price       Duration     Per Month
-------------------- ---------- ---------- ----------
-Netflix Premium     ₩4,000     1개월       ₩4,000/mo
+Netflix             ₩4,000     1개월       ₩4,000/mo
 
 - Vendor: 구독플레이스
-- Post Title: [자동발송] 유튜브/넷플릭스/제미나이 | 무인 시스템 24시간 발송
-- Posted Date: 2026-05-09
-- Account Type: family_share
-- Extraction Source: llm-text
+Post Title: [자동발송] 유튜브/넷플릭스/제미나이 | 무인 시스템 24시간 발송
+Posted Date: 2026-05-09
+Account Type: family_share
+Extraction Source: llm-text
 
 Product Name        Price       Duration     Per Month
-------------------- ---------- ---------- ----------
-Netflix Premium     ₩18,900    3개월       ₩6,300/mo
-Netflix Premium     ₩34,900    6개월       ₩5,817/mo
-Netflix Premium     ₩49,900    1년         ₩4,158/mo
-Gemini Pro          ₩29,900    1.5년       ₩1,661/mo
+Netflix             ₩18,900    3개월       ₩6,300/mo
+Netflix             ₩34,900    6개월       ₩5,817/mo
+Gemini              ₩29,900    1.5년       ₩1,661/mo
 YouTube Premium     ₩18,900    3개월       ₩6,300/mo
 YouTube Premium     ₩34,900    6개월       ₩5,817/mo
 YouTube Premium     ₩49,900    1년         ₩4,158/mo
 
 - Vendor: DENMARK
-- Post Title: 유튜브 YOUTUBE 프리미엄 1년 55,000원 파티원 모집 / 선 조치 후 입금1
-- Posted Date: 2026-05-09
-- Account Type: family_share
-- Extraction Source: llm-text
+Post Title: 유튜브 YOUTUBE 프리미엄 1년 55,000원 파티원 모집 / 선 조치 후 입금1
+Posted Date: 2026-05-09
+Account Type: family_share
+Extraction Source: llm-text
 
 Product Name        Price       Duration     Per Month
-------------------- ---------- ---------- ----------
 YouTube Premium     ₩55,000    1년         ₩4,583/mo
 
 - Vendor: 기프티콩~
-- Post Title: 유튜브 프리미엄,뮤직 가족계정,개인계정 1달4000원
-- Posted Date: 2026-05-09
-- Account Type: family_share
-- Extraction Source: llm-text
+Post Title: 유튜브 프리미엄,뮤직 가족계정,개인계정 1달4000원
+Posted Date: 2026-05-09
+Account Type: family_share
+Extraction Source: llm-text
 
 Product Name        Price       Duration     Per Month
-------------------- ---------- ---------- ----------
-가족계정 프리미엄    ₩4,000     1개월       ₩4,000/mo
-가족계정 프리미엄    ₩20,000    6개월       ₩3,333/mo
-개인계정             ₩17,000    3개월       ₩5,667/mo
+YouTube Premium     ₩4,000     1개월       ₩4,000/mo
+YouTube Premium     ₩20,000    6개월       ₩3,333/mo
+YouTube Premium     ₩17,000    3개월       ₩5,667/mo
 
 - Vendor: DENMARK
-- Post Title: 유튜브 YOUTUBE 프리미엄 1년 55,000원 파티원 모집 / 선 조치 후 입금1
-- Posted Date: 2026-05-09
-- Account Type: family_share
-- Extraction Source: llm-text
+Post Title: 유튜브 YOUTUBE 프리미엄 1년 55,000원 파티원 모집 / 선 조치 후 입금1
+Posted Date: 2026-05-09
+Account Type: family_share
+Extraction Source: llm-text
 
 Product Name        Price       Duration     Per Month
-------------------- ---------- ---------- ----------
 YouTube Premium     ₩55,000    1년         ₩4,583/mo
 
-================================================
-Summary Table of All Vendors
-================================================
-
+= Summary Table of All Vendors =
 Vendor           Post Title                                      Price       Duration     Per Month
------------------ ------------------------------------------------ ---------- ---------- ----------
-다시봄을          넷플릭스 프리미엄 개인 공유(모바일/태블릿 만 이용, 한달씩 결제(매월 4,000원))  ₩4,000     1개월       ₩4,000/mo
-구독플레이스      [자동발송] 유튜브/넷플릭스/제미나이 | 무인 시스템 24시간 발송               ₩18,900    3개월       ₩6,300/mo
-DENMARK          유튜브 YOUTUBE 프리미엄 1년 55,000원 파티원 모집 / 선 조치 후 입금1       ₩55,000    1년         ₩4,583/mo
-기프티콩~        유튜브 프리미엄,뮤직 가족계정,개인계정 1달4000원                            ₩4,000     1개월       ₩4,000/mo
-DENMARK          유튜브 YOUTUBE 프리미엄 1년 55,000원 파티원 모집 / 선 조치 후 입금1       ₩55,000    1년         ₩4,583/mo
+다시봄을         넷플릭스 프리미엄 개인 공유(모바일/태블릿 만 이용, 한달씩 결제(매월 4,000원))  ₩4,000     1개월       ₩4,000/mo
+구독플레이스     [자동발송] 유튜브/넷플릭스/제미나이 | 무인 시스템 24시간 발송               ₩18,900    3개월       ₩6,300/mo
+DENMARK          유튜브 YOUTUBE 프리미엄 1년 55,000원 파티원 모집 / 선 조치 후 입금1     ₩55,000    1년         ₩4,583/mo
+기프티콩~        유튜브 프리미엄,뮤직 가족계정,개인계정 1달4000원                          ₩4,000     1개월       ₩4,000/mo
+DENMARK          유튜브 YOUTUBE 프리미엄 1년 55,000원 파티원 모집 / 선 조치 후 입금1     ₩55,000    1년         ₩4,583/mo

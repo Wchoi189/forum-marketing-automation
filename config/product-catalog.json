@@ -1,0 +1,154 @@
+[
+  {
+    "regex": "유튜브.*프리미엄.*뮤직|YouTube\\s*Premium\\s*[*+&]\\s*Music",
+    "canonical": "YouTube Premium + Music",
+    "description": "YouTube Premium bundled with YouTube Music",
+    "keywords": ["유튜브", "YouTube", "프리미엄", "뮤직", "Music"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "유튜브.*프리미엄|YouTube\\s*Premium|유프리",
+    "canonical": "YouTube Premium",
+    "description": "YouTube Premium ad-free subscription",
+    "keywords": ["유튜브", "YouTube", "프리미엄", "Premium"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "유튜브.*뮤직|YouTube\\s*Music",
+    "canonical": "YouTube Music",
+    "description": "YouTube Music streaming subscription",
+    "keywords": ["유튜브", "YouTube", "뮤직", "Music"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "넷플릭스|넷플|Netflix",
+    "canonical": "Netflix",
+    "description": "Netflix streaming subscription",
+    "keywords": ["넷플릭스", "넷플", "Netflix"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "디즈니.*플러스|디즈니|Disney\\s*\\+?",
+    "canonical": "Disney+",
+    "description": "Disney+ streaming subscription",
+    "keywords": ["디즈니", "Disney"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "웨이브|WAVVE",
+    "canonical": "WAVVE",
+    "description": "WAVVE Korean streaming service",
+    "keywords": ["웨이브", "WAVVE"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "티빙|TVING",
+    "canonical": "TVING",
+    "description": "TVING Korean streaming service",
+    "keywords": ["티빙", "TVING"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "멜론|Melon",
+    "canonical": "Melon",
+    "description": "Melon Korean music streaming service",
+    "keywords": ["멜론", "Melon"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "지니.*뮤직|Genie\\s*Music",
+    "canonical": "Genie Music",
+    "description": "Genie Music Korean music streaming service",
+    "keywords": ["지니", "Genie", "뮤직"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "쿠팡.*플레이|Coupang\\s*Play",
+    "canonical": "Coupang Play",
+    "description": "Coupang Play Korean streaming service",
+    "keywords": ["쿠팡", "Coupang"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "애플.*뮤직|Apple\\s*Music",
+    "canonical": "Apple Music",
+    "description": "Apple Music streaming subscription",
+    "keywords": ["애플", "Apple", "뮤직"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "제미나이|Gemini",
+    "canonical": "Gemini",
+    "description": "Google Gemini Pro/Ultra AI subscription",
+    "keywords": ["제미나이", "Gemini"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "서프샤크|Surfshark",
+    "canonical": "Surfshark",
+    "description": "Surfshark VPN subscription",
+    "keywords": ["서프샤크", "Surfshark"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "퍼플렉시티|Perplexity",
+    "canonical": "Perplexity",
+    "description": "Perplexity Pro AI subscription",
+    "keywords": ["퍼플렉시티", "Perplexity"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "챗지피티|ChatGPT",
+    "canonical": "ChatGPT",
+    "description": "OpenAI ChatGPT Plus/Pro subscription",
+    "keywords": ["챗지피티", "ChatGPT"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "코세라|Coursera",
+    "canonical": "Coursera",
+    "description": "Coursera online learning subscription",
+    "keywords": ["코세라", "Coursera"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "듀오링고|Duolingo",
+    "canonical": "Duolingo",
+    "description": "Duolingo language learning subscription",
+    "keywords": ["듀오링고", "Duolingo"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "밀리의\\s*서재",
+    "canonical": "밀리의 서재",
+    "description": "Millie's Library Korean ebook subscription",
+    "keywords": ["밀리의서재"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  },
+  {
+    "regex": "왓챠|Watcha",
+    "canonical": "Watcha",
+    "description": "Watcha Korean streaming service",
+    "keywords": ["왓챠", "Watcha"],
+    "addedBy": "session-7",
+    "addedAt": "2026-05-11"
+  }
+]

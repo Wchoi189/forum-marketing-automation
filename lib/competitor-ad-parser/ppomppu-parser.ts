@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
 import { cleanProductName, deduplicateProducts } from "./product-name-utils.js";
+import { getProductNameMap } from "../competitor-intel/extraction/product-catalog.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -361,22 +362,8 @@ function clampText(value: string, maxLen: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, maxLen);
 }
 
-// Map Korean product variants to standardized names
-const PRODUCT_NAME_MAP: Array<[RegExp, string]> = [
-  [/유튜브.*프리미엄.*뮤직/i, "YouTube Premium + Music"],
-  [/유튜브.*프리미엄/i, "YouTube Premium"],
-  [/넷플릭스|넷플/i, "Netflix"],
-  [/디즈니.*플러스|디즈니/i, "Disney+"],
-  [/웨이브|WAVVE/i, "WAVVE"],
-  [/티빙|TVING/i, "TVING"],
-  [/멜론/i, "Melon"],
-  [/지니.*뮤직/i, "Genie Music"],
-  [/쿠팡.*플레이/i, "Coupang Play"],
-  [/애플.*뮤직/i, "Apple Music"],
-];
-
 function normalizeProductName(raw: string): string {
-  for (const [pattern, normalized] of PRODUCT_NAME_MAP) {
+  for (const [pattern, normalized] of getProductNameMap()) {
     if (pattern.test(raw)) return normalized;
   }
   return cleanProductName(raw);

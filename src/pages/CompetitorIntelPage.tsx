@@ -12,9 +12,16 @@ import { useCompetIntel, type VendorSummary, type AdProduct } from '../hooks/use
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+const KRW_TO_USD = 0.00073; // approximate KRW→USD rate (~1,370 KRW/USD)
+
 function fmtPrice(krw: number | null | undefined): string {
   if (krw == null) return '—';
   return `₩${krw.toLocaleString()}`;
+}
+
+function fmtPriceUsd(krw: number | null | undefined): string {
+  if (krw == null) return '—';
+  return `$${Math.round(krw * KRW_TO_USD).toLocaleString()}`;
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -285,7 +292,7 @@ function RecordDetailPanel({ record, onClose }: { record: ReturnType<typeof useC
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-white/5 bg-white/5">
-                  {['Product', 'Duration', 'Total Price', 'Per Month', 'Tier', 'Constraints'].map((h) => (
+                  {['Product', 'Duration', 'Total Price', 'Cost ($)', 'Per Month', 'Tier', 'Constraints'].map((h) => (
                     <th key={h} className="text-left py-2 px-3 font-bold uppercase tracking-wider opacity-40 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -296,6 +303,7 @@ function RecordDetailPanel({ record, onClose }: { record: ReturnType<typeof useC
                     <td className="py-2 px-3 font-medium">{p.name}</td>
                     <td className="py-2 px-3">{p.duration_months != null ? `${p.duration_months}mo` : '—'}</td>
                     <td className="py-2 px-3 font-mono font-semibold">{fmtPrice(p.price_krw)}</td>
+                    <td className="py-2 px-3 font-mono">{fmtPriceUsd(p.price_krw)}</td>
                     <td className="py-2 px-3 font-mono">{fmtPrice(p.price_per_month_krw)}</td>
                     <td className="py-2 px-3 opacity-60">{p.plan_tier ?? '—'}</td>
                     <td className="py-2 px-3 opacity-40 max-w-[200px] truncate" title={p.constraints}>{p.constraints ?? '—'}</td>
@@ -506,7 +514,7 @@ function PricingTab({ intel }: { intel: ReturnType<typeof useCompetIntel> }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/5">
-                  {['Product', 'Vendor', 'Total Price', 'Per Month', 'Duration', 'Tier', 'Posted'].map((h) => (
+                  {['Product', 'Vendor', 'Total Price', 'Cost ($)', 'Per Month', 'Duration', 'Tier', 'Posted'].map((h) => (
                     <th key={h} className="text-left py-3 px-4 text-[10px] font-bold uppercase tracking-wider opacity-40 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -519,6 +527,7 @@ function PricingTab({ intel }: { intel: ReturnType<typeof useCompetIntel> }) {
                     </td>
                     <td className="py-3 px-4 text-xs">{p.vendor}</td>
                     <td className="py-3 px-4 font-mono text-xs font-semibold">{fmtPrice(p.priceKrw)}</td>
+                    <td className="py-3 px-4 font-mono text-xs">{fmtPriceUsd(p.priceKrw)}</td>
                     <td className="py-3 px-4 font-mono text-xs">{fmtPrice(p.pricePerMonthKrw)}</td>
                     <td className="py-3 px-4 text-xs">{p.durationMonths != null ? `${p.durationMonths}mo` : '—'}</td>
                     <td className="py-3 px-4 text-xs">{p.planTier ?? '—'}</td>

@@ -1,0 +1,1 @@
+{"raw":"```json\n{\n  \"products\": [\n    {\n      \"name\": \"Netflix\",\n      \"duration_months\": 1,\n      \"price_krw\": 4000\n    }\n  ]\n}\n```","modelUsed":"gemma2:27b","cachedAt":1778495971499}

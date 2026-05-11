@@ -13,7 +13,7 @@ import { runTextExtraction } from "../lib/competitor-intel/extraction/text-extra
 import { callOllamaGenerate } from "../lib/competitor-intel/extraction/ocr.js";
 import type { EvidenceSource, AdProduct } from "../lib/competitor-intel/types.js";
 
-const HTML_DIR = "/parent/marketing-automation/artifacts/competitor-ads/test-cleanup-retry-20260511/raw_html";
+const HTML_DIR = "/parent/marketing-automation/artifacts/competitor-ads/live-20260511/raw_html";
 
 const VENDORS = [
   "0b80b387d62a",

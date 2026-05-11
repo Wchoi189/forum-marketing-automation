@@ -16,7 +16,7 @@ import { openDatabase, insertRecord, upsertVendorProfile } from "../lib/competit
 import type { AdProduct } from "../lib/competitor-intel/types.js";
 
 const HTML_DIR =
-  "/parent/marketing-automation/artifacts/competitor-ads/test-pipeline-1page-v2/raw_html";
+  "/parent/marketing-automation/artifacts/competitor-ads/live-20260511/raw_html";
 
 const INCREMENTAL = process.argv.includes("--incremental");
 

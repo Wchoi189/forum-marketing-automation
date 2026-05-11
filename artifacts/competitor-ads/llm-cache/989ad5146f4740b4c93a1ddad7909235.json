@@ -1,0 +1,1 @@
+{"raw":"```json\n{\n\"products\": [\n{\n\"name\": \"디즈니 플러스 프리미엄\",\n\"duration_months\": 6,\n\"price_krw\": 21000\n},\n{\n\"name\": \"디즈니 플러스 프리미엄\",\n\"duration_months\": 12,\n\"price_krw\": 34000\n}\n]\n}\n```","modelUsed":"gemma2:27b","cachedAt":1778456339140}

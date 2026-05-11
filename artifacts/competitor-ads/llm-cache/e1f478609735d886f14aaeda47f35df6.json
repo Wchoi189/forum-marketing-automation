@@ -1,0 +1,1 @@
+{"raw":"```json\n{\"products\": [\n  {\n    \"name\": \"디즈니플러스\",\n    \"duration_months\": 1,\n    \"price_krw\": 3965\n  }\n]}\n```","modelUsed":"gemma2:27b","cachedAt":1778456257726}

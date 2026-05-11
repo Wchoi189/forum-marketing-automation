@@ -1,32 +1,42 @@
 /**
  * Text-based Ollama extraction for competitor ad intelligence.
  *
- * When the deterministic Cheerio parser fails to extract clean product data,
- * pass the cleaned content text to a local Ollama LLM for structured extraction.
- * This avoids brittle regex parsing while keeping the pipeline fast (no image needed).
+ * Uses a shared product catalog to constrain product name extraction.
+ * The LLM identifies which catalog products are mentioned and extracts
+ * their prices/durations — names are mapped to canonical forms, not invented.
  */
 
 import { ENV } from "../../../config/env.js";
 import { callOllamaGenerate } from "./ocr.js";
 import { extractJsonObject } from "./vlm.js";
 import { cacheGet, cachePut } from "../cache/llmCache.js";
+import { getCatalogForPrompt, getProductKeywords, matchProductName } from "./product-catalog.js";
+
+// Build a human-readable catalog string for the LLM prompt
+const CATALOG_LIST = getCatalogForPrompt();
+const KEYWORDS_LIST = getProductKeywords().join(", ");
 
 const PRODUCT_EXTRACTION_PROMPT = `You are a structured data extractor for Korean competitor ad intelligence.
 
-Extract product offerings from the following ad content. Return a JSON object with:
-- "products": array of objects with fields: name (string), duration_months (number), price_krw (number)
+Extract product offerings from the following ad content. You must select product names ONLY from this catalog of known products:
+
+${CATALOG_LIST}
 
 Rules:
-- "name" should be the full product/service name (e.g. "YouTube Premium", "Netflix Premium", "Gemini Pro")
-- If the body text uses shorthand like "프리미엄", "개인계정", or "가족계정" without a product name, infer the product name from the post title. For example, if the title is about YouTube Premium, then "가족계정" should become "YouTube Premium 가족계정" and "개인계정" should become "YouTube Premium 개인계정"
+- Pick product names from the catalog above. Do NOT invent new product names.
+- If the ad mentions a bundle/package of two catalog products (e.g. "YouTube Premium + Gemini"), use the format "Catalog A + Catalog B" for the combined product name.
+- Detect bundles when you see "+" / "&" / "패키지" connecting two known products.
+- Return a JSON object with:
+  - "products": array of objects with fields: name (string), duration_months (number), price_krw (number)
 - "duration_months" should be the subscription duration in months (1년 = 12, 6개월 = 6, 3달 = 3, 1달 = 1)
-- "price_krw" should be the price in Korean Won (integer, no commas)
+- "price_krw" should be the TOTAL price for the stated duration, NOT the monthly price. If the ad shows "120,000원" next to a "12개월" plan label, that 120,000 is the total — do NOT multiply it by 12 or treat it as a monthly rate
 - Each product entry must pair a price with the name explicitly stated in the same section of the ad. Do NOT cross-pair a price from one product tier with another tier's name
 - Ignore numbers that appear in policy or constraint text (e.g., "12개월에 한번만 변경가능" means users can change once per 12 months — this is NOT a product duration)
 - Do NOT infer durations or prices from context — only use numbers that are explicitly the price and duration of a specific product offering
 - Only include products that have BOTH a name AND a price
 - Do NOT include FAQ answers, payment instructions, or navigation text as products
 - Do NOT include seller info, trust signals, or contact info as products
+- Do NOT include page headers, navigation menus, or site chrome as products
 - If no valid products found, return {"products": []}
 
 Return ONLY valid JSON, no markdown, no explanation.
@@ -100,6 +110,32 @@ function filterCrossPairedArtifacts(
   return products.filter((_, i) => !toRemove.has(i));
 }
 
+/**
+ * Reject products that don't match the known catalog.
+ * This is the primary defense against noise: if a name can't be mapped to
+ * any catalog entry, it's almost certainly page chrome or boilerplate.
+ */
+function rejectNonCatalogProducts(
+  products: Array<{ name: string; duration_months?: number; price_krw?: number }>,
+): Array<{ name: string; duration_months?: number; price_krw?: number }> {
+  return products.filter((p) => matchProductName(p.name) !== null);
+}
+
+/**
+ * Map product names to their canonical catalog forms.
+ */
+function canonicalizeProductNames(
+  products: Array<{ name: string; duration_months?: number; price_krw?: number }>,
+): Array<{ name: string; duration_months?: number; price_krw?: number }> {
+  return products.map((p) => {
+    const canonical = matchProductName(p.name);
+    return {
+      ...p,
+      name: canonical ?? p.name,
+    };
+  });
+}
+
 export async function runTextExtraction(
   contentText: string,
   postTitle?: string,
@@ -142,8 +178,13 @@ export async function runTextExtraction(
         })
         .filter((p) => p.name.length > 0 && p.price_krw !== undefined);
 
-      // Remove cross-pairing artifacts: if two entries share the same price but
-      // have different names and durations, one is likely contaminated from another section
+      // Reject products that don't match the known product catalog
+      products = rejectNonCatalogProducts(products);
+
+      // Map names to canonical catalog forms
+      products = canonicalizeProductNames(products);
+
+      // Remove cross-pairing artifacts
       products = filterCrossPairedArtifacts(products);
 
       if (products.length > 0) {
