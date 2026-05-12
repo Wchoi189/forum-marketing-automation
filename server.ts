@@ -19,6 +19,7 @@ import {
   type ObserverControlsWithGap
 } from "./bot.js";
 import { extractErrorCode } from "./lib/utils.js";
+import { getSharedLogCache } from "./lib/logCache.js";
 import { PARSER_OPTIONS } from "./bot.js";
 import { ENV } from "./config/env.js";
 import { WATCH_IGNORED } from "./config/watch.js";
@@ -394,7 +395,9 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     });
   });
 
-  // ── TTL caches for polling endpoints (auto-expire, invalidated on mutation below) ──
+  // ── Shared log cache (TTL-based, replaces per-call file reads) ──
+  const logCache = getSharedLogCache();
+
   let cachedLogs: { key: string; payload: unknown; expiresAt: number } | null = null;
   const LOGS_CACHE_MS = 15_000;
 
@@ -410,9 +413,6 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   let cachedTrendInsights: { payload: unknown; expiresAt: number } | null = null;
   const TREND_INSIGHTS_CACHE_MS = 30_000;
 
-  let cachedDrafts: { payload: unknown; expiresAt: number } | null = null;
-  const DRAFTS_CACHE_MS = 60_000;
-
   let cachedPlaybook: { key: string; payload: unknown; expiresAt: number } | null = null;
   const PLAYBOOK_CACHE_MS = 60_000;
 
@@ -420,12 +420,12 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   const CONTROL_PANEL_CACHE_MS = 10_000;
 
   function invalidatePollingCaches() {
+    logCache.invalidate();
     cachedLogs = null;
     cachedPublisherHistory = null;
     cachedCompetitorStats = null;
     cachedBoardStats = null;
     cachedTrendInsights = null;
-    cachedDrafts = null;
     cachedPlaybook = null;
     cachedControlPanel = null;
   }
@@ -442,7 +442,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       return;
     }
 
-    const allLogs = await deps.getLogs();
+    const allLogs = await logCache.get();
     const logs = allLogs.slice(-limit);
     const payload = {
       logs,
@@ -495,7 +495,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
         return;
       }
 
-      const logs = await deps.getLogs();
+      const logs = await logCache.get();
       const payload = buildCompetitorAnalyticsPayload(logs, parsed);
       cachedAnalytics = { data: { key: cacheKey, payload }, expiresAt: Date.now() + ANALYTICS_CACHE_TTL_MS };
       res.json(payload);
@@ -511,7 +511,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       return;
     }
 
-    const logs = await deps.getLogs();
+    const logs = await logCache.get();
     const stats: Record<string, { count: number, totalViews: number }> = {};
 
     const oneWeekAgo = new Date();
@@ -566,7 +566,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       return;
     }
 
-    const logs = await deps.getLogs();
+    const logs = await logCache.get();
     if (logs.length < 2) {
       res.json({ turnoverRate: 0, shareOfVoice: 0 });
       return;
@@ -679,7 +679,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
         return;
       }
 
-      const logs = await deps.getLogs();
+      const logs = await logCache.get();
       let windowDays = 7;
       let trendAdaptiveEnabled = true;
       let referenceBaseIntervalMinutes = ENV.RUN_INTERVAL_MINUTES;
@@ -793,7 +793,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     // No cache — build fresh
     try {
       const [logs, history, controlPanelState] = await Promise.all([
-        deps.getLogs(),
+        logCache.get(),
         readHistoryForAdvisor(10),
         scheduler ? scheduler.getState() : null,
       ]);
@@ -1458,7 +1458,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
 
         case "status_query": {
           const [logs, history, cpState] = await Promise.all([
-            deps.getLogs(),
+            logCache.get(),
             readHistoryForAdvisor(5),
             scheduler ? scheduler.getState() : null,
           ]);

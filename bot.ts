@@ -24,6 +24,7 @@ import { LOG_EVENT } from './lib/logEvents.js';
 import { sendSlackNotification } from './lib/notifications.js';
 import { KEEP_ACTIVITY_LOG_ENTRIES } from './lib/resourceMonitor.js';
 import { extractErrorCode, clampInt } from './lib/utils.js';
+import { initSharedLogCache, getSharedLogCache } from './lib/logCache.js';
 
 export type PublisherRunResult = {
   success: boolean;
@@ -42,6 +43,9 @@ export type PublisherRunResult = {
 
 const USER_DATA_DIR = ENV.BOT_PROFILE_DIR;
 const LOG_FILE = ENV.ACTIVITY_LOG_PATH;
+
+// Shared log cache — initialized at module load so all importers see the same instance.
+initSharedLogCache(LOG_FILE, 15_000);
 const BOARD_ROW_SELECTOR = 'tr.list0, tr.list1, tr.common-list0, tr.common-list1, tr.list_notice';
 
 /** Reduces trivial AutomationControlled / headless flags and caps per-process memory. */
@@ -162,8 +166,6 @@ export type PublisherControls = {
   /** 1-based saved-draft item row (alternating item / preview rows use offset automatically). */
   draftItemIndex: number;
 };
-
-import { ENV } from "./config/env.js";
 
 const publisherControls: PublisherControls = {
   draftItemIndex: ENV.PUBLISHER_DRAFT_ITEM_INDEX
@@ -561,12 +563,7 @@ async function attemptPpomppuLoginFromBoard(page: import('playwright').Page, boa
 }
 
 export async function getLogs(): Promise<ActivityLog[]> {
-  try {
-    const data = await fs.readFile(LOG_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (e) {
-    return [];
-  }
+  return getSharedLogCache().get();
 }
 
 function createManualReviewMessage(parseConfidence: number, parseConfidenceMin: number): string {
@@ -751,8 +748,8 @@ async function captureBoardRowRegionArtifact(
 async function saveLog(log: ActivityLog) {
   const logs = await getLogs();
   logs.unshift(log);
-  // Keep last N logs for weekly analysis (approx 20 days if run hourly)
   await fs.writeFile(LOG_FILE, JSON.stringify(logs.slice(0, KEEP_ACTIVITY_LOG_ENTRIES), null, 2));
+  getSharedLogCache().invalidate();
 }
 
 /** Prefer board `title` on date cells for HH:mm; else show board text; else observation time (Korean locale). */
