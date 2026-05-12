@@ -3,6 +3,7 @@ import fs from "fs";
 import { createServer as createHttpServer } from "http";
 import path from "path";
 import cors from "cors";
+import { rateLimit } from "express-rate-limit";
 import { pathToFileURL } from "url";
 import { createServer as createViteServer } from "vite";
 import {
@@ -71,7 +72,7 @@ import {
   buildSchedulerSignalTimeline,
   summarizeSchedulerSignals,
 } from "./lib/schedulerSignals.js";
-import type { SchedulerSignalDiagnostics, PublisherHistoryEntry } from "./contracts/models.js";
+import type { SchedulerSignalDiagnostics, PublisherHistoryEntry, PublisherRunDecision } from "./contracts/models.js";
 import {
   getOverview,
   getVendorSummaries,
@@ -81,6 +82,7 @@ import {
   getActivityTimeline,
 } from "./lib/competitor-intel-ui.js";
 import { openDatabase } from "./lib/competitor-ad-sqlite.js";
+import { getResourceMetrics, checkResourceThresholds, runGarbageCollection } from "./lib/resourceMonitor.js";
 
 // ── Simple in-memory response cache for expensive endpoints ──
 type ResponseCache<T> = { data: T; expiresAt: number };
@@ -88,12 +90,17 @@ const ANALYTICS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 let cachedAnalytics: ResponseCache<{ key: string; payload: unknown }> | null = null;
 
-const defaultDeps: BotDeps = {
-  runObserver,
-  runPublisher,
-  getLogs,
-  getPublisherHistory: readPublisherHistory,
-};
+function getDefaultDeps(): BotDeps {
+  if (ENV.DEV_SKIP_BOT) {
+    return {
+      runObserver: async () => ({ status: 'skipped' as const, currentGap: 0, gapThresholdMin: 0, reason: 'DEV_SKIP_BOT' }),
+      runPublisher: async () => ({ success: false, message: 'DEV_SKIP_BOT', runId: 'dev', decision: 'skip' as PublisherRunDecision, artifactDir: null }),
+      getLogs,
+      getPublisherHistory: readPublisherHistory,
+    };
+  }
+  return { runObserver, runPublisher, getLogs, getPublisherHistory: readPublisherHistory };
+}
 
 type SchedulerController = ReturnType<typeof startScheduler>;
 
@@ -317,6 +324,41 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   app.use(cors());
   app.use(express.json());
 
+  // ── Rate limiting ─────────────────────────────────────────────────────
+  // Skip entirely in dev mode — HMR, polling, and hot reload create bursts
+  // that don't represent real attack patterns.
+  const NOOP = (_req: unknown, _res: unknown, next: () => void) => next();
+
+  const defaultLimiter = ENV.DEV_SKIP_BOT
+    ? NOOP
+    : rateLimit({ windowMs: 60_000, limit: 100, standardHeaders: true, legacyHeaders: false });
+  const logsLimiter = ENV.DEV_SKIP_BOT
+    ? NOOP
+    : rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: true, legacyHeaders: false });
+  const analyticsLimiter = ENV.DEV_SKIP_BOT
+    ? NOOP
+    : rateLimit({ windowMs: 60_000, limit: 10, standardHeaders: true, legacyHeaders: false });
+  const publisherLimiter = ENV.DEV_SKIP_BOT
+    ? NOOP
+    : rateLimit({ windowMs: 60_000, limit: 2, standardHeaders: true, legacyHeaders: false });
+  const observerLimiter = ENV.DEV_SKIP_BOT
+    ? NOOP
+    : rateLimit({ windowMs: 60_000, limit: 5, standardHeaders: true, legacyHeaders: false });
+
+  // Kakao webhook must never be rate-limited (external platform calls).
+  // Lightweight in-memory reads and monitoring endpoints are also excluded.
+  const SKIP_RATE_PATHS = [
+    "/kakao-webhook",
+    "/api/publisher-status",      // in-memory read, polled every 1.5–5s
+    "/api/health/resources",      // monitoring endpoint
+    "/api/health",
+  ];
+
+  app.use((req, res, next) => {
+    if (SKIP_RATE_PATHS.includes(req.path)) return next();
+    defaultLimiter(req, res, next);
+  });
+
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({
@@ -326,9 +368,80 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     });
   });
 
-  app.get("/api/logs", async (req, res) => {
-    const logs = await deps.getLogs();
-    res.json(logs);
+  app.get("/api/health/resources", (_req, res) => {
+    const metrics = getResourceMetrics();
+    const warnings = checkResourceThresholds();
+    res.json({ ...metrics, warnings });
+  });
+
+  app.post("/api/resource/gc", (_req, res) => {
+    const result = runGarbageCollection();
+    if (result.logRotated) invalidatePollingCaches();
+    res.json({
+      artifacts: result.artifacts,
+      logRotated: result.logRotated,
+      triggeredAt: new Date().toISOString(),
+    });
+  });
+
+  // ── TTL caches for polling endpoints (auto-expire, invalidated on mutation below) ──
+  let cachedLogs: { key: string; payload: unknown; expiresAt: number } | null = null;
+  const LOGS_CACHE_MS = 15_000;
+
+  let cachedPublisherHistory: { key: string; payload: unknown[]; expiresAt: number } | null = null;
+  const PUBLISHER_HISTORY_CACHE_MS = 15_000;
+
+  let cachedCompetitorStats: { payload: unknown; expiresAt: number } | null = null;
+  const COMPETITOR_STATS_CACHE_MS = 30_000;
+
+  let cachedBoardStats: { payload: unknown; expiresAt: number } | null = null;
+  const BOARD_STATS_CACHE_MS = 30_000;
+
+  let cachedTrendInsights: { payload: unknown; expiresAt: number } | null = null;
+  const TREND_INSIGHTS_CACHE_MS = 30_000;
+
+  let cachedDrafts: { payload: unknown; expiresAt: number } | null = null;
+  const DRAFTS_CACHE_MS = 60_000;
+
+  let cachedPlaybook: { key: string; payload: unknown; expiresAt: number } | null = null;
+  const PLAYBOOK_CACHE_MS = 60_000;
+
+  let cachedControlPanel: { payload: unknown; expiresAt: number } | null = null;
+  const CONTROL_PANEL_CACHE_MS = 10_000;
+
+  function invalidatePollingCaches() {
+    cachedLogs = null;
+    cachedPublisherHistory = null;
+    cachedCompetitorStats = null;
+    cachedBoardStats = null;
+    cachedTrendInsights = null;
+    cachedDrafts = null;
+    cachedPlaybook = null;
+    cachedControlPanel = null;
+  }
+
+  app.get("/api/logs", logsLimiter, async (req, res) => {
+    const raw = req.query.limit;
+    const str = Array.isArray(raw) ? raw[0] : raw;
+    const n = str !== undefined ? Number(str) : 200;
+    const limit = Number.isInteger(n) && n >= 1 && n <= 500 ? n : 200;
+    const cacheKey = String(limit);
+
+    if (cachedLogs && cachedLogs.key === cacheKey && Date.now() < cachedLogs.expiresAt) {
+      res.json(cachedLogs.payload);
+      return;
+    }
+
+    const allLogs = await deps.getLogs();
+    const logs = allLogs.slice(-limit);
+    const payload = {
+      logs,
+      hasMore: allLogs.length > limit,
+      oldestTimestamp: logs.length > 0 ? logs[0].timestamp : null,
+      totalCount: allLogs.length,
+    };
+    cachedLogs = { key: cacheKey, payload, expiresAt: Date.now() + LOGS_CACHE_MS };
+    res.json(payload);
   });
 
   app.get("/api/publisher-history", async (req, res) => {
@@ -336,11 +449,19 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     const str = Array.isArray(raw) ? raw[0] : raw;
     const n = str !== undefined ? Number(str) : 40;
     const limit = Number.isInteger(n) && n >= 1 && n <= 200 ? n : 40;
+    const cacheKey = String(limit);
+
+    if (cachedPublisherHistory && cachedPublisherHistory.key === cacheKey && Date.now() < cachedPublisherHistory.expiresAt) {
+      res.json(cachedPublisherHistory.payload);
+      return;
+    }
+
     const entries = await readPublisherHistory(limit);
+    cachedPublisherHistory = { key: cacheKey, payload: entries, expiresAt: Date.now() + PUBLISHER_HISTORY_CACHE_MS };
     res.json(entries);
   });
 
-  app.get("/api/analytics/competitors", async (req, res) => {
+  app.get("/api/analytics/competitors", analyticsLimiter, async (req, res) => {
     try {
       const parsed = parseAnalyticsQuery({
         query: req.query as Record<string, string | string[] | undefined>
@@ -375,6 +496,11 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   });
 
   app.get("/api/competitor-stats", async (req, res) => {
+    if (cachedCompetitorStats && Date.now() < cachedCompetitorStats.expiresAt) {
+      res.json(cachedCompetitorStats.payload);
+      return;
+    }
+
     const logs = await deps.getLogs();
     const stats: Record<string, { count: number, totalViews: number }> = {};
 
@@ -384,9 +510,6 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
 
     recentLogs.forEach(log => {
       if (log.all_posts) {
-        // Use a set to count unique posts per snapshot to avoid double counting if snapshots are frequent
-        // But actually, frequency should be "how many times they appeared in snapshots" or "how many unique posts they made"
-        // Let's go with "how many unique posts they made" across all snapshots
         const uniquePostsInSnapshot = new Set();
         log.all_posts.forEach(post => {
           const key = post.title + post.author;
@@ -415,20 +538,29 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     };
     const top = result.slice(0, 10);
     const includesSharePlan = top.some((row) => isSharePlanAuthor(row.author));
+    let payload: unknown;
     if (includesSharePlan) {
-      res.json(top);
-      return;
+      payload = top;
+    } else if (top.length < 10) {
+      payload = [...top, sharePlanRow];
+    } else {
+      payload = [...top.slice(0, 9), sharePlanRow];
     }
-    if (top.length < 10) {
-      res.json([...top, sharePlanRow]);
-      return;
-    }
-    res.json([...top.slice(0, 9), sharePlanRow]);
+    cachedCompetitorStats = { payload, expiresAt: Date.now() + COMPETITOR_STATS_CACHE_MS };
+    res.json(payload);
   });
 
   app.get("/api/board-stats", async (req, res) => {
+    if (cachedBoardStats && Date.now() < cachedBoardStats.expiresAt) {
+      res.json(cachedBoardStats.payload);
+      return;
+    }
+
     const logs = await deps.getLogs();
-    if (logs.length < 2) return res.json({ turnoverRate: 0, shareOfVoice: 0 });
+    if (logs.length < 2) {
+      res.json({ turnoverRate: 0, shareOfVoice: 0 });
+      return;
+    }
 
     const latest = logs[0];
     const previous = logs[1];
@@ -442,7 +574,9 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     const ourPosts = latest.all_posts?.filter(p => p.author.toLowerCase().includes('shareplan')).length || 0;
     const shareOfVoice = latest.all_posts?.length ? Math.round((ourPosts / latest.all_posts.length) * 100) : 0;
 
-    res.json({ turnoverRate, shareOfVoice });
+    const payload = { turnoverRate, shareOfVoice };
+    cachedBoardStats = { payload, expiresAt: Date.now() + BOARD_STATS_CACHE_MS };
+    res.json(payload);
   });
 
   // ── Competitor Intelligence UI API ──────────────────────────────────────
@@ -528,8 +662,13 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     }
   });
 
-  app.get("/api/trend-insights", async (req, res) => {
+  app.get("/api/trend-insights", analyticsLimiter, async (req, res) => {
     try {
+      if (cachedTrendInsights && Date.now() < cachedTrendInsights.expiresAt) {
+        res.json(cachedTrendInsights.payload);
+        return;
+      }
+
       const logs = await deps.getLogs();
       let windowDays = 7;
       let trendAdaptiveEnabled = true;
@@ -577,10 +716,12 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
         );
       }
 
-      res.json({
+      const result = {
         ...payload,
         schedulerSignals,
-      });
+      };
+      cachedTrendInsights = { payload: result, expiresAt: Date.now() + TREND_INSIGHTS_CACHE_MS };
+      res.json(result);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(
@@ -705,6 +846,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       stateVersion: persistMeta.stateVersion,
       persistedAt: persistMeta.persistedAt,
     });
+    cachedControlPanel = { payload: controlPanel, expiresAt: Date.now() + CONTROL_PANEL_CACHE_MS };
 
     markAdvisorCacheApplied();
     const appliedAt = new Date().toISOString();
@@ -739,7 +881,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     ]);
   });
 
-  app.post("/api/run-observer", async (req, res) => {
+  app.post("/api/run-observer", observerLimiter, async (req, res) => {
     try {
       const log = await deps.runObserver();
       if (log.status === 'error') {
@@ -749,6 +891,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
         );
         res.status(500).json({ success: false, action: 'observer', error: log.error, log });
       } else {
+        invalidatePollingCaches();
         res.json({ success: true, action: 'observer', log });
       }
     } catch (error: any) {
@@ -768,7 +911,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     res.json(getPublisherStatus());
   });
 
-  app.post("/api/run-publisher", async (req, res) => {
+  app.post("/api/run-publisher", publisherLimiter, async (req, res) => {
     const { force } = req.body;
     try {
       const result = await deps.runPublisher(force);
@@ -796,6 +939,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
           artifactDir: result.artifactDir
         });
       } else {
+        invalidatePollingCaches();
         res.json({ ...result, action: 'publisher', force: Boolean(force) });
       }
     } catch (error: any) {
@@ -819,6 +963,11 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
         res.status(400).json({ error: "Invalid workflow ID" });
         return;
       }
+      const cacheKey = workflowId;
+      if (cachedPlaybook && cachedPlaybook.key === cacheKey && Date.now() < cachedPlaybook.expiresAt) {
+        res.json(cachedPlaybook.payload);
+        return;
+      }
       const playbookPath = path.join(
         ENV.PROJECT_ROOT,
         ".planning/spec-kit/manifest",
@@ -826,6 +975,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
       );
       const content = await fs.promises.readFile(playbookPath, "utf-8");
       const playbook = JSON.parse(content);
+      cachedPlaybook = { key: cacheKey, payload: playbook, expiresAt: Date.now() + PLAYBOOK_CACHE_MS };
       res.json(playbook);
     } catch (error: any) {
       logger.error({ event: "playbook_fetch_failed", error }, "Failed to fetch playbook");
@@ -834,7 +984,12 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   });
 
   app.get("/api/control-panel", async (req, res) => {
+    if (cachedControlPanel && Date.now() < cachedControlPanel.expiresAt) {
+      res.json(cachedControlPanel.payload);
+      return;
+    }
     const payload = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime);
+    cachedControlPanel = { payload, expiresAt: Date.now() + CONTROL_PANEL_CACHE_MS };
     res.json(payload);
   });
 
@@ -995,6 +1150,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
         stateVersion: persistMeta.stateVersion,
         persistedAt: persistMeta.persistedAt,
       });
+      cachedControlPanel = { payload, expiresAt: Date.now() + CONTROL_PANEL_CACHE_MS };
       res.json(payload);
     } catch (error: unknown) {
       const [persistedObserver, persistedPublisher, persistedScheduler, persistedNlWebhookEnabled] = await Promise.all([
@@ -1385,13 +1541,16 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
 
   // ── Kakao Dashboard API ──────────────────────────────────────────────────────
 
-  app.get("/api/kakao/status", (_req, res) => {
+  app.get("/api/kakao/status", async (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     const logPath = path.join("artifacts", "kakao-history", `${today}.jsonl`);
     let todayLogCount = 0;
-    if (fs.existsSync(logPath)) {
-      const content = fs.readFileSync(logPath, "utf-8").trim();
-      if (content) todayLogCount = content.split("\n").length;
+    try {
+      const content = await fs.promises.readFile(logPath, "utf-8");
+      const trimmed = content.trim();
+      if (trimmed) todayLogCount = trimmed.split("\n").length;
+    } catch {
+      // File doesn't exist yet or unreadable — todayLogCount stays 0
     }
     res.json({
       webhookEnabled: ENV.KAKAO_WEBHOOK_ENABLED,
@@ -1428,15 +1587,18 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     res.json({ webhookEnabled: ENV.KAKAO_WEBHOOK_ENABLED, autoreplyEnabled: ENV.KAKAO_AUTOREPLY_ENABLED });
   });
 
-  app.get("/api/kakao/logs", (req, res) => {
+  app.get("/api/kakao/logs", async (req, res) => {
     const limit = parsePositiveIntQuery(req.query.limit, 100, 1, 500);
     const today = new Date().toISOString().slice(0, 10);
     const logPath = path.join("artifacts", "kakao-history", `${today}.jsonl`);
-    if (!fs.existsSync(logPath)) {
+    let content: string;
+    try {
+      content = await fs.promises.readFile(logPath, "utf-8");
+    } catch {
       res.json([]);
       return;
     }
-    const lines = fs.readFileSync(logPath, "utf-8").trim().split("\n").filter(Boolean);
+    const lines = content.trim().split("\n").filter(Boolean);
     const entries = lines
       .map((l) => { try { return JSON.parse(l); } catch { return null; } })
       .filter(Boolean)
@@ -1691,22 +1853,50 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
 
 export async function startServer() {
   await validateRuntimeContracts();
-  await kakaoDb.ensureReady();
+
+  // ── Dev mode: skip bot (scheduler + observer + publisher) so Vite can serve the frontend
+  //     without competing against Playwright for CPU/RAM. Set DEV_SKIP_BOT=true in .env.
+  const skipBot = ENV.DEV_SKIP_BOT;
+
+  if (skipBot) {
+    logger.info('[DEV] BOT disabled — running API + frontend only. Set DEV_SKIP_BOT=false to re-enable.');
+  } else {
+    await kakaoDb.ensureReady();
+  }
 
   // Load persisted control panel settings so state survives server restarts.
   const [persistedScheduler, persistedNlWebhookEnabled] = await Promise.all([
     readPersistedSchedulerControls(),
     readPersistedNlWebhookEnabled(),
-    initBotControls(),
+    skipBot ? Promise.resolve() : initBotControls(),
   ]);
-  const scheduler = startScheduler(defaultDeps, ENV.RUN_INTERVAL_MINUTES, persistedScheduler);
-  if (Object.keys(persistedScheduler).length > 0) {
+  const scheduler = skipBot ? undefined : startScheduler(getDefaultDeps(), ENV.RUN_INTERVAL_MINUTES, persistedScheduler);
+  if (!skipBot && Object.keys(persistedScheduler).length > 0) {
     logger.info({ event: 'scheduler_controls_loaded', ...persistedScheduler }, '[Scheduler] Restored persisted controls');
   }
 
-  const app = createApp(defaultDeps, scheduler, {
+  const app = createApp(getDefaultDeps(), scheduler, {
     initialNlWebhookEnabled: persistedNlWebhookEnabled ?? ENV.NL_WEBHOOK_ENABLED,
   });
+
+  // Run garbage collection and check resource thresholds on startup
+  if (!skipBot) {
+    const gcResult = runGarbageCollection();
+    if (gcResult.artifacts.deletedCount > 0 || gcResult.logRotated > 0) {
+      logger.info(
+        { event: 'resource.gc_startup', artifactsDeleted: gcResult.artifacts.deletedCount, logRotated: gcResult.logRotated },
+        'Startup garbage collection completed'
+      );
+    }
+  }
+  const resourceWarnings = checkResourceThresholds();
+  if (resourceWarnings.length > 0) {
+    logger.warn(
+      { event: 'resource.startup_warnings', warnings: resourceWarnings },
+      `Resource warnings at startup: ${resourceWarnings.join('; ')}`
+    );
+  }
+
   const PORT = ENV.PORT;
 
   if (process.env.NODE_ENV !== "production") {
@@ -1716,6 +1906,25 @@ export async function startServer() {
         middlewareMode: true,
         // Share the same server/socket for HMR so clients don't need a second random port.
         hmr: { server: httpServer },
+        watch: {
+          // Exclude heavy/generated directories so Vite's file watcher doesn't
+          // index 75K+ files (Chromium profiles, build output, AI tool caches).
+          ignored: [
+            '**/activity_log.json',
+            '**/artifacts/**',
+            '**/.agent/**',
+            '**/storage/**',
+            '**/templates/**',
+            '**/ppomppu_profile/**',
+            '**/data/**',
+            '**/.venv/**',
+            '**/dist/**',
+            '**/node_modules/**',
+            '**/.git/**',
+            '**/kakaoauto-controller-preview/**',
+            '**/mempalace*/**',
+          ],
+        },
       },
       appType: "spa",
     });

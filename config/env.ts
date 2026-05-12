@@ -108,6 +108,8 @@ type EnvConfig = {
   COPILOT_CONTEXT_TURNS: number;
   /** 1-based index of draft item to load from saved drafts (preview rows between items are skipped automatically). */
   PUBLISHER_DRAFT_ITEM_INDEX: number;
+  /** When true, skip scheduler, observer, and publisher on startup — API + frontend only. */
+  DEV_SKIP_BOT: boolean;
 };
 
 function requiredString(name: string): string {
@@ -249,6 +251,7 @@ function buildEnv(): EnvConfig {
     COPILOTKIT_ENABLED: optionalBool("COPILOTKIT_ENABLED", false),
     COPILOT_CONTEXT_TURNS: optionalInt("COPILOT_CONTEXT_TURNS", 20, 1, 50),
     PUBLISHER_DRAFT_ITEM_INDEX: optionalInt("PUBLISHER_DRAFT_ITEM_INDEX", 1, 1, 50),
+    DEV_SKIP_BOT: optionalBool("DEV_SKIP_BOT", false),
   };
 }
 

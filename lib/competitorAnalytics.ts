@@ -297,7 +297,8 @@ export function buildCompetitorAnalyticsPayload(
         (l.all_posts?.length ?? 0) > 0
       );
     })
-    .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+    .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))
+    .slice(0, 500);
 
   const gapHours: number[] = [];
   for (let i = 1; i < sortedWindow.length; i++) {
@@ -307,7 +308,7 @@ export function buildCompetitorAnalyticsPayload(
   const medianGapHours = med;
   const largeGapWarning = med !== null && med > 8;
 
-  let events = extractNewPostEvents(logs, fromMs, toMs, excludeNotices);
+  let events = extractNewPostEvents(logs, fromMs, toMs, excludeNotices).slice(0, 1000);
   if (authorFilter && authorFilter.length > 0) {
     const set = new Set(authorFilter.map((a) => a.trim().toLowerCase()));
     events = events.filter((e) => set.has(e.author.trim().toLowerCase()));
@@ -356,6 +357,7 @@ export function buildCompetitorAnalyticsPayload(
       };
     })
     .sort((a, b) => b.postsInRange - a.postsInRange)
+    .slice(0, 20)
     .map((row, i) => ({ ...row, rank: i + 1 }));
 
   const bucketMap = new Map<number, Map<string, number>>();
@@ -378,8 +380,11 @@ export function buildCompetitorAnalyticsPayload(
     }
   }
   allStarts.sort((a, b) => a - b);
+  const cappedStarts = allStarts.length > 500
+    ? allStarts.filter((_, i) => i % Math.ceil(allStarts.length / 500) === 0).slice(0, 500)
+    : allStarts;
   const timeSeries: Record<string, string | number>[] = [];
-  for (const start of allStarts) {
+  for (const start of cappedStarts) {
     const row: Record<string, string | number> = { bucket: bucketLabel(start, bucket) };
     let total = 0;
     const inner = bucketMap.get(start);
@@ -429,22 +434,25 @@ export function buildCompetitorAnalyticsPayload(
   const sourceMap = useParsed ? heatParsed : heatSnap;
   const heatmap: HeatmapBlock = {
     mode: useParsed ? "post_date_parsed" : "snapshot_hour_only",
-    cells: [...sourceMap.entries()].map(([k, { count, author }]) => {
+    cells: [...sourceMap.entries()].slice(0, 500).map(([k, { count, author }]) => {
       const [dowStr, hourStr] = k.split(",");
       return { dayOfWeek: Number(dowStr), hour: Number(hourStr), count, author };
     })
   };
 
-  const byAuthor = new Map<string, NewPostEvent[]>();
-  for (const e of events) {
-    if (!byAuthor.has(e.author)) byAuthor.set(e.author, []);
-    byAuthor.get(e.author)!.push(e);
-  }
-
   const botAuthors = [...authorTotals.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 20)
     .map(([a]) => a);
+
+  const botAuthorSet = new Set(botAuthors);
+  const byAuthor = new Map<string, NewPostEvent[]>();
+  for (const e of events) {
+    if (botAuthorSet.has(e.author)) {
+      if (!byAuthor.has(e.author)) byAuthor.set(e.author, []);
+      byAuthor.get(e.author)!.push(e);
+    }
+  }
 
   const botSignals = botAuthors.map((a) => computeBotSignalsForAuthor(a, byAuthor.get(a) ?? []));
 

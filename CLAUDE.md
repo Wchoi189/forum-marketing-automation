@@ -4,7 +4,7 @@
 
 | File | Role |
 |------|------|
-| `server.ts` | Express app factory + `startScheduler()`. Scheduler starts `enabled=true` by default. |
+| `server.ts` | Express app factory + `startScheduler()` (skipped when `DEV_SKIP_BOT=true`). Scheduler starts `enabled=true` by default. |
 | `bot.ts` | `runObserver()` and `runPublisher()`. Both are **blocking** — HTTP callers wait for full completion. Observer always runs *inside* publisher as the gap-check first step. |
 | `config/env.ts` | All env var parsing and defaults. Only place to read/write env. |
 | `contracts/models.ts` | Shared TS types for API responses and DB records. |
@@ -60,6 +60,8 @@
 | GET | `/api/publisher-status` | `{ step: PublisherCanvasStep\|null, running: bool }`. Non-blocking. |
 | GET | `/api/publisher-history` | `PublisherHistoryEntry[]`. Query: `?limit=N`. |
 | GET | `/api/ai-recommendation` | `{ recommendation: AiAdvisorOutput\|null, contextBuiltAt, source }`. Returns `null` if `XAI_API_KEY` absent or advisor disabled. |
+| GET | `/api/health/resources` | RSS, heap, artifacts size, activity log count, browser profile stats, Chromium process count, threshold warnings. |
+| POST | `/api/resource/gc` | Triggers artifact rotation (deletes dirs >7 days old) and activity log pruning. Returns summary. |
 
 ## Key Env Vars
 
@@ -71,6 +73,7 @@
 | `MANUAL_OVERRIDE_ENABLED` | `true` | Gates force-publish |
 | `PUBLISHER_DEBUG_SCREENSHOTS` | `false` | Saves step screenshots to `artifacts/` |
 | `PUBLISHER_DEBUG_TRACE` | `false` | Saves Playwright trace zip |
+| `DEV_SKIP_BOT` | `false` | Skips scheduler/observer/publisher. Use during `npm run dev` to avoid resource contention between Vite and Playwright |
 | `OUR_AUTHOR_SUBSTRING` | `'shareplan'` | Substring matched (case-insensitive) to identify our posts for SoV computation |
 | `XAI_API_KEY` | _(absent)_ | Enables Grok 4 AI advisor. If absent, advisor endpoints return `null` recommendation |
 | `AI_ADVISOR_ENABLED` | `true` | Kill-switch for advisor without removing the API key |

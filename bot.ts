@@ -1,6 +1,8 @@
 import { chromium, type BrowserContext, type BrowserContextOptions } from 'playwright';
 import { randomUUID } from 'node:crypto';
+import { execSync } from 'node:child_process';
 import fs from 'fs/promises';
+import fsSync from 'node:fs';
 import path from 'path';
 import type { ActivityLog, Post, PublisherRunDecision } from './contracts/models.js';
 import { ENV } from './config/env.js';
@@ -40,8 +42,13 @@ const USER_DATA_DIR = ENV.BOT_PROFILE_DIR;
 const LOG_FILE = ENV.ACTIVITY_LOG_PATH;
 const BOARD_ROW_SELECTOR = 'tr.list0, tr.list1, tr.common-list0, tr.common-list1, tr.list_notice';
 
-/** Reduces trivial AutomationControlled / headless flags; sites may still block by IP or advanced WAF. */
-const CHROMIUM_LAUNCH_ARGS = ['--disable-blink-features=AutomationControlled'] as const;
+/** Reduces trivial AutomationControlled / headless flags and caps per-process memory. */
+const CHROMIUM_LAUNCH_ARGS = [
+  '--disable-blink-features=AutomationControlled',
+  '--js-flags=--max-old-space-size=2048',
+  '--disable-gpu',
+  '--disable-dev-shm-usage',
+] as const;
 
 function sharedBrowserContextOptions(): BrowserContextOptions {
   return {
@@ -159,6 +166,65 @@ let lastObserverRunStartedAt = 0;
 
 /** Prevents two concurrent publisher browser sessions from launching simultaneously. */
 let activePublisherRun: Promise<PublisherRunResult> | null = null;
+
+/** Active browser context — set before any page operations so signal handlers can close it. */
+let activeBrowserContext: BrowserContext | null = null;
+let shuttingDown = false;
+
+/** Gracefully shuts down active browser context on process exit. */
+export async function shutdownBrowser(): Promise<void> {
+  if (activeBrowserContext) {
+    logger.info({ event: 'browser.shutdown' }, 'Shutting down active browser context');
+    await activeBrowserContext.close().catch(() => null);
+    activeBrowserContext = null;
+  }
+}
+
+function registerSignalHandlers(): void {
+  let handled = false;
+  const onSignal = (sig: string) => {
+    if (handled) return;
+    handled = true;
+    shuttingDown = true;
+    logger.info({ event: 'signal.received', signal: sig }, `Received ${sig} — shutting down browser`);
+    shutdownBrowser()
+      .catch(() => null)
+      .finally(() => process.exit(0));
+  };
+  process.on('SIGINT', onSignal);
+  process.on('SIGTERM', onSignal);
+}
+registerSignalHandlers();
+
+/** Kill orphaned Chromium processes that hold a lock on USER_DATA_DIR. */
+function killOrphanChromium(): void {
+  const lockFile = path.join(USER_DATA_DIR, 'SingletonLock');
+  if (!fsSync.existsSync(lockFile)) return;
+
+  try {
+    const output = execSync('pgrep -f "chromium\\|chrome-headless-shell"', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+    const pids = output.trim().split('\n').filter(Boolean);
+    if (pids.length === 0) return;
+
+    const ourPids = new Set<string>();
+    const parentPid = String(process.ppid);
+    ourPids.add(String(process.pid));
+    ourPids.add(parentPid);
+    // Also exclude children of our process (Playwright spawns Chromium)
+    try {
+      const children = execSync(`pgrep -P ${process.pid}`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+      children.trim().split('\n').filter(Boolean).forEach(p => ourPids.add(p));
+    } catch { /* no children */ }
+
+    const orphans = pids.filter(p => !ourPids.has(p));
+    if (orphans.length === 0) return;
+
+    logger.info({ event: 'browser.orphan_cleanup', pids: orphans }, `Killing ${orphans.length} orphaned Chromium process(es)`);
+    for (const pid of orphans) {
+      try { execSync(`kill -9 ${pid}`, { stdio: 'pipe' }); } catch { /* already dead */ }
+    }
+  } catch { /* pgrep not available or no matches */ }
+}
 
 export const PARSER_OPTIONS = {
   maxDepth: 6,
@@ -822,6 +888,7 @@ async function _executeObserverRun(): Promise<ActivityLog> {
     };
 
     const context = await browser.newContext(contextOptions);
+    activeBrowserContext = context;
     await addStealthInitScripts(context);
     const page = await context.newPage();
 
@@ -1111,6 +1178,7 @@ async function _executeObserverRun(): Promise<ActivityLog> {
     await saveLog(log);
     return log;
   } finally {
+    activeBrowserContext = null;
     if (browser) {
       await browser.close().catch(() => null);
     }
@@ -1236,6 +1304,10 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
     /** When tracing ran: persist zip on failure or when success-path sampling hits. */
     let persistPublisherTraceZip = false;
     let publisherBrowserFlowFailed = false;
+
+    // Kill any orphaned Chromium processes holding the USER_DATA_DIR lock
+    killOrphanChromium();
+
     const contextOptions = {
       headless: ENV.BROWSER_HEADLESS,
       args: [...CHROMIUM_LAUNCH_ARGS],
@@ -1250,6 +1322,7 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
     };
 
     const context = await chromium.launchPersistentContext(USER_DATA_DIR, contextOptions);
+    activeBrowserContext = context;
     await addStealthInitScripts(context);
     if (debugDir && ENV.BROWSER_REQUEST_LOGGING) {
       // Enable request/response logging if debug is enabled
@@ -1409,6 +1482,7 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
           );
         }
       }
+      activeBrowserContext = null;
       await context.close();
     }
   } catch (error: any) {

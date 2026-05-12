@@ -88,6 +88,30 @@
     "addedAt": "2026-05-11"
   },
   {
+    "regex": "구글.*AI.*프로|Google\\s*(One\\s*)?AI\\s*Premium|Google\\s*AI\\s*Pro",
+    "canonical": "Google One AI Premium",
+    "description": "Google One AI Premium subscription (includes Gemini Advanced)",
+    "keywords": ["구글", "Google", "AI", "프로", "Premium"],
+    "addedBy": "session-8",
+    "addedAt": "2026-05-12"
+  },
+  {
+    "regex": "Picsart\\s*Pro|픽사트.*프로|픽사트",
+    "canonical": "Picsart Pro",
+    "description": "Picsart Pro creative editing subscription",
+    "keywords": ["Picsart", "픽사트", "프로"],
+    "addedBy": "session-8",
+    "addedAt": "2026-05-12"
+  },
+  {
+    "regex": "Adobe\\s*Creative\\s*Cloud|어도비.*크리에이티브|Adobe\\s*CC",
+    "canonical": "Adobe Creative Cloud",
+    "description": "Adobe Creative Cloud subscription (Photoshop, Illustrator, etc.)",
+    "keywords": ["Adobe", "어도비", "Creative Cloud", "크리에이티브"],
+    "addedBy": "session-8",
+    "addedAt": "2026-05-12"
+  },
+  {
     "regex": "제미나이|Gemini",
     "canonical": "Gemini",
     "description": "Google Gemini Pro/Ultra AI subscription",

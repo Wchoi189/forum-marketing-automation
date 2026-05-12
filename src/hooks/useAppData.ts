@@ -14,7 +14,6 @@ import {
 } from '../lib/controlPanel';
 import {
   decideControlPanelSync,
-  decideSequencedResponse,
   reconcileControlPanelState
 } from './controlPanelSync';
 
@@ -114,10 +113,7 @@ export function useAppData(): UseAppDataReturn {
 
   // Real publisher step — updated by polling /api/publisher-status during a run
   const [realPublisherStep, setRealPublisherStep] = useState<PipelineStepId | null>(null);
-  const publisherPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevPublisherRunningRef = useRef(false);
-  const publisherStatusRequestSeqRef = useRef(0);
-  const publisherStatusAppliedSeqRef = useRef(0);
 
   // Guard against out-of-order /api/control-panel responses overwriting newer state.
   const controlPanelRequestSeqRef = useRef(0);
@@ -164,7 +160,12 @@ export function useAppData(): UseAppDataReturn {
   }, [controlDirty]);
 
   // Fetch functions
+  const statsLastFetchedRef = useRef(0);
+  const STATS_DEBOUNCE_MS = 180_000; // 3 minutes — heavy endpoints
   const fetchStats = useCallback(async () => {
+    const now = Date.now();
+    if (now - statsLastFetchedRef.current < STATS_DEBOUNCE_MS) return;
+    statsLastFetchedRef.current = now;
     try {
       const [compRes, boardRes, trendRes] = await Promise.all([
         fetch('/api/competitor-stats'),
@@ -188,9 +189,9 @@ export function useAppData(): UseAppDataReturn {
 
   const fetchLogs = useCallback(async () => {
     try {
-      const response = await fetch('/api/logs');
+      const response = await fetch('/api/logs?limit=200');
       const data = await response.json();
-      setLogs(data);
+      setLogs(Array.isArray(data.logs) ? data.logs : []);
     } catch (error) {
       console.error('Failed to fetch logs:', error);
     }
@@ -329,24 +330,18 @@ export function useAppData(): UseAppDataReturn {
   }, [fetchControlPanel, fetchLogs, fetchPublisherHistory]);
 
   // Publisher step polling (fine-grained, used during active publish runs)
-  const startPublisherPolling = useCallback(() => {
-    if (publisherPollRef.current) return;
-    publisherPollRef.current = setInterval(async () => {
+  // Single adaptive interval: 5s base, drops to 1.5s step polling when publisher is running.
+  const publisherStepPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startPublisherStepPolling = useCallback(() => {
+    if (publisherStepPollRef.current) return;
+    publisherStepPollRef.current = setInterval(async () => {
       try {
-        const requestSeq = ++publisherStatusRequestSeqRef.current;
         const res = await fetch('/api/publisher-status');
         const data: { step: PipelineStepId | null; running: boolean } = await res.json();
-        const sequenceDecision = decideSequencedResponse(
-          publisherStatusAppliedSeqRef.current,
-          requestSeq
-        );
-        if (!sequenceDecision.accepted) return;
-        publisherStatusAppliedSeqRef.current = sequenceDecision.appliedRequestSeq;
-        if (data.step) {
-          setRealPublisherStep(data.step);
-        }
+        if (data.step) setRealPublisherStep(data.step);
         if (!data.running && !data.step) {
-          stopPublisherPolling();
+          stopPublisherStepPolling();
         }
       } catch {
         // ignore poll errors
@@ -354,38 +349,28 @@ export function useAppData(): UseAppDataReturn {
     }, 1500);
   }, []);
 
-  const stopPublisherPolling = useCallback(() => {
-    if (publisherPollRef.current) {
-      clearInterval(publisherPollRef.current);
-      publisherPollRef.current = null;
+  const stopPublisherStepPolling = useCallback(() => {
+    if (publisherStepPollRef.current) {
+      clearInterval(publisherStepPollRef.current);
+      publisherStepPollRef.current = null;
     }
   }, []);
 
-  // Fast 5-second poll of publisher-status to detect scheduler auto-publish ticks.
-  // This endpoint is pure in-memory (zero disk I/O) so the overhead is negligible.
-  // When running transitions true→false, we refresh logs and history to show updated data.
+  // Base 5-second poll of publisher-status to detect scheduler auto-publish ticks.
+  // When running transitions true→false, we refresh logs and history.
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const requestSeq = ++publisherStatusRequestSeqRef.current;
         const res = await fetch('/api/publisher-status');
         const data: { step: PipelineStepId | null; running: boolean } = await res.json();
-        const sequenceDecision = decideSequencedResponse(
-          publisherStatusAppliedSeqRef.current,
-          requestSeq
-        );
-        if (!sequenceDecision.accepted) return;
-        publisherStatusAppliedSeqRef.current = sequenceDecision.appliedRequestSeq;
         const wasRunning = prevPublisherRunningRef.current;
         prevPublisherRunningRef.current = data.running;
 
         if (data.running) {
-          // Auto-publisher just started or is mid-run — activate step polling
-          startPublisherPolling();
+          startPublisherStepPolling();
           if (data.step) setRealPublisherStep(data.step);
         } else if (wasRunning && !data.running) {
-          // Run just finished — refresh data to reflect the new state
-          stopPublisherPolling();
+          stopPublisherStepPolling();
           setRealPublisherStep(null);
           fetchLogs();
           fetchStats();
@@ -396,18 +381,21 @@ export function useAppData(): UseAppDataReturn {
         // ignore poll errors
       }
     }, 5000);
-    return () => clearInterval(interval);
-  }, [startPublisherPolling, stopPublisherPolling, fetchLogs, fetchStats, fetchControlPanel, fetchPublisherHistory]);
+    return () => {
+      clearInterval(interval);
+      stopPublisherStepPolling();
+    };
+  }, [startPublisherStepPolling, stopPublisherStepPolling, fetchLogs, fetchStats, fetchControlPanel, fetchPublisherHistory]);
 
   // When the scheduler auto-publishes, detect running=true and start step polling
   useEffect(() => {
     if (controlPanel.autoPublisher.running) {
-      startPublisherPolling();
+      startPublisherStepPolling();
     } else {
-      stopPublisherPolling();
+      stopPublisherStepPolling();
       setRealPublisherStep(null);
     }
-  }, [controlPanel.autoPublisher.running, startPublisherPolling, stopPublisherPolling]);
+  }, [controlPanel.autoPublisher.running, startPublisherStepPolling, stopPublisherStepPolling]);
 
   // Action handlers
   const saveControlPanel = useCallback(async (override?: ControlPanelState) => {
@@ -505,7 +493,7 @@ export function useAppData(): UseAppDataReturn {
   const runPublisher = useCallback(async (force: boolean = false) => {
     setLoading(true);
     setRealPublisherStep(null);
-    startPublisherPolling();
+    startPublisherStepPolling();
     try {
       const response = await fetch('/api/run-publisher', {
         method: 'POST',
@@ -529,11 +517,11 @@ export function useAppData(): UseAppDataReturn {
       const label = force ? 'Publisher (manual override)' : 'Publisher (auto)';
       setActionMessage({ type: 'error', text: `${label} — network error (could not reach API).` });
     } finally {
-      stopPublisherPolling();
+      stopPublisherStepPolling();
       setRealPublisherStep(null);
       setLoading(false);
     }
-  }, [fetchLogs, fetchPublisherHistory, silentRefreshObserver, startPublisherPolling, stopPublisherPolling]);
+  }, [fetchLogs, fetchPublisherHistory, silentRefreshObserver, startPublisherStepPolling, stopPublisherStepPolling]);
 
   return {
     logs, drafts, competitorStats, boardStats, trendInsights, publisherHistory,

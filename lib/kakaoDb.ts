@@ -32,6 +32,7 @@ export async function ensureReady(): Promise<void> {
     client = await pool.connect();
   } catch (err) {
     logger.warn({ event: "kakao_db_connect_failed", err }, "[KakaoDB] DB unreachable — Kakao features disabled");
+    await pool.end().catch(() => {});
     pool = null;
     return;
   }
