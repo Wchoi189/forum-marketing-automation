@@ -110,6 +110,7 @@ type EnvConfig = {
   PUBLISHER_DRAFT_ITEM_INDEX: number;
   /** When true, skip scheduler, observer, and publisher on startup — API + frontend only. */
   DEV_SKIP_BOT: boolean;
+  IS_DEV: boolean;
 };
 
 function requiredString(name: string): string {
@@ -252,6 +253,7 @@ function buildEnv(): EnvConfig {
     COPILOT_CONTEXT_TURNS: optionalInt("COPILOT_CONTEXT_TURNS", 20, 1, 50),
     PUBLISHER_DRAFT_ITEM_INDEX: optionalInt("PUBLISHER_DRAFT_ITEM_INDEX", 1, 1, 50),
     DEV_SKIP_BOT: optionalBool("DEV_SKIP_BOT", false),
+    IS_DEV: process.env.NODE_ENV === "development",
   };
 }
 

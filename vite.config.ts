@@ -2,24 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
-
-// Directories to exclude from Vite file watching. These cover heavy/generated
-// directories that would otherwise cause massive file watcher pressure (75K+ files).
-const WATCH_IGNORED = [
-  '**/activity_log.json',
-  '**/artifacts/**',
-  '**/.agent/**',
-  '**/storage/**',
-  '**/templates/**',
-  '**/ppomppu_profile/**',
-  '**/data/**',
-  '**/.venv/**',
-  '**/dist/**',
-  '**/node_modules/**',
-  '**/.git/**',
-  '**/kakaoauto-controller-preview/**',
-  '**/mempalace*/**',
-];
+import {WATCH_IGNORED} from './config/watch.js';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');

@@ -1,3 +1,4 @@
+import { clamp } from './utils.js';
 import { applyScheduleJitter, type ScheduleJitterMode } from './scheduleJitter.js';
 import {
   computeTurnoverAnalysis,
@@ -61,11 +62,6 @@ function isHourInRange(hour: number, start: number, end: number): boolean {
   return hour >= start || hour < end;
 }
 
-function clampInt(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.max(min, Math.min(max, Math.round(value)));
-}
-
 function clampFloat(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.max(min, Math.min(max, Number(value.toFixed(2))));
@@ -78,30 +74,30 @@ export function normalizeAutoPublisherControls(
   const merged = { ...base, ...(patch ?? {}) };
   return {
     enabled: Boolean(merged.enabled),
-    baseIntervalMinutes: clampInt(merged.baseIntervalMinutes, 1, 1440),
-    quietHoursStart: clampInt(merged.quietHoursStart, 0, 23),
-    quietHoursEnd: clampInt(merged.quietHoursEnd, 0, 23),
+    baseIntervalMinutes: clamp(merged.baseIntervalMinutes, 1, 1440),
+    quietHoursStart: clamp(merged.quietHoursStart, 0, 23),
+    quietHoursEnd: clamp(merged.quietHoursEnd, 0, 23),
     quietHoursMultiplier: clampFloat(merged.quietHoursMultiplier, 0.2, 5),
-    activeHoursStart: clampInt(merged.activeHoursStart, 0, 23),
-    activeHoursEnd: clampInt(merged.activeHoursEnd, 0, 23),
+    activeHoursStart: clamp(merged.activeHoursStart, 0, 23),
+    activeHoursEnd: clamp(merged.activeHoursEnd, 0, 23),
     activeHoursMultiplier: clampFloat(merged.activeHoursMultiplier, 0.2, 5),
     trendAdaptiveEnabled: Boolean(merged.trendAdaptiveEnabled),
-    trendWindowDays: clampInt(merged.trendWindowDays, 1, 60),
-    trendRecalibrationDays: clampInt(merged.trendRecalibrationDays, 1, 30),
-    scheduleJitterPercent: clampInt(
+    trendWindowDays: clamp(merged.trendWindowDays, 1, 60),
+    trendRecalibrationDays: clamp(merged.trendRecalibrationDays, 1, 30),
+    scheduleJitterPercent: clamp(
       typeof merged.scheduleJitterPercent === 'number' ? merged.scheduleJitterPercent : base.scheduleJitterPercent,
       0,
       50
     ),
     scheduleJitterMode: merged.scheduleJitterMode === 'none' ? 'none' : 'uniform',
-    targetPublishIntervalMinutes: clampInt(
+    targetPublishIntervalMinutes: clamp(
       typeof merged.targetPublishIntervalMinutes === 'number'
         ? merged.targetPublishIntervalMinutes
         : base.targetPublishIntervalMinutes,
       0,
       1440
     ),
-    gapRecheckIntervalMinutes: clampInt(
+    gapRecheckIntervalMinutes: clamp(
       typeof merged.gapRecheckIntervalMinutes === 'number'
         ? merged.gapRecheckIntervalMinutes
         : base.gapRecheckIntervalMinutes,
@@ -299,10 +295,10 @@ export function startScheduler(
       multiplier *= controls.activeHoursMultiplier;
     }
     multiplier *= await recalcTrendFactor();
-    let effective = clampInt(controls.baseIntervalMinutes * multiplier, 1, 1440);
+    let effective = clamp(controls.baseIntervalMinutes * multiplier, 1, 1440);
     if (controls.targetPublishIntervalMinutes > 0) {
       const t = controls.targetPublishIntervalMinutes;
-      effective = clampInt(Math.round(effective * 0.5 + t * 0.5), 1, 1440);
+      effective = clamp(Math.round(effective * 0.5 + t * 0.5), 1, 1440);
     }
     return effective;
   };

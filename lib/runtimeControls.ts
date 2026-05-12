@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { ENV } from "../config/env.js";
+import { clamp } from "./utils.js";
 
 const REL_PATH = path.join("artifacts", "runtime-controls.json");
 let runtimeControlsWriteQueue: Promise<void> = Promise.resolve();
@@ -142,11 +143,6 @@ function clampGap(n: number): number {
   return Math.max(1, Math.min(50, Math.round(n)));
 }
 
-function clampInt(n: number, min: number, max: number): number {
-  if (!Number.isFinite(n)) return min;
-  return Math.max(min, Math.min(max, Math.round(n)));
-}
-
 function clampFloat(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, Number(n.toFixed(2))));
@@ -244,20 +240,20 @@ export async function readPersistedSchedulerControls(): Promise<Partial<Persiste
   const data = await readRuntimeControls();
   const result: Partial<PersistedSchedulerControls> = {};
   if (typeof data.schedulerEnabled === "boolean") result.enabled = data.schedulerEnabled;
-  if (typeof data.schedulerBaseIntervalMinutes === "number") result.baseIntervalMinutes = clampInt(data.schedulerBaseIntervalMinutes, 1, 1440);
-  if (typeof data.schedulerQuietHoursStart === "number") result.quietHoursStart = clampInt(data.schedulerQuietHoursStart, 0, 23);
-  if (typeof data.schedulerQuietHoursEnd === "number") result.quietHoursEnd = clampInt(data.schedulerQuietHoursEnd, 0, 23);
+  if (typeof data.schedulerBaseIntervalMinutes === "number") result.baseIntervalMinutes = clamp(data.schedulerBaseIntervalMinutes, 1, 1440);
+  if (typeof data.schedulerQuietHoursStart === "number") result.quietHoursStart = clamp(data.schedulerQuietHoursStart, 0, 23);
+  if (typeof data.schedulerQuietHoursEnd === "number") result.quietHoursEnd = clamp(data.schedulerQuietHoursEnd, 0, 23);
   if (typeof data.schedulerQuietHoursMultiplier === "number") result.quietHoursMultiplier = clampFloat(data.schedulerQuietHoursMultiplier, 0.2, 5);
-  if (typeof data.schedulerActiveHoursStart === "number") result.activeHoursStart = clampInt(data.schedulerActiveHoursStart, 0, 23);
-  if (typeof data.schedulerActiveHoursEnd === "number") result.activeHoursEnd = clampInt(data.schedulerActiveHoursEnd, 0, 23);
+  if (typeof data.schedulerActiveHoursStart === "number") result.activeHoursStart = clamp(data.schedulerActiveHoursStart, 0, 23);
+  if (typeof data.schedulerActiveHoursEnd === "number") result.activeHoursEnd = clamp(data.schedulerActiveHoursEnd, 0, 23);
   if (typeof data.schedulerActiveHoursMultiplier === "number") result.activeHoursMultiplier = clampFloat(data.schedulerActiveHoursMultiplier, 0.2, 5);
   if (typeof data.schedulerTrendAdaptiveEnabled === "boolean") result.trendAdaptiveEnabled = data.schedulerTrendAdaptiveEnabled;
-  if (typeof data.schedulerTrendWindowDays === "number") result.trendWindowDays = clampInt(data.schedulerTrendWindowDays, 1, 60);
-  if (typeof data.schedulerTrendRecalibrationDays === "number") result.trendRecalibrationDays = clampInt(data.schedulerTrendRecalibrationDays, 1, 30);
-  if (typeof data.schedulerJitterPercent === "number") result.scheduleJitterPercent = clampInt(data.schedulerJitterPercent, 0, 50);
+  if (typeof data.schedulerTrendWindowDays === "number") result.trendWindowDays = clamp(data.schedulerTrendWindowDays, 1, 60);
+  if (typeof data.schedulerTrendRecalibrationDays === "number") result.trendRecalibrationDays = clamp(data.schedulerTrendRecalibrationDays, 1, 30);
+  if (typeof data.schedulerJitterPercent === "number") result.scheduleJitterPercent = clamp(data.schedulerJitterPercent, 0, 50);
   if (typeof data.schedulerJitterMode === "string") result.scheduleJitterMode = data.schedulerJitterMode === "none" ? "none" : "uniform";
-  if (typeof data.schedulerTargetPublishIntervalMinutes === "number") result.targetPublishIntervalMinutes = clampInt(data.schedulerTargetPublishIntervalMinutes, 0, 1440);
-  if (typeof data.schedulerGapRecheckIntervalMinutes === "number") result.gapRecheckIntervalMinutes = clampInt(data.schedulerGapRecheckIntervalMinutes, 1, 60);
+  if (typeof data.schedulerTargetPublishIntervalMinutes === "number") result.targetPublishIntervalMinutes = clamp(data.schedulerTargetPublishIntervalMinutes, 0, 1440);
+  if (typeof data.schedulerGapRecheckIntervalMinutes === "number") result.gapRecheckIntervalMinutes = clamp(data.schedulerGapRecheckIntervalMinutes, 1, 60);
   if (typeof data.preset === "string") result.preset = data.preset;
   return result;
 }
@@ -269,9 +265,9 @@ export async function readPersistedObserverControls(): Promise<Partial<Persisted
   const data = await readRuntimeControls();
   const result: Partial<PersistedObserverControls> = {};
   if (typeof data.observerEnabled === "boolean") result.enabled = data.observerEnabled;
-  if (typeof data.observerMinPreVisitDelayMs === "number") result.minPreVisitDelayMs = clampInt(data.observerMinPreVisitDelayMs, 0, 120000);
-  if (typeof data.observerMaxPreVisitDelayMs === "number") result.maxPreVisitDelayMs = clampInt(data.observerMaxPreVisitDelayMs, 0, 120000);
-  if (typeof data.observerMinIntervalBetweenRunsMs === "number") result.minIntervalBetweenRunsMs = clampInt(data.observerMinIntervalBetweenRunsMs, 0, 3600000);
+  if (typeof data.observerMinPreVisitDelayMs === "number") result.minPreVisitDelayMs = clamp(data.observerMinPreVisitDelayMs, 0, 120000);
+  if (typeof data.observerMaxPreVisitDelayMs === "number") result.maxPreVisitDelayMs = clamp(data.observerMaxPreVisitDelayMs, 0, 120000);
+  if (typeof data.observerMinIntervalBetweenRunsMs === "number") result.minIntervalBetweenRunsMs = clamp(data.observerMinIntervalBetweenRunsMs, 0, 3600000);
   return result;
 }
 
@@ -281,7 +277,7 @@ export async function readPersistedObserverControls(): Promise<Partial<Persisted
 export async function readPersistedPublisherControls(): Promise<Partial<PersistedPublisherControls>> {
   const data = await readRuntimeControls();
   const result: Partial<PersistedPublisherControls> = {};
-  if (typeof data.publisherDraftItemIndex === "number") result.draftItemIndex = clampInt(data.publisherDraftItemIndex, 1, 50);
+  if (typeof data.publisherDraftItemIndex === "number") result.draftItemIndex = clamp(data.publisherDraftItemIndex, 1, 50);
   return result;
 }
 

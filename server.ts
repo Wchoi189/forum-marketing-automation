@@ -18,8 +18,10 @@ import {
   initBotControls,
   type ObserverControlsWithGap
 } from "./bot.js";
+import { extractErrorCode } from "./lib/utils.js";
 import { PARSER_OPTIONS } from "./bot.js";
 import { ENV } from "./config/env.js";
+import { WATCH_IGNORED } from "./config/watch.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
 import { buildCompetitorAnalyticsPayload, parseAnalyticsQuery } from "./lib/competitorAnalytics.js";
 import { logger } from "./lib/logger.js";
@@ -139,12 +141,6 @@ type ControlPanelResponse = {
     checkedAt: string;
   } | null;
 };
-
-function extractErrorCode(input: unknown): string {
-  const message = String((input as { message?: unknown })?.message ?? input ?? "").trim();
-  const matched = message.match(/^([A-Z0-9_]+):/);
-  return matched ? matched[1] : "UNCLASSIFIED_ERROR";
-}
 
 function parsePositiveIntQuery(raw: unknown, fallback: number, min: number, max: number): number {
   const value = Array.isArray(raw) ? raw[0] : raw;
@@ -329,24 +325,27 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
   // that don't represent real attack patterns.
   const NOOP = (_req: unknown, _res: unknown, next: () => void) => next();
 
-  const defaultLimiter = ENV.DEV_SKIP_BOT
+  const shouldSkipRateLimit = ENV.IS_DEV || ENV.DEV_SKIP_BOT;
+
+  const defaultLimiter = shouldSkipRateLimit
     ? NOOP
     : rateLimit({ windowMs: 60_000, limit: 100, standardHeaders: true, legacyHeaders: false });
-  const logsLimiter = ENV.DEV_SKIP_BOT
+  const logsLimiter = shouldSkipRateLimit
     ? NOOP
     : rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: true, legacyHeaders: false });
-  const analyticsLimiter = ENV.DEV_SKIP_BOT
+  const analyticsLimiter = shouldSkipRateLimit
     ? NOOP
     : rateLimit({ windowMs: 60_000, limit: 10, standardHeaders: true, legacyHeaders: false });
-  const publisherLimiter = ENV.DEV_SKIP_BOT
+  const publisherLimiter = shouldSkipRateLimit
     ? NOOP
     : rateLimit({ windowMs: 60_000, limit: 2, standardHeaders: true, legacyHeaders: false });
-  const observerLimiter = ENV.DEV_SKIP_BOT
+  const observerLimiter = shouldSkipRateLimit
     ? NOOP
     : rateLimit({ windowMs: 60_000, limit: 5, standardHeaders: true, legacyHeaders: false });
 
   // Kakao webhook must never be rate-limited (external platform calls).
   // Lightweight in-memory reads and monitoring endpoints are also excluded.
+  // Static assets and Vite dev chunks are excluded — they're not attack surfaces.
   const SKIP_RATE_PATHS = [
     "/kakao-webhook",
     "/api/publisher-status",      // in-memory read, polled every 1.5–5s
@@ -354,7 +353,17 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     "/api/health",
   ];
 
+  const SKIP_RATE_PATTERNS = [
+    /\.js(\?|$)/,                  // Vite/ESM chunks
+    /\.css(\?|$)/,                 // CSS modules
+    /\.svg(\?|$)/,                 // SVG assets
+    /\.(png|jpg|jpeg|gif|ico|woff2?)(\?|$)/,  // images/fonts
+  ];
+
   app.use((req, res, next) => {
+    // Never rate-limit static assets or Vite dev files
+    if (SKIP_RATE_PATTERNS.some(p => p.test(req.path))) return next();
+    // Skip whitelisted API paths
     if (SKIP_RATE_PATHS.includes(req.path)) return next();
     defaultLimiter(req, res, next);
   });
@@ -380,6 +389,7 @@ export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerCont
     res.json({
       artifacts: result.artifacts,
       logRotated: result.logRotated,
+      browserProfile: result.browserProfile,
       triggeredAt: new Date().toISOString(),
     });
   });
@@ -1907,23 +1917,7 @@ export async function startServer() {
         // Share the same server/socket for HMR so clients don't need a second random port.
         hmr: { server: httpServer },
         watch: {
-          // Exclude heavy/generated directories so Vite's file watcher doesn't
-          // index 75K+ files (Chromium profiles, build output, AI tool caches).
-          ignored: [
-            '**/activity_log.json',
-            '**/artifacts/**',
-            '**/.agent/**',
-            '**/storage/**',
-            '**/templates/**',
-            '**/ppomppu_profile/**',
-            '**/data/**',
-            '**/.venv/**',
-            '**/dist/**',
-            '**/node_modules/**',
-            '**/.git/**',
-            '**/kakaoauto-controller-preview/**',
-            '**/mempalace*/**',
-          ],
+          ignored: WATCH_IGNORED,
         },
       },
       appType: "spa",

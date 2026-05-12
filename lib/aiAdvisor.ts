@@ -1,4 +1,5 @@
 import { ENV } from "../config/env.js";
+import { clamp } from "./utils.js";
 import { logger } from "./logger.js";
 import type { ActivityLog, PublisherHistoryEntry } from "../contracts/models.js";
 import type { TrendInsightsPayload } from "./trendInsights.js";
@@ -215,11 +216,6 @@ Constraints:
 - If data is insufficient (confidence < 0.3), prefer conservative recommendations close to current settings.
 - Do not hallucinate data not present in the context packet.`;
 
-function clampInt(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.max(min, Math.min(max, Math.round(value)));
-}
-
 function validateFlat(raw: unknown): AiAdvisorOutput | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -242,8 +238,8 @@ function validateFlat(raw: unknown): AiAdvisorOutput | null {
   }
 
   return {
-    recommendedIntervalMinutes: clampInt(intervalMinutes, 5, 480),
-    recommendedGapThreshold: clampInt(gapThreshold, 1, 50),
+    recommendedIntervalMinutes: clamp(intervalMinutes, 5, 480),
+    recommendedGapThreshold: clamp(gapThreshold, 1, 50),
     reasoning: String(reasoning).slice(0, 300),
     confidence: confidence as "high" | "medium" | "low",
     signalsUsed: signalsUsed as string[],

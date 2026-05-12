@@ -1,4 +1,5 @@
 import type { ActivityLog } from "../contracts/models.js";
+import { clamp } from "../lib/utils.js";
 
 /** Mirrors `.planning/spec-kit/specs/scheduler-adaptation.policy.json` trend_multiplier_bounds */
 export const TREND_MULTIPLIER_MIN = 0.65;
@@ -49,11 +50,6 @@ export type TurnoverAnalysis = {
   volatility: number;
   hourlyProfile: TrendHourlyBucket[];
 };
-
-function clampInt(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.max(min, Math.min(max, Math.round(value)));
-}
 
 /**
  * Returns the current hour in KST (UTC+9), 0-23.
@@ -230,12 +226,12 @@ export function buildTrendInsightsPayload(
     ? multiplierBandFromAvgRate(analysis.avgNewPostsPerHour)
     : "unknown";
 
-  const recommendedIntervalMinutesQuiet = clampInt(
+  const recommendedIntervalMinutesQuiet = clamp(
     (referenceBaseIntervalMinutes * QUIET_HOURS_REF_MULTIPLIER) / trendMultiplier,
     1,
     1440
   );
-  const recommendedIntervalMinutesActive = clampInt(
+  const recommendedIntervalMinutesActive = clamp(
     (referenceBaseIntervalMinutes * ACTIVE_HOURS_REF_MULTIPLIER) / trendMultiplier,
     1,
     1440

@@ -22,6 +22,8 @@ import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from './lib/playwright/browser-eval
 import { logger } from './lib/logger.js';
 import { LOG_EVENT } from './lib/logEvents.js';
 import { sendSlackNotification } from './lib/notifications.js';
+import { KEEP_ACTIVITY_LOG_ENTRIES } from './lib/resourceMonitor.js';
+import { extractErrorCode, clampInt } from './lib/utils.js';
 
 export type PublisherRunResult = {
   success: boolean;
@@ -49,6 +51,13 @@ const CHROMIUM_LAUNCH_ARGS = [
   '--disable-gpu',
   '--disable-dev-shm-usage',
 ] as const;
+
+/** Cache-busting headers applied to every browser request. */
+const CACHE_BUST_HEADERS = {
+  'Cache-Control': 'no-cache, no-store, must-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+};
 
 function sharedBrowserContextOptions(): BrowserContextOptions {
   return {
@@ -233,12 +242,6 @@ export const PARSER_OPTIONS = {
   maxTextLengthPerNode: 200
 } as const;
 
-function extractErrorCode(input: unknown): string {
-  const message = String((input as { message?: unknown })?.message ?? input ?? '').trim();
-  const matched = message.match(/^([A-Z0-9_]+):/);
-  return matched ? matched[1] : 'UNCLASSIFIED_ERROR';
-}
-
 function formatDraftRowSelectionSuffix(selection?: DraftRowSelectionDiagnostics): string {
   if (!selection) return '';
   const label = selection.clickedLabel ? ` label="${selection.clickedLabel}"` : '';
@@ -248,12 +251,6 @@ function formatDraftRowSelectionSuffix(selection?: DraftRowSelectionDiagnostics)
 function appendDraftRowSelection(message: string, selection?: DraftRowSelectionDiagnostics): string {
   if (!selection || message.includes('[draft-row requested=')) return message;
   return `${message}${formatDraftRowSelectionSuffix(selection)}`;
-}
-
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  const rounded = Math.round(value);
-  return Math.max(min, Math.min(max, rounded));
 }
 
 function randomInt(min: number, max: number): number {
@@ -754,8 +751,8 @@ async function captureBoardRowRegionArtifact(
 async function saveLog(log: ActivityLog) {
   const logs = await getLogs();
   logs.unshift(log);
-  // Keep last 300 logs for weekly analysis (approx 12 days if run hourly)
-  await fs.writeFile(LOG_FILE, JSON.stringify(logs.slice(0, 300), null, 2));
+  // Keep last N logs for weekly analysis (approx 20 days if run hourly)
+  await fs.writeFile(LOG_FILE, JSON.stringify(logs.slice(0, KEEP_ACTIVITY_LOG_ENTRIES), null, 2));
 }
 
 /** Prefer board `title` on date cells for HH:mm; else show board text; else observation time (Korean locale). */
@@ -879,29 +876,12 @@ async function _executeObserverRun(): Promise<ActivityLog> {
       args: [...CHROMIUM_LAUNCH_ARGS]
     });
     const contextOptions = sharedBrowserContextOptions();
-    // Add extra HTTP headers to bypass cache
-    contextOptions.extraHTTPHeaders = {
-      ...contextOptions.extraHTTPHeaders,
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
-    };
+    contextOptions.extraHTTPHeaders = { ...contextOptions.extraHTTPHeaders, ...CACHE_BUST_HEADERS };
 
     const context = await browser.newContext(contextOptions);
     activeBrowserContext = context;
     await addStealthInitScripts(context);
     const page = await context.newPage();
-
-    // Set up cache-busting for all requests
-    page.route('**/*', (route) => {
-      const headers = {
-        ...route.request().headers(),
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      };
-      route.continue({ headers });
-    });
 
     // Enable request/response logging if debug is enabled
     if (ENV.BROWSER_REQUEST_LOGGING) {
@@ -1311,14 +1291,11 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
     const contextOptions = {
       headless: ENV.BROWSER_HEADLESS,
       args: [...CHROMIUM_LAUNCH_ARGS],
-      ...sharedBrowserContextOptions()
-    };
-    // Add extra HTTP headers to bypass cache
-    contextOptions.extraHTTPHeaders = {
-      ...contextOptions.extraHTTPHeaders,
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
+      ...sharedBrowserContextOptions(),
+      extraHTTPHeaders: {
+        ...sharedBrowserContextOptions().extraHTTPHeaders,
+        ...CACHE_BUST_HEADERS,
+      },
     };
 
     const context = await chromium.launchPersistentContext(USER_DATA_DIR, contextOptions);
@@ -1382,16 +1359,6 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
         logger.info({ event: LOG_EVENT.publisherArtifactsDir, runId, debugDir }, '[Publisher] debug artifacts dir');
       }
       setPublisherStep('navigate');
-      // Apply cache-busting for publisher requests too
-      page.route('**/*', (route) => {
-        const headers = {
-          ...route.request().headers(),
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        };
-        route.continue({ headers });
-      });
       // Navigate to the page
       const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: ENV.BOT_NAV_TIMEOUT_MS });
       const statusCode = response?.status() ?? 0;

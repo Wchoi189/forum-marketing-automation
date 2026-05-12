@@ -1,4 +1,5 @@
 import { ENV } from "../config/env.js";
+import { clamp } from "./utils.js";
 import type { AiAdvisorOutput } from "./aiAdvisor.js";
 import type { PublisherHistoryEntry } from "../contracts/models.js";
 
@@ -214,11 +215,6 @@ export function buildStatusSummary(
 // Param validation helpers (reused by server.ts handler)
 // ---------------------------------------------------------------------------
 
-function clampInt(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.max(min, Math.min(max, Math.round(value)));
-}
-
 /**
  * Extracts and validates intervalMinutes from classification params.
  * Returns null if missing or out of bounds.
@@ -226,7 +222,7 @@ function clampInt(value: number, min: number, max: number): number {
 export function extractIntervalMinutes(params: Record<string, number | string | boolean>): number | null {
   const raw = params["intervalMinutes"];
   if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
-  const clamped = clampInt(raw, 5, 480);
+  const clamped = clamp(raw, 5, 480);
   return clamped;
 }
 
@@ -237,6 +233,6 @@ export function extractIntervalMinutes(params: Record<string, number | string | 
 export function extractGapThreshold(params: Record<string, number | string | boolean>): number | null {
   const raw = params["observerGapThresholdMin"];
   if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
-  const clamped = clampInt(raw, 1, 50);
+  const clamped = clamp(raw, 1, 50);
   return clamped;
 }

@@ -2,14 +2,87 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { ENV } from '../config/env.js';
-import { logger } from '../lib/logger.js';
+import { logger } from './logger.js';
 
 const ARTIFACTS_DIR = path.join(ENV.PROJECT_ROOT, 'artifacts', 'publisher-runs');
-const MAX_ARTIFACT_AGE_DAYS = 7;
-const MAX_ACTIVITY_LOG_ENTRIES = 1000;
-const KEEP_ACTIVITY_LOG_ENTRIES = 500;
-const MAX_ARTIFACTS_SIZE_MB = 500;
-const RSS_WARN_MB = 1024;
+export const MAX_ARTIFACT_AGE_DAYS = 7;
+export const MAX_ACTIVITY_LOG_ENTRIES = 1000;
+export const KEEP_ACTIVITY_LOG_ENTRIES = 500;
+export const MAX_ARTIFACTS_SIZE_MB = 500;
+export const RSS_WARN_MB = 1024;
+
+// ── Browser Profile Cache Cleanup ───────────────────────────────────────────
+
+/**
+ * Chromium subdirectories that are safe to delete.
+ * These are rebuildable caches — no user data, no login sessions.
+ */
+const BROWSER_CACHE_DIRS = [
+  'Default/Cache',
+  'Default/Code Cache',
+  'GPUCache',
+  'Default/DawnWebGPUCache',
+  'Default/DawnGraphiteCache',
+  'Default/Service Worker',
+  'Default/Session Storage',
+  'Default/Shared Dictionary',
+  'Default/Site Characteristics Database',
+  'Default/WebStorage',
+  'Default/IndexedDB',
+  'Default/GCM Store',
+  'Default/Segmentation Platform',
+  'ShaderCache',
+  'GrShaderCache',
+  'GraphiteDawnCache',
+  'component_crx_cache',
+  'extensions_crx_cache',
+  'segmentation_platform',
+];
+
+/** Delete rebuildable browser cache directories. Preserves Login Data, Cookies, Preferences. */
+export function cleanBrowserProfile(profileDir = ENV.BOT_PROFILE_DIR): { deletedDirs: number; freedBytes: number } {
+  const result = { deletedDirs: 0, freedBytes: 0 };
+
+  for (const cacheSubdir of BROWSER_CACHE_DIRS) {
+    const fullPath = path.join(profileDir, cacheSubdir);
+    if (!fs.existsSync(fullPath)) continue;
+
+    const size = dirSize(fullPath);
+    try {
+      fs.rmSync(fullPath, { recursive: true, force: true });
+      result.deletedDirs++;
+      result.freedBytes += size;
+    } catch (err) {
+      logger.warn({ event: 'resource.browser_profile_cleanup_failed', subdir: cacheSubdir, err },
+        `Failed to clean browser profile cache: ${cacheSubdir}`);
+    }
+  }
+
+  // Also delete loose large files in profile root (Crashpad, debug logs)
+  if (fs.existsSync(profileDir)) {
+    for (const file of fs.readdirSync(profileDir)) {
+      if (file.startsWith('Crashpad') || file.endsWith('.log')) {
+        const filePath = path.join(profileDir, file);
+        try {
+          const stat = fs.statSync(filePath);
+          if (stat.isFile()) {
+            fs.rmSync(filePath, { force: true });
+            result.freedBytes += stat.size;
+          }
+        } catch { /* ignore */ }
+      }
+    }
+  }
+
+  if (result.deletedDirs > 0) {
+    logger.info(
+      { event: 'resource.browser_profile_cleaned', deleted: result.deletedDirs, bytesFreed: result.freedBytes },
+      `Cleaned browser profile: ${result.deletedDirs} cache dirs removed (${formatBytes(result.freedBytes)} freed)`
+    );
+  }
+
+  return result;
+}
 
 // ── Artifact Rotation ───────────────────────────────────────────────────────
 
@@ -249,10 +322,11 @@ export function checkResourceThresholds(): string[] {
 }
 
 /** Run all garbage collection tasks. Returns summary of what was cleaned. */
-export function runGarbageCollection(): { artifacts: RotationResult; logRotated: number } {
+export function runGarbageCollection(): { artifacts: RotationResult; logRotated: number; browserProfile: { deletedDirs: number; freedBytes: number } } {
   const artifacts = rotateArtifacts();
   const logRotated = rotateActivityLog();
-  return { artifacts, logRotated };
+  const browserProfile = cleanBrowserProfile();
+  return { artifacts, logRotated, browserProfile };
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
