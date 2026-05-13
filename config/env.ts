@@ -102,10 +102,6 @@ type EnvConfig = {
   KAKAO_DB_PASSWORD: string;
   /** Postgres schema name for Kakao tables. Isolated from other project schemas. */
   KAKAO_DB_SCHEMA: string;
-  /** Kill-switch for CopilotKit coach sidebar. Default false — must be explicitly opted in. */
-  COPILOTKIT_ENABLED: boolean;
-  /** Number of most recent chat_history turns fed into useCopilotReadable. Max 50 for cost control. */
-  COPILOT_CONTEXT_TURNS: number;
   /** 1-based index of draft item to load from saved drafts (preview rows between items are skipped automatically). */
   PUBLISHER_DRAFT_ITEM_INDEX: number;
   /** When true, skip scheduler, observer, and publisher on startup — API + frontend only. */
@@ -249,8 +245,6 @@ function buildEnv(): EnvConfig {
     KAKAO_DB_USER: optionalString("KAKAO_DB_USER", "postgres"),
     KAKAO_DB_PASSWORD: optionalString("KAKAO_DB_PASSWORD", ""),
     KAKAO_DB_SCHEMA: optionalString("KAKAO_DB_SCHEMA", "shareplan"),
-    COPILOTKIT_ENABLED: optionalBool("COPILOTKIT_ENABLED", false),
-    COPILOT_CONTEXT_TURNS: optionalInt("COPILOT_CONTEXT_TURNS", 20, 1, 50),
     PUBLISHER_DRAFT_ITEM_INDEX: optionalInt("PUBLISHER_DRAFT_ITEM_INDEX", 1, 1, 50),
     DEV_SKIP_BOT: optionalBool("DEV_SKIP_BOT", false),
     IS_DEV: process.env.NODE_ENV === "development",

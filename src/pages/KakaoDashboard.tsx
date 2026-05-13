@@ -1,8 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Bot, Database, Download, Power, RefreshCw, Wifi, WifiOff } from 'lucide-react';
-import { CopilotKit } from '@copilotkit/react-core';
-import CoachSidebar from '../copilot/CoachSidebar';
-import ThreadSelector from '../copilot/ThreadSelector';
 
 interface KakaoStatus {
   webhookEnabled: boolean;
@@ -11,7 +8,6 @@ interface KakaoStatus {
   todayLogCount: number;
   webhookUrl: string;
   dbConnected: boolean;
-  copilotEnabled: boolean;
 }
 
 interface KakaoDbStats {
@@ -43,7 +39,6 @@ export default function KakaoDashboard() {
   const [dbStats, setDbStats] = useState<KakaoDbStats | null>(null);
   const [logs, setLogs] = useState<KakaoLogEntry[]>([]);
   const [toggling, setToggling] = useState<'webhook' | 'autoreply' | null>(null);
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -110,7 +105,6 @@ export default function KakaoDashboard() {
 
   const webhookOn = status?.webhookEnabled ?? false;
   const autoreplyOn = status?.autoreplyEnabled ?? false;
-  const copilotEnabled = status?.copilotEnabled ?? false;
 
   const dashboardContent = (
     <div className="p-8 space-y-8 max-w-5xl">
@@ -271,11 +265,6 @@ export default function KakaoDashboard() {
         )}
       </div>
 
-      {/* Thread selector — only shown when coach is active */}
-      {copilotEnabled && (
-        <ThreadSelector selected={selectedUser} onSelect={setSelectedUser} />
-      )}
-
       {/* Live log terminal */}
       <div className="rounded-2xl overflow-hidden border border-white/10 bg-[#1a1a1a]">
         <div className="flex items-center justify-between px-4 py-2.5 bg-[#252525] border-b border-white/10">
@@ -322,16 +311,6 @@ export default function KakaoDashboard() {
       </div>
     </div>
   );
-
-  if (copilotEnabled) {
-    return (
-      <CopilotKit runtimeUrl="/api/copilotkit">
-        <CoachSidebar userKey={selectedUser}>
-          {dashboardContent}
-        </CoachSidebar>
-      </CopilotKit>
-    );
-  }
 
   return dashboardContent;
 }

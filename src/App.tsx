@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { Activity, RefreshCw, Send } from 'lucide-react';
 import PipelineCanvas, { PipelineStepId } from './PipelineCanvas';
@@ -6,11 +6,24 @@ import { useAppData } from './hooks/useAppData';
 import LogDetailModal from './components/LogDetailModal';
 import OverrideConfirmModal from './components/OverrideConfirmModal';
 import OverviewPage from './pages/OverviewPage';
-import OperationsPage from './pages/OperationsPage';
 import ControlsPage from './pages/ControlsPage';
 import PublisherRunsPage from './pages/PublisherRunsPage';
-import KakaoDashboard from './pages/KakaoDashboard';
-import CompetitorIntelPage from './pages/CompetitorIntelPage';
+
+// Heavy pages — lazily loaded so their vendor chunks (CopilotKit, Shiki,
+// Mermaid, KaTeX, @xyflow/react) are only downloaded when the user
+// navigates to these routes, not on initial app load.
+const OperationsPage = React.lazy(() => import('./pages/OperationsPage'));
+const KakaoDashboard = React.lazy(() => import('./pages/KakaoDashboard'));
+const CompetitorIntelPage = React.lazy(() => import('./pages/CompetitorIntelPage'));
+
+/** Minimal skeleton shown while a lazy route chunk is downloading. */
+function PageFallback() {
+  return (
+    <div className="flex items-center justify-center h-64 text-white/30 text-sm">
+      <span className="animate-pulse">Loading…</span>
+    </div>
+  );
+}
 
 export default function App() {
   const location = useLocation();
@@ -129,9 +142,11 @@ export default function App() {
           )}
           {onPublisherRuns && <PublisherRunsPage app={app} />}
           {onControls && <ControlsPage app={app} />}
-          {onOperations && <OperationsPage app={app} />}
-          {onKakao && <KakaoDashboard />}
-          {onCompetitorIntel && <CompetitorIntelPage />}
+          <Suspense fallback={<PageFallback />}>
+            {onOperations && <OperationsPage app={app} />}
+            {onKakao && <KakaoDashboard />}
+            {onCompetitorIntel && <CompetitorIntelPage />}
+          </Suspense>
         </main>
 
         {app.selectedLog && <LogDetailModal log={app.selectedLog} onClose={() => app.setSelectedLog(null)} />}

@@ -8,97 +8,47 @@ import { pathToFileURL } from "url";
 import { createServer as createViteServer } from "vite";
 import {
   getLogs,
-  getObserverControls,
-  getObserverControlsWithGap,
-  getPublisherControls,
   runObserver,
   runPublisher,
-  setObserverControls,
-  setPublisherControls,
   initBotControls,
-  type ObserverControlsWithGap
+  registerSignalHandlers,
 } from "./bot.js";
-import { extractErrorCode } from "./lib/utils.js";
 import { getSharedLogCache } from "./lib/logCache.js";
 import { initSharedBrowser } from "./lib/sharedBrowser.js";
-import { PARSER_OPTIONS } from "./bot.js";
 import { ENV } from "./config/env.js";
 import { WATCH_IGNORED } from "./config/watch.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
-import { buildCompetitorAnalyticsPayload, parseAnalyticsQuery } from "./lib/competitorAnalytics.js";
 import { logger } from "./lib/logger.js";
 import { LOG_EVENT } from "./lib/logEvents.js";
 import { readPublisherHistory } from "./lib/publisherHistory.js";
-import { buildTrendInsightsPayload } from "./lib/trendInsights.js";
-import { type ScheduleJitterMode } from "./lib/scheduleJitter.js";
-import { getPublisherStatus } from "./lib/publisherStepStore.js";
 import {
   startScheduler,
-  PRESET_CONFIG,
   type BotDeps,
-  type AutoPublisherControls,
   type ControlPanelPreset,
 } from "./lib/scheduler.js";
 import {
-  buildAdvisorContext,
-  callGrokAdvisor,
-  getAdvisorCache,
-  setAdvisorCache,
-  markAdvisorCacheApplied,
-  getAdvisorTokenStats,
-} from "./lib/aiAdvisor.js";
-import { readPublisherHistory as readHistoryForAdvisor } from "./lib/publisherHistory.js";
-import {
-  classifyIntent,
-  buildStatusSummary,
-  extractIntervalMinutes,
-  extractGapThreshold,
-} from "./lib/nlWebhook.js";
-import { isValidKakaoPayload, logKakaoMessage, simpleTextResponse as kakaoSimpleText } from "./lib/kakaoSkill.js";
-import { getAutoReply as kakaoGetAutoReply } from "./lib/kakaoAutoReply.js";
-import * as kakaoDb from "./lib/kakaoDb.js";
-import { getCopilotHandler, scrubContext } from "./lib/copilotCoach.js";
-import {
-  readPersistedObserverControls,
-  readPersistedPublisherControls,
   readPersistedSchedulerControls,
   readPersistedNlWebhookEnabled,
-  readRuntimeControlsStateMeta,
-  RuntimeControlsVersionConflictError,
-  persistAllControlPanelSettings,
-  writeRuntimeGapPersistedOverride,
-  writeRuntimeControls,
 } from "./lib/runtimeControls.js";
-import {
-  OPPORTUNITY_MULTIPLIER_MAX,
-  OPPORTUNITY_MULTIPLIER_MIN,
-  buildSchedulerAdaptationWindows,
-  buildSchedulerSignalTimeline,
-  summarizeSchedulerSignals,
-} from "./lib/schedulerSignals.js";
-import type { SchedulerSignalDiagnostics, PublisherHistoryEntry, PublisherRunDecision } from "./contracts/models.js";
-import {
-  getOverview,
-  getVendorSummaries,
-  listRecords,
-  getRecord,
-  getProductPrices,
-  getActivityTimeline,
-} from "./lib/competitor-intel-ui.js";
-import { openDatabase } from "./lib/competitor-ad-sqlite.js";
 import { getResourceMetrics, checkResourceThresholds, runGarbageCollection } from "./lib/resourceMonitor.js";
+import * as kakaoDb from "./lib/kakaoDb.js";
+import type { PublisherRunDecision } from "./contracts/models.js";
 
-// ── Simple in-memory response cache for expensive endpoints ──
-type ResponseCache<T> = { data: T; expiresAt: number };
-const ANALYTICS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+// ── Route modules ─────────────────────────────────────────────────────────────
+import { createHealthRouter } from "./routes/api/health.js";
+import { createLogsRouter } from "./routes/api/logs.js";
+import { createControlRouter, buildControlPanelResponse } from "./routes/api/control.js";
+import { createAiRouter } from "./routes/api/ai.js";
+import { createNlRouter } from "./routes/api/nl.js";
+import { createKakaoRouter } from "./routes/api/kakao.js";
 
-let cachedAnalytics: ResponseCache<{ key: string; payload: unknown }> | null = null;
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getDefaultDeps(): BotDeps {
   if (ENV.DEV_SKIP_BOT) {
     return {
-      runObserver: async () => ({ status: 'skipped' as const, currentGap: 0, gapThresholdMin: 0, reason: 'DEV_SKIP_BOT' }),
-      runPublisher: async () => ({ success: false, message: 'DEV_SKIP_BOT', runId: 'dev', decision: 'skip' as PublisherRunDecision, artifactDir: null }),
+      runObserver: async () => ({ status: 'skipped' as const, currentGap: 0, gapThresholdMin: 0, reason: 'DEV_SKIP_BOT' } as any as import('./contracts/models.js').ActivityLog),
+      runPublisher: async () => ({ success: false, message: 'DEV_SKIP_BOT', runId: 'dev', decision: 'skip' as PublisherRunDecision, artifactDir: null } as any as import('./lib/publisher/publisherRun.js').PublisherRunResult),
       getLogs,
       getPublisherHistory: readPublisherHistory,
     };
@@ -108,1765 +58,107 @@ function getDefaultDeps(): BotDeps {
 
 type SchedulerController = ReturnType<typeof startScheduler>;
 
-type ControlPanelResponse = {
-  stateVersion: number;
-  persistedAt: string | null;
-  preset: ControlPanelPreset;
-  nlWebhookEnabled: boolean;
-  observer: ObserverControlsWithGap;
-  publisher: ReturnType<typeof getPublisherControls>;
-  autoPublisher: {
-    enabled: boolean;
-    baseIntervalMinutes: number;
-    effectiveIntervalMinutes: number;
-    quietHoursStart: number;
-    quietHoursEnd: number;
-    quietHoursMultiplier: number;
-    activeHoursStart: number;
-    activeHoursEnd: number;
-    activeHoursMultiplier: number;
-    trendAdaptiveEnabled: boolean;
-    trendWindowDays: number;
-    trendRecalibrationDays: number;
-    scheduleJitterPercent: number;
-    scheduleJitterMode: ScheduleJitterMode;
-    /** 0 = off; otherwise blended with trend-based effective interval. */
-    targetPublishIntervalMinutes: number;
-    gapRecheckIntervalMinutes: number;
-    running: boolean;
-    nextTickEta?: string | null;
-  };
-  lastObserverResult?: {
-    status: string;
-    currentGap: number;
-    requiredGap: number;
-    checkedAt: string;
-  } | null;
-};
+// ── App factory ───────────────────────────────────────────────────────────────
 
-function parsePositiveIntQuery(raw: unknown, fallback: number, min: number, max: number): number {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  if (value === undefined) return fallback;
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed)) return fallback;
-  return Math.max(min, Math.min(max, parsed));
-}
-
-function percentile(values: number[], p: number): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const clampedP = Math.max(0, Math.min(1, p));
-  const idx = (sorted.length - 1) * clampedP;
-  const lower = Math.floor(idx);
-  const upper = Math.ceil(idx);
-  if (lower === upper) return Number(sorted[lower].toFixed(3));
-  const blended = sorted[lower] + (sorted[upper] - sorted[lower]) * (idx - lower);
-  return Number(blended.toFixed(3));
-}
-
-function buildCalibrationSummary(
-  isolatedMultipliers: number[]
-): SchedulerSignalDiagnostics["calibration"] {
-  const safe = isolatedMultipliers.length > 0 ? isolatedMultipliers : [1];
-  const minObserved = Number(Math.min(...safe).toFixed(3));
-  const maxObserved = Number(Math.max(...safe).toFixed(3));
-  const lowerBoundHits = safe.filter((value) => value <= OPPORTUNITY_MULTIPLIER_MIN + Number.EPSILON).length;
-  const upperBoundHits = safe.filter((value) => value >= OPPORTUNITY_MULTIPLIER_MAX - Number.EPSILON).length;
-  const boundHits = lowerBoundHits + upperBoundHits;
-  const boundHitRate = Number((boundHits / safe.length).toFixed(3));
-  const lowerBoundHitRate = Number((lowerBoundHits / safe.length).toFixed(3));
-  const upperBoundHitRate = Number((upperBoundHits / safe.length).toFixed(3));
-
-  const p10 = percentile(safe, 0.1);
-  const p50 = percentile(safe, 0.5);
-  const p90 = percentile(safe, 0.9);
-
-  const candidateMin = Number(Math.max(0.75, p10 - 0.02).toFixed(2));
-  const candidateMax = Number(Math.min(1.25, p90 + 0.02).toFixed(2));
-
-  let suggestedMinBound = OPPORTUNITY_MULTIPLIER_MIN;
-  let suggestedMaxBound = OPPORTUNITY_MULTIPLIER_MAX;
-
-  if (lowerBoundHitRate >= 0.12 || upperBoundHitRate >= 0.12) {
-    suggestedMinBound = lowerBoundHitRate >= 0.12 ? candidateMin : OPPORTUNITY_MULTIPLIER_MIN;
-    suggestedMaxBound = upperBoundHitRate >= 0.12 ? candidateMax : OPPORTUNITY_MULTIPLIER_MAX;
-  } else if (
-    boundHitRate === 0 &&
-    candidateMin > OPPORTUNITY_MULTIPLIER_MIN &&
-    candidateMax < OPPORTUNITY_MULTIPLIER_MAX
-  ) {
-    suggestedMinBound = candidateMin;
-    suggestedMaxBound = candidateMax;
-  }
-
-  const recommendation: SchedulerSignalDiagnostics["calibration"]["recommendation"] =
-    lowerBoundHitRate >= 0.12 || upperBoundHitRate >= 0.12
-      ? "widen_bounds"
-      : boundHitRate === 0 && candidateMin > OPPORTUNITY_MULTIPLIER_MIN && candidateMax < OPPORTUNITY_MULTIPLIER_MAX
-        ? "tighten_bounds"
-        : "hold_bounds";
-
-  return {
-    isolatedMultiplierP10: p10,
-    isolatedMultiplierP50: p50,
-    isolatedMultiplierP90: p90,
-    isolatedMultiplierMin: minObserved,
-    isolatedMultiplierMax: maxObserved,
-    isolatedBoundHitRate: boundHitRate,
-    suggestedMinBound,
-    suggestedMaxBound,
-    recommendation,
-  };
-}
-
-async function buildSchedulerSignalDiagnostics(
-  getPublisherHistory: (limit: number) => Promise<PublisherHistoryEntry[]>,
-  options: {
-    windowDays: number;
-    windowSize: number;
-    historyLimit: number;
-    nowMs?: number;
-  }
-): Promise<SchedulerSignalDiagnostics> {
-  const nowMs = options.nowMs ?? Date.now();
-  const history = await getPublisherHistory(options.historyLimit);
-  const timeline = buildSchedulerSignalTimeline(history, {
-    windowDays: options.windowDays,
-    nowMs,
-  });
-  const windows = buildSchedulerAdaptationWindows(timeline, options.windowSize);
-  const summary = summarizeSchedulerSignals(history, {
-    windowDays: options.windowDays,
-    nowMs,
-  });
-
-  const isolatedForCalibration =
-    windows.length > 0 ? windows.map((window) => window.isolatedMultiplier) : [summary.isolatedMultiplier];
-
-  const latestWindow = windows.length > 0 ? windows[windows.length - 1] : null;
-
-  return {
-    sampledAt: new Date(nowMs).toISOString(),
-    windowDays: options.windowDays,
-    windowSize: options.windowSize,
-    historyLimit: options.historyLimit,
-    inputEventCount: history.length,
-    timelineEventCount: timeline.length,
-    adaptationWindowCount: windows.length,
-    summary,
-    latestWindow: latestWindow
-      ? {
-          windowIndex: latestWindow.windowIndex,
-          startAt: latestWindow.startAt,
-          endAt: latestWindow.endAt,
-          deltaFromBaseline: latestWindow.deltaFromBaseline,
-          isolatedMultiplier: latestWindow.isolatedMultiplier,
-          baselineMultiplier: latestWindow.baselineMultiplier,
-          opportunityScore: latestWindow.opportunityScore,
-          reason: latestWindow.reason,
-        }
-      : null,
-    calibration: buildCalibrationSummary(isolatedForCalibration),
-  };
-}
-
-async function buildControlPanelResponse(
-  scheduler: SchedulerController | undefined,
-  nlWebhookEnabled: boolean,
-  stateMetaOverride?: { stateVersion: number; persistedAt: string | null }
-): Promise<ControlPanelResponse> {
-  const [autoPublisherState, observer, publisher, stateMeta] = await Promise.all([
-    (scheduler ? scheduler.getState() : Promise.resolve(null)).then((st) =>
-      st ?? {
-        enabled: true,
-        baseIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
-        effectiveIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
-        quietHoursStart: 3,
-        quietHoursEnd: 5,
-        quietHoursMultiplier: 1.8,
-        activeHoursStart: 8,
-        activeHoursEnd: 23,
-        activeHoursMultiplier: 0.8,
-        trendAdaptiveEnabled: true,
-        trendWindowDays: 7,
-        trendRecalibrationDays: 7,
-        scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
-        scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
-        targetPublishIntervalMinutes: 0,
-        gapRecheckIntervalMinutes: 3,
-        running: false,
-      }
-    ),
-    getObserverControlsWithGap(),
-    Promise.resolve(getPublisherControls()),
-    stateMetaOverride ? Promise.resolve(stateMetaOverride) : readRuntimeControlsStateMeta(),
-  ]);
-
-  return {
-    stateVersion: stateMeta.stateVersion,
-    persistedAt: stateMeta.persistedAt,
-    preset: scheduler?.getPreset() ?? "balanced",
-    nlWebhookEnabled,
-    observer,
-    publisher,
-    autoPublisher: autoPublisherState,
-    lastObserverResult: autoPublisherState.lastObserverResult ?? null,
-  };
-}
-
-export function createApp(deps: BotDeps = defaultDeps, scheduler?: SchedulerController, opts: { initialNlWebhookEnabled?: boolean } = {}) {
+export function createApp(
+  deps: BotDeps = getDefaultDeps(),
+  scheduler?: SchedulerController,
+  opts: { initialNlWebhookEnabled?: boolean } = {}
+) {
   const app = express();
   let nlWebhookEnabledRuntime: boolean = opts.initialNlWebhookEnabled ?? ENV.NL_WEBHOOK_ENABLED;
   const getPublisherHistoryForSignals = deps.getPublisherHistory ?? readPublisherHistory;
 
+  // Shared control-panel response cache (accessed by both control and AI routers)
+  let cachedControlPanel: { payload: unknown; expiresAt: number } | null = null;
+
   app.use(cors());
   app.use(express.json());
 
-  // ── Rate limiting ─────────────────────────────────────────────────────
-  // Skip entirely in dev mode — HMR, polling, and hot reload create bursts
-  // that don't represent real attack patterns.
+  // ── Rate limiting ─────────────────────────────────────────────────────────
   const NOOP = (_req: unknown, _res: unknown, next: () => void) => next();
-
   const shouldSkipRateLimit = ENV.IS_DEV || ENV.DEV_SKIP_BOT;
+  const defaultLimiter = shouldSkipRateLimit ? NOOP : rateLimit({ windowMs: 60_000, limit: 100, standardHeaders: true, legacyHeaders: false });
+  const logsLimiter = shouldSkipRateLimit ? NOOP : rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: true, legacyHeaders: false });
+  const analyticsLimiter = shouldSkipRateLimit ? NOOP : rateLimit({ windowMs: 60_000, limit: 10, standardHeaders: true, legacyHeaders: false });
+  const publisherLimiter = shouldSkipRateLimit ? NOOP : rateLimit({ windowMs: 60_000, limit: 2, standardHeaders: true, legacyHeaders: false });
+  const observerLimiter = shouldSkipRateLimit ? NOOP : rateLimit({ windowMs: 60_000, limit: 5, standardHeaders: true, legacyHeaders: false });
 
-  const defaultLimiter = shouldSkipRateLimit
-    ? NOOP
-    : rateLimit({ windowMs: 60_000, limit: 100, standardHeaders: true, legacyHeaders: false });
-  const logsLimiter = shouldSkipRateLimit
-    ? NOOP
-    : rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: true, legacyHeaders: false });
-  const analyticsLimiter = shouldSkipRateLimit
-    ? NOOP
-    : rateLimit({ windowMs: 60_000, limit: 10, standardHeaders: true, legacyHeaders: false });
-  const publisherLimiter = shouldSkipRateLimit
-    ? NOOP
-    : rateLimit({ windowMs: 60_000, limit: 2, standardHeaders: true, legacyHeaders: false });
-  const observerLimiter = shouldSkipRateLimit
-    ? NOOP
-    : rateLimit({ windowMs: 60_000, limit: 5, standardHeaders: true, legacyHeaders: false });
-
-  // Kakao webhook must never be rate-limited (external platform calls).
-  // Lightweight in-memory reads and monitoring endpoints are also excluded.
-  // Static assets and Vite dev chunks are excluded — they're not attack surfaces.
-  const SKIP_RATE_PATHS = [
-    "/kakao-webhook",
-    "/api/publisher-status",      // in-memory read, polled every 1.5–5s
-    "/api/health/resources",      // monitoring endpoint
-    "/api/health",
-  ];
-
-  const SKIP_RATE_PATTERNS = [
-    /\.js(\?|$)/,                  // Vite/ESM chunks
-    /\.css(\?|$)/,                 // CSS modules
-    /\.svg(\?|$)/,                 // SVG assets
-    /\.(png|jpg|jpeg|gif|ico|woff2?)(\?|$)/,  // images/fonts
-  ];
+  const SKIP_RATE_PATHS = ["/kakao-webhook", "/api/publisher-status", "/api/health/resources", "/api/health"];
+  const SKIP_RATE_PATTERNS = [/\.js(\?|$)/, /\.css(\?|$)/, /\.svg(\?|$)/, /\.(png|jpg|jpeg|gif|ico|woff2?)(\?|$)/];
 
   app.use((req, res, next) => {
-    // Never rate-limit static assets or Vite dev files
     if (SKIP_RATE_PATTERNS.some(p => p.test(req.path))) return next();
-    // Skip whitelisted API paths
     if (SKIP_RATE_PATHS.includes(req.path)) return next();
     defaultLimiter(req, res, next);
   });
 
-  // API Routes
-  app.get("/api/health", (req, res) => {
-    res.json({
-      ok: true,
-      service: "marketing-automation",
-      timestamp: new Date().toISOString()
-    });
-  });
-
-  app.get("/api/health/resources", (_req, res) => {
-    const metrics = getResourceMetrics();
-    const warnings = checkResourceThresholds();
-    res.json({ ...metrics, warnings });
-  });
-
-  app.post("/api/resource/gc", (_req, res) => {
-    const result = runGarbageCollection();
-    if (result.logRotated) invalidatePollingCaches();
-    res.json({
-      artifacts: result.artifacts,
-      logRotated: result.logRotated,
-      browserProfile: result.browserProfile,
-      triggeredAt: new Date().toISOString(),
-    });
-  });
-
-  // ── Shared log cache (TTL-based, replaces per-call file reads) ──
+  // ── Shared state helpers ──────────────────────────────────────────────────
   const logCache = getSharedLogCache();
-
-  let cachedLogs: { key: string; payload: unknown; expiresAt: number } | null = null;
-  const LOGS_CACHE_MS = 15_000;
-
-  let cachedPublisherHistory: { key: string; payload: unknown[]; expiresAt: number } | null = null;
-  const PUBLISHER_HISTORY_CACHE_MS = 15_000;
-
-  let cachedCompetitorStats: { payload: unknown; expiresAt: number } | null = null;
-  const COMPETITOR_STATS_CACHE_MS = 30_000;
-
-  let cachedBoardStats: { payload: unknown; expiresAt: number } | null = null;
-  const BOARD_STATS_CACHE_MS = 30_000;
-
-  let cachedTrendInsights: { payload: unknown; expiresAt: number } | null = null;
-  const TREND_INSIGHTS_CACHE_MS = 30_000;
-
-  let cachedPlaybook: { key: string; payload: unknown; expiresAt: number } | null = null;
-  const PLAYBOOK_CACHE_MS = 60_000;
-
-  let cachedControlPanel: { payload: unknown; expiresAt: number } | null = null;
-  const CONTROL_PANEL_CACHE_MS = 10_000;
 
   function invalidatePollingCaches() {
     logCache.invalidate();
-    cachedLogs = null;
-    cachedPublisherHistory = null;
-    cachedCompetitorStats = null;
-    cachedBoardStats = null;
-    cachedTrendInsights = null;
-    cachedPlaybook = null;
     cachedControlPanel = null;
   }
 
-  app.get("/api/logs", logsLimiter, async (req, res) => {
-    const raw = req.query.limit;
-    const str = Array.isArray(raw) ? raw[0] : raw;
-    const n = str !== undefined ? Number(str) : 200;
-    const limit = Number.isInteger(n) && n >= 1 && n <= 500 ? n : 200;
-    const cacheKey = String(limit);
-
-    if (cachedLogs && cachedLogs.key === cacheKey && Date.now() < cachedLogs.expiresAt) {
-      res.json(cachedLogs.payload);
-      return;
-    }
-
-    const allLogs = await logCache.get();
-    const logs = allLogs.slice(-limit);
-    const payload = {
-      logs,
-      hasMore: allLogs.length > limit,
-      oldestTimestamp: logs.length > 0 ? logs[0].timestamp : null,
-      totalCount: allLogs.length,
-    };
-    cachedLogs = { key: cacheKey, payload, expiresAt: Date.now() + LOGS_CACHE_MS };
-    res.json(payload);
-  });
-
-  app.get("/api/publisher-history", async (req, res) => {
-    const raw = req.query.limit;
-    const str = Array.isArray(raw) ? raw[0] : raw;
-    const n = str !== undefined ? Number(str) : 40;
-    const limit = Number.isInteger(n) && n >= 1 && n <= 200 ? n : 40;
-    const cacheKey = String(limit);
-
-    if (cachedPublisherHistory && cachedPublisherHistory.key === cacheKey && Date.now() < cachedPublisherHistory.expiresAt) {
-      res.json(cachedPublisherHistory.payload);
-      return;
-    }
-
-    const entries = await readPublisherHistory(limit);
-    cachedPublisherHistory = { key: cacheKey, payload: entries, expiresAt: Date.now() + PUBLISHER_HISTORY_CACHE_MS };
-    res.json(entries);
-  });
-
-  app.get("/api/analytics/competitors", analyticsLimiter, async (req, res) => {
-    try {
-      const parsed = parseAnalyticsQuery({
-        query: req.query as Record<string, string | string[] | undefined>
-      });
-      if ("error" in parsed) {
-        res.status(400).json({ error: parsed.error });
-        return;
-      }
-
-      const cacheKey = JSON.stringify({
-        fromMs: parsed.fromMs,
-        toMs: parsed.toMs,
-        bucket: parsed.bucket,
-        excludeNotices: parsed.excludeNotices,
-        authorFilter: parsed.authorFilter,
-        focusAuthor: parsed.focusAuthor
-      });
-
-      if (cachedAnalytics && Date.now() < cachedAnalytics.expiresAt && cachedAnalytics.key === cacheKey) {
-        res.json(cachedAnalytics.payload);
-        return;
-      }
-
-      const logs = await logCache.get();
-      const payload = buildCompetitorAnalyticsPayload(logs, parsed);
-      cachedAnalytics = { data: { key: cacheKey, payload }, expiresAt: Date.now() + ANALYTICS_CACHE_TTL_MS };
-      res.json(payload);
-    } catch (err) {
-      logger.error({ event: "analytics_competitors_error", err }, "[Analytics] buildCompetitorAnalyticsPayload failed");
-      res.status(500).json({ error: "analytics_failed" });
-    }
-  });
-
-  app.get("/api/competitor-stats", async (req, res) => {
-    if (cachedCompetitorStats && Date.now() < cachedCompetitorStats.expiresAt) {
-      res.json(cachedCompetitorStats.payload);
-      return;
-    }
-
-    const logs = await logCache.get();
-    const stats: Record<string, { count: number, totalViews: number }> = {};
-
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    const recentLogs = logs.filter(log => new Date(log.timestamp) >= oneWeekAgo);
-
-    recentLogs.forEach(log => {
-      if (log.all_posts) {
-        const uniquePostsInSnapshot = new Set();
-        log.all_posts.forEach(post => {
-          const key = post.title + post.author;
-          if (!uniquePostsInSnapshot.has(key)) {
-            if (!stats[post.author]) {
-              stats[post.author] = { count: 0, totalViews: 0 };
-            }
-            stats[post.author].count++;
-            stats[post.author].totalViews += post.views;
-            uniquePostsInSnapshot.add(key);
-          }
-        });
-      }
-    });
-
-    const result = Object.entries(stats).map(([author, s]) => ({
-      author,
-      frequency: s.count,
-      avgViews: Math.round(s.totalViews / s.count)
-    })).sort((a, b) => b.frequency - a.frequency);
-    const isSharePlanAuthor = (author: string) => author.toLowerCase().includes("shareplan");
-    const sharePlanRow = result.find((row) => isSharePlanAuthor(row.author)) ?? {
-      author: "SharePlan",
-      frequency: 0,
-      avgViews: 0
-    };
-    const top = result.slice(0, 10);
-    const includesSharePlan = top.some((row) => isSharePlanAuthor(row.author));
-    let payload: unknown;
-    if (includesSharePlan) {
-      payload = top;
-    } else if (top.length < 10) {
-      payload = [...top, sharePlanRow];
-    } else {
-      payload = [...top.slice(0, 9), sharePlanRow];
-    }
-    cachedCompetitorStats = { payload, expiresAt: Date.now() + COMPETITOR_STATS_CACHE_MS };
-    res.json(payload);
-  });
-
-  app.get("/api/board-stats", async (req, res) => {
-    if (cachedBoardStats && Date.now() < cachedBoardStats.expiresAt) {
-      res.json(cachedBoardStats.payload);
-      return;
-    }
-
-    const logs = await logCache.get();
-    if (logs.length < 2) {
-      res.json({ turnoverRate: 0, shareOfVoice: 0 });
-      return;
-    }
-
-    const latest = logs[0];
-    const previous = logs[1];
-
-    const prevKeys = new Set(previous.all_posts?.map(p => p.title + p.author) || []);
-    const newPosts = latest.all_posts?.filter(p => !prevKeys.has(p.title + p.author)).length || 0;
-
-    const timeDiffHours = (new Date(latest.timestamp).getTime() - new Date(previous.timestamp).getTime()) / (1000 * 60 * 60);
-    const turnoverRate = timeDiffHours > 0 ? (newPosts / timeDiffHours).toFixed(1) : 0;
-
-    const ourPosts = latest.all_posts?.filter(p => p.author.toLowerCase().includes('shareplan')).length || 0;
-    const shareOfVoice = latest.all_posts?.length ? Math.round((ourPosts / latest.all_posts.length) * 100) : 0;
-
-    const payload = { turnoverRate, shareOfVoice };
-    cachedBoardStats = { payload, expiresAt: Date.now() + BOARD_STATS_CACHE_MS };
-    res.json(payload);
-  });
-
-  // ── Competitor Intelligence UI API ──────────────────────────────────────
-
-  app.get("/api/competitor-intel/overview", (_req, res) => {
-    try {
-      const db = openDatabase();
-      const payload = getOverview(db);
-      db.close();
-      res.json(payload);
-    } catch (err) {
-      logger.error({ event: "competitor_intel_overview_error", err }, "[CompetitorIntel] overview failed");
-      res.status(500).json({ error: "Failed to fetch overview" });
-    }
-  });
-
-  app.get("/api/competitor-intel/vendors", (_req, res) => {
-    try {
-      const db = openDatabase();
-      const payload = getVendorSummaries(db);
-      db.close();
-      res.json(payload);
-    } catch (err) {
-      logger.error({ event: "competitor_intel_vendors_error", err }, "[CompetitorIntel] vendors failed");
-      res.status(500).json({ error: "Failed to fetch vendors" });
-    }
-  });
-
-  app.get("/api/competitor-intel/records", (req, res) => {
-    try {
-      const vendor = typeof req.query.vendor === "string" ? req.query.vendor : undefined;
-      const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
-      const offset = Math.max(Number(req.query.offset) || 0, 0);
-
-      const db = openDatabase();
-      const { entries, total } = listRecords(db, { vendor, limit, offset });
-      db.close();
-      res.json({ entries, total, limit, offset });
-    } catch (err) {
-      logger.error({ event: "competitor_intel_records_error", err }, "[CompetitorIntel] records failed");
-      res.status(500).json({ error: "Failed to fetch records" });
-    }
-  });
-
-  app.get("/api/competitor-intel/records/:recordId", (req, res) => {
-    try {
-      const db = openDatabase();
-      const detail = getRecord(db, req.params.recordId);
-      db.close();
-      if (!detail) {
-        res.status(404).json({ error: "Record not found" });
-        return;
-      }
-      res.json(detail);
-    } catch (err) {
-      logger.error({ event: "competitor_intel_record_error", err }, "[CompetitorIntel] record failed");
-      res.status(500).json({ error: "Failed to fetch record" });
-    }
-  });
-
-  app.get("/api/competitor-intel/products", (_req, res) => {
-    try {
-      const db = openDatabase();
-      const payload = getProductPrices(db);
-      db.close();
-      res.json(payload);
-    } catch (err) {
-      logger.error({ event: "competitor_intel_products_error", err }, "[CompetitorIntel] products failed");
-      res.status(500).json({ error: "Failed to fetch products" });
-    }
-  });
-
-  app.get("/api/competitor-intel/timeline", (req, res) => {
-    try {
-      const bucketDays = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
-      const db = openDatabase();
-      const payload = getActivityTimeline(db, bucketDays);
-      db.close();
-      res.json(payload);
-    } catch (err) {
-      logger.error({ event: "competitor_intel_timeline_error", err }, "[CompetitorIntel] timeline failed");
-      res.status(500).json({ error: "Failed to fetch timeline" });
-    }
-  });
-
-  app.get("/api/trend-insights", analyticsLimiter, async (req, res) => {
-    try {
-      if (cachedTrendInsights && Date.now() < cachedTrendInsights.expiresAt) {
-        res.json(cachedTrendInsights.payload);
-        return;
-      }
-
-      const logs = await logCache.get();
-      let windowDays = 7;
-      let trendAdaptiveEnabled = true;
-      let referenceBaseIntervalMinutes = ENV.RUN_INTERVAL_MINUTES;
-
-      if (scheduler) {
-        const st = await scheduler.getState();
-        referenceBaseIntervalMinutes = st.baseIntervalMinutes;
-        trendAdaptiveEnabled = st.trendAdaptiveEnabled;
-        windowDays = st.trendWindowDays;
-      }
-
-      const rawWindow = req.query.windowDays;
-      if (rawWindow !== undefined) {
-        const str = Array.isArray(rawWindow) ? rawWindow[0] : rawWindow;
-        const n = Number(str);
-        if (Number.isInteger(n) && n >= 1 && n <= 60) {
-          windowDays = n;
-        }
-      }
-
-      const rawAdaptive = req.query.trendAdaptiveEnabled;
-      if (rawAdaptive === "true") trendAdaptiveEnabled = true;
-      if (rawAdaptive === "false") trendAdaptiveEnabled = false;
-
-      const payload = buildTrendInsightsPayload(logs, {
-        windowDays,
-        referenceBaseIntervalMinutes,
-        trendAdaptiveEnabled,
-        ourAuthorSubstring: ENV.OUR_AUTHOR_SUBSTRING
-      });
-
-      let schedulerSignals: SchedulerSignalDiagnostics | null = null;
-      try {
-        const historyLimit = Math.max(40, Math.min(240, windowDays * 24));
-        schedulerSignals = await buildSchedulerSignalDiagnostics(getPublisherHistoryForSignals, {
-          windowDays,
-          windowSize: 8,
-          historyLimit,
-        });
-      } catch (err) {
-        logger.warn(
-          { event: "api_scheduler_signal_diagnostics_fallback", err },
-          "Trend insights could not load scheduler signal diagnostics; returning base payload"
-        );
-      }
-
-      const result = {
-        ...payload,
-        schedulerSignals,
-      };
-      cachedTrendInsights = { payload: result, expiresAt: Date.now() + TREND_INSIGHTS_CACHE_MS };
-      res.json(result);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.error(
-        { event: LOG_EVENT.apiTrendInsightsFailed, status: "error", errorCode: extractErrorCode(error), err: error },
-        "Trend insights request failed"
-      );
-      res.status(500).json({ error: `[TrendInsights] ${message}` });
-    }
-  });
-
-  app.get("/api/scheduler-signals", async (req, res) => {
-    try {
-      const schedulerState = scheduler ? await scheduler.getState() : null;
-      const defaultWindowDays = schedulerState?.trendWindowDays ?? 7;
-
-      const windowDays = parsePositiveIntQuery(req.query.windowDays, defaultWindowDays, 1, 60);
-      const windowSize = parsePositiveIntQuery(req.query.windowSize, 8, 1, 24);
-      const historyLimit = parsePositiveIntQuery(
-        req.query.historyLimit,
-        Math.max(40, Math.min(240, windowDays * 24)),
-        20,
-        500
-      );
-
-      const schedulerSignals = await buildSchedulerSignalDiagnostics(getPublisherHistoryForSignals, {
-        windowDays,
-        windowSize,
-        historyLimit,
-      });
-
-      res.json(schedulerSignals);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.error(
-        {
-          event: "api_scheduler_signal_diagnostics_failed",
-          status: "error",
-          errorCode: extractErrorCode(error),
-          err: error,
-        },
-        "Scheduler signal diagnostics request failed"
-      );
-      res.status(500).json({ error: `[SchedulerSignals] ${message}` });
-    }
-  });
-
-  app.get("/api/ai-recommendation", async (req, res) => {
-    if (!ENV.AI_ADVISOR_ENABLED || !ENV.XAI_API_KEY) {
-      res.json({ recommendation: null, contextBuiltAt: null, source: "disabled" });
-      return;
-    }
-
-    const cached = getAdvisorCache();
-    if (cached) {
-      res.json({ recommendation: cached.result, contextBuiltAt: cached.cachedAt, source: "cached" });
-      return;
-    }
-
-    // No cache — build fresh
-    try {
-      const [logs, history, controlPanelState] = await Promise.all([
-        logCache.get(),
-        readHistoryForAdvisor(10),
-        scheduler ? scheduler.getState() : null,
-      ]);
-
-      const trend = buildTrendInsightsPayload(logs, {
-        windowDays: controlPanelState?.trendWindowDays ?? 7,
-        referenceBaseIntervalMinutes: controlPanelState?.baseIntervalMinutes ?? ENV.RUN_INTERVAL_MINUTES,
-        trendAdaptiveEnabled: controlPanelState?.trendAdaptiveEnabled ?? true,
-        ourAuthorSubstring: ENV.OUR_AUTHOR_SUBSTRING,
-      });
-
-      const latestLog = logs[0] ?? null;
-      const context = buildAdvisorContext(trend, history, latestLog, {
-        baseIntervalMinutes: controlPanelState?.baseIntervalMinutes ?? ENV.RUN_INTERVAL_MINUTES,
-        scheduleJitterPercent: controlPanelState?.scheduleJitterPercent ?? ENV.SCHEDULER_JITTER_PERCENT,
-        enabled: controlPanelState?.enabled ?? true,
-        trendAdaptiveEnabled: controlPanelState?.trendAdaptiveEnabled ?? true,
-      });
-
-      const result = await callGrokAdvisor(context);
-      setAdvisorCache(result);
-
-      const freshCache = getAdvisorCache()!;
-      res.json({ recommendation: freshCache.result, contextBuiltAt: freshCache.cachedAt, source: "fresh" });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logger.error({ event: "ai_advisor_endpoint_failed", err }, "GET /api/ai-recommendation failed");
-      res.json({ recommendation: null, contextBuiltAt: null, source: "error", error: msg });
-    }
-  });
-
-  app.get("/api/ai-token-stats", (_req, res) => {
-    res.json(getAdvisorTokenStats());
-  });
-
-  app.post("/api/apply-ai-recommendation", async (req, res) => {
-    const cached = getAdvisorCache();
-
-    if (!cached || !cached.result.ok) {
-      res.status(422).json({ error: "no_recommendation" });
-      return;
-    }
-
-    const ageMs = Date.now() - new Date(cached.cachedAt).getTime();
-    if (ageMs > 30 * 60 * 1000) {
-      res.status(422).json({ error: "recommendation_stale" });
-      return;
-    }
-
-    const { recommendedIntervalMinutes, recommendedGapThreshold } = cached.result.recommendation;
-
-    if (scheduler) {
-      scheduler.setControls({ baseIntervalMinutes: recommendedIntervalMinutes });
-    }
-    const persistMeta = await writeRuntimeControls({
-      observerGapThresholdMin: recommendedGapThreshold,
-      schedulerBaseIntervalMinutes: recommendedIntervalMinutes,
-    });
-    const controlPanel = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
-      stateVersion: persistMeta.stateVersion,
-      persistedAt: persistMeta.persistedAt,
-    });
-    cachedControlPanel = { payload: controlPanel, expiresAt: Date.now() + CONTROL_PANEL_CACHE_MS };
-
-    markAdvisorCacheApplied();
-    const appliedAt = new Date().toISOString();
-
-    logger.info(
-      { event: "ai_advisor_applied", intervalMinutes: recommendedIntervalMinutes, gapThreshold: recommendedGapThreshold },
-      "AI recommendation applied to control panel"
-    );
-    res.json({
-      applied: true,
-      intervalMinutes: recommendedIntervalMinutes,
-      gapThreshold: recommendedGapThreshold,
-      stateVersion: persistMeta.stateVersion,
-      persistedAt: persistMeta.persistedAt,
-      appliedAt,
-      controlPanel,
-    });
-  });
-
-  app.get("/api/drafts", (req, res) => {
-    res.json([
-      {
-        title: "[OTT/멤버십] [SharePlan] 끝까지 관리된 유튜브/코세라 프리미엄 (가입 완료 후 결제)",
-        timestamp: "2026-03-30 10:00:00",
-        id: "draft_1"
-      },
-      {
-        title: "[OTT/멤버십] [SharePlan] 끝까지 관리된 유튜브/코세라 프리미엄 (가입 완료 후 결제)",
-        timestamp: "2026-03-29 15:30:00",
-        id: "draft_2"
-      }
-    ]);
-  });
-
-  app.post("/api/run-observer", observerLimiter, async (req, res) => {
-    try {
-      const log = await deps.runObserver();
-      if (log.status === 'error') {
-        logger.error(
-          { event: LOG_EVENT.apiRunObserverFailed, status: "error", errorCode: extractErrorCode(log.error), error: log.error },
-          "run-observer returned error status"
-        );
-        res.status(500).json({ success: false, action: 'observer', error: log.error, log });
-      } else {
-        invalidatePollingCaches();
-        res.json({ success: true, action: 'observer', log });
-      }
-    } catch (error: any) {
-      logger.error(
-        { event: LOG_EVENT.apiRunObserverFailed, status: "error", errorCode: extractErrorCode(error), err: error },
-        "run-observer request failed"
-      );
-      res.status(500).json({
-        success: false,
-        action: 'observer',
-        error: `[Observer] ${String(error?.message ?? error)}`
-      });
-    }
-  });
-
-  app.get("/api/publisher-status", (_req, res) => {
-    res.json(getPublisherStatus());
-  });
-
-  app.post("/api/run-publisher", publisherLimiter, async (req, res) => {
-    const { force } = req.body;
-    try {
-      const result = await deps.runPublisher(force);
-      if (!result.success) {
-        logger.error(
-          {
-            event: LOG_EVENT.apiRunPublisherFailed,
-            status: "error",
-            runId: result.runId,
-            decision: result.decision,
-            errorCode: extractErrorCode(result.message),
-            error: result.message
-          },
-          "run-publisher returned unsuccessful result"
-        );
-        res.status(500).json({
-          success: false,
-          action: 'publisher',
-          force: Boolean(force),
-          message: result.message,
-          error: result.message,
-          log: result.log,
-          runId: result.runId,
-          decision: result.decision,
-          artifactDir: result.artifactDir
-        });
-      } else {
-        invalidatePollingCaches();
-        res.json({ ...result, action: 'publisher', force: Boolean(force) });
-      }
-    } catch (error: any) {
-      logger.error(
-        { event: LOG_EVENT.apiRunPublisherFailed, status: "error", errorCode: extractErrorCode(error), force: Boolean(req.body?.force), err: error },
-        "run-publisher request failed"
-      );
-      res.status(500).json({
-        success: false,
-        action: 'publisher',
-        force: Boolean(req.body?.force),
-        error: `[Publisher] ${String(error?.message ?? error)}`
-      });
-    }
-  });
-
-  app.get("/api/playbook/:workflowId", async (req, res) => {
-    try {
-      const { workflowId } = req.params;
-      if (!/^[a-zA-Z0-9-]+$/.test(workflowId)) {
-        res.status(400).json({ error: "Invalid workflow ID" });
-        return;
-      }
-      const cacheKey = workflowId;
-      if (cachedPlaybook && cachedPlaybook.key === cacheKey && Date.now() < cachedPlaybook.expiresAt) {
-        res.json(cachedPlaybook.payload);
-        return;
-      }
-      const playbookPath = path.join(
-        ENV.PROJECT_ROOT,
-        ".planning/spec-kit/manifest",
-        `playbook.${workflowId}.json`
-      );
-      const content = await fs.promises.readFile(playbookPath, "utf-8");
-      const playbook = JSON.parse(content);
-      cachedPlaybook = { key: cacheKey, payload: playbook, expiresAt: Date.now() + PLAYBOOK_CACHE_MS };
-      res.json(playbook);
-    } catch (error: any) {
-      logger.error({ event: "playbook_fetch_failed", error }, "Failed to fetch playbook");
-      res.status(500).json({ error: "Failed to load playbook" });
-    }
-  });
-
-  app.get("/api/control-panel", async (req, res) => {
-    if (cachedControlPanel && Date.now() < cachedControlPanel.expiresAt) {
-      res.json(cachedControlPanel.payload);
-      return;
-    }
-    const payload = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime);
-    cachedControlPanel = { payload, expiresAt: Date.now() + CONTROL_PANEL_CACHE_MS };
-    res.json(payload);
-  });
-
-  app.post("/api/control-panel", async (req, res) => {
-    const body = (req.body ?? {}) as {
-      expectedVersion?: number;
-      preset?: ControlPanelPreset;
-      nlWebhookEnabled?: boolean;
-      observer?: Partial<ObserverControlsWithGap>;
-      publisher?: Partial<ReturnType<typeof getPublisherControls>>;
-      autoPublisher?: Partial<AutoPublisherControls> & { enabled?: boolean };
-    };
-
-    if (
-      body.expectedVersion !== undefined &&
-      (!Number.isInteger(body.expectedVersion) || body.expectedVersion < 0)
-    ) {
-      res.status(400).json({ error: "expectedVersion must be an integer >= 0" });
-      return;
-    }
-
-    const prevNlWebhookEnabledRuntime = nlWebhookEnabledRuntime;
-    const prevObserverControls = getObserverControls();
-    const prevPublisherControls = getPublisherControls();
-    const prevSchedulerPreset = scheduler?.getPreset();
-    const prevSchedulerState = scheduler ? await scheduler.getState() : null;
-
-    try {
-
-      if (typeof body.nlWebhookEnabled === "boolean") {
-        nlWebhookEnabledRuntime = body.nlWebhookEnabled;
-      }
-
-      const rawObserver = body.observer ?? {};
-      const gapPersistedOverride = (rawObserver as { gapPersistedOverride?: number | null }).gapPersistedOverride;
-      const gapSourcePin = (rawObserver as { gapSourcePin?: 'env' | 'spec' | null }).gapSourcePin;
-      const observerPacing: Parameters<typeof setObserverControls>[0] = { ...rawObserver };
-      delete (observerPacing as { gapPersistedOverride?: unknown }).gapPersistedOverride;
-      delete (observerPacing as { gapSourcePin?: unknown }).gapSourcePin;
-      delete (observerPacing as { gapThresholdMin?: unknown }).gapThresholdMin;
-      delete (observerPacing as { gapThresholdSpecBaseline?: unknown }).gapThresholdSpecBaseline;
-      delete (observerPacing as { gapUsesEnvOverride?: unknown }).gapUsesEnvOverride;
-      delete (observerPacing as { gapSource?: unknown }).gapSource;
-
-      if (Object.prototype.hasOwnProperty.call(rawObserver, "gapPersistedOverride")) {
-        const v = gapPersistedOverride;
-        if (v !== null && (typeof v !== "number" || !Number.isInteger(v))) {
-          logger.warn(
-            { event: LOG_EVENT.apiControlPanelValidationFailed, status: "error", field: "gapPersistedOverride", reason: "not_integer_or_null", value: v },
-            "Control panel validation failed"
-          );
-          res.status(400).json({ error: "gapPersistedOverride must be an integer 1–50 or null" });
-          return;
-        }
-        if (v !== null && (v < 1 || v > 50)) {
-          logger.warn(
-            { event: LOG_EVENT.apiControlPanelValidationFailed, status: "error", field: "gapPersistedOverride", reason: "out_of_range", value: v },
-            "Control panel validation failed"
-          );
-          res.status(400).json({ error: "gapPersistedOverride must be an integer 1–50 or null" });
-          return;
-        }
-      }
-
-      if (Object.prototype.hasOwnProperty.call(rawObserver, "gapSourcePin")) {
-        const pin = gapSourcePin;
-        if (pin !== null && pin !== 'env' && pin !== 'spec') {
-          res.status(400).json({ error: "gapSourcePin must be 'env', 'spec', or null" });
-          return;
-        }
-      }
-
-      setObserverControls(observerPacing);
-      if (body.publisher && typeof body.publisher === "object") {
-        setPublisherControls(body.publisher);
-      }
-
-      const hasPreset = Boolean(scheduler && body.preset && PRESET_CONFIG[body.preset]);
-      if (scheduler && body.preset && PRESET_CONFIG[body.preset]) {
-        const presetConfig = PRESET_CONFIG[body.preset];
-        setObserverControls({ ...presetConfig.observer, ...observerPacing });
-        scheduler.applyPreset(body.preset);
-        scheduler.setControls(presetConfig.autoPublisher);
-      }
-
-      if (scheduler && body.autoPublisher) {
-        // Preset wins scheduler numeric controls; only explicit enabled toggle may be layered after preset.
-        if (Object.prototype.hasOwnProperty.call(body.autoPublisher, "enabled")) {
-          scheduler.setEnabled(Boolean(body.autoPublisher.enabled));
-        }
-        if (!hasPreset) {
-          scheduler.setControls(body.autoPublisher);
-        }
-      }
-
-      const autoPublisherState = (scheduler ? await scheduler.getState() : null) ?? {
-        enabled: true,
-        baseIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
-        effectiveIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
-        quietHoursStart: 3,
-        quietHoursEnd: 5,
-        quietHoursMultiplier: 1.8,
-        activeHoursStart: 8,
-        activeHoursEnd: 23,
-        activeHoursMultiplier: 0.8,
-        trendAdaptiveEnabled: true,
-        trendWindowDays: 7,
-        trendRecalibrationDays: 7,
-        scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
-        scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
-        targetPublishIntervalMinutes: 0,
-        gapRecheckIntervalMinutes: 3,
-        running: false
-      };
-
-      // Persist all settings so they survive server restarts.
-      const currentObserver = await getObserverControlsWithGap();
-      const currentPublisher = getPublisherControls();
-      const persistMeta = await persistAllControlPanelSettings({
-        expectedVersion: body.expectedVersion,
-        nlWebhookEnabled: typeof body.nlWebhookEnabled === "boolean" ? body.nlWebhookEnabled : undefined,
-        gapPersistedOverride: Object.prototype.hasOwnProperty.call(rawObserver, "gapPersistedOverride")
-          ? (gapPersistedOverride ?? null)
-          : undefined,
-        gapSourcePin: Object.prototype.hasOwnProperty.call(rawObserver, "gapSourcePin")
-          ? (gapSourcePin ?? null)
-          : undefined,
-        schedulerEnabled: autoPublisherState.enabled,
-        schedulerControls: {
-          baseIntervalMinutes: autoPublisherState.baseIntervalMinutes,
-          quietHoursStart: autoPublisherState.quietHoursStart,
-          quietHoursEnd: autoPublisherState.quietHoursEnd,
-          quietHoursMultiplier: autoPublisherState.quietHoursMultiplier,
-          activeHoursStart: autoPublisherState.activeHoursStart,
-          activeHoursEnd: autoPublisherState.activeHoursEnd,
-          activeHoursMultiplier: autoPublisherState.activeHoursMultiplier,
-          trendAdaptiveEnabled: autoPublisherState.trendAdaptiveEnabled,
-          trendWindowDays: autoPublisherState.trendWindowDays,
-          trendRecalibrationDays: autoPublisherState.trendRecalibrationDays,
-          scheduleJitterPercent: autoPublisherState.scheduleJitterPercent,
-          scheduleJitterMode: autoPublisherState.scheduleJitterMode,
-          targetPublishIntervalMinutes: autoPublisherState.targetPublishIntervalMinutes,
-          gapRecheckIntervalMinutes: autoPublisherState.gapRecheckIntervalMinutes,
-        },
-        preset: scheduler?.getPreset() ?? "balanced",
-        observerControls: {
-          enabled: currentObserver.enabled,
-          minPreVisitDelayMs: currentObserver.minPreVisitDelayMs,
-          maxPreVisitDelayMs: currentObserver.maxPreVisitDelayMs,
-          minIntervalBetweenRunsMs: currentObserver.minIntervalBetweenRunsMs,
-        },
-        publisherControls: {
-          draftItemIndex: currentPublisher.draftItemIndex,
-        },
-      });
-
-      const payload = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
-        stateVersion: persistMeta.stateVersion,
-        persistedAt: persistMeta.persistedAt,
-      });
-      cachedControlPanel = { payload, expiresAt: Date.now() + CONTROL_PANEL_CACHE_MS };
-      res.json(payload);
-    } catch (error: unknown) {
-      const [persistedObserver, persistedPublisher, persistedScheduler, persistedNlWebhookEnabled] = await Promise.all([
-        readPersistedObserverControls(),
-        readPersistedPublisherControls(),
-        readPersistedSchedulerControls(),
-        readPersistedNlWebhookEnabled(),
-      ]);
-
-      // Rehydrate in-memory state from persisted controls first; fall back to previous snapshot if nothing is persisted.
-      setObserverControls(
-        Object.keys(persistedObserver).length > 0 ? persistedObserver : prevObserverControls
-      );
-      setPublisherControls(
-        Object.keys(persistedPublisher).length > 0 ? persistedPublisher : prevPublisherControls
-      );
-      nlWebhookEnabledRuntime = persistedNlWebhookEnabled ?? prevNlWebhookEnabledRuntime;
-
-      if (scheduler) {
-        if (Object.keys(persistedScheduler).length > 0) {
-          if (
-            typeof persistedScheduler.preset === "string" &&
-            persistedScheduler.preset in PRESET_CONFIG
-          ) {
-            scheduler.setPreset(persistedScheduler.preset as ControlPanelPreset);
-          }
-          if (typeof persistedScheduler.enabled === "boolean") {
-            scheduler.setEnabled(persistedScheduler.enabled);
-          }
-          scheduler.setControls({
-            baseIntervalMinutes: persistedScheduler.baseIntervalMinutes,
-            quietHoursStart: persistedScheduler.quietHoursStart,
-            quietHoursEnd: persistedScheduler.quietHoursEnd,
-            quietHoursMultiplier: persistedScheduler.quietHoursMultiplier,
-            activeHoursStart: persistedScheduler.activeHoursStart,
-            activeHoursEnd: persistedScheduler.activeHoursEnd,
-            activeHoursMultiplier: persistedScheduler.activeHoursMultiplier,
-            trendAdaptiveEnabled: persistedScheduler.trendAdaptiveEnabled,
-            trendWindowDays: persistedScheduler.trendWindowDays,
-            trendRecalibrationDays: persistedScheduler.trendRecalibrationDays,
-            scheduleJitterPercent: persistedScheduler.scheduleJitterPercent,
-            scheduleJitterMode: persistedScheduler.scheduleJitterMode,
-            targetPublishIntervalMinutes: persistedScheduler.targetPublishIntervalMinutes,
-            gapRecheckIntervalMinutes: persistedScheduler.gapRecheckIntervalMinutes,
-          });
-        } else if (prevSchedulerState) {
-          scheduler.setPreset(prevSchedulerPreset ?? "balanced");
-          scheduler.setControls({
-            baseIntervalMinutes: prevSchedulerState.baseIntervalMinutes,
-            quietHoursStart: prevSchedulerState.quietHoursStart,
-            quietHoursEnd: prevSchedulerState.quietHoursEnd,
-            quietHoursMultiplier: prevSchedulerState.quietHoursMultiplier,
-            activeHoursStart: prevSchedulerState.activeHoursStart,
-            activeHoursEnd: prevSchedulerState.activeHoursEnd,
-            activeHoursMultiplier: prevSchedulerState.activeHoursMultiplier,
-            trendAdaptiveEnabled: prevSchedulerState.trendAdaptiveEnabled,
-            trendWindowDays: prevSchedulerState.trendWindowDays,
-            trendRecalibrationDays: prevSchedulerState.trendRecalibrationDays,
-            scheduleJitterPercent: prevSchedulerState.scheduleJitterPercent,
-            scheduleJitterMode: prevSchedulerState.scheduleJitterMode,
-            targetPublishIntervalMinutes: prevSchedulerState.targetPublishIntervalMinutes,
-            gapRecheckIntervalMinutes: prevSchedulerState.gapRecheckIntervalMinutes,
-          });
-          scheduler.setEnabled(prevSchedulerState.enabled);
-        }
-      }
-
-      if (error instanceof RuntimeControlsVersionConflictError) {
-        const latest = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime);
-        res.status(409).json({
-          error: "CONTROL_PANEL_VERSION_CONFLICT",
-          expectedVersion: error.expectedVersion,
-          currentVersion: error.currentVersion,
-          currentState: latest,
-        });
-        return;
-      }
-
-      logger.error(
-        {
-          event: LOG_EVENT.apiControlPanelPersistFailed,
-          status: "error",
-          errorCode: extractErrorCode(error),
-          err: error
-        },
-        "control-panel persistence failed"
-      );
-      res.status(500).json({
-        error: "[ControlPanel] Failed to persist control panel settings"
-      });
-    }
-  });
-
-  // ---------------------------------------------------------------------------
-  // POST /api/nl-command — natural language webhook
-  // ---------------------------------------------------------------------------
-
-  app.post("/api/nl-command", async (req, res) => {
-    // Kill-switch guard (runtime-toggleable; falls back to env var at startup)
-    if (!nlWebhookEnabledRuntime) {
-      res.status(503).json({ error: "nl_webhook_disabled" });
-      return;
-    }
-
-    // XAI key guard (classification requires it)
-    if (!ENV.XAI_API_KEY) {
-      res.status(503).json({ error: "xai_key_absent" });
-      return;
-    }
-
-    // Bearer token auth guard
-    if (ENV.NL_WEBHOOK_SECRET) {
-      const authHeader = req.headers["authorization"] ?? "";
-      const expected = `Bearer ${ENV.NL_WEBHOOK_SECRET}`;
-      if (authHeader !== expected) {
-        res.status(401).json({ error: "unauthorized" });
-        return;
-      }
-    }
-
-    // Body validation
-    const body = (req.body ?? {}) as { message?: unknown; source?: unknown; dry_run?: unknown };
-    if (typeof body.message !== "string" || body.message.trim() === "") {
-      res.status(400).json({ error: "message_required" });
-      return;
-    }
-
-    const message = body.message.trim();
-    const source = typeof body.source === "string" ? body.source : "unknown";
-    const dryRun = body.dry_run === true;
-
-    // Classify intent
-    const classification = await classifyIntent(message);
-    const { intent, extractedParams, confidence } = classification;
-
-    logger.info(
-      { event: "nl_command_received", source, intent, confidence, dryRun },
-      "[NL Webhook] Command received"
-    );
-
-    // Unknown intent guard
-    if (intent === "unknown") {
-      res.status(422).json({ error: "unknown_intent", reason: classification.reason });
-      return;
-    }
-
-    // Dry-run short-circuit
-    if (dryRun) {
-      const dispatchMap: Record<string, string> = {
-        pause_scheduler: "POST /api/control-panel",
-        resume_scheduler: "POST /api/control-panel",
-        force_publish: "POST /api/run-publisher",
-        set_interval: "POST /api/control-panel",
-        set_gap_threshold: "writeRuntimeGapPersistedOverride",
-        apply_ai_recommendation: "POST /api/apply-ai-recommendation",
-        status_query: "GET /api/control-panel + GET /api/trend-insights + GET /api/publisher-history",
-      };
-      res.json({
-        intent,
-        dispatched_to: dispatchMap[intent] ?? "unknown",
-        result: null,
-        dry_run: true,
-      });
-      return;
-    }
-
-    // Live dispatch
-    try {
-      let dispatchedTo: string;
-      let result: unknown;
-
-      switch (intent) {
-        case "pause_scheduler": {
-          if (scheduler) scheduler.setEnabled(false);
-          const persistMeta = await writeRuntimeControls({ schedulerEnabled: false });
-          const controlPanel = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
-            stateVersion: persistMeta.stateVersion,
-            persistedAt: persistMeta.persistedAt,
-          });
-          dispatchedTo = "POST /api/control-panel";
-          result = {
-            schedulerEnabled: false,
-            stateVersion: persistMeta.stateVersion,
-            persistedAt: persistMeta.persistedAt,
-            controlPanel,
-          };
-          break;
-        }
-
-        case "resume_scheduler": {
-          if (scheduler) scheduler.setEnabled(true);
-          const persistMeta = await writeRuntimeControls({ schedulerEnabled: true });
-          const controlPanel = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
-            stateVersion: persistMeta.stateVersion,
-            persistedAt: persistMeta.persistedAt,
-          });
-          dispatchedTo = "POST /api/control-panel";
-          result = {
-            schedulerEnabled: true,
-            stateVersion: persistMeta.stateVersion,
-            persistedAt: persistMeta.persistedAt,
-            controlPanel,
-          };
-          break;
-        }
-
-        case "force_publish": {
-          if (!ENV.MANUAL_OVERRIDE_ENABLED) {
-            res.status(422).json({ error: "force_publish_disabled", reason: "MANUAL_OVERRIDE_ENABLED is false" });
-            return;
-          }
-          dispatchedTo = "POST /api/run-publisher";
-          result = await deps.runPublisher(true);
-          break;
-        }
-
-        case "set_interval": {
-          const intervalMinutes = extractIntervalMinutes(extractedParams);
-          if (intervalMinutes === null) {
-            res.status(422).json({ error: "missing_param", reason: "intervalMinutes could not be extracted or is out of range (5–480)" });
-            return;
-          }
-          if (scheduler) scheduler.setControls({ baseIntervalMinutes: intervalMinutes });
-          const persistMeta = await writeRuntimeControls({
-            schedulerBaseIntervalMinutes: intervalMinutes,
-          });
-          const controlPanel = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
-            stateVersion: persistMeta.stateVersion,
-            persistedAt: persistMeta.persistedAt,
-          });
-          dispatchedTo = "POST /api/control-panel";
-          result = {
-            baseIntervalMinutes: intervalMinutes,
-            stateVersion: persistMeta.stateVersion,
-            persistedAt: persistMeta.persistedAt,
-            controlPanel,
-          };
-          break;
-        }
-
-        case "set_gap_threshold": {
-          const gapThreshold = extractGapThreshold(extractedParams);
-          if (gapThreshold === null) {
-            res.status(422).json({ error: "missing_param", reason: "observerGapThresholdMin could not be extracted or is out of range (1–50)" });
-            return;
-          }
-          const persistMeta = await writeRuntimeGapPersistedOverride(gapThreshold);
-          const controlPanel = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
-            stateVersion: persistMeta.stateVersion,
-            persistedAt: persistMeta.persistedAt,
-          });
-          dispatchedTo = "writeRuntimeGapPersistedOverride";
-          result = {
-            observerGapThresholdMin: gapThreshold,
-            stateVersion: persistMeta.stateVersion,
-            persistedAt: persistMeta.persistedAt,
-            controlPanel,
-          };
-          break;
-        }
-
-        case "apply_ai_recommendation": {
-          const cached = getAdvisorCache();
-          if (!cached || !cached.result.ok) {
-            res.status(422).json({ error: "no_recommendation" });
-            return;
-          }
-          const ageMs = Date.now() - new Date(cached.cachedAt).getTime();
-          if (ageMs > 30 * 60 * 1000) {
-            res.status(422).json({ error: "recommendation_stale" });
-            return;
-          }
-          const { recommendedIntervalMinutes, recommendedGapThreshold } = cached.result.recommendation;
-          if (scheduler) scheduler.setControls({ baseIntervalMinutes: recommendedIntervalMinutes });
-          const persistMeta = await writeRuntimeControls({
-            observerGapThresholdMin: recommendedGapThreshold,
-            schedulerBaseIntervalMinutes: recommendedIntervalMinutes,
-          });
-          const controlPanel = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime, {
-            stateVersion: persistMeta.stateVersion,
-            persistedAt: persistMeta.persistedAt,
-          });
-          markAdvisorCacheApplied();
-          dispatchedTo = "POST /api/apply-ai-recommendation";
-          result = {
-            applied: true,
-            intervalMinutes: recommendedIntervalMinutes,
-            gapThreshold: recommendedGapThreshold,
-            stateVersion: persistMeta.stateVersion,
-            persistedAt: persistMeta.persistedAt,
-            controlPanel,
-          };
-          break;
-        }
-
-        case "status_query": {
-          const [logs, history, cpState] = await Promise.all([
-            logCache.get(),
-            readHistoryForAdvisor(5),
-            scheduler ? scheduler.getState() : null,
-          ]);
-          const trend = buildTrendInsightsPayload(logs, {
-            windowDays: cpState?.trendWindowDays ?? 7,
-            referenceBaseIntervalMinutes: cpState?.baseIntervalMinutes ?? ENV.RUN_INTERVAL_MINUTES,
-            trendAdaptiveEnabled: cpState?.trendAdaptiveEnabled ?? true,
-            ourAuthorSubstring: ENV.OUR_AUTHOR_SUBSTRING,
-          });
-          const advisorCache = getAdvisorCache();
-          const recommendation = advisorCache?.result.ok ? advisorCache.result.recommendation : null;
-          result = buildStatusSummary(
-            {
-              schedulerEnabled: cpState?.enabled ?? true,
-              baseIntervalMinutes: cpState?.baseIntervalMinutes ?? ENV.RUN_INTERVAL_MINUTES,
-            },
-            trend.multiplierBand,
-            trend.sovPercent,
-            history,
-            recommendation
-          );
-          dispatchedTo = "GET /api/control-panel + GET /api/trend-insights + GET /api/publisher-history";
-          break;
-        }
-
-        default: {
-          res.status(422).json({ error: "unknown_intent" });
-          return;
-        }
-      }
-
-      logger.info(
-        { event: "nl_command_dispatched", intent, dispatchedTo, dryRun: false },
-        "[NL Webhook] Command dispatched"
-      );
-
-      res.json({ intent, dispatched_to: dispatchedTo, result, dry_run: false });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logger.error({ event: "nl_command_dispatch_error", intent, err }, "[NL Webhook] Dispatch failed");
-      res.status(503).json({ error: "dispatch_failed", reason: msg });
-    }
-  });
-
-  // POST /kakao-webhook — Kakao Open Builder skill endpoint
-  // Registered URL: https://tortile-edmund-overboastful.ngrok-free.dev/kakao-webhook
-  // 0 blocks connected → safe to deploy; apply blocks in Open Builder when ready.
-  // ---------------------------------------------------------------------------
-  app.post("/kakao-webhook", async (req, res) => {
-    if (!ENV.KAKAO_WEBHOOK_ENABLED) {
-      res.status(503).json({ error: "kakao_webhook_disabled" });
-      return;
-    }
-
-    if (!isValidKakaoPayload(req.body)) {
-      logger.warn({ event: "kakao_payload_invalid" }, "[Kakao] Rejected malformed payload");
-      res.status(400).json({ error: "invalid_payload" });
-      return;
-    }
-
-    // Bot ID guard — cheap spoofing check until HMAC is wired up
-    if (ENV.KAKAO_OPENBUILDER_BOT_ID && req.body.bot.id !== ENV.KAKAO_OPENBUILDER_BOT_ID) {
-      logger.warn(
-        { event: "kakao_bot_id_mismatch", received: req.body.bot.id },
-        "[Kakao] Bot ID mismatch — rejected"
-      );
-      res.status(403).json({ error: "bot_id_mismatch" });
-      return;
-    }
-
-    logKakaoMessage(req.body);
-    setImmediate(() => {
-      kakaoDb.logInbound(req.body).catch((err) =>
-        logger.warn({ event: "kakao_db_inbound_error", err }, "[KakaoDb] Failed to log inbound")
-      );
-    });
-
-    // Auto-reply: attempt LLM response within KAKAO_AUTOREPLY_TIMEOUT_MS.
-    // Falls back to neutral ACK when disabled, key absent, or timed out.
-    const reply = await kakaoGetAutoReply(req.body.userRequest.utterance);
-    const outboundText = reply ?? "메시지를 받았습니다.";
-    const outboundPayload = kakaoSimpleText(outboundText);
-    setImmediate(() => {
-      kakaoDb.logOutbound(req.body.userRequest.user.id, outboundText, outboundPayload).catch((err) =>
-        logger.warn({ event: "kakao_db_outbound_error", err }, "[KakaoDb] Failed to log outbound")
-      );
-    });
-    res.status(200).json(outboundPayload);
-  });
-
-  // ── Kakao Dashboard API ──────────────────────────────────────────────────────
-
-  app.get("/api/kakao/status", async (_req, res) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const logPath = path.join("artifacts", "kakao-history", `${today}.jsonl`);
-    let todayLogCount = 0;
-    try {
-      const content = await fs.promises.readFile(logPath, "utf-8");
-      const trimmed = content.trim();
-      if (trimmed) todayLogCount = trimmed.split("\n").length;
-    } catch {
-      // File doesn't exist yet or unreadable — todayLogCount stays 0
-    }
-    res.json({
-      webhookEnabled: ENV.KAKAO_WEBHOOK_ENABLED,
-      autoreplyEnabled: ENV.KAKAO_AUTOREPLY_ENABLED,
-      openaiKeyPresent: !!ENV.OPENAI_API_KEY,
-      todayLogCount,
-      webhookUrl: "https://tortile-edmund-overboastful.ngrok-free.dev/kakao-webhook",
-      dbConnected: kakaoDb.isReady(),
-      copilotEnabled: ENV.COPILOTKIT_ENABLED && kakaoDb.isReady(),
-    });
-  });
-
-  app.post("/api/kakao/reconnect", async (_req, res) => {
-    try {
-      await kakaoDb.ensureReady();
-      res.json({ connected: kakaoDb.isReady() });
-    } catch (err) {
-      logger.warn({ event: "kakao_db_reconnect_failed", err }, "[KakaoDB] Reconnect failed");
-      res.status(503).json({ connected: false, error: "reconnect_failed" });
-    }
-  });
-
-  app.post("/api/kakao/control", (req, res) => {
-    const { webhookEnabled, autoreplyEnabled } = req.body as {
-      webhookEnabled?: boolean;
-      autoreplyEnabled?: boolean;
-    };
-    if (typeof webhookEnabled === "boolean") ENV.KAKAO_WEBHOOK_ENABLED = webhookEnabled;
-    if (typeof autoreplyEnabled === "boolean") ENV.KAKAO_AUTOREPLY_ENABLED = autoreplyEnabled;
-    logger.info(
-      { event: "kakao_control_updated", webhookEnabled: ENV.KAKAO_WEBHOOK_ENABLED, autoreplyEnabled: ENV.KAKAO_AUTOREPLY_ENABLED },
-      "[Kakao] Runtime controls updated"
-    );
-    res.json({ webhookEnabled: ENV.KAKAO_WEBHOOK_ENABLED, autoreplyEnabled: ENV.KAKAO_AUTOREPLY_ENABLED });
-  });
-
-  app.get("/api/kakao/logs", async (req, res) => {
-    const limit = parsePositiveIntQuery(req.query.limit, 100, 1, 500);
-    const today = new Date().toISOString().slice(0, 10);
-    const logPath = path.join("artifacts", "kakao-history", `${today}.jsonl`);
-    let content: string;
-    try {
-      content = await fs.promises.readFile(logPath, "utf-8");
-    } catch {
-      res.json([]);
-      return;
-    }
-    const lines = content.trim().split("\n").filter(Boolean);
-    const entries = lines
-      .map((l) => { try { return JSON.parse(l); } catch { return null; } })
-      .filter(Boolean)
-      .reverse()
-      .slice(0, limit);
-    res.json(entries);
-  });
-
-  app.get("/api/kakao/kb-export", (_req, res) => {
-    const xlsxPath = path.join("data", "kakao-kb", "knowledge-base-import.xlsx");
-    if (!fs.existsSync(xlsxPath)) {
-      res.status(404).json({ error: "KB export not found — run: npm run kakao:kb-export" });
-      return;
-    }
-    res.download(xlsxPath, "knowledge-base-import.xlsx");
-  });
-
-  app.get("/api/kakao/db-stats", async (_req, res) => {
-    try {
-      const stats = await kakaoDb.getStats();
-      res.json(stats);
-    } catch (err) {
-      logger.error({ event: "kakao_db_stats_error", err }, "[KakaoDb] Stats query failed");
-      res.status(500).json({ error: "db_stats_failed" });
-    }
-  });
-
-  app.get("/api/kakao/users", async (_req, res) => {
-    if (!ENV.KAKAO_DB_ENABLED) {
-      res.status(503).json({ error: "kakao_db_required" });
-      return;
-    }
-    try {
-      const users = await kakaoDb.listUsers(50);
-      res.json(users);
-    } catch (err) {
-      logger.error({ event: "kakao_users_error", err }, "[KakaoDb] Users query failed");
-      res.status(500).json({ error: "users_query_failed" });
-    }
-  });
-
-  // ── CopilotKit coach endpoints ───────────────────────────────────────────────
-
-  // Status endpoint for CopilotKit availability
-  app.get("/api/copilotkit/status", (req, res) => {
-    res.json({
-      enabled: ENV.COPILOTKIT_ENABLED,
-      kakaoDbEnabled: ENV.KAKAO_DB_ENABLED,
-      available: ENV.COPILOTKIT_ENABLED && ENV.KAKAO_DB_ENABLED
-    });
-  });
-
-  app.all("/api/copilotkit*", async (req, res, next) => {
-    if (!ENV.COPILOTKIT_ENABLED) {
-      res.status(503).json({ error: "copilotkit_disabled" });
-      return;
-    }
-    if (!ENV.KAKAO_DB_ENABLED) {
-      logger.warn({ event: "copilotkit_db_required" }, "[CopilotKit] KAKAO_DB_ENABLED must be true");
-      res.status(503).json({ error: "kakao_db_required" });
-      return;
-    }
-    try {
-      const handler = getCopilotHandler();
-      await handler(req, res);
-    } catch (err) {
-      logger.error({ event: "copilotkit_handler_error", err }, "[CopilotKit] Handler error");
-      next(err);
-    }
-  });
-
-  app.get("/api/parser-metrics", (_req, res) => {
-    // Return parser-related metrics and settings
-    res.json({
-      customParserEnabled: ENV.CUSTOM_PARSER_ENABLED,
-      browserRequestLogging: ENV.BROWSER_REQUEST_LOGGING,
-      parserOptions: {
-        maxDepth: PARSER_OPTIONS.maxDepth,
-        maxSiblingsPerNode: PARSER_OPTIONS.maxSiblingsPerNode,
-        maxTotalNodes: PARSER_OPTIONS.maxTotalNodes,
-        maxTextLengthPerNode: PARSER_OPTIONS.maxTextLengthPerNode
-      }
-    });
-  });
-
-  app.post("/api/parser-metrics", async (req, res) => {
-    const { customParserEnabled, browserRequestLogging, logLevel, parserDetailedLogging } = req.body as {
-      customParserEnabled?: boolean;
-      browserRequestLogging?: boolean;
-      logLevel?: string;
-      parserDetailedLogging?: boolean;
-    };
-
-    try {
-      if (typeof customParserEnabled === "boolean") {
-        ENV.CUSTOM_PARSER_ENABLED = customParserEnabled;
-      }
-      if (typeof browserRequestLogging === "boolean") {
-        ENV.BROWSER_REQUEST_LOGGING = browserRequestLogging;
-      }
-      if (typeof logLevel === "string" && ['error', 'warn', 'info', 'debug'].includes(logLevel)) {
-        ENV.LOG_LEVEL = logLevel;
-      }
-      if (typeof parserDetailedLogging === "boolean") {
-        ENV.PARSER_DETAILED_LOGGING = parserDetailedLogging;
-      }
-
-      // Get current control panel state to preserve existing values
-      const currentState = await buildControlPanelResponse(scheduler, nlWebhookEnabledRuntime);
-
-      // Persist these settings to runtime controls
-      await persistAllControlPanelSettings({
-        expectedVersion: undefined, // Skip version check for this call
-        customParserEnabled: typeof customParserEnabled === "boolean" ? customParserEnabled : undefined,
-        browserRequestLogging: typeof browserRequestLogging === "boolean" ? browserRequestLogging : undefined,
-        logLevel: typeof logLevel === "string" ? logLevel : undefined,
-        parserDetailedLogging: typeof parserDetailedLogging === "boolean" ? parserDetailedLogging : undefined,
-        // Preserve other settings by getting current values
-        gapPersistedOverride: undefined,
-        gapSourcePin: undefined,
-        nlWebhookEnabled: undefined,
-        schedulerEnabled: currentState.autoPublisher.enabled,
-        schedulerControls: {
-          baseIntervalMinutes: currentState.autoPublisher.baseIntervalMinutes,
-          quietHoursStart: currentState.autoPublisher.quietHoursStart,
-          quietHoursEnd: currentState.autoPublisher.quietHoursEnd,
-          quietHoursMultiplier: currentState.autoPublisher.quietHoursMultiplier,
-          activeHoursStart: currentState.autoPublisher.activeHoursStart,
-          activeHoursEnd: currentState.autoPublisher.activeHoursEnd,
-          activeHoursMultiplier: currentState.autoPublisher.activeHoursMultiplier,
-          trendAdaptiveEnabled: currentState.autoPublisher.trendAdaptiveEnabled,
-          trendWindowDays: currentState.autoPublisher.trendWindowDays,
-          trendRecalibrationDays: currentState.autoPublisher.trendRecalibrationDays,
-          scheduleJitterPercent: currentState.autoPublisher.scheduleJitterPercent,
-          scheduleJitterMode: currentState.autoPublisher.scheduleJitterMode,
-          targetPublishIntervalMinutes: currentState.autoPublisher.targetPublishIntervalMinutes,
-          gapRecheckIntervalMinutes: currentState.autoPublisher.gapRecheckIntervalMinutes,
-        },
-        preset: currentState.preset,
-        observerControls: {
-          enabled: currentState.observer.enabled,
-          minPreVisitDelayMs: currentState.observer.minPreVisitDelayMs,
-          maxPreVisitDelayMs: currentState.observer.maxPreVisitDelayMs,
-          minIntervalBetweenRunsMs: currentState.observer.minIntervalBetweenRunsMs,
-        },
-        publisherControls: {
-          draftItemIndex: currentState.publisher.draftItemIndex,
-        },
-      });
-
-      logger.info(
-        {
-          event: "parser_settings_updated",
-          customParserEnabled: ENV.CUSTOM_PARSER_ENABLED,
-          browserRequestLogging: ENV.BROWSER_REQUEST_LOGGING,
-          logLevel: ENV.LOG_LEVEL,
-          parserDetailedLogging: ENV.PARSER_DETAILED_LOGGING
-        },
-        "[Settings] Parser settings updated"
-      );
-
-      res.json({
-        customParserEnabled: ENV.CUSTOM_PARSER_ENABLED,
-        browserRequestLogging: ENV.BROWSER_REQUEST_LOGGING,
-        logLevel: ENV.LOG_LEVEL,
-        parserDetailedLogging: ENV.PARSER_DETAILED_LOGGING
-      });
-    } catch (err) {
-      logger.error({ event: "parser_settings_update_error", err }, "[Settings] Failed to update parser settings");
-      res.status(500).json({ error: "settings_update_failed" });
-    }
-  });
-
-  app.get("/api/kakao/thread/:userKey", async (req, res) => {
-    if (!ENV.KAKAO_DB_ENABLED) {
-      res.status(503).json({ error: "kakao_db_required" });
-      return;
-    }
-    const { userKey } = req.params;
-    if (!userKey || typeof userKey !== "string") {
-      res.status(400).json({ error: "invalid_user_key" });
-      return;
-    }
-    try {
-      const exists = await kakaoDb.userExists(userKey);
-      if (!exists) {
-        res.status(404).json({ error: "user_not_found" });
-        return;
-      }
-      const limit = ENV.COPILOT_CONTEXT_TURNS;
-      const turns = await kakaoDb.getThread(userKey, limit);
-      let piiScrubCount = 0;
-      const scrubbed = turns.map((t) => {
-        if (!t.utterance) return { ...t, utterance: null };
-        const cleaned = scrubContext(t.utterance);
-        if (cleaned !== t.utterance) piiScrubCount++;
-        return { ...t, utterance: cleaned };
-      });
-      if (piiScrubCount > 0) {
-        kakaoDb.logCoachEvent({
-          userKey,
-          actionName: "thread_load",
-          eventType: "pii_scrub",
-          inputLength: piiScrubCount,
-        }).catch(() => {});
-      }
-      // Cap total character count at 8000 chars
-      let charCount = 0;
-      const capped: typeof scrubbed = [];
-      for (const turn of scrubbed) {
-        const len = (turn.utterance ?? "").length;
-        if (charCount + len > 8000) break;
-        capped.push(turn);
-        charCount += len;
-      }
-      res.json({ userKey, turns: capped, total: capped.length });
-    } catch (err) {
-      logger.error({ event: "kakao_thread_error", err }, "[KakaoDb] Thread query failed");
-      res.status(500).json({ error: "thread_query_failed" });
-    }
-  });
-
-  app.post("/api/kakao/coach-event", async (req, res) => {
-    if (!ENV.KAKAO_DB_ENABLED) {
-      res.status(503).json({ error: "kakao_db_required" });
-      return;
-    }
-    const { userKey, actionName, eventType, inputLength, outputLength, latencyMs, operatorEdited } = req.body;
-    if (typeof eventType !== "string") {
-      res.status(400).json({ error: "eventType_required" });
-      return;
-    }
-    try {
-      await kakaoDb.logCoachEvent({ userKey, actionName, eventType, inputLength, outputLength, latencyMs, operatorEdited });
-      res.json({ ok: true });
-    } catch (err) {
-      logger.warn({ event: "coach_event_post_error", err }, "[CopilotKit] coach-event log failed");
-      res.status(500).json({ error: "log_failed" });
-    }
-  });
-
+  // ── Mount routers ─────────────────────────────────────────────────────────
+  app.use(createHealthRouter({ invalidatePollingCaches }));
+
+  app.use(createLogsRouter({
+    logCache,
+    scheduler,
+    getPublisherHistoryForSignals,
+    logsLimiter,
+    analyticsLimiter,
+  }));
+
+  app.use(createControlRouter({
+    deps,
+    scheduler,
+    getNlWebhookEnabled: () => nlWebhookEnabledRuntime,
+    setNlWebhookEnabled: (v) => { nlWebhookEnabledRuntime = v; },
+    invalidatePollingCaches,
+    getCachedControlPanel: () => cachedControlPanel,
+    setCachedControlPanel: (v) => { cachedControlPanel = v; },
+    observerLimiter,
+    publisherLimiter,
+  }));
+
+  app.use(createAiRouter({
+    logCache,
+    scheduler,
+    getNlWebhookEnabled: () => nlWebhookEnabledRuntime,
+    setCachedControlPanel: (v) => { cachedControlPanel = v; },
+    buildCP: buildControlPanelResponse,
+  }));
+
+  app.use(createNlRouter({
+    deps,
+    logCache,
+    scheduler,
+    getNlWebhookEnabled: () => nlWebhookEnabledRuntime,
+    setCachedControlPanel: (v) => { cachedControlPanel = v; },
+    buildCP: buildControlPanelResponse,
+  }));
+
+  app.use(createKakaoRouter());
+
+  // ── Global error handler ──────────────────────────────────────────────────
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ event: "unhandled_route_error", err }, `[Express] Unhandled route error: ${message}`);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "internal_server_error" });
-    }
+    if (!res.headersSent) res.status(500).json({ error: "internal_server_error" });
   });
 
   return app;
 }
 
+// ── Server startup ────────────────────────────────────────────────────────────
+
 export async function startServer() {
+  registerSignalHandlers();
   await validateRuntimeContracts();
 
-  // ── Dev mode: skip bot (scheduler + observer + publisher) so Vite can serve the frontend
-  //     without competing against Playwright for CPU/RAM. Set DEV_SKIP_BOT=true in .env.
   const skipBot = ENV.DEV_SKIP_BOT;
 
   if (skipBot) {
@@ -1876,7 +168,6 @@ export async function startServer() {
     await initSharedBrowser();
   }
 
-  // Load persisted control panel settings so state survives server restarts.
   const [persistedScheduler, persistedNlWebhookEnabled] = await Promise.all([
     readPersistedSchedulerControls(),
     readPersistedNlWebhookEnabled(),
@@ -1891,22 +182,15 @@ export async function startServer() {
     initialNlWebhookEnabled: persistedNlWebhookEnabled ?? ENV.NL_WEBHOOK_ENABLED,
   });
 
-  // Run garbage collection and check resource thresholds on startup
   if (!skipBot) {
     const gcResult = runGarbageCollection();
     if (gcResult.artifacts.deletedCount > 0 || gcResult.logRotated > 0) {
-      logger.info(
-        { event: 'resource.gc_startup', artifactsDeleted: gcResult.artifacts.deletedCount, logRotated: gcResult.logRotated },
-        'Startup garbage collection completed'
-      );
+      logger.info({ event: 'resource.gc_startup', artifactsDeleted: gcResult.artifacts.deletedCount, logRotated: gcResult.logRotated }, 'Startup garbage collection completed');
     }
   }
   const resourceWarnings = checkResourceThresholds();
   if (resourceWarnings.length > 0) {
-    logger.warn(
-      { event: 'resource.startup_warnings', warnings: resourceWarnings },
-      `Resource warnings at startup: ${resourceWarnings.join('; ')}`
-    );
+    logger.warn({ event: 'resource.startup_warnings', warnings: resourceWarnings }, `Resource warnings at startup: ${resourceWarnings.join('; ')}`);
   }
 
   const PORT = ENV.PORT;
@@ -1916,11 +200,8 @@ export async function startServer() {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        // Share the same server/socket for HMR so clients don't need a second random port.
         hmr: { server: httpServer },
-        watch: {
-          ignored: WATCH_IGNORED,
-        },
+        watch: { ignored: WATCH_IGNORED },
       },
       appType: "spa",
     });
@@ -1932,15 +213,12 @@ export async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    app.get("*", (req, res) => { res.sendFile(path.join(distPath, "index.html")); });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
     logger.info({ event: LOG_EVENT.serverStarted, port: PORT, host: "0.0.0.0" }, `Server running on http://localhost:${PORT}`);
   });
-
 }
 
 const isDirectRun = Boolean(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href);
