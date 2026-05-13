@@ -1,16 +1,21 @@
 import { chromium, type Browser, type BrowserContext, type BrowserContextOptions } from 'playwright';
 import fs from 'node:fs';
+import path from 'node:path';
 import { ENV } from '../config/env.js';
 import { logger } from './logger.js';
 
-const STORAGE_STATE_PATH = 'artifacts/browser-storage-state.json';
+/**
+ * Storage state (login cookies) is persisted to the shared volume so it survives
+ * redeploys. BOT_PROFILE_DIR already lives on the persistent volume, so co-locate here.
+ */
+const STORAGE_STATE_PATH = path.join(ENV.BOT_PROFILE_DIR, 'browser-storage-state.json');
 
 /** Reduces trivial AutomationControlled / headless flags and caps per-process memory. */
 export const CHROMIUM_LAUNCH_ARGS = [
   '--disable-blink-features=AutomationControlled',
-  '--js-flags=--max-old-space-size=2048',
+  '--js-flags=--max-old-space-size=100',  // 100 MB V8 heap — appropriate for 512 MB hosts (was 2048)
   '--disable-gpu',
-  '--disable-dev-shm-usage',
+  '--disable-dev-shm-usage',  // mandatory on VMs with small /dev/shm (< 64 MB)
 ] as const;
 
 /** Cache-busting headers applied to every browser request. */
@@ -74,7 +79,7 @@ export async function initSharedBrowser(): Promise<Browser> {
 }
 
 /** Create a new browser context from the shared browser. */
-export function createBrowserContext(options?: { loadSavedStorageState: boolean }): BrowserContext {
+export async function createBrowserContext(options?: { loadSavedStorageState: boolean }): Promise<BrowserContext> {
   const browser = getSharedBrowser();
   const opts = sharedBrowserContextOptions();
 
@@ -88,7 +93,7 @@ export function createBrowserContext(options?: { loadSavedStorageState: boolean 
     }
   }
 
-  const context = browser.newContext(opts);
+  const context = await browser.newContext(opts);
   activeContexts.add(context);
   context.on('close', () => activeContexts.delete(context));
   return context;

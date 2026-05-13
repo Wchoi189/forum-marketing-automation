@@ -11,13 +11,27 @@ User=marketing-automation
 Group=marketing-automation
 WorkingDirectory=/opt/marketing-automation/current
 ExecStartPre=/opt/marketing-automation/current/ops/systemd/load-env-from-ssm.sh
-ExecStart=/usr/bin/env bash -lc '/usr/bin/npm run dev'
+ExecStart=/usr/bin/node \
+  --max-old-space-size=400 \
+  --expose-gc \
+  --enable-source-maps \
+  /opt/marketing-automation/current/node_modules/.bin/tsx \
+  /opt/marketing-automation/current/server.ts
 ExecStartPost=/opt/marketing-automation/current/ops/systemd/healthcheck.sh
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=120
 TimeoutStopSec=30
 EnvironmentFile=-/opt/marketing-automation/shared/env/runtime.env
+Environment=NODE_ENV=production
+# Kernel-level memory capping — safety net beyond --max-old-space-size
+MemoryHigh=450M
+MemoryMax=500M
+# Playwright needs many file descriptors for browser process management
+LimitNOFILE=65536
+# Ensure SIGTERM reaches Node.js (not just the shell wrapper)
+KillMode=mixed
+KillSignal=SIGTERM
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full

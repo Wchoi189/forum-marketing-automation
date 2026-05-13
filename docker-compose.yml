@@ -1,0 +1,40 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    shm_size: 256mb
+    ports:
+      - "3000:3000"
+    volumes:
+      - bot-profile:/app/data/browser-profile
+      - activity-logs:/app/data/logs
+      - artifacts:/app/data/artifacts
+    env_file:
+      - .env.docker
+    environment:
+      - NODE_ENV=production
+      - BOT_PROFILE_DIR=/app/data/browser-profile
+      - ACTIVITY_LOG_PATH=/app/data/logs/activity_log.json
+      - BROWSER_HEADLESS=true
+      - DEV_SKIP_BOT=false
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+          cpus: "1.0"
+
+volumes:
+  bot-profile:
+    name: marketing-automation-bot-profile
+  activity-logs:
+    name: marketing-automation-logs
+  artifacts:
+    name: marketing-automation-artifacts

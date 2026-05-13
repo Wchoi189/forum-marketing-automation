@@ -52,6 +52,11 @@ export function openDatabase(dbPath?: string): Db {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const db = new Database(filePath);
   db.pragma("journal_mode = WAL");
+  db.pragma("synchronous = NORMAL");
+  db.pragma("cache_size = -16000");
+  db.pragma("temp_store = MEMORY");
+  db.pragma("mmap_size = 134217728");
+  db.pragma("busy_timeout = 5000");
   db.exec(SCHEMA);
 
   // Migration: add products_full_json column to existing databases

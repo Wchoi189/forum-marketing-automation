@@ -6,6 +6,7 @@
  */
 
 import { Router } from 'express';
+import { rateLimit } from 'express-rate-limit';
 import { ENV } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { classifyIntent, buildStatusSummary, extractIntervalMinutes, extractGapThreshold } from '../../lib/nlWebhook.js';
@@ -20,6 +21,11 @@ import type { buildControlPanelResponse } from './control.js';
 
 const CONTROL_PANEL_CACHE_MS = 10_000;
 
+/** Stricter rate limit for NL endpoint (5 req/min) to prevent LLM API abuse. Skipped outside production. */
+const NOOP = (_req: unknown, _res: unknown, next: () => void) => next();
+const isProduction = process.env.NODE_ENV === 'production';
+const nlLimiter = isProduction ? rateLimit({ windowMs: 60_000, limit: 5, standardHeaders: true, legacyHeaders: false }) : NOOP;
+
 export type NlRouterDeps = {
   deps: BotDeps;
   logCache: LogCache;
@@ -33,7 +39,7 @@ export function createNlRouter(opts: NlRouterDeps): Router {
   const { deps, logCache, scheduler } = opts;
   const router = Router();
 
-  router.post('/api/nl-command', async (req, res) => {
+  router.post('/api/nl-command', nlLimiter, async (req, res) => {
     if (!opts.getNlWebhookEnabled()) { res.status(503).json({ error: 'nl_webhook_disabled' }); return; }
     if (!ENV.XAI_API_KEY) { res.status(503).json({ error: 'xai_key_absent' }); return; }
 

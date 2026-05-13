@@ -193,6 +193,20 @@ export async function startServer() {
     logger.warn({ event: 'resource.startup_warnings', warnings: resourceWarnings }, `Resource warnings at startup: ${resourceWarnings.join('; ')}`);
   }
 
+  // ── Periodic GC (production only) ──────────────────────────────────────────
+  // Run every 6 hours to prune debug artifacts and rotate activity log.
+  // Not run in dev/test to avoid interfering with artifact inspection.
+  if (process.env.NODE_ENV === 'production' && !skipBot) {
+    const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+    setInterval(() => {
+      const result = runGarbageCollection();
+      logger.info(
+        { event: 'resource.gc_periodic', artifactsDeleted: result.artifacts.deletedCount, logRotated: result.logRotated },
+        'Periodic GC completed'
+      );
+    }, SIX_HOURS_MS).unref(); // .unref() so the timer does not prevent clean process exit
+  }
+
   const PORT = ENV.PORT;
 
   if (process.env.NODE_ENV !== "production") {
@@ -212,7 +226,9 @@ export async function startServer() {
     return;
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    // Vite content-hashes all JS/CSS/asset filenames — long cache is safe.
+    // index.html is served by the catch-all without caching so SW/meta updates propagate.
+    app.use(express.static(distPath, { maxAge: '7d', etag: true, index: false }));
     app.get("*", (req, res) => { res.sendFile(path.join(distPath, "index.html")); });
   }
 
