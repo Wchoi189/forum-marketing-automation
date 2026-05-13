@@ -17,7 +17,7 @@ services:
       - BOT_PROFILE_DIR=/app/data/browser-profile
       - ACTIVITY_LOG_PATH=/app/data/logs/activity_log.json
       - BROWSER_HEADLESS=true
-      - DEV_SKIP_BOT=false
+      - DEV_SKIP_BOT=true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 30s

@@ -13,6 +13,8 @@ dist/
 tests/
 .claude/
 .planning/
+!.planning/spec-kit/manifest/
+!.planning/spec-kit/specs/
 *.md
 !README.md
 .vscode/
