@@ -20,6 +20,7 @@ import {
 } from "./bot.js";
 import { extractErrorCode } from "./lib/utils.js";
 import { getSharedLogCache } from "./lib/logCache.js";
+import { initSharedBrowser } from "./lib/sharedBrowser.js";
 import { PARSER_OPTIONS } from "./bot.js";
 import { ENV } from "./config/env.js";
 import { WATCH_IGNORED } from "./config/watch.js";
@@ -1872,6 +1873,7 @@ export async function startServer() {
     logger.info('[DEV] BOT disabled — running API + frontend only. Set DEV_SKIP_BOT=false to re-enable.');
   } else {
     await kakaoDb.ensureReady();
+    await initSharedBrowser();
   }
 
   // Load persisted control panel settings so state survives server restarts.

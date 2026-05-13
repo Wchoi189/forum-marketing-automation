@@ -422,9 +422,9 @@ export function startScheduler(
   };
 
   // Fire an initial tick shortly after startup so the publisher doesn't sit idle for
-  // a full interval after every server restart. The short delay lets the server finish
-  // binding and Vite initialise before Playwright launches.
-  const STARTUP_TICK_DELAY_MS = 10_000;
+  // a full interval after every server restart. In dev mode we wait longer so Vite
+  // finishes booting before Playwright launches.
+  const STARTUP_TICK_DELAY_MS = ENV.IS_DEV ? 30_000 : 10_000;
   nextTickEta = new Date(Date.now() + STARTUP_TICK_DELAY_MS).toISOString();
   timer = setTimeout(() => {
     void (async () => {

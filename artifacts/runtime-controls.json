@@ -21,7 +21,7 @@
   "observerMaxPreVisitDelayMs": 4000,
   "observerMinIntervalBetweenRunsMs": 0,
   "publisherDraftItemIndex": 2,
-  "stateVersion": 72,
-  "persistedAt": "2026-05-12T21:08:57.632Z",
+  "stateVersion": 84,
+  "persistedAt": "2026-05-13T03:46:02.102Z",
   "schedulerGapRecheckIntervalMinutes": 3
 }

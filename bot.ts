@@ -1,8 +1,6 @@
-import { chromium, type BrowserContext, type BrowserContextOptions } from 'playwright';
+import { type BrowserContext } from 'playwright';
 import { randomUUID } from 'node:crypto';
-import { execSync } from 'node:child_process';
 import fs from 'fs/promises';
-import fsSync from 'node:fs';
 import path from 'path';
 import type { ActivityLog, Post, PublisherRunDecision } from './contracts/models.js';
 import { ENV } from './config/env.js';
@@ -25,6 +23,13 @@ import { sendSlackNotification } from './lib/notifications.js';
 import { KEEP_ACTIVITY_LOG_ENTRIES } from './lib/resourceMonitor.js';
 import { extractErrorCode, clampInt } from './lib/utils.js';
 import { initSharedLogCache, getSharedLogCache } from './lib/logCache.js';
+import {
+  activeContexts,
+  createBrowserContext,
+  closeSharedBrowser,
+  isSharedBrowserReady,
+  saveStorageState,
+} from './lib/sharedBrowser.js';
 
 export type PublisherRunResult = {
   success: boolean;
@@ -41,43 +46,11 @@ export type PublisherRunResult = {
   };
 };
 
-const USER_DATA_DIR = ENV.BOT_PROFILE_DIR;
 const LOG_FILE = ENV.ACTIVITY_LOG_PATH;
 
 // Shared log cache — initialized at module load so all importers see the same instance.
 initSharedLogCache(LOG_FILE, 15_000);
 const BOARD_ROW_SELECTOR = 'tr.list0, tr.list1, tr.common-list0, tr.common-list1, tr.list_notice';
-
-/** Reduces trivial AutomationControlled / headless flags and caps per-process memory. */
-const CHROMIUM_LAUNCH_ARGS = [
-  '--disable-blink-features=AutomationControlled',
-  '--js-flags=--max-old-space-size=2048',
-  '--disable-gpu',
-  '--disable-dev-shm-usage',
-] as const;
-
-/** Cache-busting headers applied to every browser request. */
-const CACHE_BUST_HEADERS = {
-  'Cache-Control': 'no-cache, no-store, must-revalidate',
-  'Pragma': 'no-cache',
-  'Expires': '0',
-};
-
-function sharedBrowserContextOptions(): BrowserContextOptions {
-  return {
-    userAgent: ENV.BROWSER_USER_AGENT,
-    locale: 'ko-KR',
-    timezoneId: 'Asia/Seoul',
-    viewport: { width: 1280, height: 800 },
-    extraHTTPHeaders: {
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-      'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-      'Sec-Ch-Ua': '"Google Chrome";v="146", "Chromium";v="146", "Not/A)Brand";v="24"',
-      'Sec-Ch-Ua-Mobile': '?0',
-      'Sec-Ch-Ua-Platform': '"Windows"'
-    }
-  };
-}
 
 async function addStealthInitScripts(context: BrowserContext): Promise<void> {
   await context.addInitScript({ content: BROWSER_EVAL_NAME_POLYFILL_SCRIPT });
@@ -178,17 +151,17 @@ let lastObserverRunStartedAt = 0;
 /** Prevents two concurrent publisher browser sessions from launching simultaneously. */
 let activePublisherRun: Promise<PublisherRunResult> | null = null;
 
-/** Active browser context — set before any page operations so signal handlers can close it. */
-let activeBrowserContext: BrowserContext | null = null;
-let shuttingDown = false;
+/** Active browser contexts tracked per-run for safe shutdown. */
 
-/** Gracefully shuts down active browser context on process exit. */
+/** Gracefully shuts down shared browser and all active contexts on process exit. */
 export async function shutdownBrowser(): Promise<void> {
-  if (activeBrowserContext) {
-    logger.info({ event: 'browser.shutdown' }, 'Shutting down active browser context');
-    await activeBrowserContext.close().catch(() => null);
-    activeBrowserContext = null;
+  if (activeContexts.size > 0 || isSharedBrowserReady()) {
+    logger.info(
+      { event: 'browser.shutdown', activeContexts: activeContexts.size },
+      'Shutting down shared browser'
+    );
   }
+  await closeSharedBrowser();
 }
 
 function registerSignalHandlers(): void {
@@ -196,7 +169,6 @@ function registerSignalHandlers(): void {
   const onSignal = (sig: string) => {
     if (handled) return;
     handled = true;
-    shuttingDown = true;
     logger.info({ event: 'signal.received', signal: sig }, `Received ${sig} — shutting down browser`);
     shutdownBrowser()
       .catch(() => null)
@@ -206,36 +178,6 @@ function registerSignalHandlers(): void {
   process.on('SIGTERM', onSignal);
 }
 registerSignalHandlers();
-
-/** Kill orphaned Chromium processes that hold a lock on USER_DATA_DIR. */
-function killOrphanChromium(): void {
-  const lockFile = path.join(USER_DATA_DIR, 'SingletonLock');
-  if (!fsSync.existsSync(lockFile)) return;
-
-  try {
-    const output = execSync('pgrep -f "chromium\\|chrome-headless-shell"', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
-    const pids = output.trim().split('\n').filter(Boolean);
-    if (pids.length === 0) return;
-
-    const ourPids = new Set<string>();
-    const parentPid = String(process.ppid);
-    ourPids.add(String(process.pid));
-    ourPids.add(parentPid);
-    // Also exclude children of our process (Playwright spawns Chromium)
-    try {
-      const children = execSync(`pgrep -P ${process.pid}`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
-      children.trim().split('\n').filter(Boolean).forEach(p => ourPids.add(p));
-    } catch { /* no children */ }
-
-    const orphans = pids.filter(p => !ourPids.has(p));
-    if (orphans.length === 0) return;
-
-    logger.info({ event: 'browser.orphan_cleanup', pids: orphans }, `Killing ${orphans.length} orphaned Chromium process(es)`);
-    for (const pid of orphans) {
-      try { execSync(`kill -9 ${pid}`, { stdio: 'pipe' }); } catch { /* already dead */ }
-    }
-  } catch { /* pgrep not available or no matches */ }
-}
 
 export const PARSER_OPTIONS = {
   maxDepth: 6,
@@ -866,17 +808,9 @@ async function _executeObserverRun(): Promise<ActivityLog> {
   }
   lastObserverRunStartedAt = Date.now();
 
-  let browser: import('playwright').Browser | null = null;
+  let context: BrowserContext | null = null;
   try {
-    browser = await chromium.launch({
-      headless: ENV.BROWSER_HEADLESS,
-      args: [...CHROMIUM_LAUNCH_ARGS]
-    });
-    const contextOptions = sharedBrowserContextOptions();
-    contextOptions.extraHTTPHeaders = { ...contextOptions.extraHTTPHeaders, ...CACHE_BUST_HEADERS };
-
-    const context = await browser.newContext(contextOptions);
-    activeBrowserContext = context;
+    context = createBrowserContext();
     await addStealthInitScripts(context);
     const page = await context.newPage();
 
@@ -1155,9 +1089,8 @@ async function _executeObserverRun(): Promise<ActivityLog> {
     await saveLog(log);
     return log;
   } finally {
-    activeBrowserContext = null;
-    if (browser) {
-      await browser.close().catch(() => null);
+    if (context) {
+      await context.close().catch(() => null);
     }
   }
 }
@@ -1282,25 +1215,10 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
     let persistPublisherTraceZip = false;
     let publisherBrowserFlowFailed = false;
 
-    // Kill any orphaned Chromium processes holding the USER_DATA_DIR lock
-    killOrphanChromium();
-
-    const contextOptions = {
-      headless: ENV.BROWSER_HEADLESS,
-      args: [...CHROMIUM_LAUNCH_ARGS],
-      ...sharedBrowserContextOptions(),
-      extraHTTPHeaders: {
-        ...sharedBrowserContextOptions().extraHTTPHeaders,
-        ...CACHE_BUST_HEADERS,
-      },
-    };
-
-    const context = await chromium.launchPersistentContext(USER_DATA_DIR, contextOptions);
-    activeBrowserContext = context;
+    let context: BrowserContext | null = null;
+    context = createBrowserContext({ loadSavedStorageState: true });
     await addStealthInitScripts(context);
     if (debugDir && ENV.BROWSER_REQUEST_LOGGING) {
-      // Enable request/response logging if debug is enabled
-      // Log all requests
       context.on('request', request => {
         if (ENV.LOG_LEVEL === 'debug') {
           logger.debug({
@@ -1312,7 +1230,6 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
         }
       });
 
-      // Log all responses
       context.on('response', response => {
         if (ENV.LOG_LEVEL === 'debug') {
           logger.debug({
@@ -1324,7 +1241,6 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
         }
       });
 
-      // Log initial cookies
       if (ENV.LOG_LEVEL === 'debug') {
         context.cookies().then(cookies => {
           logger.debug({
@@ -1431,10 +1347,10 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
       if (traceStarted && debugDir) {
         const tracePath = path.join(debugDir, 'trace.zip');
         if (publisherBrowserFlowFailed || persistPublisherTraceZip) {
-          await context.tracing.stop({ path: tracePath }).catch(() => null);
+          await context!.tracing.stop({ path: tracePath }).catch(() => null);
           logger.info({ event: LOG_EVENT.publisherArtifactsTrace, runId, tracePath }, '[Publisher] debug trace');
         } else {
-          await context.tracing.stop().catch(() => null);
+          await context!.tracing.stop().catch(() => null);
           logger.debug(
             {
               event: LOG_EVENT.publisherArtifactsTraceDiscarded,
@@ -1446,8 +1362,8 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
           );
         }
       }
-      activeBrowserContext = null;
-      await context.close();
+      await saveStorageState(context!).catch(() => null);
+      await context!.close().catch(() => null);
     }
   } catch (error: any) {
     logger.error(
