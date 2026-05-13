@@ -543,7 +543,7 @@ async function collectParserSignal(page: import('playwright').Page): Promise<{
       },
       snapshot: {
         capturedAt: new Date().toISOString(),
-        url: await page.url().catch(() => ''),
+        url: page.url(),
         title: await page.title().catch(() => 'N/A'),
         rootSelector: null,
         nodes: [],
@@ -558,7 +558,7 @@ async function collectParserSignal(page: import('playwright').Page): Promise<{
         warnings: ['parser_disabled']
       },
       outline: {
-        url: await page.url().catch(() => ''),
+        url: page.url(),
         title: await page.title().catch(() => 'N/A'),
         landmarks: [],
         headings: [],
@@ -1218,43 +1218,6 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
     let context: BrowserContext | null = null;
     context = createBrowserContext({ loadSavedStorageState: true });
     await addStealthInitScripts(context);
-    if (debugDir && ENV.BROWSER_REQUEST_LOGGING) {
-      context.on('request', request => {
-        if (ENV.LOG_LEVEL === 'debug') {
-          logger.debug({
-            event: 'browser_request',
-            url: request.url(),
-            method: request.method(),
-            headers: request.headers(),
-          }, '[Publisher] Browser request');
-        }
-      });
-
-      context.on('response', response => {
-        if (ENV.LOG_LEVEL === 'debug') {
-          logger.debug({
-            event: 'browser_response',
-            url: response.url(),
-            status: response.status(),
-            statusText: response.statusText(),
-          }, '[Publisher] Browser response');
-        }
-      });
-
-      if (ENV.LOG_LEVEL === 'debug') {
-        context.cookies().then(cookies => {
-          logger.debug({
-            event: 'browser_cookies_initial',
-            cookieCount: cookies.length,
-            cookies: cookies.map(cookie => ({
-              name: cookie.name,
-              domain: cookie.domain,
-              expires: cookie.expires
-            }))
-          }, '[Publisher] Initial browser cookies');
-        });
-      }
-    }
     if (debugDir) {
       await fs.mkdir(debugDir, { recursive: true });
     }
@@ -1267,6 +1230,44 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
     let playbookRuntime: PlaybookRuntimeContext | null = null;
     try {
       page = await context.newPage();
+
+      // Page-level request/response logging (not context-level — Page owns these events)
+      if (debugDir && ENV.BROWSER_REQUEST_LOGGING) {
+        page.on('request', request => {
+          if (ENV.LOG_LEVEL === 'debug') {
+            logger.debug({
+              event: 'browser_request',
+              url: request.url(),
+              method: request.method(),
+              headers: request.headers(),
+            }, '[Publisher] Browser request');
+          }
+        });
+        page.on('response', response => {
+          if (ENV.LOG_LEVEL === 'debug') {
+            logger.debug({
+              event: 'browser_response',
+              url: response.url(),
+              status: response.status(),
+              statusText: response.statusText(),
+            }, '[Publisher] Browser response');
+          }
+        });
+        if (ENV.LOG_LEVEL === 'debug') {
+          context.cookies().then(cookies => {
+            logger.debug({
+              event: 'browser_cookies_initial',
+              cookieCount: cookies.length,
+              cookies: cookies.map(cookie => ({
+                name: cookie.name,
+                domain: cookie.domain,
+                expires: cookie.expires
+              }))
+            }, '[Publisher] Initial browser cookies');
+          });
+        }
+      }
+
       logger.info({ event: LOG_EVENT.publisherRunStarted, runId, boardUrl: policy.boardUrl, force }, 'Running Publisher');
       if (debugDir) {
         logger.info({ event: LOG_EVENT.publisherArtifactsDir, runId, debugDir }, '[Publisher] debug artifacts dir');
