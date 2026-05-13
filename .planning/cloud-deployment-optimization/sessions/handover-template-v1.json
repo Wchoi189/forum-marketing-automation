@@ -1,0 +1,77 @@
+{
+  "handover_id": "cloud-deploy-opt-handover-template-v1",
+  "feature": "Cloud Deployment Optimization",
+  "created": "2026-05-13",
+  "format_version": "1.0",
+
+  "handover_instructions": {
+    "description": "Template for session handovers during cloud deployment optimization. Each session creates a handover file at .agent/session-handovers/cloud-deploy-opt-<YYYYMMDD-HHMM>.json before ending.",
+
+    "required_fields": {
+      "session_id": "Unique identifier, e.g., S01, S02, etc. (matches plan phases)",
+      "session_date": "ISO date of the session, e.g., 2026-05-13",
+      "phase_completed": "Phase number (1-6) from the implementation plan",
+      "tasks_completed": ["Array of task IDs completed this session, e.g., ['T-001', 'T-002']"],
+      "tasks_remaining": ["Array of task IDs remaining in this phase"],
+      "git_commit_sha": "SHA of the commit created at session end",
+      "git_commit_message": "Descriptive commit message",
+      "tests_run": "Which test suites were run and their results",
+      "artifacts_produced": ["List of files created or modified"],
+      "preconditions_for_next_session": "What must be true before the next session starts",
+      "known_issues": "Any unresolved issues or blockers the next session should know about",
+      "context_to_restore": "Specific commands or state the next session should run to resume work",
+      "model_used": "Which AI model was used (sonnet, opus, haiku)",
+      "session_duration_minutes": "How long the session took"
+    },
+
+    "example": {
+      "session_id": "S01",
+      "session_date": "2026-05-13",
+      "phase_completed": 1,
+      "tasks_completed": ["T-001", "T-002", "T-003", "T-004", "T-005"],
+      "tasks_remaining": ["T-006"],
+      "git_commit_sha": "abc123def456",
+      "git_commit_message": "chore: cap memory for low-RAM cloud deployment",
+      "tests_run": {
+        "unit": "npm run test — 83 passed, 0 failed",
+        "lint": "npm run lint — passed"
+      },
+      "artifacts_produced": [
+        "lib/sharedBrowser.ts — reduced --js-flags from 2048 to 100",
+        "ops/systemd/marketing-automation.service — added MemoryMax=500M",
+        ".dockerignore — created with standard exclusions"
+      ],
+      "preconditions_for_next_session": [
+        "T-001 through T-005 committed and on branch cloud-deploy-opt",
+        "npm run test passes (83 tests green)",
+        "No uncommitted changes"
+      ],
+      "known_issues": [],
+      "context_to_restore": "Check out branch cloud-deploy-opt. Review lib/sharedBrowser.ts CHROMIUM_LAUNCH_ARGS. Run T-006 stress test: DRY_RUN_MODE=true npm start, poll /api/health/resources every 15 min for 2 hours.",
+      "model_used": "sonnet",
+      "session_duration_minutes": 45
+    },
+
+    "handover_workflow": [
+      "1. Before ending session, run full test suite (npm run test)",
+      "2. Commit all changes with descriptive message",
+      "3. Record git commit SHA and test results",
+      "4. Create handover JSON in .agent/session-handovers/ with filename cloud-deploy-opt-<YYYYMMDD-HHMM>.json",
+      "5. Commit the handover file",
+      "6. Next session starts by reading the latest handover file, verifying preconditions, then resuming"
+    ]
+  },
+
+  "session_preconditions_checklist": {
+    "description": "Every session MUST verify these before starting work:",
+    "checks": [
+      "On correct git branch (cloud-deploy-opt)",
+      "No uncommitted changes (git status clean)",
+      "All tests pass (npm run test)",
+      "npm run lint passes",
+      "Previous session's handover file exists and tasks are completed as reported",
+      "Preconditions from previous handover are satisfied"
+    ],
+    "failure_behavior": "If any check fails, STOP. Do not proceed with implementation. Report the issue and wait for operator guidance."
+  }
+}

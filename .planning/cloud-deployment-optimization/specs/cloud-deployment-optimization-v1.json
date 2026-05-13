@@ -1,0 +1,320 @@
+{
+  "spec_id": "cloud-deployment-optimization-v1",
+  "feature_name": "Cloud Deployment Optimization",
+  "version": "1.0.0",
+  "created": "2026-05-13",
+  "status": "draft",
+  "branch": "cloud-deploy-opt",
+  "source_document": "cloud_deployment_optimization_guide.md",
+  "related_contracts": [
+    "remote-ops-deploy-v1",
+    "remote-ops-runtime-v1",
+    "remote-ops-access-v1",
+    "remote-ops-observability-v1"
+  ],
+
+  "context": {
+    "target_environment": {
+      "cpu": "1 vCPU",
+      "ram": "512 MB - 1 GB",
+      "storage": "network-attached (EBS/NFS)",
+      "tier": "free-tier cloud"
+    },
+    "current_state": "Bot runs on local dev with Playwright Chromium, activity_log.json growing unbounded, no Docker deployment, no systemd supervision, no persistent volume strategy.",
+    "motivation": "Production deployment to free-tier/low-cost cloud requires memory caps, browser tuning, DB PRAGMAs, Docker hardening, CI/CD pipeline, and observability — all within 512 MB RAM constraint."
+  },
+
+  "user_stories": [
+    {
+      "id": "US-001",
+      "title": "Deploy to cloud without OOM crashes",
+      "priority": "P1",
+      "description": "As an operator, I want the bot to run stably on a 512 MB VM so that it can publish posts 24/7 without manual intervention.",
+      "why_this_priority": "The scheduler is gap-driven and must run continuously. An OOM kill during a publish window means a missed opportunity.",
+      "independent_test": "Deploy to a t3.micro instance and run for 24 hours with DRY_RUN_MODE=true. No OOM kills, no Chromium crashes, scheduler ticks on schedule.",
+      "acceptance_scenarios": [
+        {
+          "given": "Bot deployed on 512 MB VM with NODE_ENV=production",
+          "when": "Scheduler runs observer + publisher cycle",
+          "then": "RSS stays under 400 MB, Chromium launches without /dev/shm errors"
+        },
+        {
+          "given": "Bot running for 12+ hours",
+          "when": "Memory check at /api/health/resources",
+          "then": "No progressive memory leak; heapUsed stable within ±50 MB"
+        }
+      ]
+    },
+    {
+      "id": "US-002",
+      "title": "Deploy and rollback safely",
+      "priority": "P1",
+      "description": "As an operator, I want atomic deploys with one-command rollback so that a bad release doesn't leave the bot broken.",
+      "why_this_priority": "A broken deploy during a gap window means missed publishing. Rollback must be instant, not a rebuild.",
+      "independent_test": "Deploy a release tarball, verify /api/health returns 200. Then trigger rollback, verify service restarts with previous version.",
+      "acceptance_scenarios": [
+        {
+          "given": "Release tarball built and uploaded to EC2",
+          "when": "deploy-release.sh runs",
+          "then": "Symlink swapped atomically, service restarted, health check passes"
+        },
+        {
+          "given": "Bad deploy causes health check failure",
+          "when": "Operator runs rollback command",
+          "then": "Previous release activated, service healthy within 30 seconds"
+        }
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "Survive redeploys without data loss",
+      "priority": "P2",
+      "description": "As an operator, I want activity logs and browser profiles on persistent volumes so that redeploying doesn't lose post history or require re-login.",
+      "why_this_priority": "Losing browser session means full re-login (may trigger CAPTCHA). Losing activity log means SoV calculation resets.",
+      "independent_test": "Deploy v1, run observer to create activity log entries. Deploy v2. Verify activity_log.json and ppomppu_profile/ unchanged.",
+      "acceptance_scenarios": [
+        {
+          "given": "Bot has 100 activity log entries and saved browser session",
+          "when": "New release deployed via deploy-release.sh",
+          "then": "activity_log.json entry count unchanged, browser session still valid"
+        }
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "Monitor bot health remotely",
+      "priority": "P2",
+      "description": "As an operator, I want to receive alerts when the bot goes down so that I can fix it before missing a publish window.",
+      "why_this_priority": "On free-tier VMs, unexpected reboots or OOM kills happen. Without monitoring, the bot could be silent for hours.",
+      "independent_test": "Stop the systemd service. Within 10 minutes, receive an alert (email or Slack). Restart service, alert resolves.",
+      "acceptance_scenarios": [
+        {
+          "given": "UptimeRobot monitoring /api/health every 5 min",
+          "when": "Bot process crashes",
+          "then": "Alert received in Slack #alerts within 10 minutes"
+        }
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Control bot via Slack natural language",
+      "priority": "P3",
+      "description": "As an operator, I want to send natural language commands via Slack so that I can adjust gap thresholds or trigger publishes without SSH.",
+      "why_this_priority": "Convenience feature, not critical for launch. Reduces friction for day-to-day operations.",
+      "independent_test": "Send 'pause the bot' via Slack. Bot pauses scheduler. Send 'what's the current gap?' — bot responds with current gap value.",
+      "acceptance_scenarios": [
+        {
+          "given": "NL webhook configured with Gemini Flash",
+          "when": "Operator sends 'set gap to 5' via Slack",
+          "then": "Gap threshold updated to 5, confirmation message posted back"
+        }
+      ]
+    },
+    {
+      "id": "US-006",
+      "title": "Docker-based deployment option",
+      "priority": "P3",
+      "description": "As an operator, I want a multi-stage Docker image so that I can deploy consistently across platforms without dependency issues.",
+      "why_this_priority": "Docker eliminates 'works on my machine' issues and enables easy migration between Railway, Fly.io, and self-hosted.",
+      "independent_test": "Build Docker image, run with docker-compose. Verify /api/health returns 200, browser launches, scheduler ticks.",
+      "acceptance_scenarios": [
+        {
+          "given": "docker-compose.yml with shm_size: 256mb",
+          "when": "docker compose up -d",
+          "then": "Container starts, Chromium launches with --disable-dev-shm-usage, health check passes"
+        }
+      ]
+    }
+  ],
+
+  "edge_cases": [
+    {
+      "scenario": "VM reboot after power loss",
+      "expected_behavior": "systemd auto-starts service, browser profile reloaded from persistent volume, scheduler resumes gap checking"
+    },
+    {
+      "scenario": "activity_log.json exceeds 5000 entries",
+      "expected_behavior": "GC prunes oldest entries, no OOM on read"
+    },
+    {
+      "scenario": "Chromium crashes mid-publish",
+      "expected_behavior": "Publisher run fails with error logged, scheduler retries on next tick, no orphaned browser processes"
+    },
+    {
+      "scenario": "SQLite WAL lock contention on NFS",
+      "expected_behavior": "busy_timeout=5000 prevents crash, queries retry gracefully"
+    },
+    {
+      "scenario": "Deploy with pending DB migrations",
+      "expected_behavior": "Pre-deploy dry-run check fails, operator must snapshot DB before proceeding"
+    },
+    {
+      "scenario": "Free-tier platform sleeps after inactivity",
+      "expected_behavior": "Avoided by platform selection — Render/Vercel excluded. Selected platform (Oracle Free, AWS t3.micro) does not sleep."
+    }
+  ],
+
+  "functional_requirements": [
+    {
+      "id": "FR-001",
+      "requirement": "System MUST cap Node.js memory at 400 MB via --max-old-space-size on hosts with ≤512 MB RAM",
+      "priority": "P1"
+    },
+    {
+      "id": "FR-002",
+      "requirement": "Playwright MUST launch Chromium with --disable-dev-shm-usage flag",
+      "priority": "P1"
+    },
+    {
+      "id": "FR-003",
+      "requirement": "ACTIVITY_LOG_PATH and BOT_PROFILE_DIR MUST resolve to persistent volume paths, not container ephemeral layer",
+      "priority": "P1"
+    },
+    {
+      "id": "FR-004",
+      "requirement": "SQLite MUST use PRAGMA journal_mode=WAL, synchronous=NORMAL, busy_timeout=5000, cache_size=-16000",
+      "priority": "P1"
+    },
+    {
+      "id": "FR-005",
+      "requirement": "Deploy MUST use atomic symlink swap for release directories",
+      "priority": "P1"
+    },
+    {
+      "id": "FR-006",
+      "requirement": "Deploy MUST run smoke check (/api/health 200) before declaring success",
+      "priority": "P1"
+    },
+    {
+      "id": "FR-007",
+      "requirement": "Rollback MUST restore previous release and restart service in under 60 seconds",
+      "priority": "P1"
+    },
+    {
+      "id": "FR-008",
+      "requirement": "activity_log.json MUST be capped at 5000 entries with automatic pruning during GC",
+      "priority": "P2"
+    },
+    {
+      "id": "FR-009",
+      "requirement": "Release directory MUST retain at most 5 previous releases, auto-pruned after deploy",
+      "priority": "P2"
+    },
+    {
+      "id": "FR-010",
+      "requirement": "Docker image MUST be multi-stage: build frontend, install server deps + Playwright, runtime with non-root user",
+      "priority": "P2"
+    },
+    {
+      "id": "FR-011",
+      "requirement": "Docker container MUST have shm_size >= 256 MB",
+      "priority": "P2"
+    },
+    {
+      "id": "FR-012",
+      "requirement": "systemd service MUST use dumb-init or equivalent for PID 1 signal forwarding",
+      "priority": "P2"
+    },
+    {
+      "id": "FR-013",
+      "requirement": "Health endpoint MUST expose resource metrics (heapUsed, artifactDirSizeMb, activityLogSizeKb)",
+      "priority": "P2"
+    },
+    {
+      "id": "FR-014",
+      "requirement": "NL webhook MUST support LLM function calling for intent parsing",
+      "priority": "P3"
+    },
+    {
+      "id": "FR-015",
+      "requirement": "NL webhook MUST verify HMAC signature with NL_WEBHOOK_SECRET",
+      "priority": "P2"
+    },
+    {
+      "id": "FR-016",
+      "requirement": "Periodic GC MUST run every 6 hours in production to clean up debug artifacts",
+      "priority": "P2"
+    },
+    {
+      "id": "FR-017",
+      "requirement": "Secrets MUST be loaded from AWS SSM Parameter Store, not .env files in production",
+      "priority": "P1"
+    }
+  ],
+
+  "success_criteria": [
+    {
+      "id": "SC-001",
+      "metric": "Bot runs 24 hours on 512 MB VM without OOM kill",
+      "target": "0 OOM kills in 24-hour dry-run test"
+    },
+    {
+      "id": "SC-002",
+      "metric": "Deploy + smoke check completes in under 2 minutes",
+      "target": "p95 deploy time < 120 seconds"
+    },
+    {
+      "id": "SC-003",
+      "metric": "Rollback completes and service healthy in under 60 seconds",
+      "target": "p95 rollback time < 60 seconds"
+    },
+    {
+      "id": "SC-004",
+      "metric": "Chromium launches successfully on every scheduler tick",
+      "target": "0 /dev/shm crashes, 0 SIGSEGV in 7-day test"
+    },
+    {
+      "id": "SC-005",
+      "metric": "Activity log read latency under load",
+      "target": "activity_log.json read < 100 ms with 5000 entries"
+    },
+    {
+      "id": "SC-006",
+      "metric": "Docker image size",
+      "target": "Multi-stage image < 800 MB (vs single-stage ~1.5 GB)"
+    }
+  ],
+
+  "assumptions": [
+    "Target deployment platform is AWS EC2 t3.micro or Oracle Cloud Free (ARM), both providing ≥512 MB RAM without sleep",
+    "Operator has SSH access and sudo privileges on the target VM",
+    "Existing ops/deploy/ scripts are functional and tested",
+    "Playwright Chromium is the only browser needed; no Firefox or WebKit",
+    "SQLite is used for Kakao chatbot DB; activity_log.json is file-based for now",
+    "xAI API key available for NL webhook (optional — Gemini Flash as alternative)"
+  ],
+
+  "out_of_scope": [
+    "Kubernetes or container orchestration",
+    "Multi-region or HA deployment",
+    "Database migration from activity_log.json to SQLite (noted as future work)",
+    "Full LLM-based NL webhook implementation (Direction A — Phase 1 is schema + routing only)"
+  ],
+
+  "platform_recommendations": {
+    "recommended": [
+      {
+        "platform": "Oracle Cloud Free (ARM)",
+        "ram": "1 GB AMPERE",
+        "disk": "50 GB block",
+        "why": "Best raw deal for always-free VM, enough RAM for Chromium + Node.js"
+      },
+      {
+        "platform": "AWS EC2 t3.micro",
+        "ram": "1 GB",
+        "disk": "EBS 8 GB",
+        "why": "12 months free, existing ops/aws/ playbooks already target this"
+      }
+    ],
+    "avoid": [
+      {
+        "platform": "Render Free, Vercel, Netlify Functions",
+        "reason": "Sleep on inactivity — gap-driven scheduler will miss publish windows"
+      },
+      {
+        "platform": "Fly.io Free (256 MB)",
+        "reason": "256 MB shared RAM insufficient for Chromium (~150-250 MB per context)"
+      }
+    ]
+  }
+}

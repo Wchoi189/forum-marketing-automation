@@ -199,7 +199,7 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
     let publisherBrowserFlowFailed = false;
 
     let context: BrowserContext | null = null;
-    context = createBrowserContext({ loadSavedStorageState: true });
+    context = await createBrowserContext({ loadSavedStorageState: true });
     await addStealthInitScripts(context);
     if (debugDir) {
       await fs.mkdir(debugDir, { recursive: true });

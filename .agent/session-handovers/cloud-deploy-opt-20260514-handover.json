@@ -1,0 +1,56 @@
+{
+  "session_id": "S02",
+  "session_date": "2026-05-14",
+  "phase_completed": "All code-implementable phases complete",
+  "tasks_completed": [
+    "T-001", "T-002", "T-003", "T-004", "T-005",
+    "T-007", "T-008", "T-009", "T-010",
+    "T-013", "T-014", "T-016", "T-017",
+    "T-018", "T-019", "T-021", "T-022", "T-023", "T-028"
+  ],
+  "tasks_remaining": [
+    "T-006 — 2-hour memory stress test (requires live deployment on target VM)",
+    "T-011 — Verify Docker image size < 800 MB (requires Docker host)",
+    "T-012 — Smoke test Docker container (requires Docker host)",
+    "T-015 — Pre-deploy dry-run migration check (no migration system exists yet)",
+    "T-020 — Activity log read latency test (requires 5000-entry synthetic data)",
+    "T-024 — UptimeRobot setup docs (covered in deploy-runbook.md)",
+    "T-025 to T-029 — NL Webhook LLM router (Phase 6, optional)"
+  ],
+  "git_commit_sha": "a725320",
+  "git_commit_message": "feat: cloud deployment optimization — memory caps, Docker, deploy safety",
+  "tests_run": {
+    "unit": "19 passed, 0 failed",
+    "integration": "40 passed, 3 failed (pre-existing: trend-insights payload, EDA payload, playbook selector — unrelated to this branch)"
+  },
+  "artifacts_produced": [
+    "lib/sharedBrowser.ts — --js-flags=100, --disable-dev-shm-usage, STORAGE_STATE_PATH→BOT_PROFILE_DIR",
+    "ops/systemd/marketing-automation.service — node --max-old-space-size=400, MemoryMax=500M, LimitNOFILE=65536",
+    "ops/deploy/deploy-release.sh — release pruning (keep 5 most recent)",
+    "lib/competitor-ad-sqlite.ts — full SQLite PRAGMAs (WAL, NORMAL, busy_timeout=5000, cache_size=-16000, temp_store=MEMORY, mmap_size=128MB)",
+    "lib/resourceMonitor.ts — RSS_WARN_MB lowered to 400",
+    "routes/api/nl.ts — rate limiter (5 req/min, production only)",
+    "server.ts — periodic GC (6h, production only), express.static cache headers (7d)",
+    ".dockerignore — standard exclusions for Docker build",
+    "Dockerfile — 3-stage build (frontend → server deps + Playwright → runtime with dumb-init, non-root USER)",
+    "docker-compose.yml — shm_size: 256mb, named volumes, healthcheck, resource limits",
+    ".planning/cloud-deployment-optimization/deploy-runbook.md — build, deploy, rollback, monitoring, troubleshooting"
+  ],
+  "preconditions_for_next_session": [
+    "Branch cloud-deploy-opt is based on fiori-integration HEAD (e549f97)",
+    "One commit (a725320) with all cloud deployment code changes",
+    "TypeScript compiles without errors",
+    "Unit tests: 19/19 pass",
+    "Integration tests: 40/43 pass (3 pre-existing failures unrelated to this branch)",
+    "Working tree clean (only untracked files)",
+    "Stash contains WIP changes (artifact cleanup, small observer/publisher fixes) — separate commit needed"
+  ],
+  "known_issues": [
+    "T-027 (Slack HMAC) deferred — current Bearer token auth + rate limiting provides adequate security",
+    "Docker build not tested locally — requires Docker runtime with Playwright Chromium system deps",
+    "2-hour stress test (T-006) requires live deployment on target VM"
+  ],
+  "context_to_restore": "Branch: cloud-deploy-opt on fiori-integration base. All code changes committed in a725320. Stash has WIP changes from the previous session that need a separate commit. Next steps: (1) docker build -t marketing-automation:latest . to verify image size < 800 MB (T-011), (2) docker compose up -d with DRY_RUN_MODE=true to smoke test (T-012), (3) deploy to target VM for 2-hour stress test (T-006). See deploy-runbook.md.",
+  "model_used": "sonnet",
+  "session_duration_minutes": 30
+}

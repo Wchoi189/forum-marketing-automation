@@ -1,0 +1,138 @@
+{
+  "model_recommendations_id": "cloud-deploy-opt-models-v1",
+  "feature": "Cloud Deployment Optimization",
+  "created": "2026-05-13",
+  "version": "1.0",
+
+  "overview": {
+    "description": "AI model selection guidance for each phase and task of cloud deployment optimization. Models are chosen based on task complexity, required reasoning depth, and cost-effectiveness.",
+    "models_available": {
+      "sonnet": {
+        "model_id": "claude-sonnet-4-6",
+        "strengths": "Fast, cost-effective, excellent at code generation, config changes, and well-defined transformations",
+        "best_for": "Straightforward implementation tasks with clear acceptance criteria"
+      },
+      "opus": {
+        "model_id": "claude-opus-4-7",
+        "strengths": "Deep reasoning, complex system design, edge case analysis, LLM integration",
+        "best_for": "Architecture decisions, LLM function calling schema, security-sensitive code"
+      },
+      "haiku": {
+        "model_id": "claude-haiku-4-5-20251001",
+        "strengths": "Very fast, low cost",
+        "best_for": "Not recommended for this feature — tasks require code understanding beyond haiku's capability"
+      }
+    }
+  },
+
+  "phase_model_assignments": [
+    {
+      "phase": 1,
+      "name": "Foundation & Memory Safety",
+      "recommended_model": "sonnet",
+      "rationale": "Tasks are straightforward config/value changes. CHROMIUM_LAUNCH_ARGS editing, systemd memory limits, and .dockerignore creation are well-defined transformations with clear acceptance criteria. No creative reasoning needed.",
+      "tasks_requiring_opus": [],
+      "estimated_cost": "Low — ~6 simple code edits",
+      "context_requirements": "lib/sharedBrowser.ts, ops/systemd/marketing-automation.service, config/env.ts"
+    },
+    {
+      "phase": 2,
+      "name": "Docker Multi-Stage Build",
+      "recommended_model": "sonnet",
+      "rationale": "Dockerfile is template-driven with well-known patterns (multi-stage build, Playwright Chromium installation). The guide already provides a reference Dockerfile. Sonnet can adapt it to the project's actual structure.",
+      "tasks_requiring_opus": [],
+      "notes": "If Playwright system dependencies fail on Alpine (rare), escalate to Opus for troubleshooting.",
+      "estimated_cost": "Low-Medium — Dockerfile creation and build verification",
+      "context_requirements": "package.json (for scripts), server.ts (for entry point), config/env.ts (for env vars)"
+    },
+    {
+      "phase": 3,
+      "name": "Deploy Safety & Data Persistence",
+      "recommended_model": "sonnet",
+      "rationale": "Shell script modifications (release pruning, health check verification) are well-defined. The existing deploy-release.sh and rollback-release.sh provide clear insertion points.",
+      "tasks_requiring_opus": [],
+      "estimated_cost": "Low — shell script edits + documentation",
+      "context_requirements": "ops/deploy/deploy-release.sh, ops/deploy/rollback-release.sh, config/env.ts"
+    },
+    {
+      "phase": 4,
+      "name": "SQLite & I/O Optimization",
+      "recommended_model": "sonnet",
+      "rationale": "PRAGMA application is straightforward — add 6 pragmas at DB open. Activity log capping is a simple array slice operation. Both are well-documented patterns.",
+      "tasks_requiring_opus": [],
+      "notes": "If SQLite WAL mode causes issues on NFS (rare edge case), escalate to Opus for lock analysis.",
+      "estimated_cost": "Low — PRAGMA edits + GC logic",
+      "context_requirements": "lib/kakaoAutoReply.ts (SQLite init), lib/resourceMonitor.ts (GC logic)"
+    },
+    {
+      "phase": 5,
+      "name": "Observability & Health Enrichment",
+      "recommended_model": "sonnet",
+      "rationale": "Periodic GC interval, health endpoint enrichment, and express.static cache headers are straightforward additions. lib/resourceMonitor.ts already exposes metrics — just wire them into the route.",
+      "tasks_requiring_opus": [],
+      "estimated_cost": "Low — server.ts and route modifications",
+      "context_requirements": "server.ts, lib/resourceMonitor.ts, routes/api/health.ts"
+    },
+    {
+      "phase": 6,
+      "name": "NL Webhook LLM Router (Optional)",
+      "recommended_model": "opus",
+      "rationale": "This phase involves LLM function calling, which requires: (1) designing a robust tool schema that handles ambiguous natural language, (2) implementing error handling for malformed LLM responses, (3) integrating with external APIs (Gemini), (4) security-sensitive HMAC verification. These require deep reasoning about edge cases and failure modes.",
+      "tasks_requiring_opus": ["T-025", "T-026"],
+      "tasks_ok_with_sonnet": ["T-027", "T-028", "T-029"],
+      "rationale_by_task": {
+        "T-025": "Tool schema design requires anticipating ambiguous user intents and edge cases in natural language — Opus for robust schema",
+        "T-026": "LLM integration with error handling, retry logic, and fallback behavior — Opus for system design",
+        "T-027": "HMAC verification is a standard cryptographic pattern — Sonnet can implement from test reference",
+        "T-028": "Rate limiting addition is straightforward middleware — Sonnet",
+        "T-029": "End-to-end testing is execution-focused — Sonnet"
+      },
+      "estimated_cost": "Medium-High — LLM integration + external API calls + testing",
+      "context_requirements": "routes/api/nl.ts, config/env.ts, tests/integration/nlWebhook.test.ts, lib/sharedBrowser.ts (for runtimeControls access)"
+    }
+  ],
+
+  "performance_benchmarks": {
+    "sonnet_expected_performance": {
+      "code_edit_accuracy": "> 95% — edits compile and pass tests on first attempt",
+      "template_adaptation": "> 90% — Dockerfile, shell scripts adapted correctly from reference",
+      "average_task_time": "5-20 minutes per task (T-001 through T-024)",
+      "error_rate": "< 5% of tasks require rework"
+    },
+    "opus_expected_performance": {
+      "schema_design_accuracy": "> 98% — tool schemas handle edge cases without rework",
+      "integration_complexity_handling": "> 95% — LLM integration handles failure modes correctly",
+      "average_task_time": "20-40 minutes per task (T-025, T-026)",
+      "error_rate": "< 2% of tasks require rework"
+    }
+  },
+
+  "cost_optimization": {
+    "total_estimated_tokens": "~500K input tokens for Phases 1-5 (Sonnet), ~100K input tokens for Phase 6 (Opus)",
+    "cost_saving_strategies": [
+      "Use Sonnet for all straightforward tasks — only escalate to Opus for LLM integration",
+      "Reuse context across tasks within a phase — avoid re-reading the same files",
+      "For verification-only tasks (T-003, T-011, T-020), use Haiku or Bash directly — no AI reasoning needed",
+      "Cache Docker build layers — reference Dockerfile in guide reduces Sonnet's research time"
+    ]
+  },
+
+  "model_switching_rules": {
+    "escalate_to_opus_when": [
+      "Sonnet's implementation fails tests after 2 attempts",
+      "Task involves LLM API integration or function calling",
+      "Security-sensitive code (HMAC, secret handling)",
+      "New edge case discovered that changes the spec",
+      "Docker build fails due to non-obvious system dependency issues"
+    ],
+    "degrade_to_sonnet_when": [
+      "Opus is unavailable or rate-limited (fallback for any task)",
+      "Task is a simple config change or value edit"
+    ],
+    "avoid_haiku_for": [
+      "Any code modification task",
+      "Any task requiring understanding of project architecture",
+      "Any task with acceptance criteria beyond syntax checking"
+    ]
+  }
+}

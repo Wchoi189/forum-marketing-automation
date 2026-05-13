@@ -1,0 +1,213 @@
+{
+  "plan_id": "cloud-deployment-optimization-plan-v1",
+  "feature": "Cloud Deployment Optimization",
+  "version": "1.0.0",
+  "created": "2026-05-13",
+  "status": "draft",
+  "branch": "cloud-deploy-opt",
+  "spec_ref": ".planning/cloud-deployment-optimization/specs/cloud-deployment-optimization-v1.json",
+
+  "summary": "Productionize the Ppomppu OTT bot for free-tier/low-RAM cloud deployment (512 MB-1 GB). Covers memory capping, Docker multi-stage image, systemd hardening, SQLite PRAGMAs, activity log rotation, release pruning, health endpoint enrichment, and NL webhook LLM routing. Existing ops/ scripts and remote-ops contracts provide the foundation.",
+
+  "technical_context": {
+    "language_version": "TypeScript 5.x, Node.js 20 (tsx runtime)",
+    "primary_dependencies": [
+      "Playwright (Chromium only)",
+      "Express (API server)",
+      "Vite (frontend build)",
+      "better-sqlite3 (Kakao chatbot DB)",
+      "pino (structured logging)"
+    ],
+    "storage": {
+      "activity_log": "JSON file at ACTIVITY_LOG_PATH (currently 1.4 MB, growing unbounded)",
+      "browser_profile": "Chromium persistent context at BOT_PROFILE_DIR",
+      "kakao_db": "SQLite at configured path",
+      "artifact_dir": "artifacts/ — debug screenshots, traces, competitor intel"
+    },
+    "testing": "Vitest (83 tests green), Playwright integration tests",
+    "target_platform": "Linux server (AWS EC2 t3.micro or Oracle Cloud Free ARM)",
+    "project_type": "Web service + headless browser automation",
+    "performance_goals": {
+      "max_rss": "400 MB on 512 MB host",
+      "deploy_time": "< 120 seconds p95",
+      "rollback_time": "< 60 seconds",
+      "health_check_response": "< 500 ms",
+      "activity_log_read": "< 100 ms with 5000 entries"
+    },
+    "constraints": [
+      "512 MB - 1 GB total RAM",
+      "1 vCPU",
+      "Network-attached storage for DB and logs",
+      "Free-tier pricing (no paid managed services)"
+    ],
+    "scale": "Single-operator, single-bot, gap-driven scheduler"
+  },
+
+  "constitution_check": {
+    "spec_first": {
+      "status": "pass",
+      "evidence": "This plan derived from cloud_deployment_optimization_guide.md and remote-ops contracts already in .planning/spec-kit/specs/"
+    },
+    "contracts_over_prose": {
+      "status": "pass",
+      "evidence": "All env var contracts in .agent/contracts/env.contract.json. Runtime contracts in remote-ops.runtime.contract.json."
+    },
+    "semantic_intent_required": {
+      "status": "pass",
+      "evidence": "Spec includes user stories with acceptance scenarios, edge cases, and success criteria"
+    },
+    "strict_validation": {
+      "status": "pass",
+      "evidence": "Env validation in config/env.ts with JSON schema at .planning/spec-kit/manifest/schemas/env.schema.json"
+    },
+    "multi_forum_ready": {
+      "status": "not_applicable",
+      "evidence": "Deployment optimization is forum-agnostic; no forum-specific logic"
+    },
+    "governance_checks": {
+      "secrets_in_env_only": "pass — PPOMPPU_USER_PW loaded via SSM, never in source",
+      "require_declared_entry_points": "pass — entry points: server.ts, bot.ts, ops/deploy/*.sh",
+      "require_preconditions": "pass — preconditions documented in spec per user story",
+      "require_idempotency": "pass — deploy script idempotent (symlink swap), GC idempotent (age-based prune)",
+      "require_failure_policy": "pass — fail-closed on missing env vars, OOM restart via systemd"
+    }
+  },
+
+  "project_structure": {
+    "documentation": ".planning/cloud-deployment-optimization/",
+    "source_changes": {
+      "lib/sharedBrowser.ts": "Reduce --js-flags max-old-space-size from 2048 to 100 for low-RAM hosts",
+      "server.ts": "Add periodic GC interval (6h), static cache headers, resource metrics on /api/health/resources",
+      "config/env.ts": "Add NODE_ENV validation, shm_size env var",
+      "lib/resourceMonitor.ts": "Add activity_log.json entry cap (5000) to GC logic",
+      "routes/api/nl.ts": "Add LLM function calling schema and dispatch router (optional, P3)",
+      "ops/systemd/marketing-automation.service": "Add memory limit, restart policy, env loading from SSM",
+      "ops/deploy/deploy-release.sh": "Add release pruning (keep 5 most recent)",
+      ".dockerignore": "New file — exclude node_modules, .env, artifacts, .git",
+      "Dockerfile": "New file — multi-stage build (frontend build → server deps → runtime)",
+      "docker-compose.yml": "New file — shm_size: 256mb, volume mounts, healthcheck"
+    }
+  },
+
+  "execution_phases": [
+    {
+      "phase": "Phase 0: Foundation & Memory Safety",
+      "sprint": 1,
+      "sessions": ["S01", "S02"],
+      "goal": "Stabilize memory footprint and prevent OOM on 512 MB hosts",
+      "tasks": [
+        "T-001: Reduce CHROMIUM_LAUNCH_ARGS --js-flags from 2048 to 100",
+        "T-002: Add --max-old-space-size=400 to server.ts startup command",
+        "T-003: Verify --disable-dev-shm-usage present (already in sharedBrowser.ts — confirm, no change)",
+        "T-004: Add Docker .dockerignore file",
+        "T-005: Add systemd memory limit to marketing-automation.service",
+        "T-006: Run 2-hour stress test, verify RSS stays under 400 MB"
+      ],
+      "acceptance": "Bot runs 2 hours on constrained memory without OOM. RSS stable.",
+      "model_recommendation": "Sonnet 4.6 — straightforward config changes, no creative reasoning needed"
+    },
+    {
+      "phase": "Phase 1: Docker Multi-Stage Build",
+      "sprint": 2,
+      "sessions": ["S03", "S04"],
+      "goal": "Reproducible, portable container image with minimal footprint",
+      "tasks": [
+        "T-007: Create multi-stage Dockerfile (frontend build → server deps → runtime)",
+        "T-008: Create docker-compose.yml with shm_size: 256mb, volume mounts",
+        "T-009: Add non-root USER in Docker runtime stage",
+        "T-010: Add dumb-init for PID 1 signal forwarding",
+        "T-011: Build and verify image size < 800 MB",
+        "T-012: docker compose up -d, verify /api/health 200"
+      ],
+      "acceptance": "Docker image builds under 800 MB, container starts healthy, Chromium launches.",
+      "model_recommendation": "Sonnet 4.6 — Dockerfile is template-driven, verify system deps for Playwright Chromium"
+    },
+    {
+      "phase": "Phase 2: Deploy Safety & Data Persistence",
+      "sprint": 3,
+      "sessions": ["S05", "S06"],
+      "goal": "Atomic deploys, rollback path, persistent volumes for logs and browser profiles",
+      "tasks": [
+        "T-013: Add release pruning to deploy-release.sh (keep 5, rm oldest)",
+        "T-014: Verify ACTIVITY_LOG_PATH and BOT_PROFILE_DIR use /opt/marketing-automation/shared/",
+        "T-015: Add pre-deploy dry-run migration check (if applicable)",
+        "T-016: Add rollback verification to rollback-release.sh",
+        "T-017: Document deploy + rollback runbook in .planning/cloud-deployment-optimization/deploy-runbook.md"
+      ],
+      "acceptance": "Deploy swaps symlink, health check passes. Rollback restores previous release in < 60s.",
+      "model_recommendation": "Sonnet 4.6 — Shell script modifications, well-defined deploy pattern from existing ops/"
+    },
+    {
+      "phase": "Phase 3: SQLite & I/O Optimization",
+      "sprint": 4,
+      "sessions": ["S07"],
+      "goal": "Prevent SQLite lock crashes on NAS, cap activity log growth",
+      "tasks": [
+        "T-018: Add SQLite PRAGMAs (WAL, synchronous=NORMAL, busy_timeout=5000, cache_size=-16000, mmap_size=128MB, temp_store=MEMORY)",
+        "T-019: Cap activity_log.json at 5000 entries in lib/resourceMonitor.ts GC",
+        "T-020: Verify activity log read latency < 100 ms with 5000 entries"
+      ],
+      "acceptance": "SQLite handles concurrent reads without lock errors. Activity log capped at 5000 entries.",
+      "model_recommendation": "Sonnet 4.6 — PRAGMA application is straightforward; GC logic in existing resourceMonitor.ts"
+    },
+    {
+      "phase": "Phase 4: Observability & Health Enrichment",
+      "sprint": 5,
+      "sessions": ["S08"],
+      "goal": "Expose resource metrics, set up uptime monitoring, periodic GC",
+      "tasks": [
+        "T-021: Add periodic GC (6h interval) to server.ts",
+        "T-022: Enrich /api/health/resources with heapUsed, artifactDirSizeMb, activityLogSizeKb",
+        "T-023: Add express.static cache headers (maxAge: 7d) for production",
+        "T-024: Document UptimeRobot + Slack alert setup in runbook"
+      ],
+      "acceptance": "/api/health/resources returns resource metrics. GC runs periodically. Static assets cached.",
+      "model_recommendation": "Sonnet 4.6 — Existing resourceMonitor.ts has metrics; wire them into health route"
+    },
+    {
+      "phase": "Phase 5: NL Webhook LLM Router (Optional)",
+      "sprint": 6,
+      "sessions": ["S09", "S10"],
+      "goal": "Natural language Slack control via LLM function calling",
+      "tasks": [
+        "T-025: Define tool schema for NL router (get_status, set_gap_threshold, trigger_observer, trigger_publish, set_dry_run, pause/resume_scheduler)",
+        "T-026: Implement Gemini Flash function calling in routes/api/nl.ts",
+        "T-027: Add HMAC verification for Slack webhook",
+        "T-028: Add rate limiting (5 req/min) to NL endpoint",
+        "T-029: Test with real Slack messages via ngrok or deploy"
+      ],
+      "acceptance": "Slack message 'set gap to 5' updates gap threshold. HMAC verification rejects unsigned requests.",
+      "model_recommendation": "Opus 4.7 — LLM function calling schema design, error handling for malformed responses, Slack signature verification"
+    }
+  ],
+
+  "session_boundaries": {
+    "session_format": "Each session operates independently. Session handovers in .agent/session-handovers/ contain: previous session output, current task assignment, preconditions to verify before starting.",
+    "session_duration_target": "45-90 minutes per session",
+    "handover_trigger": "When a phase's acceptance criteria are met, create session handover file before starting next phase",
+    "state_persistence": "All session state persisted via: (1) git commits with descriptive messages, (2) test suite results, (3) session handover JSON in .agent/session-handovers/"
+  },
+
+  "complexity_tracking": {
+    "violations": [],
+    "notes": "No constitution violations. All changes are additive or config-tuning within existing architecture."
+  },
+
+  "risk_assessment": [
+    {
+      "risk": "Chromium --js-flags=100 too restrictive for complex pages",
+      "mitigation": "Test against ppomppu board page; if V8 OOM, increase to 150. The 2048 flag was overprovisioned for low-RAM hosts.",
+      "severity": "medium"
+    },
+    {
+      "risk": "Docker Playwright Chromium system deps may differ across base images",
+      "mitigation": "Use npx playwright install chromium --with-deps in Dockerfile build stage; Alpine vs Debian may need different packages",
+      "severity": "low"
+    },
+    {
+      "risk": "activity_log.json cap at 5000 may lose historical data",
+      "mitigation": "Cap is for GC; historical data should migrate to SQLite table (out of scope, tracked as future work)",
+      "severity": "low"
+    }
+  ]
+}

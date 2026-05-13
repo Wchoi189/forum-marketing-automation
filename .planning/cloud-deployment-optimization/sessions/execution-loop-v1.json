@@ -1,0 +1,132 @@
+{
+  "execution_loop_id": "cloud-deploy-opt-loop-v1",
+  "feature": "Cloud Deployment Optimization",
+  "created": "2026-05-13",
+  "version": "1.0",
+
+  "loop_configuration": {
+    "description": "Execution loop governs how sessions proceed through the implementation plan. Each loop iteration processes one phase's tasks, verifies acceptance criteria, creates a handover, then stops.",
+
+    "loop_mode": "phase_driven",
+    "phase_progression": "sequential",
+    "max_sessions_per_phase": 2,
+    "session_timeout_minutes": 90,
+
+    "loop_steps": [
+      {
+        "step": 1,
+        "name": "verify_preconditions",
+        "description": "Check git branch is clean, tests pass, previous handover preconditions met",
+        "action": "Run git status, npm run test, npm run lint. Read latest handover from .agent/session-handovers/. Verify all preconditions_for_next_session are true.",
+        "on_failure": "STOP. Report which precondition failed. Do not proceed."
+      },
+      {
+        "step": 2,
+        "name": "load_phase_context",
+        "description": "Read the spec, plan, and tasks for the current phase",
+        "action": "Read .planning/cloud-deployment-optimization/specs/cloud-deployment-optimization-v1.json, plan JSON, and tasks JSON. Identify which tasks belong to the current phase and their status."
+      },
+      {
+        "step": 3,
+        "name": "execute_tasks",
+        "description": "Implement tasks for this phase in dependency order",
+        "action": "Process tasks in order (by ID). For each task: read the file, make changes, verify acceptance criteria. Run relevant tests after each task. Commit after each task or logical group.",
+        "commit_frequency": "After each task or logical group of tasks that compile together"
+      },
+      {
+        "step": 4,
+        "name": "verify_acceptance",
+        "description": "Run the phase's acceptance criteria",
+        "action": "Check the phase's acceptance criteria from the plan. Run full test suite (npm run test, npm run lint). Verify no regressions.",
+        "on_failure": "Fix failures before proceeding. If acceptance criteria cannot be met, document why in handover."
+      },
+      {
+        "step": 5,
+        "name": "create_handover",
+        "description": "Write session handover JSON with all required fields",
+        "action": "Create .agent/session-handovers/cloud-deploy-opt-<YYYYMMDD-HHMM>.json using the template from sessions/handover-template-v1.json. Include git SHA, test results, tasks completed, known issues, and context_to_restore.",
+        "commit": true
+      },
+      {
+        "step": 6,
+        "name": "stop",
+        "description": "End the session. The next session resumes from the handover.",
+        "action": "Report session completion with summary of what was done. Next phase or session can begin independently."
+      }
+    ]
+  },
+
+  "parallel_execution": {
+    "description": "Tasks within a phase can run in parallel if they have no dependencies on each other. Cross-phase tasks must be sequential.",
+    "parallelizable_groups": {
+      "Phase 1": {
+        "parallel_group_A": ["T-001", "T-003", "T-004"],
+        "sequential_after_A": ["T-002", "T-005", "T-006"]
+      },
+      "Phase 2": {
+        "parallel_group_A": ["T-007"],
+        "sequential_after_A": ["T-008", "T-009", "T-010"],
+        "parallel_after_A": ["T-011", "T-012"]
+      },
+      "Phase 3": {
+        "parallel_group_A": ["T-013", "T-014"],
+        "sequential_after_A": ["T-015", "T-016"],
+        "parallel_after_A": ["T-017"]
+      },
+      "Phase 4": {
+        "parallel_group_A": ["T-018", "T-019"],
+        "sequential_after_A": ["T-020"]
+      },
+      "Phase 5": {
+        "parallel_group_A": ["T-021", "T-022", "T-023"],
+        "sequential_after_A": ["T-024"]
+      },
+      "Phase 6": {
+        "parallel_group_A": ["T-025", "T-027", "T-028"],
+        "sequential_after_A": ["T-026"],
+        "sequential_after_B": ["T-029"]
+      }
+    }
+  },
+
+  "quality_gates": {
+    "before_commit": [
+      "npm run lint passes",
+      "npm run test passes",
+      "No TypeScript errors (npx tsc --noEmit)"
+    ],
+    "before_handover": [
+      "All tasks in phase marked complete or documented as deferred",
+      "Acceptance criteria verified",
+      "Git working tree clean (all changes committed)",
+      "Handover file written with all required fields"
+    ],
+    "before_next_phase": [
+      "Previous phase handover exists",
+      "Previous phase acceptance criteria met",
+      "No unresolved known_issues blocking the next phase"
+    ]
+  },
+
+  "escalation_rules": {
+    "description": "When to stop and escalate rather than continue working",
+    "rules": [
+      {
+        "condition": "Task cannot be completed after 2 attempts",
+        "action": "Document in known_issues, create handover, stop. Operator must review."
+      },
+      {
+        "condition": "Test suite regression detected (previously passing test now fails)",
+        "action": "Revert the change that caused the regression. If root cause unclear, document and escalate."
+      },
+      {
+        "condition": "Session exceeds 90 minutes",
+        "action": "Create handover with current state, stop. Continue in next session."
+      },
+      {
+        "condition": "New requirement discovered that changes spec",
+        "action": "Document the discovery, do not implement. Escalate to operator for spec update."
+      }
+    ]
+  }
+}

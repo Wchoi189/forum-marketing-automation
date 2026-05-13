@@ -9,7 +9,8 @@ export const MAX_ARTIFACT_AGE_DAYS = 7;
 export const MAX_ACTIVITY_LOG_ENTRIES = 1000;
 export const KEEP_ACTIVITY_LOG_ENTRIES = 500;
 export const MAX_ARTIFACTS_SIZE_MB = 500;
-export const RSS_WARN_MB = 1024;
+/** Warn when RSS exceeds this threshold. Set to match the target 512 MB cloud host. */
+export const RSS_WARN_MB = 400;
 
 // ── Browser Profile Cache Cleanup ───────────────────────────────────────────
 

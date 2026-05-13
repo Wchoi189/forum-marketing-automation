@@ -119,7 +119,7 @@ async function _executeObserverRun(): Promise<ActivityLog> {
 
   let context: BrowserContext | null = null;
   try {
-    context = createBrowserContext();
+    context = await createBrowserContext();
     await addStealthInitScripts(context);
     const page = await context.newPage();
 
