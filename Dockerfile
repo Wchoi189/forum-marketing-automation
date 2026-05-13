@@ -6,13 +6,17 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# ── Stage 2: Server dependencies ─────────────────────────────────────────────
+# ── Stage 2: Server dependencies + Playwright Chromium ───────────────────────
 FROM node:20-slim AS server-deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev && \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl wget gnupg && \
+    rm -rf /var/lib/apt/lists/* && \
+    npm ci --omit=dev && \
     npm install tsx && \
-    npm cache clean --force
+    npx playwright install chromium --with-deps && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ── Stage 3: Runtime ────────────────────────────────────────────────────────
 FROM node:20-slim AS runtime
@@ -26,6 +30,7 @@ WORKDIR /app
 
 # Copy server dependencies from build stage
 COPY --from=server-deps --chown=app:app /app/node_modules ./node_modules
+COPY --from=server-deps /root/.cache/ms-playwright /root/.cache/ms-playwright
 
 # Copy frontend build output
 COPY --from=frontend-build --chown=app:app /build/dist ./dist
@@ -53,12 +58,11 @@ RUN mkdir -p /app/data/browser-profile /app/data/logs /app/data/artifacts && \
 USER app
 
 # Environment defaults for container execution
-# DEV_SKIP_BOT=true because bot.ts requires Playwright Chromium (not installed)
 ENV NODE_ENV=production \
     BOT_PROFILE_DIR=/app/data/browser-profile \
     ACTIVITY_LOG_PATH=/app/data/logs/activity_log.json \
     BROWSER_HEADLESS=true \
-    DEV_SKIP_BOT=true \
+    DEV_SKIP_BOT=false \
     DRY_RUN_MODE=true
 
 ENTRYPOINT ["dumb-init", "--"]
