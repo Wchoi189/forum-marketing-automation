@@ -32,7 +32,10 @@ export default defineConfig(({mode}) => {
       rollupOptions: {
         output: {
           manualChunks: {
-
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-recharts': ['recharts'],
+            'vendor-motion': ['motion'],
+            'vendor-lucide': ['lucide-react'],
             // @xyflow/react (ReactFlow) — only used on /operations route.
             // Paired with React.lazy on OperationsPage.
             'vendor-xyflow': ['@xyflow/react'],

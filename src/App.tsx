@@ -5,13 +5,12 @@ import PipelineCanvas, { PipelineStepId } from './PipelineCanvas';
 import { useAppData } from './hooks/useAppData';
 import LogDetailModal from './components/LogDetailModal';
 import OverrideConfirmModal from './components/OverrideConfirmModal';
-import OverviewPage from './pages/OverviewPage';
-import ControlsPage from './pages/ControlsPage';
-import PublisherRunsPage from './pages/PublisherRunsPage';
-
 // Heavy pages — lazily loaded so their vendor chunks (CopilotKit, Shiki,
-// Mermaid, KaTeX, @xyflow/react) are only downloaded when the user
+// Mermaid, KaTeX, @xyflow/react, recharts) are only downloaded when the user
 // navigates to these routes, not on initial app load.
+const OverviewPage = React.lazy(() => import('./pages/OverviewPage'));
+const ControlsPage = React.lazy(() => import('./pages/ControlsPage'));
+const PublisherRunsPage = React.lazy(() => import('./pages/PublisherRunsPage'));
 const OperationsPage = React.lazy(() => import('./pages/OperationsPage'));
 const KakaoDashboard = React.lazy(() => import('./pages/KakaoDashboard'));
 const CompetitorIntelPage = React.lazy(() => import('./pages/CompetitorIntelPage'));
@@ -129,20 +128,20 @@ export default function App() {
         </header>
 
         <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-          {onOverview && (
-            <OverviewPage
-              app={app}
-              currentStep={currentStep}
-              simulationIndex={simulationIndex}
-              isSimulating={isSimulating}
-              STAGES={STAGES}
-              onStartSimulation={() => { setSimulationIndex(0); setIsSimulating(true); }}
-              onResetSimulation={() => { setSimulationIndex(-1); setIsSimulating(false); }}
-            />
-          )}
-          {onPublisherRuns && <PublisherRunsPage app={app} />}
-          {onControls && <ControlsPage app={app} />}
           <Suspense fallback={<PageFallback />}>
+            {onOverview && (
+              <OverviewPage
+                app={app}
+                currentStep={currentStep}
+                simulationIndex={simulationIndex}
+                isSimulating={isSimulating}
+                STAGES={STAGES}
+                onStartSimulation={() => { setSimulationIndex(0); setIsSimulating(true); }}
+                onResetSimulation={() => { setSimulationIndex(-1); setIsSimulating(false); }}
+              />
+            )}
+            {onPublisherRuns && <PublisherRunsPage app={app} />}
+            {onControls && <ControlsPage app={app} />}
             {onOperations && <OperationsPage app={app} />}
             {onKakao && <KakaoDashboard />}
             {onCompetitorIntel && <CompetitorIntelPage />}

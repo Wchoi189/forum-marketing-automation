@@ -1,9 +1,10 @@
-import { StrictMode } from 'react';
+import React, { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import App from './App.tsx';
-import { AnalyticsPage } from './AnalyticsPage.tsx';
 import './index.css';
+
+const AnalyticsPage = React.lazy(() => import('./AnalyticsPage.tsx').then(module => ({ default: module.AnalyticsPage })));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -15,7 +16,11 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/controls" element={<App />} />
         <Route path="/publisher-runs" element={<App />} />
         <Route path="/kakao" element={<App />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/analytics" element={
+          <React.Suspense fallback={<div className="flex items-center justify-center h-screen bg-[#0a0a0a] text-white/30 animate-pulse">Loading…</div>}>
+            <AnalyticsPage />
+          </React.Suspense>
+        } />
         <Route path="/competitor-intel" element={<App />} />
       </Routes>
     </BrowserRouter>
