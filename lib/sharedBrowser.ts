@@ -49,6 +49,10 @@ let sharedBrowser: Browser | null = null;
 /** All currently-active contexts (observer + publisher) for safe shutdown. */
 export const activeContexts = new Set<BrowserContext>();
 
+/** Counter tracking browser contexts created to trigger periodic process recycling. */
+let contextCreationsCount = 0;
+const RECYCLE_THRESHOLD = 15;
+
 /** True after initSharedBrowser() resolves — callers can check synchronously. */
 export function isSharedBrowserReady(): boolean {
   return sharedBrowser !== null;
@@ -80,6 +84,21 @@ export async function initSharedBrowser(): Promise<Browser> {
 
 /** Create a new browser context from the shared browser. */
 export async function createBrowserContext(options?: { loadSavedStorageState: boolean }): Promise<BrowserContext> {
+  // If the browser was closed/recycled, or not yet initialized, spin it up
+  if (!sharedBrowser) {
+    await initSharedBrowser();
+  } else if (activeContexts.size === 0 && contextCreationsCount >= RECYCLE_THRESHOLD) {
+    logger.info(
+      { event: 'shared_browser.recycling', contextCreationsCount },
+      `[SharedBrowser] Recycling shared browser after ${contextCreationsCount} contexts to reclaim memory`
+    );
+    await closeSharedBrowser();
+    await initSharedBrowser();
+    contextCreationsCount = 0;
+  }
+
+  contextCreationsCount++;
+
   const browser = getSharedBrowser();
   const opts = sharedBrowserContextOptions();
 

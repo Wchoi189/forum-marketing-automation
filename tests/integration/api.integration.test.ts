@@ -6,8 +6,10 @@ import path from "node:path";
 import { createApp } from "../../server.ts";
 import { startScheduler } from "../../lib/scheduler.ts";
 import { validateRuntimeContracts } from "../../config/runtime-validation.ts";
+import { ENV } from "../../config/env.ts";
 import type { ActivityLog, Post, PublisherHistoryEntry } from "../../contracts/models.ts";
 import { applyScheduleJitter } from "../../lib/scheduleJitter.ts";
+import { getSharedLogCache } from "../../lib/logCache.ts";
 
 type BotDeps = NonNullable<Parameters<typeof createApp>[0]>;
 
@@ -55,6 +57,15 @@ async function withServer(
   deps: BotDeps,
   fn: (baseUrl: string) => Promise<void>
 ): Promise<void> {
+  const priorLogs = await fs.readFile(ENV.ACTIVITY_LOG_PATH, "utf-8").catch(() => null);
+  
+  const mockLogs = await deps.getLogs();
+  await fs.mkdir(path.dirname(ENV.ACTIVITY_LOG_PATH), { recursive: true }).catch(() => null);
+  await fs.writeFile(ENV.ACTIVITY_LOG_PATH, JSON.stringify(mockLogs, null, 2));
+  try {
+    getSharedLogCache().invalidate();
+  } catch {}
+
   const app = createApp(deps);
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve) => server.once("listening", () => resolve()));
@@ -64,6 +75,14 @@ async function withServer(
   try {
     await fn(baseUrl);
   } finally {
+    if (priorLogs !== null) {
+      await fs.writeFile(ENV.ACTIVITY_LOG_PATH, priorLogs);
+    } else {
+      await fs.rm(ENV.ACTIVITY_LOG_PATH, { force: true }).catch(() => null);
+    }
+    try {
+      getSharedLogCache().invalidate();
+    } catch {}
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
     });
@@ -821,7 +840,7 @@ test("POST /api/control-panel enforces expectedVersion concurrency", async () =>
 });
 
 test("POST /api/control-panel persists gapPersistedOverride and GET reflects it", async () => {
-  const root = process.env.PROJECT_ROOT || "/parent/marketing-automation";
+  const root = ENV.PROJECT_ROOT;
   const rcPath = path.join(root, "artifacts", "runtime-controls.json");
   let hadFile = false;
   let prior = "";
@@ -888,7 +907,7 @@ test("POST /api/control-panel persists gapPersistedOverride and GET reflects it"
 
 test("runtime validation fails when workflow fixture violates schema", async () => {
   const workflowPath = path.join(
-    process.env.PROJECT_ROOT || "/parent/marketing-automation",
+    ENV.PROJECT_ROOT,
     ".planning/spec-kit/manifest/workflow.ppomppu-gonggu-v1.json"
   );
   const original = await fs.readFile(workflowPath, "utf-8");
@@ -908,7 +927,7 @@ test("runtime validation fails when workflow fixture violates schema", async () 
 
 test("runtime validation fails when playbook fixture violates schema", async () => {
   const playbookPath = path.join(
-    process.env.PROJECT_ROOT || "/parent/marketing-automation",
+    ENV.PROJECT_ROOT,
     ".planning/spec-kit/manifest/playbook.ppomppu-gonggu-v1.json"
   );
   const original = await fs.readFile(playbookPath, "utf-8");
@@ -924,7 +943,7 @@ test("runtime validation fails when playbook fixture violates schema", async () 
 
 test("runtime validation fails when playbook workflow_id mismatches registry", async () => {
   const playbookPath = path.join(
-    process.env.PROJECT_ROOT || "/parent/marketing-automation",
+    ENV.PROJECT_ROOT,
     ".planning/spec-kit/manifest/playbook.ppomppu-gonggu-v1.json"
   );
   const original = await fs.readFile(playbookPath, "utf-8");
@@ -940,7 +959,7 @@ test("runtime validation fails when playbook workflow_id mismatches registry", a
 
 test("runtime validation fails when playbook misses submit semantics", async () => {
   const playbookPath = path.join(
-    process.env.PROJECT_ROOT || "/parent/marketing-automation",
+    ENV.PROJECT_ROOT,
     ".planning/spec-kit/manifest/playbook.ppomppu-gonggu-v1.json"
   );
   const original = await fs.readFile(playbookPath, "utf-8");

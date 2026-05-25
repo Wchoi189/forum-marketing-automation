@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 
@@ -172,9 +173,15 @@ function optionalJitterMode(name: string, fallback: "none" | "uniform"): "none" 
 }
 
 function buildEnv(): EnvConfig {
-  const projectRoot = requiredString("PROJECT_ROOT");
+  let projectRoot = process.env.PROJECT_ROOT?.trim() || "";
+  
+  // Fall back to process.cwd() if projectRoot is empty or matches legacy /parent path which does not exist
+  if (!projectRoot || (projectRoot.startsWith("/parent/marketing-automation") && !fs.existsSync("/parent/marketing-automation"))) {
+    projectRoot = process.cwd();
+  }
+
   if (!path.isAbsolute(projectRoot)) {
-    throw new Error("[ENV] PROJECT_ROOT must be an absolute path");
+    projectRoot = path.resolve(process.cwd(), projectRoot);
   }
 
   const forumPrimaryId = requiredString("FORUM_PRIMARY_ID");
@@ -185,8 +192,17 @@ function buildEnv(): EnvConfig {
   const ppomppuUserId = requiredString("PPOMPPU_USER_ID");
   const ppomppuUserPw = requiredString("PPOMPPU_USER_PW");
 
-  const botProfileDirRaw = requiredString("BOT_PROFILE_DIR");
-  const activityLogPathRaw = requiredString("ACTIVITY_LOG_PATH");
+  let botProfileDirRaw = requiredString("BOT_PROFILE_DIR");
+  let activityLogPathRaw = requiredString("ACTIVITY_LOG_PATH");
+
+  // Auto-rewrite legacy paths if the legacy directory doesn't exist
+  const legacyPrefix = "/parent/marketing-automation";
+  if (botProfileDirRaw.startsWith(legacyPrefix) && !fs.existsSync(legacyPrefix)) {
+    botProfileDirRaw = botProfileDirRaw.substring(legacyPrefix.length).replace(/^[/\\]+/, "");
+  }
+  if (activityLogPathRaw.startsWith(legacyPrefix) && !fs.existsSync(legacyPrefix)) {
+    activityLogPathRaw = activityLogPathRaw.substring(legacyPrefix.length).replace(/^[/\\]+/, "");
+  }
 
   return {
     PROJECT_ROOT: projectRoot,

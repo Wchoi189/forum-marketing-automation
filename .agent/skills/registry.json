@@ -45,7 +45,26 @@
         ],
         "never_store_secrets": true
       }
+    },
+    {
+      "id": "resource-docker-management",
+      "name": "Resource & Docker Management",
+      "description": "Guides for analyzing resource consumption (Chromium multi-process, memory constraints) and deploying changes safely to the running Docker environment.",
+      "triggers": ["resource-audit", "memory-saturation", "docker-rebuild", "browser-recycling"],
+      "modes": {
+        "audit": "Diagnose multi-process tree structure, active Chromium/Playwright usage, and V8 heap constraints vs. physical RAM limits.",
+        "deploy": "Build and restart the docker-compose service safely, preserving named volumes and environment overrides."
+      },
+      "safety": {
+        "node_heap_limit": "256MB on 512MB RAM hosts",
+        "chromium_js_flags": "--js-flags=--max-old-space-size=100",
+        "preserve_volumes": [
+          "bot-profile:/app/data/browser-profile",
+          "activity-logs:/app/data/logs",
+          "artifacts:/app/data/artifacts"
+        ]
+      }
     }
   ],
-  "notes": "context-hygiene skill added 2026-04-10 per audit recommendation; mempalace-management added 2026-04-19 for session continuity"
+  "notes": "context-hygiene skill added 2026-04-10; mempalace-management added 2026-04-19; resource-docker-management added 2026-05-25"
 }

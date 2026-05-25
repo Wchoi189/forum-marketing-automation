@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 STATE_INDEX_PATH="${PROJECT_ROOT}/.agent/state/state.index.json"
 DEFAULT_WING="marketing_automation"
-DEFAULT_PALACE_PATH="/parent/project-artifacts/mempalace/palace"
+DEFAULT_PALACE_PATH="${HOME}/.mempalace/palace"
 DEFAULT_IDENTITY_PATH="${HOME}/.mempalace/identity.txt"
 ALLOW_GLOBAL_FALLBACK="false"
 
@@ -19,7 +19,7 @@ Usage:
 
 Notes:
   - Default indexing scope is memory/context artifacts only.
-  - Default palace path is /parent/project-artifacts/mempalace/palace (global persistent palace).
+  - Default palace path is ~/.mempalace/palace (global persistent palace).
   - Identity file is synced to this project by default at ~/.mempalace/identity.txt.
   - Use --include-plans to also mine .planning/spec-kit/plans.
   - Add --allow-fallback only if you intentionally want non-wing global wake-up/search fallback.

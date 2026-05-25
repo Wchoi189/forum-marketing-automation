@@ -1,0 +1,50 @@
+{
+  "handover_id": "handover-20260525-0755",
+  "timestamp_utc": "2026-05-24T22:55:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "Antigravity",
+  "target_agent": "Antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "implementation",
+  "objective": "Managing silent resource overloads and multi-process memory consumption in a 512MB RAM Docker environment.",
+  "non_goals": [],
+  "current_state": {
+    "completed": [
+      "Verified active subprocesses structure and confirmed only a single shared browser instance is active.",
+      "Implemented automatic browser recycling after 15 contexts are created to clean memory fragmentation.",
+      "Wired browser recycling into the periodic and manual Garbage Collection tasks.",
+      "Rebuilt and restarted the Docker containers using docker compose up -d --build to verify startup.",
+      "Verified all 19 unit/integration and 43 core tests pass cleanly after modifications."
+    ],
+    "gaps": []
+  },
+  "status": "completed",
+  "decisions_locked": [
+    "Recycle shared Chromium browser process when idle to reclaim virtual and resident memory.",
+    "Recommend lowering Node old space size to 256MB on 512MB RAM hosts."
+  ],
+  "acceptance_criteria": [
+    "Automatic recycling clears standard Playwright subprocesses when idle.",
+    "Application boots safely inside the docker environment."
+  ],
+  "implementation_plan": [],
+  "practical_recommendations": [
+    "Check container metrics using docker exec and getResourceMetrics API."
+  ],
+  "completed_items": [
+    "Browser recycling logic in sharedBrowser.ts",
+    "GC idle browser shutdown logic in resourceMonitor.ts",
+    "Docker deployment verification"
+  ],
+  "pending_items": [],
+  "decisions": [],
+  "constraints": [],
+  "env_requirements": [],
+  "next_actions": [],
+  "artifacts_touched": [
+    "lib/sharedBrowser.ts",
+    "lib/resourceMonitor.ts",
+    "artifacts/resource_leak_audit.md"
+  ]
+}

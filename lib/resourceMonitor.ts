@@ -322,12 +322,29 @@ export function checkResourceThresholds(): string[] {
   return warnings;
 }
 
+import { closeSharedBrowser, activeContexts, isSharedBrowserReady } from './sharedBrowser.js';
+
 /** Run all garbage collection tasks. Returns summary of what was cleaned. */
-export function runGarbageCollection(): { artifacts: RotationResult; logRotated: number; browserProfile: { deletedDirs: number; freedBytes: number } } {
+export function runGarbageCollection(): {
+  artifacts: RotationResult;
+  logRotated: number;
+  browserProfile: { deletedDirs: number; freedBytes: number };
+  browserRecycled: boolean;
+} {
   const artifacts = rotateArtifacts();
   const logRotated = rotateActivityLog();
   const browserProfile = cleanBrowserProfile();
-  return { artifacts, logRotated, browserProfile };
+
+  let browserRecycled = false;
+  if (isSharedBrowserReady() && activeContexts.size === 0) {
+    logger.info({ event: 'resource.gc_browser_recycle' }, '[ResourceMonitor] Recycling idle shared browser during GC to reclaim memory');
+    closeSharedBrowser().catch(err => {
+      logger.warn({ event: 'resource.gc_browser_recycle_failed', err }, 'Failed to close shared browser during GC');
+    });
+    browserRecycled = true;
+  }
+
+  return { artifacts, logRotated, browserProfile, browserRecycled };
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

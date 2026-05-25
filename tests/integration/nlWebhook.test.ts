@@ -15,6 +15,7 @@ import type { AddressInfo } from "node:net";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createApp } from "../../server.ts";
+import { ENV } from "../../config/env.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -23,7 +24,7 @@ import { createApp } from "../../server.ts";
 type BotDeps = NonNullable<Parameters<typeof createApp>[0]>;
 
 const AUTH_HEADER = "Bearer test-secret";
-const PROJECT_ROOT = process.env.PROJECT_ROOT || "/parent/marketing-automation";
+const PROJECT_ROOT = ENV.PROJECT_ROOT;
 const RUNTIME_CONTROLS_PATH = path.join(PROJECT_ROOT, "artifacts", "runtime-controls.json");
 
 function makeMockDeps(): BotDeps {

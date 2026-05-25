@@ -1,0 +1,60 @@
+# mempalace ignore file
+# Strictly exclude all raw source code, assets, packages, caches, and database/log files
+# to prevent memory bloat. Only mine curated specifications, handovers, and docs.
+
+# Exclude all source code extensions
+*.ts
+*.tsx
+*.js
+*.jsx
+*.py
+*.go
+*.rs
+*.c
+*.cpp
+*.h
+*.java
+*.rb
+*.php
+*.sql
+
+# Exclude packages and environment folders
+node_modules/
+bower_components/
+.venv/
+venv/
+env/
+.env*
+dist/
+build/
+out/
+.next/
+.nuxt/
+.sass-cache/
+.eslintcache
+.parcel-cache/
+
+# Exclude system and data stores
+.git/
+.github/workflows/
+.vscode/
+.idea/
+.DS_Store
+*.db
+*.sqlite
+*.sqlite3
+*.log
+logs/
+*.csv
+*.xlsx
+*.pdf
+
+# Allow explicitly selected documentation and session targets
+!AgentQMS/
+!docs/
+!.dev/context/sessions/
+!.dev/context/decisions/
+!.dev/tasks/
+!README.md
+!CLAUDE.md
+!PROJECT_MAP.yaml

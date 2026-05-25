@@ -30,6 +30,7 @@ function fakePage(state: FakeState) {
       first: () => ({
         count: async () => state.selectors[selector] ?? 0,
         isVisible: async () => (state.selectors[selector] ?? 0) > 0,
+        waitFor: async () => undefined,
         click: async () => {
           state.clicked.push(selector);
         },
