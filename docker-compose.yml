@@ -6,6 +6,7 @@ services:
     shm_size: 256mb
     ports:
       - "3000:3000"
+      - "2222:22"
     volumes:
       - bot-profile:/app/data/browser-profile
       - activity-logs:/app/data/logs

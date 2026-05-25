@@ -15,22 +15,45 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/* && \
     npm ci --omit=dev && \
     npm install tsx && \
-    npx playwright install chromium --with-deps && \
+    npx playwright install chromium && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ── Stage 3: Runtime ────────────────────────────────────────────────────────
 FROM node:20-slim AS runtime
 
-# Install dumb-init and curl (needed for HEALTHCHECK)
-RUN apt-get update && apt-get install -y --no-install-recommends dumb-init curl && \
+# Install dumb-init, curl (HEALTHCHECK), openssh-server, and minimal Playwright Chromium runtime deps
+# Only shared libraries needed for headless Chromium (no fonts, X11, or build tools)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dumb-init curl openssh-server sudo \
+    libglib2.0-0 libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+    libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
+    libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libx11-xcb1 libxfixes3 \
+    fonts-freefont-ttf && \
     rm -rf /var/lib/apt/lists/* && \
-    groupadd -r app && useradd -r -g app -d /app -s /bin/bash app
+    groupadd -r app && useradd -r -g app -d /app -s /bin/bash app && \
+    # Generate SSH host keys, configure sshd, set app user password
+    mkdir -p /run/sshd && \
+    ssh-keygen -A && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/UsePAM yes/UsePAM no/' /etc/ssh/sshd_config && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config && \
+    echo "HostKey /etc/ssh/ssh_host_ed25519_key" >> /etc/ssh/sshd_config && \
+    echo "HostKey /etc/ssh/ssh_host_rsa_key" >> /etc/ssh/sshd_config && \
+    echo "HostKey /etc/ssh/ssh_host_ecdsa_key" >> /etc/ssh/sshd_config && \
+    echo "app:app123" | chpasswd && \
+    echo "app ALL=(root) NOPASSWD:/usr/sbin/sshd,/usr/bin/ssh-keygen" >> /etc/sudoers && \
+    # Verify hostkeys exist
+    ls /etc/ssh/ssh_host_*key >/dev/null 2>&1 || ssh-keygen -A
+
+# Create startup script that launches both sshd and the app
+COPY --chown=app:app docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 WORKDIR /app
 
 # Copy server dependencies from build stage
 COPY --from=server-deps --chown=app:app /app/node_modules ./node_modules
-COPY --from=server-deps /root/.cache/ms-playwright /root/.cache/ms-playwright
+COPY --from=server-deps --chown=app:app /root/.cache/ms-playwright /app/.cache/ms-playwright
 
 # Copy frontend build output
 COPY --from=frontend-build --chown=app:app /build/dist ./dist
@@ -65,7 +88,7 @@ ENV NODE_ENV=production \
     DEV_SKIP_BOT=false \
     DRY_RUN_MODE=true
 
-ENTRYPOINT ["dumb-init", "--"]
+ENTRYPOINT ["dumb-init", "--", "docker-entrypoint.sh"]
 CMD ["node", "--max-old-space-size=400", "--expose-gc", "--enable-source-maps", \
      "node_modules/.bin/tsx", "server.ts"]
 
@@ -73,4 +96,4 @@ CMD ["node", "--max-old-space-size=400", "--expose-gc", "--enable-source-maps", 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:3000/api/health || exit 1
 
-EXPOSE 3000
+EXPOSE 3000 22
