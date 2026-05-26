@@ -7,7 +7,6 @@
 
 import fsp from "node:fs/promises";
 import path from "node:path";
-import * as cheerio from "cheerio";
 import type { PlaywrightCrawlingContext } from "crawlee";
 import { Dataset } from "crawlee";
 import type { VendorRegistry as VendorRegistryType } from "../index.js";
@@ -20,9 +19,8 @@ import { postIdFromUrl, buildRecordBase } from "../storage/record-builder.js";
 import { chooseContentSelector, collectImages, extractTextBlocks, findPostedAt, extractProductsFromText } from "../extraction/pipeline.js";
 import { runOcr } from "../extraction/ocr.js";
 import { runVlmParse } from "../extraction/vlm.js";
-import { runTextExtraction } from "../extraction/text-extraction.js";
-import { extractContentTextForLlm, productsLookJunk, computeCompletenessScore } from "../extraction/content-utils.js";
 import { validateVlmAgainstHtml } from "../extraction/validation.js";
+import { runPipeline } from "../pipeline/orchestrator.js";
 
 type HandlerDeps = {
   artifactRoot: string;
@@ -54,26 +52,32 @@ async function extractWithBrowserFallback(
   const rawHtmlPath = path.join(root, "raw_html", `${postId}.html`);
   await fsp.writeFile(rawHtmlPath, html, "utf-8");
 
+  // Legacy parser for metadata fields (vendor, landing_url, trust_signals, etc.)
   const parsed = parsePpomppuPost(html, postUrl);
 
-  // High-confidence Cheerio parse → skip LLM
-  if (parsed.confidence >= 0.9 && parsed.products.length > 0) {
-    return {
-      products: parsed.products,
-      extractionSource: "html",
-      confidence: parsed.confidence,
-      evidenceSources: [],
-      postedAt: { iso: parsed.posted_at, raw: parsed.posted_at_raw },
-      pageTitle,
-      parsedHtml: parsed,
-      imageBuffers: [],
-    };
+  // Primary path: 7-stage pipeline (text extraction, no browser needed)
+  try {
+    const pipelineResult = await runPipeline(html, postUrl, { skipDedup: true });
+    const rec = pipelineResult.record;
+    if (rec.products.length > 0 && rec.confidence >= 0.6) {
+      console.log(`  [pipeline] extracted ${rec.products.length} products, confidence=${rec.confidence.toFixed(2)}, source=${pipelineResult.extractionSource}`);
+      return {
+        products: rec.products as AdProduct[],
+        extractionSource: pipelineResult.extractionSource ?? "mixed",
+        confidence: rec.confidence,
+        evidenceSources: [],
+        postedAt: rec.posted_at ? { iso: rec.posted_at, raw: rec.posted_at_raw || undefined } : null,
+        pageTitle,
+        parsedHtml: rec,
+        imageBuffers: [],
+      };
+    }
+    console.log(`  [pipeline] low confidence or no products (${rec.products.length} products, conf=${rec.confidence.toFixed(2)}), falling back to browser extraction`);
+  } catch (err) {
+    console.warn(`  [pipeline] error, falling back to browser extraction: ${err}`);
   }
 
-  // Extract cleaned content text for LLM fallback
-  const contentText = extractContentTextForLlm(html);
-
-  // Fallback: selector + subtree + images + OCR/VLM
+  // Fallback: browser subtree + OCR/VLM for image-heavy or low-signal posts
   const rootSelector = await chooseContentSelector(page);
   const snapshot = await subtree(page, rootSelector, {
     maxDepth: 5,
@@ -89,38 +93,10 @@ async function extractWithBrowserFallback(
 
   const { products: htmlProducts } = extractProductsFromText(htmlEvidence);
 
-  // Always run LLM text extraction in the fallback path (text-only, ~5s).
-  // Prefer LLM results when they produce >= products than the best regex-based path.
-  let llmProducts: AdProduct[] = [];
-
-  const textResult = await runTextExtraction(contentText, parsed.title);
-  if (textResult && textResult.products.length > 0) {
-    llmProducts = textResult.products.map((p) => {
-      const product: AdProduct = { name: p.name };
-      if (p.duration_months) product.duration_months = p.duration_months;
-      if (p.price_krw) product.price_krw = p.price_krw;
-      return product;
-    });
-    console.log(`  [llm-text] extracted ${llmProducts.length} products from content text`);
-  }
-
-  const htmlProductsLookBad = productsLookJunk(htmlProducts);
-
-  // Quality score: fraction of products that have BOTH price AND duration
-  const htmlComplete = computeCompletenessScore(htmlProducts);
-  const llmComplete = computeCompletenessScore(llmProducts);
-  // LLM wins if it found products AND either:
-  // - HTML found nothing, or
-  // - HTML products look junk, or
-  // - LLM found >= products, or
-  // - LLM has significantly better completeness (e.g., 100% vs < 70%)
-  const llmQualityWins = llmProducts.length > 0 && llmComplete >= 0.9 && htmlComplete < 0.7 && llmProducts.length >= htmlProducts.length * 0.5;
-  const llmWins = llmProducts.length > 0 && (htmlProducts.length === 0 || htmlProductsLookBad || llmProducts.length >= htmlProducts.length || llmQualityWins);
-  // When LLM didn't win and HTML products are junk, fall back to Cheerio parser
-  const useHtml = htmlProducts.length > 0 && !htmlProductsLookBad;
-  let products: AdProduct[] = llmWins ? llmProducts : (useHtml ? htmlProducts : parsed.products);
-  let extractionSource: CompetitorAdRecord["extraction_source"] = llmWins ? "llm-text" : (useHtml ? "html" : undefined);
-  let confidence = llmWins ? 0.8 : (useHtml ? 0.7 : Math.max(0, parsed.confidence));
+  const useHtml = htmlProducts.length > 0;
+  let products: AdProduct[] = useHtml ? htmlProducts : parsed.products;
+  let extractionSource: CompetitorAdRecord["extraction_source"] = useHtml ? "html" : undefined;
+  let confidence = useHtml ? 0.7 : Math.max(0, parsed.confidence);
 
   const ocrEvidence: EvidenceSource[] = [];
   const vlmEvidence: EvidenceSource[] = [];
@@ -258,8 +234,8 @@ export function createRequestHandler(deps: HandlerDeps) {
       ? result.evidenceSources.filter((s) => s.excerpt.trim().length > 0)
       : [];
 
-    if (sources.length === 0 && result.extractionSource === "html") {
-      // Deterministic path — minimal evidence is fine
+    if (sources.length === 0 && result.extractionSource !== "ocr" && result.extractionSource !== "vlm") {
+      // Pipeline or deterministic path — evidence embedded per-product, no raw sources required
     } else if (sources.length === 0) {
       throw new Error(`Missing evidence sources; no non-empty excerpts captured for ${postId}`);
     }
