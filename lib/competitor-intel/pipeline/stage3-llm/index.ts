@@ -116,6 +116,21 @@ export function parseExtractResponse(
     return { llmProducts: [], catalogMatches: [], warnings };
   }
 
+  // Normalize: LLM sometimes returns a top-level array instead of {products: [...]}.
+  if (Array.isArray(parsed)) {
+    parsed = { products: parsed };
+  }
+
+  // Normalize: LLM sometimes uses "product_name" instead of "name".
+  if (parsed && typeof parsed === "object" && "products" in parsed && Array.isArray((parsed as { products: unknown[] }).products)) {
+    (parsed as { products: Record<string, unknown>[] }).products = (parsed as { products: Record<string, unknown>[] }).products.map((p) => {
+      if (typeof p === "object" && p !== null && !("name" in p) && "product_name" in p) {
+        return { ...p, name: p.product_name };
+      }
+      return p;
+    });
+  }
+
   const validated = LlmResponseSchema.safeParse(parsed);
   if (!validated.success) {
     warnings.push(`extract_zod_error: ${validated.error.message.slice(0, 200)}`);

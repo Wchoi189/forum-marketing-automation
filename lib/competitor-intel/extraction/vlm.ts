@@ -8,14 +8,21 @@ export function extractJsonObject(raw: string): unknown | null {
   try {
     return JSON.parse(trimmed);
   } catch {
-    const start = trimmed.indexOf("{");
-    const end = trimmed.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(trimmed.slice(start, end + 1));
-      } catch {
-        return null;
-      }
+    const objStart = trimmed.indexOf("{");
+    const objEnd = trimmed.lastIndexOf("}");
+    const arrStart = trimmed.indexOf("[");
+    const arrEnd = trimmed.lastIndexOf("]");
+
+    // Prefer array when it starts before the first object (LLM top-level array pattern)
+    if (arrStart >= 0 && arrEnd > arrStart && (objStart < 0 || arrStart < objStart)) {
+      try { return JSON.parse(trimmed.slice(arrStart, arrEnd + 1)); } catch { /* fall through */ }
+    }
+    if (objStart >= 0 && objEnd > objStart) {
+      try { return JSON.parse(trimmed.slice(objStart, objEnd + 1)); } catch { /* fall through */ }
+    }
+    // Try array last if object failed
+    if (arrStart >= 0 && arrEnd > arrStart) {
+      try { return JSON.parse(trimmed.slice(arrStart, arrEnd + 1)); } catch { return null; }
     }
   }
   return null;

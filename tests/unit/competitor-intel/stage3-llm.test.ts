@@ -131,3 +131,38 @@ test("Stage3Output shape sanity: required fields present when skipped", async ()
   assert.ok(typeof result.llmConfidence === "number");
   assert.ok(typeof result.promptContext === "string");
 });
+
+// TC-3.7: LLM returns top-level array instead of {products: [...]} → normalized
+test("TC-3.7 top-level array response → normalized to {products:[]}", () => {
+  const raw = JSON.stringify([
+    { name: "Netflix", price_krw: 15000, duration_months: 1, confidence: 0.9, evidence: "넷플릭스 1개월" },
+  ]);
+  const { llmProducts, warnings } = parseExtractResponse(raw, "넷플릭스 구독");
+  assert.strictEqual(warnings.length, 0, `unexpected warnings: ${warnings.join(", ")}`);
+  assert.strictEqual(llmProducts.length, 1, "array-format response should yield 1 product");
+  assert.strictEqual(llmProducts[0].name, "Netflix");
+});
+
+// TC-3.8: LLM uses "product_name" key instead of "name" → normalized
+test("TC-3.8 product_name alias → renamed to name", () => {
+  const raw = JSON.stringify({
+    products: [
+      { product_name: "YouTube Premium", price_krw: 17000, duration_months: 3, confidence: 0.85, evidence: "유튜브 프리미엄" },
+    ],
+  });
+  const { llmProducts, warnings } = parseExtractResponse(raw, "유튜브 프리미엄");
+  assert.strictEqual(warnings.length, 0, `unexpected warnings: ${warnings.join(", ")}`);
+  assert.strictEqual(llmProducts.length, 1, "product_name alias should produce 1 product");
+  assert.strictEqual(llmProducts[0].name, "YouTube Premium");
+});
+
+// TC-3.9: LLM returns top-level array with product_name → both normalizations applied
+test("TC-3.9 top-level array + product_name alias → both normalized", () => {
+  const raw = `\`\`\`json\n${JSON.stringify([
+    { product_name: "YouTube Premium", price_krw: 17000, duration_months: 3 },
+  ])}\n\`\`\``;
+  const { llmProducts, warnings } = parseExtractResponse(raw, "유튜브 프리미엄 3개월");
+  assert.strictEqual(warnings.length, 0, `unexpected warnings: ${warnings.join(", ")}`);
+  assert.strictEqual(llmProducts.length, 1);
+  assert.strictEqual(llmProducts[0].name, "YouTube Premium");
+});
