@@ -1,0 +1,174 @@
+{
+  "contract_id": "multi-stage-parser-execution-loop-v1",
+  "purpose": "Define deterministic execution protocol for staged pipeline runs with session continuity.",
+  "design_intent": "Fail-closed per-stage validation. Explicit state transitions. Session handover at end of each work session.",
+  "change_impact": "New execution protocol for staged pipeline. Integrates with mempalace-memory-loop.",
+  "run_context": {
+    "required_fields": [
+      "run_id",
+      "session_id",
+      "started_at_utc",
+      "slice_index"
+    ],
+    "state_machine": [
+      "IDLE",
+      "STAGE_0_RUNNING",
+      "STAGE_0_VALIDATED",
+      "STAGE_1_RUNNING",
+      "STAGE_1_VALIDATED",
+      "STAGE_2_RUNNING_OR_SKIPPED",
+      "STAGE_2_VALIDATED",
+      "STAGE_3_RUNNING_OR_SKIPPED",
+      "STAGE_3_VALIDATED",
+      "STAGE_4_RUNNING",
+      "STAGE_4_VALIDATED",
+      "STAGE_5_RUNNING",
+      "STAGE_5_VALIDATED",
+      "STAGE_6_RUNNING_OR_SKIPPED",
+      "STAGE_6_VALIDATED",
+      "PERSISTING",
+      "HANDOVER_READY",
+      "ERROR"
+    ],
+    "concurrency_policy": "single_session_per_slice"
+  },
+  "execution_loop": {
+    "entry_point": "orchestrator.runPipeline(input)",
+    "preconditions": ["input_valid", "stage_modules_loaded"],
+    "steps": [
+      {
+        "index": 0,
+        "name": "run_stage_0",
+        "function": "stage0-locate.locateElements(html, postUrl)",
+        "validation": "Stage0Output.titleText (non-empty) && Stage0Output.bodyText (non-empty) && Stage0Output.reductionRatio > 0",
+        "on_fail": "ERROR, log to handover"
+      },
+      {
+        "index": 1,
+        "name": "run_stage_1",
+        "function": "stage1-classify.classifyPost(stage0Output)",
+        "validation": "Stage1Output.postType in ['direct_offer','affiliate','promo_code','comparison','unknown']",
+        "on_fail": "ERROR, log to handover"
+      },
+      {
+        "index": 2,
+        "name": "run_stage_2",
+        "function": "stage2-filter.filterNoise(stage0Output, stage1Output)",
+        "validation": "Stage2Output.matches_schema()",
+        "skip_check": "stage1Output.postType === 'affiliate' OR 'promo_code' → return early with skip=true",
+        "on_fail": "ERROR, log to handover"
+      },
+      {
+        "index": 3,
+        "name": "run_stage_3",
+        "function": "stage3-llm.extractWithLlm(stage2Output, stage1Output)",
+        "validation": "Stage3Output.matches_schema()",
+        "skip_check": "stage2Output.llmRequired === false OR stage2Output.skip === true",
+        "on_fail": "Continue with stage3Output.skipped=true"
+      },
+      {
+        "index": 4,
+        "name": "run_stage_4",
+        "function": "stage4-merge.mergeProducts(stage2Output, stage3Output)",
+        "validation": "Stage4Output.matches_schema() AND finalProducts.length >= 0",
+        "on_fail": "ERROR, log to handover"
+      },
+      {
+        "index": 5,
+        "name": "run_stage_5",
+        "function": "stage5-evidence.attachEvidence(stage4Output, { stage0Output, stage1Output, stage2Output, stage3Output })",
+        "validation": "Stage5Output.matches_schema() AND productsWithEvidence.length === stage4Output.finalProducts.length",
+        "on_fail": "ERROR, log to handover"
+      },
+      {
+        "index": 6,
+        "name": "run_stage_6",
+        "function": "stage6-dedup.deduplicatePost(postUrl, stage5Output)",
+        "validation": "Stage6Output.matches_schema()",
+        "skip_check": "first_run_bypass flag OR stage5Output.products.length === 0",
+        "on_fail": "warn, continue with dedup skipped"
+      },
+      {
+        "index": 7,
+        "name": "persist_output",
+        "function": "adapter.convertToLegacyFormat(stage5Output)",
+        "validation": "output matches PpomppuParsedRecord schema",
+        "on_fail": "ERROR, log to handover"
+      },
+      {
+        "index": 8,
+        "name": "prepare_handover",
+        "function": "createSessionHandover()",
+        "validation": "handover file valid",
+        "on_fail": "warn, continue"
+      }
+    ],
+    "end_conditions": ["output_persisted", "handover_created"],
+    "on_success": "return Stage5Output via adapter, trigger handover creation",
+    "on_error": "return error with stage context, log to handover"
+  },
+  "session_protocol": {
+    "session_start": {
+      "steps": [
+        "Load current slice from multi-stage-parser-v1.json implementation_sequence",
+        "Read previous handover if exists",
+        "Verify prerequisites from slice.dependencies",
+        "Set state to IDLE"
+      ]
+    },
+    "session_work": {
+      "steps": [
+        "Implement slice functionality",
+        "Run test cases for slice",
+        "Update state machine per stage completion",
+        "Log decisions to handover draft"
+      ]
+    },
+    "session_end": {
+      "steps": [
+        "Create handover file with current progress",
+        "Update state.index.json",
+        "Run mempalace checkpoint if available",
+        "Provide copy-paste handover summary"
+      ]
+    }
+  },
+  "validation_posts": {
+    "regression_set": [
+      "eb67ebba985c - 기프티콩~ (implicit names, LLM wins)",
+      "551b849c00f1 - 구독트리 (HTML wins at confidence 0.9)",
+      "9446cd3682da - 구독트리 (HTML wins, LLM finds fewer)",
+      "0aea7978e7b3 - SharePlan (noise dominant, signal < 0.3)"
+    ],
+    "expected_behavior": {
+      "eb67ebba985c": "Stage 1 classifies direct_offer, Stage 3 LLM resolves implicit names (title: 유튜브 프리미엄 → body: 가족계정)",
+      "551b849c00f1": "Stage 2 Cheerio confidence >= 0.9, signalScore >= 0.85, Stage 3 LLM skipped",
+      "9446cd3682da": "Stage 4 merge picks Cheerio products (rejects junk like 'OTT 구독')",
+      "0aea7978e7b3": "Stage 0 reduces HTML 70%, Stage 2 signalScore < 0.3, Stage 3 LLM runs with clean context"
+    }
+  },
+  "error_handling": {
+    "stage_failure": "Log stage name, input, error to handover",
+    "validation_failure": "Log validation rule that failed",
+    "cascade_handling": "If Stage 3 fails, continue with skipped=true"
+  },
+  "metrics": {
+    "per_stage": [
+      "stage_duration_ms",
+      "stage_input_size",
+      "stage_output_size",
+      "stage_validation_pass"
+    ],
+    "pipeline_total": [
+      "total_duration_ms",
+      "products_extracted",
+      "llm_calls_count",
+      "llm_skip_count"
+    ]
+  },
+  "references": {
+    "parent_plan": "multi-stage-parser-v1.json",
+    "mempalace_spec": "../specs/mempalace-memory-loop-v1.json",
+    "handover_protocol": "session-handover.protocol.json"
+  }
+}

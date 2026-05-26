@@ -1,0 +1,87 @@
+{
+  "spec_id": "stage-structure-v1",
+  "status": "deprecated",
+  "deprecated_reason": "Merged into stage-noise-filter-v1.json (stage_index: 2). Stage 2 now runs Cheerio product extraction BEFORE noise filtering. See stage-noise-filter-v1.json processing_rules.step_0.",
+  "stage_index": "N/A - was 1 in old 5-stage arch; conflicts with stage-classify-v1.json (stage_index: 1) in new 7-stage arch",
+  "name": "Structural Parse",
+  "purpose": "DEPRECATED. Extract product blocks from HTML using Cheerio with location tracking.",
+  "design_intent": "Deterministic HTML parsing that identifies WHERE products appear, not WHAT they are. Enables downstream stages to filter and validate.",
+  "change_impact": "Logic ported into Stage 2 Filter (stage-noise-filter-v1.json) as step_0. extractStructure() function preserved but called internally by filterNoise().",
+  "input_contract": {
+    "required": ["html", "postUrl"],
+    "optional": ["vendorHint"]
+  },
+  "output_contract": {
+    "type": "Stage1Output",
+    "required_fields": [
+      "rawProducts - Array<{ name, price?, duration?, text, location }>",
+      "blockLocations - Array<{ selector, text, confidence }>",
+      "confidence - number (0-1)",
+      "metadata - { vendor, title, postedAt }"
+    ],
+    "optional_fields": [
+      "imageUrls - string[]",
+      "warnings - string[]"
+    ]
+  },
+  "processing_rules": {
+    "selector_strategy": [
+      "td.board-contents first",
+      "div.JS_ContentMain fallback",
+      "body last resort"
+    ],
+    "block_detection": [
+      "Find <p> and <div> elements with price/duration patterns",
+      "Track element path as location identifier",
+      "Score each block's signal strength"
+    ],
+    "product_extraction": [
+      "Match price pattern: ₩XXX,XXX or XXX,XXX원",
+      "Match duration pattern: N개월 or N년",
+      "Extract surrounding text as product context",
+      "Normalize name using existing product-name-utils"
+    ],
+    "confidence_formula": "hasProducts ? 0.3 + (productsWithBothPriceAndDuration / totalProducts) * 0.7 : 0"
+  },
+  "noise_handling": {
+    "strategy": "Extract ALL blocks, let Stage 2 filter",
+    "rationale": "Stage 1 is purely structural; filtering decisions belong to Stage 2"
+  },
+  "implementation": {
+    "module": "lib/competitor-intel/pipeline/stage1-structure/",
+    "entry_point": "extractStructure(html, postUrl) → Stage1Output",
+    "reuse": "Port logic from parsePpomppuPost() extractProducts() function"
+  },
+  "test_cases": [
+    {
+      "id": "TC-1.1",
+      "name": "Simple text ad",
+      "input": "HTML with 3 clear product lines",
+      "expected": "3 rawProducts, confidence >= 0.8"
+    },
+    {
+      "id": "TC-1.2",
+      "name": "Image-heavy ad",
+      "input": "HTML with images, no text prices",
+      "expected": "0 rawProducts, confidence = 0.3, imageUrls populated"
+    },
+    {
+      "id": "TC-1.3",
+      "name": "SharePlan noise",
+      "input": "HTML with license info dominant",
+      "expected": "rawProducts includes license line, blockLocations shows noise blocks"
+    },
+    {
+      "id": "TC-1.4",
+      "name": "Mixed content",
+      "input": "Product info + FAQ + payment instructions",
+      "expected": "rawProducts includes ALL blocks (Stage 2 will filter)"
+    }
+  ],
+  "acceptance_criteria": [
+    "extractStructure() returns typed Stage1Output",
+    "blockLocations includes element path for each block",
+    "confidence formula matches spec",
+    "Test cases TC-1.1 through TC-1.4 pass"
+  ]
+}

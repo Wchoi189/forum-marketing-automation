@@ -1,0 +1,98 @@
+{
+  "spec_id": "stage-locate-v1",
+  "stage_index": 0,
+  "name": "HTML Locate",
+  "purpose": "Extract title and body content from HTML. Discard all platform chrome (sidebar, nav, footer, license blocks).",
+  "design_intent": "Downstream stages operate on CLEAN TEXT, not raw HTML. Trafilatura handles boilerplate removal automatically — no selector maintenance. Title extracted separately via metadata API (needed for implicit name resolution in Stage 3).",
+  "change_impact": "Replaces Cheerio selector chain approach. Output is plain text (titleText + bodyText), not HTML. Stage 2 no longer needs to run Cheerio DOM extraction.",
+  "implementation_tool": {
+    "primary": "Trafilatura (Python)",
+    "rationale": "Tested: SharePlan 82,054 → 1,271 chars (98.5% reduction). Prices preserved (3-31 patterns per post). Auto-removes sidebar/nav/footer/license without selector maintenance.",
+    "fallback": "Cheerio selector chain (if Trafilatura fails or returns empty)",
+    "python_env": "/parent/marketing-automation/.venv/bin/python3",
+    "install": "uv pip install trafilatura"
+  },
+  "input_contract": {
+    "required": ["html", "postUrl"],
+    "optional": ["selectorHint"]
+  },
+  "output_contract": {
+    "type": "Stage0Output",
+    "required_fields": [
+      "titleText - string (from trafilatura.extract_metadata(html).title or og:title fallback)",
+      "bodyText - string (from trafilatura.extract(html) — clean plain text, no HTML tags)",
+      "reductionRatio - number (0-1, originalSize - cleanSize / originalSize)"
+    ],
+    "optional_fields": [
+      "warnings - string[] (e.g., 'trafilatura_empty_fallback_used')",
+      "debugInfo - { originalChars, cleanChars, reductionPct, tool }"
+    ]
+  },
+  "python_bridge": {
+    "script": "scripts/trafilatura_extract.py",
+    "interface": "stdin: raw HTML → stdout: JSON { title, body, originalChars, cleanChars }",
+    "call_from_ts": "child_process.spawn(pythonBin, [script]) with html piped to stdin",
+    "timeout_ms": 5000,
+    "error_handling": "On non-zero exit or empty body: fall back to Cheerio title/body selectors"
+  },
+  "trafilatura_config": {
+    "extract_metadata": "trafilatura.extract_metadata(html) → .title for titleText",
+    "extract_body": "trafilatura.extract(html, include_tables=True, include_links=False, no_fallback=False)",
+    "include_tables": true,
+    "rationale_tables": "Ppomppu price tables may be in <table> elements; must preserve"
+  },
+  "cheerio_fallback": {
+    "title_selectors": [
+      "#topTitle > h1",
+      "h1.view-title",
+      "meta[property='og:title']"
+    ],
+    "body_selectors": [
+      "td.board-contents",
+      "div.JS_ContentMain",
+      "#bbsview",
+      "#bbsContents"
+    ],
+    "trigger": "trafilatura returns empty string or throws"
+  },
+  "expected_reduction": {
+    "typical": "70-85%",
+    "shareplan_noise_posts": "98-99% (verified)",
+    "standard_posts": "60-80%"
+  },
+  "test_cases": [
+    {
+      "id": "TC-0.1",
+      "name": "Standard post (구독트리)",
+      "input": "raw_html/551b849c00f1.html",
+      "expected": "titleText non-empty, bodyText contains price patterns, reductionRatio >= 0.6"
+    },
+    {
+      "id": "TC-0.2",
+      "name": "SharePlan noise post",
+      "input": "raw_html/0aea7978e7b3.html",
+      "expected": "titleText non-empty, bodyText non-empty, reductionRatio >= 0.95"
+    },
+    {
+      "id": "TC-0.3",
+      "name": "Implicit name post (기프티콩~)",
+      "input": "raw_html/eb67ebba985c.html",
+      "expected": "titleText contains '유튜브 프리미엄', bodyText contains price but NOT product name"
+    },
+    {
+      "id": "TC-0.4",
+      "name": "Trafilatura returns empty (fallback test)",
+      "input": "minimal HTML with only nav elements",
+      "expected": "warnings includes 'trafilatura_empty_fallback_used', Cheerio fallback runs"
+    }
+  ],
+  "acceptance_criteria": [
+    "locateElements() returns typed Stage0Output",
+    "titleText populated (Trafilatura metadata or Cheerio fallback)",
+    "bodyText populated and clean (no sidebar/nav/footer/license)",
+    "reductionRatio >= 0.70 for SharePlan posts",
+    "include_tables=True preserves price table content",
+    "Fallback to Cheerio when Trafilatura returns empty",
+    "Test cases TC-0.1 through TC-0.4 pass"
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "spec_id": "stage-llm-extraction-v1",
+  "stage_index": 3,
+  "name": "LLM Extraction",
+  "purpose": "Extract products from filtered content using LLM when structural parsing insufficient.",
+  "design_intent": "LLM receives PRE-FILTERED content (not raw HTML). Fills in implicit names, resolves context from title.",
+  "change_impact": "LLM prompt receives cleaner input. Skip condition added for high-confidence structural results.",
+  "input_contract": {
+    "required": ["stage0Output", "stage1Output", "stage2Output"],
+    "types": {
+      "stage0Output": "Stage0Output from stage-locate-v1 — provides title text for implicit name resolution",
+      "stage1Output": "Stage1Output from stage-classify-v1 — provides postType for prompt context (comparison: extract offer price only)",
+      "stage2Output": "Stage2Output from stage-noise-filter-v1 — provides filtered content + llmRequired flag"
+    },
+    "skip_condition": "stage2Output.llmRequired === false OR stage2Output.skip === true"
+  },
+  "output_contract": {
+    "type": "Stage3Output",
+    "required_fields": [
+      "llmProducts - Array<{ name, duration?, price?, confidence, evidence }>",
+      "promptContext - string (what was sent to LLM)",
+      "llmConfidence - number (0-1)",
+      "skipped - boolean"
+    ],
+    "optional_fields": [
+      "rawLlmResponse - string",
+      "catalogMatches - Array<{ original, canonical }>"
+    ]
+  },
+  "llm_config": {
+    "endpoint": "http://ollama:11434",
+    "model": "gemma2:27b",
+    "fallback_models": ["qwen2.5vl:3b"],
+    "max_tokens": 5000,
+    "timeout_ms": 60000,
+    "cache_enabled": true
+  },
+  "prompt_strategy": {
+    "template": "PRODUCT_EXTRACTION_PROMPT from text-extraction.ts",
+    "title_injection": "Always pass stage0Output.titleText for implicit name resolution (e.g., title '유튜브 프리미엄' → body '가족계정 17,000원')",
+    "content_input": "stage2Output.contentForLlm — clean plain text, already filtered by Stage 2. NOT raw HTML.",
+    "post_type_injection": "Pass stage1Output.postType in prompt for comparison posts ('extract offer price only, not reference price')",
+    "schema_enforcement": "Output must be JSON matching LlmProductSchema (Zod-validated)"
+  },
+  "zod_validation": {
+    "tool": "Zod (zod@4.3.6 — already installed)",
+    "schema_name": "LlmProductSchema",
+    "validates": [
+      "name: string (non-empty)",
+      "price_krw: number | null",
+      "duration_months: number | null",
+      "confidence: number (0-1)",
+      "evidence: string (excerpt from bodyText)"
+    ],
+    "cross_pair_check": "If price_krw and duration_months both present: price_krw / duration_months must be in plausible range (500–50000 KRW/month)",
+    "on_validation_fail": "Log Zod error, retry once with stricter prompt. If retry fails: return skipped=true."
+  },
+  "product_validation": {
+    "catalog_filter": "rejectNonCatalogProducts() - reject products not matching known catalog",
+    "canonicalization": "canonicalizeProductNames() - map names to canonical forms",
+    "cross_pairing_filter": "filterCrossPairedArtifacts() - remove LLM cross-pairing errors (Pain 4 fix)",
+    "junk_filter": "productsLookJunk() - reject generic names without prices"
+  },
+  "confidence_calculation": {
+    "formula": {
+      "products_found": 0.3,
+      "products_with_price_and_duration": 0.4,
+      "catalog_matches": 0.2,
+      "no_junk": 0.1
+    },
+    "llmConfidence_threshold": 0.7
+  },
+  "skip_behavior": {
+    "when_skipped": "Return Stage3Output with skipped=true, llmProducts=[], llmConfidence=0",
+    "reason": "Stage 2 determined structural parsing sufficient"
+  },
+  "implementation": {
+    "module": "lib/competitor-intel/pipeline/stage3-llm/",
+    "entry_point": "extractWithLlm(stage0Output, stage1Output, stage2Output) → Stage3Output",
+    "reuse": "Port logic from runTextExtraction() in text-extraction.ts"
+  },
+  "test_cases": [
+    {
+      "id": "TC-3.1",
+      "name": "Skip when high signal",
+      "input": "stage2Output with signalScore=0.9",
+      "expected": "skipped=true, no LLM call"
+    },
+    {
+      "id": "TC-3.2",
+      "name": "Implicit name resolution",
+      "input": "기프티콩~ post with '가족계정' in body",
+      "expected": "LLM resolves name from title, llmProducts have canonical names"
+    },
+    {
+      "id": "TC-3.3",
+      "name": "Catalog rejection",
+      "input": "LLM returns 'OTT 구독' generic name",
+      "expected": "llmProducts filtered by rejectNonCatalogProducts"
+    },
+    {
+      "id": "TC-3.4",
+      "name": "Cross-pairing fix",
+      "input": "LLM pairs 6-month price with 3-month name",
+      "expected": "filterCrossPairedArtifacts removes artifact"
+    }
+  ],
+  "acceptance_criteria": [
+    "extractWithLlm() returns typed Stage3Output",
+    "Skip condition works (no LLM call when llmRequired=false)",
+    "Post title always passed to prompt",
+    "Catalog validation filters non-matching products",
+    "Cross-pairing filter catches tier mismatches",
+    "Test cases TC-3.1 through TC-3.4 pass"
+  ]
+}

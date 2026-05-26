@@ -1,0 +1,125 @@
+{
+  "spec_id": "stage-classify-v1",
+  "stage_index": 1,
+  "name": "Post Type Classify",
+  "purpose": "Classify post type using LLM. Determines extraction strategy.",
+  "design_intent": "Affiliate/promo/comparison posts need DIFFERENT handling. Classifier runs FIRST. Rule-based cannot detect post intent.",
+  "change_impact": "New mandatory stage. All downstream stages depend on postType classification.",
+  "input_contract": {
+    "required": ["stage0Output"],
+    "type": "Stage0Output from stage-locate-v1"
+  },
+  "output_contract": {
+    "type": "Stage1Output",
+    "required_fields": [
+      "postType - 'direct_offer' | 'affiliate' | 'promo_code' | 'comparison' | 'unknown'",
+      "classifierConfidence - number (0-1)",
+      "classifierEvidence - { excerpt, reasoning }"
+    ],
+    "optional_fields": [
+      "affiliateTarget - string (e.g., 'GamsGo') if affiliate",
+      "promoCode - string if promo_code",
+      "referencePrice - number if comparison"
+    ]
+  },
+  "post_type_definitions": {
+    "direct_offer": {
+      "definition": "Vendor selling OTT subscription directly",
+      "extraction": "Proceed with full extraction pipeline",
+      "examples": ["구독플레이스 YouTube Premium 가족계정", "기프티콩~ 유튜브 프리미엄 1달"]
+    },
+    "affiliate": {
+      "definition": "Post refers to external vendor (GamsGo, AllKeyShop)",
+      "extraction": "SKIP extraction. Record referral link.",
+      "examples": ["GamsGo 프로모션 코드", "AllKeyShop에서 구매하세요"]
+    },
+    "promo_code": {
+      "definition": "Post advertising discount code, no direct pricing",
+      "extraction": "SKIP extraction. Record promo code.",
+      "examples": ["SALE20 코드 사용시 20% 할인"]
+    },
+    "comparison": {
+      "definition": "Post compares official price vs vendor price",
+      "extraction": "Extract OFFER price, not reference price.",
+      "examples": ["공식 14,900원 vs 우리 9,900원"]
+    },
+    "unknown": {
+      "definition": "Classifier uncertain",
+      "extraction": "Proceed with caution, flag for review"
+    }
+  },
+  "llm_config": {
+    "endpoint": "http://ollama:11434",
+    "recommended_models": [
+      "gemma2:9b - fast classification",
+      "exaone3.5:latest - Korean specialist",
+      "qwen3.5:9b - balanced"
+    ],
+    "prompt_strategy": "Single-pass classification with structured JSON output"
+  },
+  "classification_prompt": {
+    "template": "Given title and body, classify post type:\n\nTypes: direct_offer | affiliate | promo_code | comparison\n\nTitle: {title}\nBody: {body}\n\nOutput JSON: { postType, confidence, evidence, target?, promoCode?, referencePrice? }"
+  },
+  "processing_rules": {
+    "step_1": "Receive clean title + body from Stage 0",
+    "step_2": "Call LLM with classification prompt",
+    "step_3": "Parse JSON response",
+    "step_4": "Validate postType is known value",
+    "step_5": "Attach classifier evidence (excerpt + reasoning)",
+    "step_6": "Set downstream skip conditions based on postType"
+  },
+  "skip_impact": {
+    "affiliate": "Stage 2-5 skipped. Record referral only.",
+    "promo_code": "Stage 2-5 skipped. Record code only.",
+    "comparison": "Stage 3 must extract OFFER price, not reference.",
+    "direct_offer": "Full pipeline runs.",
+    "unknown": "Pipeline runs with warning flag."
+  },
+  "implementation": {
+    "module": "lib/competitor-intel/pipeline/stage1-classify/",
+    "entry_point": "classifyPost(stage0Output) → Stage1Output",
+    "prompt_file": "classify-prompt.ts"
+  },
+  "test_cases": [
+    {
+      "id": "TC-1.1",
+      "name": "Direct offer",
+      "input": "Title: 유튜브 프리미엄 1달 4000원",
+      "expected": "postType='direct_offer', confidence >= 0.9"
+    },
+    {
+      "id": "TC-1.2",
+      "name": "Affiliate GamsGo",
+      "input": "Body contains 'GamsGo 프로모션'",
+      "expected": "postType='affiliate', affiliateTarget='GamsGo'"
+    },
+    {
+      "id": "TC-1.3",
+      "name": "Promo code",
+      "input": "Body contains 'SALE20 코드'",
+      "expected": "postType='promo_code', promoCode='SALE20'"
+    },
+    {
+      "id": "TC-1.4",
+      "name": "Comparison",
+      "input": "Body contains '공식 가격 14,900원 vs 우리 9,900원'",
+      "expected": "postType='comparison', referencePrice=14900"
+    },
+    {
+      "id": "TC-1.5",
+      "name": "Bloated marketing",
+      "input": "Title: 최저가 보장! 정식 사업자! 가족계정!",
+      "expected": "postType='direct_offer' (intent is to sell)"
+    }
+  ],
+  "acceptance_criteria": [
+    "classifyPost() returns typed Stage1Output",
+    "All 5 post types handled",
+    "Affiliate posts skip extraction pipeline",
+    "Promo code posts skip extraction pipeline",
+    "Comparison posts extract offer price only",
+    "Classifier evidence includes reasoning",
+    "Test cases TC-1.1 through TC-1.5 pass"
+  ],
+  "critical_note": "Rule-based Cheerio CANNOT classify post intent. Marketing bloated titles require high-dimensional thinking. LLM is mandatory."
+}

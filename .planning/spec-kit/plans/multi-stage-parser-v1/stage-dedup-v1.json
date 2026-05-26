@@ -1,0 +1,90 @@
+{
+  "spec_id": "stage-dedup-v1",
+  "stage_index": 6,
+  "name": "Deduplication",
+  "purpose": "Check embedding similarity. Skip redundant posts. Prevent duplicate scraping.",
+  "design_intent": "Many similar posts from same vendor. Embedding similarity detects duplicates. Reduces redundant processing.",
+  "change_impact": "New stage at end of pipeline. First run stores embeddings, subsequent runs dedup.",
+  "input_contract": {
+    "required": ["stage5Output", "previousEmbeddings"],
+    "optional": ["similarityThreshold"]
+  },
+  "output_contract": {
+    "type": "Stage6Output",
+    "required_fields": [
+      "uniquePosts - boolean",
+      "duplicateIds - string[] (postIds similar to this)",
+      "similarityScores - Array<{ postId, score }>"
+    ],
+    "optional_fields": [
+      "embedding - number[] (stored for future dedup)",
+      "warnings - string[]"
+    ]
+  },
+  "embedding_config": {
+    "endpoint": "http://ollama:11434",
+    "recommended_models": [
+      "nomic-embed-text - primary embedding",
+      "all-minilm:l6-v2 - fast fallback"
+    ],
+    "embedding_field": "title + body concatenated",
+    "dimension": "nomic: 768, minilm: 384"
+  },
+  "similarity_threshold": {
+    "duplicate_threshold": 0.95,
+    "similar_threshold": 0.85,
+    "action_on_duplicate": "SKIP processing, log duplicate"
+  },
+  "processing_rules": {
+    "step_1": "Generate embedding for title + body",
+    "step_2": "Query previous embeddings for similarity",
+    "step_3": "If similarity >= 0.95, mark duplicate",
+    "step_4": "If similarity >= 0.85, log similar post",
+    "step_5": "Store embedding for future dedup",
+    "step_6": "Return uniquePosts flag"
+  },
+  "dedup_storage": {
+    "location": "artifacts/competitor-ads/embeddings/",
+    "format": "JSON with { postId, vendor, embedding, timestamp }",
+    "index_file": "embeddings-index.json"
+  },
+  "implementation": {
+    "module": "lib/competitor-intel/pipeline/stage6-dedup/",
+    "entry_point": "checkDuplicates(stage5Output) → Stage6Output",
+    "embedding_client": "lib/competitor-intel/embedding-client.ts"
+  },
+  "test_cases": [
+    {
+      "id": "TC-6.1",
+      "name": "Unique post",
+      "input": "New post, no similar embeddings",
+      "expected": "uniquePosts=true, similarityScores empty"
+    },
+    {
+      "id": "TC-6.2",
+      "name": "Exact duplicate",
+      "input": "Post identical to previous",
+      "expected": "uniquePosts=false, duplicateIds populated, similarity >= 0.95"
+    },
+    {
+      "id": "TC-6.3",
+      "name": "Similar vendor post",
+      "input": "Same vendor, similar title",
+      "expected": "uniquePosts=true, similar logged, similarity >= 0.85"
+    },
+    {
+      "id": "TC-6.4",
+      "name": "First run",
+      "input": "No previous embeddings",
+      "expected": "uniquePosts=true, embedding stored"
+    }
+  ],
+  "acceptance_criteria": [
+    "checkDuplicates() returns typed Stage6Output",
+    "Embedding generated for each post",
+    "Duplicate threshold 0.95 enforced",
+    "Similar threshold 0.85 logged",
+    "Embeddings stored for future runs",
+    "Test cases TC-6.1 through TC-6.4 pass"
+  ]
+}

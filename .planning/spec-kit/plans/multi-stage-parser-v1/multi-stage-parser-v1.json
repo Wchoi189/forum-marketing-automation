@@ -1,0 +1,299 @@
+{
+  "spec_id": "multi-stage-parser-v1",
+  "title": "Multi-Stage Competitor Ad Parser Pipeline",
+  "status": "ready-for-implementation",
+  "created_at": "2026-05-26",
+  "purpose": "Replace monolithic parser with staged pipeline for better noise filtering, debuggability, and evidence tracking.",
+  "design_intent": "Each stage has isolated responsibility and testable outputs. LLM receives pre-filtered content. Evidence chain is explicit per-product.",
+  "change_impact": "Major refactor of lib/competitor-intel/crawler/request-handler.ts and lib/competitor-ad-parser/. Backward compatible via adapter layer.",
+  "rationale": {
+    "current_issues": [
+      "Single monolithic function (~300 lines) mixes structure, noise filtering, LLM, and validation",
+      "LLM reads 90%+ noise for SharePlan posts (sidebar, nav, license info)",
+      "Rule-based parsing fails for 50% of posts - bloated marketing, implicit names, affiliate posts",
+      "No post type classification - affiliate/promo/comparison posts treated as direct offers",
+      "No per-product confidence breakdown - single aggregate score",
+      "Debugging 'why this product?' requires tracing through 5+ decision points",
+      "No mechanism to skip stages (e.g., high-confidence Cheerio skip LLM)",
+      "No deduplication - redundant scraping of similar posts"
+    ],
+    "staged_benefits": [
+      "Stage 0 isolates title/body HTML elements, discards platform chrome",
+      "Stage 1 classifies post type BEFORE extraction (direct, affiliate, promo, comparison)",
+      "Noise filtering happens BEFORE LLM (cleaner context)",
+      "Per-product evidence chain (which stage produced which field)",
+      "Stage skipping for high-confidence cases",
+      "Deduplication via embedding similarity prevents redundant scraping",
+      "LLM resolves implicit names (title → body) after classifier confirms post type"
+    ],
+    "critical_insight": "Half of posts require high-dimensional thinking. Bloated marketing titles, affiliate referrals, promo codes, implicit naming. Rule-based Cheerio cannot extract product info from these. Classifier-first architecture required."
+  },
+  "architecture": {
+    "pipeline_dir": "lib/competitor-intel/pipeline/",
+    "stages": [
+      {
+        "id": "stage-0-locate",
+        "name": "HTML Locate",
+        "responsibility": "Find title/body elements, discard sidebar/nav/footer",
+        "outputs": ["titleText", "bodyText", "reductionRatio"],
+        "spec_file": "stage-locate-v1.json",
+        "critical": "Downstream efficiency depends on clean input. Sidebar/nav are static noise."
+      },
+      {
+        "id": "stage-1-classify",
+        "name": "Post Type Classify",
+        "responsibility": "LLM classify: direct_offer | affiliate | promo_code | comparison",
+        "outputs": ["postType", "classifierConfidence", "classifierEvidence"],
+        "spec_file": "stage-classify-v1.json",
+        "skip_condition": "NEVER - classifier always runs first",
+        "critical": "Affiliate/promo posts need different handling. No product extraction for affiliates."
+      },
+      {
+        "id": "stage-2-filter",
+        "name": "Noise Filtering",
+        "responsibility": "Remove license/footer patterns, validate signal strength",
+        "outputs": ["cleanContent", "filterReasons", "signalScore"],
+        "spec_file": "stage-noise-filter-v1.json",
+        "skip_condition": "stage1.postType === 'affiliate' OR 'promo_code' - no extraction needed"
+      },
+      {
+        "id": "stage-3-extract",
+        "name": "LLM Extraction",
+        "responsibility": "Resolve implicit names (title→body), extract products with evidence",
+        "outputs": ["llmProducts", "promptContext", "llmConfidence", "implicitNameResolution"],
+        "spec_file": "stage-llm-extraction-v1.json",
+        "skip_condition": "stage1.postType !== 'direct_offer' OR stage2.signalScore >= 0.85",
+        "critical": "LLM handles bloated marketing titles, implicit naming. Cheerio cannot."
+      },
+      {
+        "id": "stage-4-merge",
+        "name": "Validation & Merge",
+        "responsibility": "Cross-check sources, catalog validation, vote/tie-breaker",
+        "outputs": ["finalProducts", "sourceAttribution", "confidenceBreakdown"],
+        "spec_file": "stage-merge-v1.json"
+      },
+      {
+        "id": "stage-5-evidence",
+        "name": "Evidence Tracking",
+        "responsibility": "Document product provenance, attach excerpts",
+        "outputs": ["productsWithEvidence", "evidenceChain", "warnings"],
+        "spec_file": "stage-evidence-v1.json"
+      },
+      {
+        "id": "stage-6-dedup",
+        "name": "Deduplication",
+        "responsibility": "Check embedding similarity, skip redundant posts",
+        "outputs": ["uniquePosts", "duplicateIds", "similarityScores"],
+        "spec_file": "stage-dedup-v1.json",
+        "skip_condition": "First run only - dedup on subsequent runs"
+      }
+    ]
+  },
+  "folder_layout": {
+    "lib/competitor-intel/pipeline/": [
+      "stage0-locate/index.ts         - HTML element isolation, chrome removal",
+      "stage0-locate/types.ts         - Stage0Output type",
+      "stage1-classify/index.ts       - LLM post type classification",
+      "stage1-classify/classify-prompt.ts - Classification prompt template",
+      "stage1-classify/types.ts       - Stage1Output type",
+      "stage2-filter/index.ts         - Cheerio extraction (step_0) + noise removal + signal scoring",
+      "stage2-filter/patterns.ts      - License/noise regex patterns",
+      "stage2-filter/types.ts         - Stage2Output type",
+      "stage3-llm/index.ts            - LLM text extraction (skip if signalScore >= 0.85)",
+      "stage3-llm/prompt.ts           - Product extraction prompt",
+      "stage4-merge/index.ts          - Vote/tie-breaker logic (Cheerio vs LLM)",
+      "stage4-merge/validation.ts     - Catalog validation",
+      "stage5-evidence/index.ts       - Evidence chain assembly",
+      "stage5-evidence/types.ts       - Evidence types",
+      "stage6-dedup/index.ts          - Embedding similarity dedup",
+      "orchestrator.ts                - Pipeline coordinator (Stage 0→1→2→3→4→5→6)",
+      "types.ts                       - Shared pipeline types",
+      "adapter.ts                     - Backward-compatible adapter (parsePpomppuPost interface)"
+    ]
+  },
+  "tool_decisions": {
+    "trafilatura": {
+      "decision": "ACCEPTED — Stage 0",
+      "rationale": "Tested: SharePlan 82,054 → 1,271 chars (98.5% reduction). Prices preserved. Replaces Cheerio selector chain.",
+      "impact": "Stage 0 output is plain text (titleText + bodyText). Stage 2 does text pattern matching, not DOM parsing. stage-structure-v1.json Cheerio step removed.",
+      "install": "uv pip install trafilatura",
+      "bridge": "scripts/trafilatura_extract.py called via child_process.spawn"
+    },
+    "jq": {
+      "decision": "REJECTED for pipeline automation",
+      "rationale": "AI-generated jq commands are non-deterministic and untestable. Noise patterns are deterministic regex — TypeScript handles cleanly.",
+      "accepted_use": "Dev/debug tooling only: inspect pipeline JSON outputs manually"
+    },
+    "zod": {
+      "decision": "ACCEPTED — Stage 3 + Stage 4",
+      "rationale": "Already installed (zod@4.3.6). Stage 3: validates LLM JSON output schema. Stage 4: cross-pair price/duration plausibility check (Pain 4 fix). Zero new dependency.",
+      "schema": "LlmProductSchema in stage3-llm/schema.ts"
+    },
+    "outlines": {
+      "decision": "REJECTED — pydantic_core wheel invalid",
+      "fallback": "Ollama raw JSON output + Zod validation"
+    },
+    "duckdb": {
+      "decision": "DEFERRED — not tested",
+      "possible_use": "Analytics queries on competitor-ads.db, NOT pipeline automation"
+    }
+  },
+  "backward_compatibility": {
+    "adapter_layer": "lib/competitor-intel/pipeline/adapter.ts",
+    "interface_preserved": "parsePpomppuPost(html, postUrl) → PpomppuParsedRecord",
+    "migration_path": "request-handler.ts calls orchestrator.run() instead of direct parsePpomppuPost()"
+  },
+  "execution_protocol": {
+    "contract_ref": "execution-loop.contract.json",
+    "session_handover_ref": "session-handover.protocol.json"
+  },
+  "implementation_sequence": [
+    {
+      "slice": 1,
+      "name": "Stage 0 - Locate",
+      "estimated_hours": 2,
+      "dependencies": [],
+      "spec": "stage-locate-v1.json",
+      "module": "stage0-locate/",
+      "entry": "locateElements(html, postUrl) → Stage0Output",
+      "acceptance": ["Trafilatura Python bridge working (scripts/trafilatura_extract.py)", "titleText from metadata API", "bodyText from Trafilatura with include_tables=True", "Cheerio fallback on empty result", "reductionRatio >= 0.95 for SharePlan post", "TC-0.1 through TC-0.4 pass"]
+    },
+    {
+      "slice": 2,
+      "name": "Stage 1 - Classify",
+      "estimated_hours": 3,
+      "dependencies": [1],
+      "spec": "stage-classify-v1.json",
+      "module": "stage1-classify/",
+      "entry": "classifyPost(stage0Output) → Stage1Output",
+      "acceptance": ["All 5 post types classified", "Affiliate/promo_code skip flags set", "Classifier evidence includes reasoning", "TC-1.1 through TC-1.5 pass"]
+    },
+    {
+      "slice": 3,
+      "name": "Stage 2 - Filter (Cheerio Extract + Noise Remove)",
+      "estimated_hours": 4,
+      "dependencies": [1, 2],
+      "spec": "stage-noise-filter-v1.json",
+      "module": "stage2-filter/",
+      "entry": "filterNoise(stage0Output, stage1Output) → Stage2Output",
+      "acceptance": ["bodyText split into text blocks (no DOM parsing)", "Affiliate/promo posts return early with skip=true", "Noise patterns applied to text lines", "Signal score computed", "contentForLlm populated from clean blocks", "TC-2.1 through TC-2.4 pass"]
+    },
+    {
+      "slice": 4,
+      "name": "Stage 3 - LLM Extract",
+      "estimated_hours": 4,
+      "dependencies": [3],
+      "spec": "stage-llm-extraction-v1.json",
+      "module": "stage3-llm/",
+      "entry": "extractWithLlm(stage2Output, stage1Output) → Stage3Output",
+      "acceptance": ["LLM receives filtered content (not raw HTML)", "Skip condition works (signalScore >= 0.85)", "Implicit name resolution uses title from stage0Output", "TC-3.1 through TC-3.4 pass"]
+    },
+    {
+      "slice": 5,
+      "name": "Stage 4 - Merge",
+      "estimated_hours": 4,
+      "dependencies": [3, 4],
+      "spec": "stage-merge-v1.json",
+      "module": "stage4-merge/",
+      "entry": "mergeProducts(stage2Output, stage3Output) → Stage4Output",
+      "acceptance": ["Cheerio vs LLM vote logic isolated", "Catalog validation working", "Source attribution per-product", "Cross-pair artifacts rejected"]
+    },
+    {
+      "slice": 6,
+      "name": "Stage 5 - Evidence",
+      "estimated_hours": 3,
+      "dependencies": [5],
+      "spec": "stage-evidence-v1.json",
+      "module": "stage5-evidence/",
+      "entry": "attachEvidence(stage4Output, stageOutputs) → Stage5Output",
+      "acceptance": ["Evidence chain per-product", "source field populated (cheerio|llm|ocr)", "Warnings documented for low-confidence"]
+    },
+    {
+      "slice": 7,
+      "name": "Stage 6 - Dedup",
+      "estimated_hours": 2,
+      "dependencies": [6],
+      "spec": "stage-dedup-v1.json",
+      "module": "stage6-dedup/",
+      "entry": "deduplicatePost(postUrl, stage5Output) → Stage6Output",
+      "acceptance": ["nomic-embed-text embedding computed per post", "Threshold 0.95 = duplicate (skip)", "Threshold 0.85 = similar (flag)", "First-run bypass works"]
+    },
+    {
+      "slice": 8,
+      "name": "Orchestrator + Adapter",
+      "estimated_hours": 4,
+      "dependencies": [1, 2, 3, 4, 5, 6, 7],
+      "module": "orchestrator.ts + adapter.ts",
+      "entry": "runPipeline(html, postUrl) → PpomppuParsedRecord",
+      "acceptance": ["All stages chained in order 0→1→2→3→4→5→6", "Skip conditions propagate", "adapter.ts preserves parsePpomppuPost() output format", "request-handler.ts migrated", "Existing test:competitor-intel suite passes"]
+    }
+  ],
+  "total_estimated_hours": 26,
+  "testing_strategy": {
+    "unit_tests_per_stage": 5,
+    "integration_tests": 10,
+    "regression_tests": "Run existing test:competitor-intel suite",
+    "validation_posts": [
+      "eb67ebba985c - 기프티콩~ (implicit names)",
+      "551b849c00f1 - 구독트리 (complex pricing)",
+      "9446cd3682da - 구독트리 (HTML wins)",
+      "0aea7978e7b3 - SharePlan (noise dominant)"
+    ]
+  },
+  "references": {
+    "parent_spec": "../specs/ppomppu-ott-competitor-ads-intel-v1.json",
+    "module_boundaries": "../specs/module-boundaries.json",
+    "ai_design_guidelines": "../specs/ai-design-guidelines.json",
+    "execution_loop_contract": "execution-loop.contract.json",
+    "session_handover_protocol": "session-handover.protocol.json",
+    "mempalace_spec": "../specs/mempalace-memory-loop-v1.json"
+  },
+  "scope": {
+    "in": [
+      "Stage isolation with testable outputs",
+      "Noise filtering before LLM",
+      "Per-product evidence chain",
+      "Stage skipping for high-confidence",
+      "Backward-compatible adapter"
+    ],
+    "out": [
+      "UI changes",
+      "Scheduler/publisher modifications",
+      "Database schema changes",
+      "New API endpoints"
+    ]
+  },
+  "acceptance_criteria": [
+    "Each stage has isolated module with typed input/output",
+    "Stage 2 noise filtering reduces LLM context by 50%+ for SharePlan posts",
+    "Stage 3 skip condition works (high Cheerio confidence skips LLM)",
+    "Stage 4 merge produces source attribution per-product",
+    "Stage 5 evidence chain links products to excerpts",
+    "Orchestrator runs full pipeline in <5s per post",
+    "Adapter preserves parsePpomppuPost() output format",
+    "Existing test:competitor-intel suite passes unchanged",
+    "4 validation posts produce same or better results than monolithic"
+  ],
+  "risk_register": [
+    {
+      "id": "R-001",
+      "risk": "Over-filtering removes legitimate product info",
+      "mitigation": "Stage 2 preserves price-bearing lines; stage 4 validation catches missing products"
+    },
+    {
+      "id": "R-002",
+      "risk": "Stage ordering wrong for certain post types",
+      "mitigation": "Orchestrator allows stage skip conditions; validation posts cover edge cases"
+    },
+    {
+      "id": "R-003",
+      "risk": "Evidence chain incomplete",
+      "mitigation": "Stage 5 asserts evidence per-product; fail-closed on missing evidence"
+    },
+    {
+      "id": "R-004",
+      "risk": "Adapter layer breaks downstream consumers",
+      "mitigation": "Adapter preserves exact output type; integration tests cover request-handler"
+    }
+  ]
+}

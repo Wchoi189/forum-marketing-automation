@@ -1,0 +1,121 @@
+{
+  "spec_id": "stage-merge-v1",
+  "stage_index": 4,
+  "name": "Validation & Merge",
+  "purpose": "Cross-check products from multiple sources, validate against catalog, determine final products.",
+  "design_intent": "Vote/tie-breaker logic isolated. Source attribution per-product. Fail-closed on validation errors.",
+  "change_impact": "New merge logic replaces inline decision code in request-handler.ts.",
+  "input_contract": {
+    "required": ["stage1Output", "stage2Output", "stage3Output"],
+    "types": {
+      "stage1Output": "Stage1Output from stage-classify-v1 — provides postType for comparison handling",
+      "stage2Output": "Stage2Output from stage-noise-filter-v1 — provides Cheerio cleanProducts[] and signalScore",
+      "stage3Output": "Stage3Output from stage-llm-extraction-v1 — provides LLM llmProducts[] (may be skipped=true)"
+    }
+  },
+  "output_contract": {
+    "type": "Stage4Output",
+    "required_fields": [
+      "finalProducts - Array<{ name, duration?, price?, source, confidence }>",
+      "sourceAttribution - Array<{ productId, sources: string[], votes }>",
+      "confidenceBreakdown - { overall, perProduct }",
+      "warnings - string[]"
+    ],
+    "optional_fields": [
+      "rejectedProducts - Array<{ product, reason }>",
+      "mergeLog - string[]"
+    ]
+  },
+  "source_hierarchy": {
+    "priority_order": [
+      "Cheerio (stage2.cleanProducts) - high confidence when both price AND duration present",
+      "LLM (stage3.llmProducts) - wins when catalog match + completeness >= 90%",
+      "Cheerio only (stage3 skipped) - use stage2.cleanProducts as sole source when LLM skipped"
+    ],
+    "vote_logic": {
+      "same_price_duration_different_name": "Use LLM name (better catalog resolution)",
+      "same_name_different_price": "Use Cheerio price (more reliable extraction)",
+      "llm_has_more_products": "Consider LLM if completeness >= 90%",
+      "cheerio_has_more_products": "Prefer Cheerio if no junk"
+    }
+  },
+  "validation_checks": {
+    "catalog_match": {
+      "rule": "All products must match known catalog",
+      "function": "matchProductName() from product-catalog.ts",
+      "fail_action": "reject product"
+    },
+    "completeness": {
+      "rule": "Product should have BOTH price AND duration",
+      "threshold": 0.7,
+      "fail_action": "lower confidence, keep product"
+    },
+    "price_per_month": {
+      "rule": "Compute price_per_month_krw when both price and duration present",
+      "formula": "Math.round(price_krw / duration_months)"
+    },
+    "duplicate_removal": {
+      "rule": "Remove duplicate products (same name, price, duration)",
+      "function": "deduplicateProducts() from product-name-utils.ts"
+    }
+  },
+  "merge_algorithm": {
+    "step_1": "Collect products from all sources",
+    "step_2": "Apply catalog validation (reject non-matching)",
+    "step_3": "Group by (name_normalized, price, duration)",
+    "step_4": "Vote on each group (count sources)",
+    "step_5": "Resolve conflicts using priority_order",
+    "step_6": "Compute confidence per-product",
+    "step_7": "Build source attribution map"
+  },
+  "confidence_breakdown": {
+    "per_product": {
+      "cheerio_source": 0.8,
+      "llm_source": 0.7,
+      "mixed_source": 0.9,
+      "single_source": 0.6
+    },
+    "overall": {
+      "formula": "average(per_product_confidence) + bonus(for_catalog_match) + penalty(for_warnings)"
+    }
+  },
+  "implementation": {
+    "module": "lib/competitor-intel/pipeline/stage4-merge/",
+    "entry_point": "mergeProducts(stage1Output, stage2Output, stage3Output) → Stage4Output",
+    "validation_file": "validation.ts - catalog and completeness checks"
+  },
+  "test_cases": [
+    {
+      "id": "TC-4.1",
+      "name": "Cheerio wins",
+      "input": "stage2.cleanProducts: 3 products, stage3.llmProducts: 1 product",
+      "expected": "finalProducts from stage1, sourceAttribution shows cheerio"
+    },
+    {
+      "id": "TC-4.2",
+      "name": "LLM wins",
+      "input": "stage2.cleanProducts: 1 product, stage3.llmProducts: 3 products with catalog match",
+      "expected": "finalProducts from stage3, sourceAttribution shows llm"
+    },
+    {
+      "id": "TC-4.3",
+      "name": "Mixed sources",
+      "input": "stage1 has price, stage3 has name",
+      "expected": "finalProducts with mixed source, confidence=0.9"
+    },
+    {
+      "id": "TC-4.4",
+      "name": "Catalog rejection",
+      "input": "stage1 returns 'OTT 구독' generic",
+      "expected": "rejectedProducts populated, finalProducts excludes generic"
+    }
+  ],
+  "acceptance_criteria": [
+    "mergeProducts() returns typed Stage4Output",
+    "Source attribution tracked per-product",
+    "Catalog validation rejects non-matching products",
+    "Vote logic matches source_hierarchy",
+    "Confidence breakdown computed per-product",
+    "Test cases TC-4.1 through TC-4.4 pass"
+  ]
+}

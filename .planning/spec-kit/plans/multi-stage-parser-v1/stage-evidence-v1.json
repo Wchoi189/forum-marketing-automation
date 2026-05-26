@@ -1,0 +1,120 @@
+{
+  "spec_id": "stage-evidence-v1",
+  "stage_index": 5,
+  "name": "Evidence Tracking",
+  "purpose": "Document product provenance, attach excerpts from source blocks, build evidence chain.",
+  "design_intent": "Every product field has explicit evidence. Enables debugging 'why this product?' and audit trail.",
+  "change_impact": "New evidence structure per-product. Previously evidence was global, now per-product.",
+  "input_contract": {
+    "required": ["stage4Output", "stage1Output", "stage2Output", "stage3Output"],
+    "types": {
+      "stage4Output": "Stage4Output",
+      "stage1Output": "Stage1Output",
+      "stage2Output": "Stage2Output",
+      "stage3Output": "Stage3Output"
+    }
+  },
+  "output_contract": {
+    "type": "Stage5Output",
+    "required_fields": [
+      "productsWithEvidence - Array<ProductWithEvidence>",
+      "evidenceChain - Array<{ productId, field, source, excerpt }>",
+      "warnings - string[]",
+      "readyForPersist - boolean"
+    ],
+    "optional_fields": [
+      "auditTrail - string[]"
+    ]
+  },
+  "product_with_evidence_type": {
+    "name": "ProductWithEvidence",
+    "fields": [
+      "name - string",
+      "name_evidence - EvidenceLink",
+      "duration_months - number?",
+      "duration_evidence - EvidenceLink?",
+      "price_krw - number?",
+      "price_evidence - EvidenceLink?",
+      "confidence - number",
+      "source - string (cheerio|llm|mixed)"
+    ]
+  },
+  "evidence_link_type": {
+    "name": "EvidenceLink",
+    "fields": [
+      "source_type - 'html' | 'llm'",
+      "excerpt - string (max 160 chars)",
+      "block_location - string?",
+      "llm_prompt_context - string?",
+      "confidence - number"
+    ]
+  },
+  "evidence_attachment_rules": {
+    "name_field": {
+      "source": "LLM if used, else Cheerio block text",
+      "excerpt": "Surrounding text where name appears",
+      "confidence": "LLM confidence or Cheerio block confidence"
+    },
+    "price_field": {
+      "source": "Cheerio preferred (more reliable extraction)",
+      "excerpt": "Text containing price pattern",
+      "confidence": "Block confidence"
+    },
+    "duration_field": {
+      "source": "Cheerio preferred",
+      "excerpt": "Text containing duration pattern",
+      "confidence": "Block confidence"
+    }
+  },
+  "evidence_chain_building": {
+    "step_1": "For each finalProduct, find matching blocks in stage1Output",
+    "step_2": "If product from LLM, find prompt context in stage3Output",
+    "step_3": "Attach excerpt for each field (name, price, duration)",
+    "step_4": "Build evidenceChain array linking product → field → source → excerpt",
+    "step_5": "Assert evidence exists for each product (fail-closed)"
+  },
+  "validation": {
+    "required_evidence": "Every product must have name_evidence",
+    "optional_evidence": "price_evidence and duration_evidence if fields present",
+    "fail_closed": "If evidence missing for required field, add warning, lower confidence"
+  },
+  "implementation": {
+    "module": "lib/competitor-intel/pipeline/stage5-evidence/",
+    "entry_point": "attachEvidence(stage4, stage1, stage2, stage3) → Stage5Output",
+    "types_file": "types.ts - ProductWithEvidence, EvidenceLink types"
+  },
+  "test_cases": [
+    {
+      "id": "TC-5.1",
+      "name": "Full evidence chain",
+      "input": "Product with name, price, duration",
+      "expected": "ProductWithEvidence with all evidence links"
+    },
+    {
+      "id": "TC-5.2",
+      "name": "Missing evidence",
+      "input": "Product with price but no source excerpt",
+      "expected": "warning added, confidence lowered"
+    },
+    {
+      "id": "TC-5.3",
+      "name": "LLM evidence",
+      "input": "Product from LLM",
+      "expected": "evidence.source_type='llm', llm_prompt_context attached"
+    },
+    {
+      "id": "TC-5.4",
+      "name": "Mixed evidence",
+      "input": "Name from LLM, price from Cheerio",
+      "expected": "name_evidence.source_type='llm', price_evidence.source_type='html'"
+    }
+  ],
+  "acceptance_criteria": [
+    "attachEvidence() returns typed Stage5Output",
+    "ProductWithEvidence type matches spec",
+    "EvidenceLink type matches spec",
+    "Every product has name_evidence",
+    "Evidence chain links product → field → excerpt",
+    "Test cases TC-5.1 through TC-5.4 pass"
+  ]
+}

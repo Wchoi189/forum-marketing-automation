@@ -1,0 +1,148 @@
+{
+  "session_id": "multi-stage-parser-20260526-1600",
+  "slice_index": 0,
+  "slice_name": "Planning - Spec Creation + Architecture Revision",
+  "status": "completed",
+  "started_at": "2026-05-26T16:00:00Z",
+  "ended_at": "2026-05-26T17:00:00Z",
+  "work_completed": [
+    "Created multi-stage-parser-v1.json main plan spec",
+    "Created stage-structure-v1.json (Stage 1 spec)",
+    "Created stage-noise-filter-v1.json (Stage 2 spec)",
+    "Created stage-llm-extraction-v1.json (Stage 3 spec)",
+    "Created stage-merge-v1.json (Stage 4 spec)",
+    "Created stage-evidence-v1.json (Stage 5 spec)",
+    "Created execution-loop.contract.json (execution protocol)",
+    "Created session-handover.protocol.json (handover format)",
+    "Created README.md (plan overview)",
+    "Created pain-points-report.md (7 pain points with evidence)",
+    "Created model-recommendations.md (Ollama model guide)",
+    "UPDATED architecture to 7 stages (Stage 0-6)",
+    "Created stage-locate-v1.json (Stage 0 - HTML locate)",
+    "Created stage-classify-v1.json (Stage 1 - Post type classifier)",
+    "Created stage-dedup-v1.json (Stage 6 - Deduplication)",
+    "Updated rationale with critical insight about rule-based failures"
+  ],
+  "work_remaining": [
+    "Slice 1: Stage 0 - Locate (HTML isolation) (2 hours)",
+    "Slice 2: Stage 1 - Classify (Post type detection) (3 hours)",
+    "Slice 3: Stage 2 - Filter (Noise removal) (3 hours)",
+    "Slice 4: Stage 3 - Extract (LLM with classifier context) (4 hours)",
+    "Slice 5: Stage 4 - Merge (Vote logic) (5 hours)",
+    "Slice 6: Stage 5 - Evidence (Chain) (3 hours)",
+    "Slice 7: Stage 6 - Dedup (Embedding) (2 hours)",
+    "Slice 8: Orchestrator + Adapter (4 hours)"
+  ],
+  "decisions_made": [
+    {
+      "decision": "7-stage pipeline architecture (revised from 5)",
+      "rationale": "User clarified: rule-based fails for 50% posts. Need classifier FIRST.",
+      "impact": "Stage 0 locates HTML, Stage 1 classifies, then extraction"
+    },
+    {
+      "decision": "Stage 0: HTML Locate BEFORE all else",
+      "rationale": "Sidebar/nav/footer are static noise. Downstream efficiency depends on clean input.",
+      "impact": "30-50% reduction typical, 70-80% for noise posts"
+    },
+    {
+      "decision": "Stage 1: Classifier runs FIRST (never skip)",
+      "rationale": "Affiliate/promo/comparison posts need DIFFERENT handling. LLM mandatory.",
+      "impact": "Affiliate posts skip extraction, promo posts skip extraction, comparison extracts offer price only"
+    },
+    {
+      "decision": "Stage 6: Dedup via embedding similarity",
+      "rationale": "Many similar posts from same vendor. Prevent redundant scraping.",
+      "impact": "Embedding stored, threshold 0.95 for duplicate, 0.85 for similar"
+    },
+    {
+      "decision": "Use local Ollama for iterative testing",
+      "rationale": "gemma2:27b for accuracy, gemma2:9b for speed, exone3.5:latest for Korean",
+      "impact": "Next agent should use Ollama for testing, not API"
+    },
+    {
+      "decision": "LLM handles bloated marketing + implicit names",
+      "rationale": "Rule-based Cheerio CANNOT: '최저가 보장! 정식 사업자!' → 'YouTube Premium'",
+      "impact": "Stage 3 must receive title + body, resolve implicit names"
+    },
+    {
+      "decision": "TESTED: Trafilatura achieves 98-100% reduction",
+      "rationale": "uv pip install trafilatura. SharePlan: 82K → 1.2K (98.5%). Prices preserved.",
+      "impact": "Stage 0 uses Trafilatura, NOT Cheerio. Platform chrome removed automatically."
+    },
+    {
+      "decision": "TESTED: jq available, Zod installed",
+      "rationale": "jq 1.6 for JSON filtering, Zod 4.3.6 for validation",
+      "impact": "Stage 2 uses jq, Stage 3/4 uses Zod"
+    },
+    {
+      "decision": "FAILED: Outlines install failed",
+      "rationale": "pydantic_core wheel invalid",
+      "impact": "Stage 3 uses Ollama raw output + Zod validate"
+    },
+    {
+      "decision": "Use uv for Python package management",
+      "rationale": "source /parent/marketing-automation/.venv/bin/activate",
+      "impact": "uv pip install works, pip does not"
+    }
+  ],
+  "blockers": [],
+  "next_actions": [
+    "1. Read pain-points-report.md (7 issues with artifact evidence)",
+    "2. Read model-recommendations.md (Ollama model selection)",
+    "3. Read stage-locate-v1.json spec",
+    "4. Create lib/competitor-intel/pipeline/stage0-locate/",
+    "5. Implement locateElements() to find title/body, discard chrome",
+    "6. Test with SharePlan post (0aea7978e7b3) - expect 70% reduction"
+  ],
+  "test_results": {
+    "planning_validation": "All specs created, schemas defined",
+    "architecture_revision": "Updated from 5 to 7 stages",
+    "pain_points_documented": "7 issues with evidence from last run"
+  },
+  "validation_posts": {
+    "eb67ebba985c": "Implicit names - needs classifier + LLM",
+    "551b849c00f1": "HTML wins - classifier should mark direct_offer",
+    "9446cd3682da": "Junk extracted - classifier + catalog validation",
+    "0aea7978e7b3": "Noise dominant - Stage 0 should reduce 70%"
+  },
+  "files_created": [
+    ".planning/spec-kit/plans/multi-stage-parser-v1/multi-stage-parser-v1.json",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/stage-locate-v1.json",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/stage-classify-v1.json",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/stage-structure-v1.json",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/stage-noise-filter-v1.json",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/stage-llm-extraction-v1.json",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/stage-merge-v1.json",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/stage-evidence-v1.json",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/stage-dedup-v1.json",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/execution-loop.contract.json",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/session-handover.protocol.json",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/pain-points-report.md",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/model-recommendations.md",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/tool-integration.md",
+    ".planning/spec-kit/plans/multi-stage-parser-v1/README.md"
+  ],
+  "references": {
+    "plan_folder": ".planning/spec-kit/plans/multi-stage-parser-v1/",
+    "pain_points": ".planning/spec-kit/plans/multi-stage-parser-v1/pain-points-report.md",
+    "models": ".planning/spec-kit/plans/multi-stage-parser-v1/model-recommendations.md",
+    "last_run_artifacts": "artifacts/competitor-ads/market-data-2026-05-26-b/",
+    "validation_posts": "artifacts/competitor-ads/market-data-2026-05-26-b/raw_html/"
+  },
+  "critical_insights": [
+    "Rule-based parsing FAILS for 50% of posts",
+    "Bloated marketing titles require LLM intent classification",
+    "Affiliate posts (GamsGo) have NO product info to extract",
+    "Comparison posts have TWO prices - must identify offer vs reference",
+    "Sidebar/nav/footer are static noise - remove BEFORE classifier",
+    "Dedup prevents redundant scraping of similar vendor posts"
+  ],
+  "ollama_models_available": [
+    "gemma2:27b - primary extraction (default)",
+    "gemma2:9b - fast classification",
+    "exaone3.5:latest - Korean specialist",
+    "qwen3.5:9b - balanced",
+    "qwen2.5vl:7b - OCR/VLM",
+    "nomic-embed-text - dedup embedding"
+  ]
+}

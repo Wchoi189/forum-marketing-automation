@@ -123,9 +123,16 @@ function clampText(value: string, maxLen: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, maxLen);
 }
 
-export function extractTextBlocks(nodes: ProjectedNode[]): EvidenceSource[] {
+type ProjectedNodeLike = {
+  text?: string;
+  name?: string;
+  path?: string;
+  children: ProjectedNodeLike[];
+};
+
+export function extractTextBlocks(nodes: ProjectedNodeLike[]): EvidenceSource[] {
   const sources: EvidenceSource[] = [];
-  const walk = (node: ProjectedNode): void => {
+  const walk = (node: ProjectedNodeLike): void => {
     const hasChildText = node.children.some(
       (c) => (c.text || c.name || "").replace(/\s+/g, " ").trim().length >= 2,
     );

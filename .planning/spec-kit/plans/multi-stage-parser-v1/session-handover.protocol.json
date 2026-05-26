@@ -1,0 +1,159 @@
+{
+  "protocol_id": "session-handover-v1",
+  "purpose": "Define session handover format and creation instructions for multi-stage parser implementation.",
+  "design_intent": "Provide copy-paste ready handover at session end. Enable seamless continuation across sessions.",
+  "change_impact": "New handover files in .agent/session-handovers/ for parser work.",
+  "handover_location": {
+    "directory": ".agent/session-handovers/",
+    "filename_pattern": "handover-multi-stage-parser-YYYYMMDD-HHMM.json",
+    "state_index": ".agent/state/state.index.json"
+  },
+  "handover_schema": {
+    "required_fields": [
+      "session_id",
+      "slice_index",
+      "slice_name",
+      "status",
+      "started_at",
+      "ended_at",
+      "work_completed",
+      "work_remaining",
+      "decisions_made",
+      "blockers",
+      "next_actions",
+      "test_results"
+    ],
+    "optional_fields": [
+      "metrics",
+      "notes",
+      "references"
+    ]
+  },
+  "session_workflow": {
+    "start": {
+      "step_1": "Read previous handover from .agent/session-handovers/",
+      "step_2": "Check multi-stage-parser-v1.json implementation_sequence for current slice",
+      "step_3": "Verify slice.dependencies are completed",
+      "step_4": "Set status to 'in_progress'"
+    },
+    "during": {
+      "step_1": "Log each decision to decisions_made array",
+      "step_2": "Track test results in test_results",
+      "step_3": "Update blockers if encountered",
+      "step_4": "Checkpoint every hour via mempalace if available"
+    },
+    "end": {
+      "step_1": "Summarize work_completed",
+      "step_2": "List work_remaining for next slice",
+      "step_3": "Provide specific next_actions (atomic, actionable)",
+      "step_4": "Create handover file",
+      "step_5": "Update state.index.json",
+      "step_6": "Run mempalace handover if available",
+      "step_7": "OUTPUT COPY-PASTE SUMMARY for user"
+    }
+  },
+  "copy_paste_template": {
+    "format": "markdown block",
+    "sections": [
+      "# Session Handover - Multi-Stage Parser",
+      "## Status",
+      "## Completed",
+      "## Remaining",
+      "## Next Actions",
+      "## Blockers",
+      "## Validation Posts Status"
+    ],
+    "example": "SEE BELOW for ready-to-use template"
+  },
+  "handover_example": {
+    "session_id": "multi-stage-parser-20260526-HHMM",
+    "slice_index": 1,
+    "slice_name": "Stage 0 - Locate",
+    "status": "completed",
+    "started_at": "2026-05-26T14:00:00Z",
+    "ended_at": "2026-05-26T16:00:00Z",
+    "work_completed": [
+      "Created stage0-locate/ module",
+      "Implemented locateElements(html, postUrl) → Stage0Output",
+      "Added Stage0Output type",
+      "Chrome selectors discard list implemented",
+      "Reduction ratio calculation added",
+      "TC-0.1 through TC-0.4 pass"
+    ],
+    "work_remaining": [
+      "Slice 2: Stage 1 - Classify (3h)",
+      "Slice 3: Stage 2 - Filter (4h)",
+      "Slice 4: Stage 3 - LLM Extract (4h)",
+      "Slice 5: Stage 4 - Merge (4h)",
+      "Slice 6: Stage 5 - Evidence (3h)",
+      "Slice 7: Stage 6 - Dedup (2h)",
+      "Slice 8: Orchestrator + Adapter (4h)"
+    ],
+    "decisions_made": [
+      {
+        "decision": "Title fallback to og:title when selector chain misses",
+        "rationale": "Some ppomppu posts use meta og:title, not #topTitle > h1",
+        "impact": "TC-0.3 pass"
+      }
+    ],
+    "blockers": [],
+    "next_actions": [
+      "Start slice 2: Create stage1-classify/ module",
+      "Implement classifyPost(stage0Output) → Stage1Output",
+      "Use gemma2:9b for fast iteration",
+      "Test with GamsGo post (affiliate) and 구독플레이스 post (direct_offer)"
+    ],
+    "test_results": {
+      "TC-0.1": "PASS - titleElement found, bodyElement found, sidebar discarded, reduction 40%",
+      "TC-0.2": "PASS - SharePlan post reduction 70%",
+      "TC-0.3": "PASS - fallback to og:title",
+      "TC-0.4": "PASS - chrome selectors discarded"
+    },
+    "validation_posts": {
+      "eb67ebba985c": "Stage 0 isolated title+body, reduction 35%",
+      "551b849c00f1": "Stage 0 isolated title+body, reduction 25%",
+      "9446cd3682da": "Stage 0 isolated title+body, reduction 30%",
+      "0aea7978e7b3": "Stage 0 isolated title+body, reduction 70% — confirmed SharePlan noise removal"
+    },
+    "references": {
+      "plan_spec": ".planning/spec-kit/plans/multi-stage-parser-v1/multi-stage-parser-v1.json",
+      "stage_spec": ".planning/spec-kit/plans/multi-stage-parser-v1/stage-locate-v1.json",
+      "implementation": "lib/competitor-intel/pipeline/stage0-locate/"
+    }
+  },
+  "copy_paste_summary_template": "```markdown\n# Session Handover - Multi-Stage Parser\n**Session**: {session_id}\n**Slice**: {slice_index} - {slice_name}\n**Status**: {status}\n\n## Completed\n{work_completed_bulleted}\n\n## Remaining\n{work_remaining_bulleted}\n\n## Next Actions (Atomic)\n{next_actions_bulleted}\n\n## Blockers\n{blockers_or_none}\n\n## Validation Posts\n- eb67ebba985c: {status}\n- 551b849c00f1: {status}\n- 9446cd3682da: {status}\n- 0aea7978e7b3: {status}\n\n## Files Changed\n{files_changed}\n\n---\n**To continue**: Run `npm run mempalace:wake-up` then read handover file.\n```",
+  "mempalace_integration": {
+    "wake_up": "npm run mempalace:wake-up",
+    "checkpoint": "npm run mempalace:checkpoint",
+    "handover": "npm run mempalace:handover -- --file .agent/session-handovers/handover-multi-stage-parser-YYYYMMDD-HHMM.json",
+    "wing": "forum-marketing-automation"
+  },
+  "instructions": {
+    "at_session_end": [
+      "1. Create handover file using schema above",
+      "2. Update state.index.json with last_handover_file path",
+      "3. Run: npm run mempalace:handover -- --file <path>",
+      "4. OUTPUT the copy-paste summary for user to save",
+      "5. User can paste summary into next session or chat"
+    ],
+    "at_session_start": [
+      "1. Run: npm run mempalace:wake-up",
+      "2. Read handover file from .agent/session-handovers/",
+      "3. Check slice.dependencies status",
+      "4. Set status to 'in_progress' and begin work"
+    ]
+  },
+  "quality_gates": {
+    "handover_must_have": [
+      "Specific next_actions (not vague 'continue')",
+      "Test results for slice",
+      "Validation post status",
+      "Files changed list"
+    ],
+    "next_actions_must_be": [
+      "Atomic (single task)",
+      "Actionable (specific command or file)",
+      "Ordered (sequence matters)"
+    ]
+  }
+}

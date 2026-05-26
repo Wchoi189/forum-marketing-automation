@@ -1,0 +1,140 @@
+{
+  "spec_id": "stage-noise-filter-v1",
+  "stage_index": 2,
+  "name": "Noise Filtering",
+  "purpose": "Remove license/footer/policy noise while preserving product signal. Compute signal strength score.",
+  "design_intent": "Filter BEFORE LLM to reduce context noise. Signal score determines whether LLM stage is needed.",
+  "change_impact": "New filtering logic; previously LLM handled noise implicitly. LLM skip condition added.",
+  "input_contract": {
+    "required": ["stage0Output", "stage1Output"],
+    "types": {
+      "stage0Output": "Stage0Output from stage-locate-v1 — provides titleText + bodyText (Trafilatura-extracted plain text)",
+      "stage1Output": "Stage1Output from stage-classify-v1 — provides postType for skip path"
+    },
+    "note": "stage-structure-v1 deprecated. Trafilatura in Stage 0 replaces Cheerio DOM extraction. Stage 2 receives clean plain text; no DOM parsing needed here. Cheerio step_0 removed."
+  },
+  "output_contract": {
+    "type": "Stage2Output",
+    "required_fields": [
+      "cleanBlocks - Array<{ text, lineIndex, hasPrice, hasDuration, hasProductKeyword, filterReason? }>",
+      "filterReasons - Array<{ blockIndex, reason, pattern }>",
+      "signalScore - number (0-1)",
+      "llmRequired - boolean",
+      "contentForLlm - string (filtered blocks joined as clean text for Stage 3 prompt)"
+    ],
+    "optional_fields": [
+      "removedBlocks - Array<{ text, reason }>",
+      "skip - boolean (true when postType is affiliate or promo_code)"
+    ]
+  },
+  "noise_patterns": {
+    "license_footer": [
+      "pattern: /^ 본 게시물의 저작권은/",
+      "pattern: /^원본 식별자:/",
+      "pattern: /^무단 복제.*저작권법/",
+      "pattern: /All Rights Reserved/i",
+      "pattern: /SP-\\d{14}-[A-F0-9]+/",
+      "pattern: /793-08-03288/"
+    ],
+    "payment_instructions": [
+      "pattern: /^입금자\\s*알려/i",
+      "pattern: /^계좌번호/i",
+      "pattern: /^쪽지\\s*주세요/i",
+      "pattern: /^문자\\/?카톡/i"
+    ],
+    "faq_qa": [
+      "pattern: /^Q[.：]\\s/i",
+      "pattern: /^A[.：]\\s/i",
+      "pattern: /^질문/i",
+      "pattern: /^답변/i"
+    ],
+    "generic_boilerplate": [
+      "pattern: /^공식\\s*가격/i",
+      "pattern: /^원가/i",
+      "pattern: /www\\.ppomppu\\.co\\.kr/i"
+    ]
+  },
+  "signal_scoring": {
+    "formula": {
+      "has_products": 0.3,
+      "products_with_price_and_duration": 0.4,
+      "product_names_match_catalog": 0.2,
+      "no_license_noise_in_products": 0.1
+    },
+    "thresholds": {
+      "llm_skip_threshold": 0.85,
+      "llm_required_threshold": 0.6,
+      "fallback_threshold": 0.3
+    },
+    "llm_skip_condition": "signalScore >= 0.85 AND cleanProducts.length > 0 AND all products have catalog match"
+  },
+  "filtering_logic": {
+    "preserve_rules": [
+      "Keep blocks with price pattern (₩XXX,XXX or XXX,XXX원)",
+      "Keep blocks with duration pattern (N개월 or N년)",
+      "Keep blocks with product keywords (프리미엄, 구독, NETFLIX, etc.)"
+    ],
+    "remove_rules": [
+      "Remove blocks matching noise_patterns",
+      "Remove blocks with ONLY license info",
+      "Remove blocks longer than 100 chars with no price/duration"
+    ],
+    "edge_cases": [
+      "Block has both license AND price → preserve, mark filterReason='partial_noise'",
+      "Block has product keyword AND noise → preserve, mark filterReason='mixed'"
+    ]
+  },
+  "text_extraction": {
+    "note": "Trafilatura output is plain text — no DOM parsing needed. Stage 2 splits bodyText into lines/paragraphs.",
+    "step_0": "Split stage0Output.bodyText by newline/paragraph boundaries → rawBlocks[]",
+    "step_1": "Apply noise_patterns regex to each block → filtered vs removed",
+    "step_2": "For each surviving block: match price pattern + duration pattern + product keyword",
+    "step_3": "Score signal per block → compute overall signalScore",
+    "confidence_formula": "hasProductBlocks ? 0.3 + (blocksWithPriceAndDuration / totalBlocks) * 0.7 : 0"
+  },
+  "skip_by_post_type": {
+    "affiliate": "Return Stage2Output with cleanProducts=[], signalScore=0, llmRequired=false, skip=true",
+    "promo_code": "Return Stage2Output with cleanProducts=[], signalScore=0, llmRequired=false, skip=true",
+    "direct_offer": "Run full extraction + filter",
+    "comparison": "Run extraction + filter, flag contentForLlm for comparison context",
+    "unknown": "Run full extraction + filter, add warning"
+  },
+  "implementation": {
+    "module": "lib/competitor-intel/pipeline/stage2-filter/",
+    "entry_point": "filterNoise(stage0Output, stage1Output) → Stage2Output",
+    "pattern_file": "patterns.ts - noise pattern definitions"
+  },
+  "test_cases": [
+    {
+      "id": "TC-2.1",
+      "name": "Clean products",
+      "input": "3 product blocks, 0 noise",
+      "expected": "3 cleanProducts, signalScore >= 0.9, llmRequired=false"
+    },
+    {
+      "id": "TC-2.2",
+      "name": "Heavy noise",
+      "input": "SharePlan post with 15 license lines",
+      "expected": "0 cleanProducts, signalScore < 0.3, llmRequired=true, removedBlocks populated"
+    },
+    {
+      "id": "TC-2.3",
+      "name": "Mixed content",
+      "input": "2 products + FAQ + payment info",
+      "expected": "2 cleanProducts, filterReasons for FAQ/payment, llmRequired based on signal"
+    },
+    {
+      "id": "TC-2.4",
+      "name": "Partial noise",
+      "input": "Block with '구독플레이스 ... 17,000원'",
+      "expected": "cleanProducts includes block, filterReason='partial_noise'"
+    }
+  ],
+  "acceptance_criteria": [
+    "filterNoise() returns typed Stage2Output",
+    "Signal score formula matches spec",
+    "LLM skip condition works (signalScore >= 0.85)",
+    "SharePlan posts get signalScore < 0.5",
+    "Test cases TC-2.1 through TC-2.4 pass"
+  ]
+}
