@@ -107,10 +107,12 @@ mine_memory_scope() {
   ensure_room_initialized "${PROJECT_ROOT}/.agent/state"
   ensure_room_initialized "${PROJECT_ROOT}/.agent/session-handovers"
   ensure_room_initialized "${PROJECT_ROOT}/.planning/spec-kit/specs"
+  ensure_room_initialized "${PROJECT_ROOT}/templates/ppompu-ad-design-system/ui_kits/ppompu-ad"
 
   mp mine "${PROJECT_ROOT}/.agent/state" --wing "$wing"
   mp mine "${PROJECT_ROOT}/.agent/session-handovers" --wing "$wing"
   mp mine "${PROJECT_ROOT}/.planning/spec-kit/specs" --wing "$wing"
+  mp mine "${PROJECT_ROOT}/templates/ppompu-ad-design-system/ui_kits/ppompu-ad" --wing "$wing"
   if [[ "$include_plans" == "true" ]]; then
     ensure_room_initialized "${PROJECT_ROOT}/.planning/spec-kit/plans"
     mp mine "${PROJECT_ROOT}/.planning/spec-kit/plans" --wing "$wing"

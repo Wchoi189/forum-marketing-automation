@@ -1,0 +1,159 @@
+{
+  "$schema": "https://raw.githubusercontent.com/wchoi189/spec-kit/main/schemas/spec.schema.json",
+  "id": "ppompu-ad-design-system-v4",
+  "version": "4.1.0",
+  "purpose": "Canonical design token and layout specification for the SharePlan Ppompu community ad template. Ensures visual consistency across product sections when agents add, modify, or review listings.",
+  "design_intent": "All product sections must look visually identical in weight, density and rhythm. The YouTube Premium section is the canonical reference. Agents must normalize any divergence to these tokens before shipping.",
+  "change_impact": "Any change to tokens here should be propagated to all <div> cards in redesign-v4v1.html via inline styles (no external CSS — Ppompu strips external stylesheets).",
+  "canonical_reference_file": "templates/ppompu-ad-design-system/ui_kits/ppompu-ad/redesign-v4v1.html",
+  "canonical_reference_section": "#section-youtube",
+
+  "constraints": {
+    "must_use_inline_styles": true,
+    "reason": "Ppompu forum strips <style> blocks and external CSS. All styles must be inline."
+  },
+
+  "design_tokens": {
+    "typography": {
+      "font_family": "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+      "section_heading": { "font_size": "20px", "font_weight": "700" },
+      "plan_label": { "font_size": "12px", "font_weight": "600", "margin_bottom": "6px" },
+      "product_name": { "font_size": "14px", "font_weight": "700", "margin_bottom": "6px", "color": "#1e293b" },
+      "price": { "font_size": "22px", "font_weight": "800", "margin_bottom": "4px" },
+      "price_sub": { "font_size": "12px" },
+      "note_block_text": { "font_size": "12px", "color": "#334155", "line_height": "1.65" }
+    },
+    "spacing": {
+      "card_padding": "16px",
+      "card_border_radius": "12px",
+      "card_grid_gap": "12px",
+      "card_grid_min_width": "220px",
+      "note_block_padding": "14px 16px",
+      "note_block_margin_top": "12px",
+      "section_margin_bottom": "36px"
+    },
+    "borders": {
+      "default_card": "1px solid #e2e8f0",
+      "highlighted_card": "2px solid <brand-color>",
+      "note_block": "1px solid #e2e8f0",
+      "section_divider": "2px solid <brand-color-light>"
+    },
+    "backgrounds": {
+      "note_block": "#ffffff",
+      "default_card": "#ffffff",
+      "page_wrapper": "#e5e7eb"
+    }
+  },
+
+  "layout_patterns": {
+    "single_plan_section": {
+      "description": "Used when only one offer term is available. Always paired with an official price comparison card.",
+      "card_count": 2,
+      "card_order": ["official_price_reference", "shareplan_offer"],
+      "grid": "repeat(auto-fit, minmax(220px, 1fr))"
+    },
+    "multi_plan_section": {
+      "description": "Used when multiple term lengths exist for the same product type (e.g. 6-month + 12-month).",
+      "card_count": "2+",
+      "grid": "repeat(auto-fit, minmax(220px, 1fr))"
+    },
+    "labeled_subsection": {
+      "description": "Used when a single product has distinct plan TYPES (e.g. YouTube 가족 플랜 vs 개인 단독). Each type gets its own pill-labeled sub-row.",
+      "example": "#section-youtube",
+      "pill_style": "display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 12px; border-radius: 999px; color: #ffffff;"
+    },
+    "official_price_comparison_card": {
+      "description": "Left card showing the official retail price (crossed out) to contextualize the discount. Always placed LEFT of the SharePlan offer card.",
+      "background": "#f8f8f8",
+      "border": "1px solid #e2e8f0",
+      "price_style": "text-decoration: line-through; color: #94a3b8; font-size: 22px; font-weight: 700",
+      "label_style": "font-size: 11px; font-weight: 600; color: #94a3b8; letter-spacing: 0.03em",
+      "attribution_style": "font-size: 11px; color: #cbd5e1",
+      "discount_pill": "display: inline-block; margin-top: 10px; font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; color: #fff; background-color: <brand-color>"
+    }
+  },
+
+  "pricing_formula": {
+    "description": "Standard formula for converting USD supplier cost to KRW offering price.",
+    "exchange_rate_krw_per_usd": 1500,
+    "markup_multiplier": 1.4,
+    "formula": "offering_price_krw = current_price_usd × 1500 × 1.4",
+    "rounding": "Round to nearest 100원 (or 1,000원 for prices above 50,000원)",
+    "official_retail_reference": "official_price_krw = original_price_usd × 1500 (no markup — used only for comparison card)",
+    "examples": [
+      { "product": "Canva Pro (annual)", "current_usd": 0.78, "per_month": true, "months": 12, "result_krw": 19800 },
+      { "product": "GitHub + Copilot Pro", "current_usd": 37.64, "per_month": false, "months": 12, "result_krw": 79000 },
+      { "product": "Lovable Pro", "current_usd": 83.45, "per_month": false, "months": 12, "result_krw": 175000 },
+      { "product": "n8n Cloud Starter", "current_usd": 56.47, "per_month": false, "months": 12, "result_krw": 119000 }
+    ]
+  },
+
+  "section_structure": {
+    "wrapper": {
+      "style": "font-family: <font_family>; margin-bottom: 36px; scroll-margin-top: 60px;"
+    },
+    "heading_row": {
+      "style": "display: flex; align-items: center; gap: 12px; margin-bottom: 24px; border-bottom: 2px solid <brand-color-light>; padding-bottom: 8px;"
+    },
+    "note_block": {
+      "style": "margin-top: 12px; padding: 14px 16px; font-size: 12px; color: #334155; background-color: #ffffff; border-radius: 8px; line-height: 1.65; border: 1px solid #e2e8f0;",
+      "forbidden_tags": ["<font>", "<font color=...>", "<font face=...>"],
+      "reason": "Legacy <font> tags must be replaced with inline div styles. They break consistency and are not maintainable."
+    }
+  },
+
+  "anti_patterns": [
+    {
+      "name": "absolute_positioned_badges",
+      "description": "Do NOT use position:absolute for labels or badges inside product cards.",
+      "reason": "Causes overflow/clipping on mobile screens in the Ppompu forum layout."
+    },
+    {
+      "name": "font_tag_markup",
+      "description": "Do NOT use <font color=...> or <font face=...> tags.",
+      "reason": "Non-standard, not maintainable, inconsistent with the rest of the template."
+    },
+    {
+      "name": "divergent_card_sizes",
+      "description": "Do NOT use padding: 24px on product cards.",
+      "reason": "Makes cards visually heavier than the YouTube reference. Always use padding: 16px."
+    },
+    {
+      "name": "price_without_won_suffix",
+      "description": "Do NOT display bare numbers (e.g. 12,000). Always append 원 (e.g. 12,000원).",
+      "reason": "Incomplete price display looks like a rendering bug."
+    },
+    {
+      "name": "single_card_without_comparison",
+      "description": "Do NOT add a single offer card for a product with a meaningful retail price without adding the official price comparison card on the left.",
+      "reason": "Without context, prices appear expensive. The comparison card communicates value."
+    }
+  ],
+
+  "nav_bar": {
+    "description": "The sticky section-jump nav at the top of the ad. Must be updated when sections are added or removed.",
+    "style": "background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #0284c7; display: flex; gap: 14px; flex-wrap: wrap; align-items: center;",
+    "link_style": "color: #0284c7; text-decoration: none; font-weight: 600;",
+    "current_sections_in_order": [
+      { "label": "유튜브", "anchor": "#section-youtube" },
+      { "label": "구글AI", "anchor": "#google-ai" },
+      { "label": "캔바", "anchor": "#picsart" },
+      { "label": "어도비", "anchor": "#section-adobe" },
+      { "label": "GitHub", "anchor": "#section-github" },
+      { "label": "Lovable", "anchor": "#section-lovable" },
+      { "label": "n8n", "anchor": "#section-n8n" },
+      { "label": "서프샤크", "anchor": "#section-surfshark" },
+      { "label": "코세라", "anchor": "#section-coursera" },
+      { "label": "신청 안내", "anchor": "#section-start" }
+    ]
+  },
+
+  "metadata": {
+    "created": "2026-05-26",
+    "authors": ["agent:antigravity"],
+    "related_files": [
+      "templates/ppompu-ad-design-system/ui_kits/ppompu-ad/redesign-v4v1.html",
+      "templates/ppompu-ad-design-system/html-inline/ppompu_ad.html"
+    ]
+  }
+}
