@@ -12,7 +12,6 @@ const OverviewPage = React.lazy(() => import('./pages/OverviewPage'));
 const ControlsPage = React.lazy(() => import('./pages/ControlsPage'));
 const PublisherRunsPage = React.lazy(() => import('./pages/PublisherRunsPage'));
 const OperationsPage = React.lazy(() => import('./pages/OperationsPage'));
-const KakaoDashboard = React.lazy(() => import('./pages/KakaoDashboard'));
 const CompetitorIntelPage = React.lazy(() => import('./pages/CompetitorIntelPage'));
 
 /** Minimal skeleton shown while a lazy route chunk is downloading. */
@@ -30,7 +29,6 @@ export default function App() {
   const onOperations = location.pathname === '/operations';
   const onControls = location.pathname === '/controls';
   const onPublisherRuns = location.pathname === '/publisher-runs';
-  const onKakao = location.pathname === '/kakao';
   const onCompetitorIntel = location.pathname === '/competitor-intel';
 
   const app = useAppData();
@@ -66,7 +64,6 @@ export default function App() {
             { to: '/controls', label: 'Controls' },
             { to: '/publisher-runs', label: 'Publisher Runs' },
             { to: '/analytics', label: 'Competitor EDA' },
-            { to: '/kakao', label: 'Kakao Channel' },
             { to: '/competitor-intel', label: 'Competitor Intel' }
           ].map((item) => (
             <NavLink
@@ -143,7 +140,6 @@ export default function App() {
             {onPublisherRuns && <PublisherRunsPage app={app} />}
             {onControls && <ControlsPage app={app} />}
             {onOperations && <OperationsPage app={app} />}
-            {onKakao && <KakaoDashboard />}
             {onCompetitorIntel && <CompetitorIntelPage />}
           </Suspense>
         </main>

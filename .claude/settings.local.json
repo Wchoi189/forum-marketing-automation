@@ -40,5 +40,43 @@
       "Bash(npx tsx *)",
       "Bash(rm -rf storage/request_queues/default/* storage/datasets/default/* && npx tsx scripts/competitor-ads-intel.ts*)"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/vscode/.claude/hooks/mempalace-startup.js\"",
+            "timeout": 15,
+            "statusMessage": "MemPalace wake-up..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/vscode/.claude/hooks/mempalace-post-test.js\"",
+            "timeout": 5,
+            "statusMessage": "MemPalace: checking test result..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/vscode/.claude/hooks/mempalace-stop.js\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }

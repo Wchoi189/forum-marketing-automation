@@ -64,7 +64,15 @@
           "artifacts:/app/data/artifacts"
         ]
       }
+    },
+    {
+      "id": "pretty-mermaid",
+      "name": "Pretty Mermaid",
+      "description": "Render Mermaid diagrams as SVG or ASCII with 15+ themes. Supports flowchart, sequence, state, class, ER diagrams.",
+      "triggers": ["pretty-mermaid", "mermaid", "render-diagram", "flowchart", "sequence-diagram"],
+      "skill_path": ".agent/skills/pretty-mermaid.md",
+      "scripts_path": "/parent/DEVELOPMENT_FRAMEWORK/Pretty-mermaid-skills/scripts"
     }
   ],
-  "notes": "context-hygiene skill added 2026-04-10; mempalace-management added 2026-04-19; resource-docker-management added 2026-05-25"
+  "notes": "context-hygiene skill added 2026-04-10; mempalace-management added 2026-04-19; resource-docker-management added 2026-05-25; pretty-mermaid added 2026-05-27"
 }

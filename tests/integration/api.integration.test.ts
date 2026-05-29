@@ -7,7 +7,7 @@ import { createApp } from "../../server.ts";
 import { startScheduler } from "../../lib/scheduler.ts";
 import { validateRuntimeContracts } from "../../config/runtime-validation.ts";
 import { ENV } from "../../config/env.ts";
-import type { ActivityLog, Post, PublisherHistoryEntry } from "../../contracts/models.ts";
+import type { ActivityLog, Post, PublisherHistoryEntry } from "../../lib/models.ts";
 import { applyScheduleJitter } from "../../lib/scheduleJitter.ts";
 import { getSharedLogCache } from "../../lib/logCache.ts";
 

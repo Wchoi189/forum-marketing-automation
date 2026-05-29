@@ -34,7 +34,7 @@ import {
 } from '../../lib/competitor-intel-ui.js';
 import { openDatabase } from '../../lib/competitor-ad-sqlite.js';
 import { ENV } from '../../config/env.js';
-import type { SchedulerSignalDiagnostics, PublisherHistoryEntry } from '../../contracts/models.js';
+import type { SchedulerSignalDiagnostics, PublisherHistoryEntry } from '../../lib/models.js';
 import {
   OPPORTUNITY_MULTIPLIER_MAX,
   OPPORTUNITY_MULTIPLIER_MIN,

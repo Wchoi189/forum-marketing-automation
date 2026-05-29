@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import type { PublisherHistoryEntry } from "../contracts/models.js";
+import type { PublisherHistoryEntry } from "../lib/models.js";
 import {
   OPPORTUNITY_MULTIPLIER_MAX,
   OPPORTUNITY_MULTIPLIER_MIN,

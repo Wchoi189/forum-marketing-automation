@@ -12,8 +12,8 @@ import { summarizeSchedulerSignals } from './schedulerSignals.js';
 import { logger } from './logger.js';
 import { LOG_EVENT } from './logEvents.js';
 import { ENV } from '../config/env.js';
-import type { ActivityLog } from '../contracts/models.js';
-import type { PublisherHistoryEntry } from '../contracts/models.js';
+import type { ActivityLog } from '../lib/models.js';
+import type { PublisherHistoryEntry } from '../lib/models.js';
 import type { PublisherRunResult } from '../bot.js';
 
 export type BotDeps = {

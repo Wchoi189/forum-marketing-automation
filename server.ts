@@ -31,8 +31,7 @@ import {
   readPersistedNlWebhookEnabled,
 } from "./lib/runtimeControls.js";
 import { getResourceMetrics, checkResourceThresholds, runGarbageCollection } from "./lib/resourceMonitor.js";
-import * as kakaoDb from "./lib/kakaoDb.js";
-import type { PublisherRunDecision } from "./contracts/models.js";
+import type { PublisherRunDecision } from "./lib/models.js";
 
 // ── Route modules ─────────────────────────────────────────────────────────────
 import { createHealthRouter } from "./routes/api/health.js";
@@ -40,14 +39,13 @@ import { createLogsRouter } from "./routes/api/logs.js";
 import { createControlRouter, buildControlPanelResponse } from "./routes/api/control.js";
 import { createAiRouter } from "./routes/api/ai.js";
 import { createNlRouter } from "./routes/api/nl.js";
-import { createKakaoRouter } from "./routes/api/kakao.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getDefaultDeps(): BotDeps {
   if (ENV.DEV_SKIP_BOT) {
     return {
-      runObserver: async () => ({ status: 'skipped' as const, currentGap: 0, gapThresholdMin: 0, reason: 'DEV_SKIP_BOT' } as any as import('./contracts/models.js').ActivityLog),
+      runObserver: async () => ({ status: 'skipped' as const, currentGap: 0, gapThresholdMin: 0, reason: 'DEV_SKIP_BOT' } as any as import('./lib/models.js').ActivityLog),
       runPublisher: async () => ({ success: false, message: 'DEV_SKIP_BOT', runId: 'dev', decision: 'skip' as PublisherRunDecision, artifactDir: null } as any as import('./lib/publisher/publisherRun.js').PublisherRunResult),
       getLogs,
       getPublisherHistory: readPublisherHistory,
@@ -84,7 +82,7 @@ export function createApp(
   const publisherLimiter = shouldSkipRateLimit ? NOOP : rateLimit({ windowMs: 60_000, limit: 2, standardHeaders: true, legacyHeaders: false });
   const observerLimiter = shouldSkipRateLimit ? NOOP : rateLimit({ windowMs: 60_000, limit: 5, standardHeaders: true, legacyHeaders: false });
 
-  const SKIP_RATE_PATHS = ["/kakao-webhook", "/api/publisher-status", "/api/health/resources", "/api/health"];
+  const SKIP_RATE_PATHS = ["/api/publisher-status", "/api/health/resources", "/api/health"];
   const SKIP_RATE_PATTERNS = [/\.js(\?|$)/, /\.css(\?|$)/, /\.svg(\?|$)/, /\.(png|jpg|jpeg|gif|ico|woff2?)(\?|$)/];
 
   app.use((req, res, next) => {
@@ -141,8 +139,6 @@ export function createApp(
     buildCP: buildControlPanelResponse,
   }));
 
-  app.use(createKakaoRouter());
-
   // ── Global error handler ──────────────────────────────────────────────────
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const message = err instanceof Error ? err.message : String(err);
@@ -164,7 +160,6 @@ export async function startServer() {
   if (skipBot) {
     logger.info('[DEV] BOT disabled — running API + frontend only. Set DEV_SKIP_BOT=false to re-enable.');
   } else {
-    await kakaoDb.ensureReady();
     await initSharedBrowser();
   }
 

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { ActivityLog } from "../../contracts/models.ts";
+import type { ActivityLog } from "../../lib/models.ts";
 import type { CompetitorAnalyticsQuery } from "../../lib/competitorAnalytics.ts";
 import {
   buildCompetitorAnalyticsPayload,

@@ -1,0 +1,74 @@
+%% =============================================================================
+%% STAGE 6: DEDUP - Embedding Similarity Check
+%% =============================================================================
+%% Purpose: Prevent duplicate posts from being persisted
+%% Design Intent: Semantic similarity via embeddings, not exact match
+%% Change Impact: Database quality, prevents duplicate records
+%% =============================================================================
+
+flowchart LR
+    %% INPUT FROM STAGE 5
+    S5_IN["productsWithEvidence[]<br/>+ title + body"] --> S6_PROC
+
+    %% EMBEDDING GENERATION
+    subgraph EMBED ["nomic-embed-text 768-dim"]
+        direction TB
+        S6_PROC["Generate embedding:<br/>title + body text"]
+        S6_PROC --> S6_VEC["768-dimensional<br/>vector"]
+        S6_VEC --> S6_STORE["Store in:<br/>artifacts/embeddings/"]
+    end
+
+    %% SIMILARITY CHECK
+    S6_STORE --> S6_SIM["Cosine similarity<br/>vs stored embeddings"]
+
+    %% SIMILARITY DECISION
+    S6_SIM --> SIM_DEC{"Similarity<br/>score?"}
+
+    %% UNIQUE - PERSIST
+    SIM_DEC -->|"< 0.85"| UNIQUE["✅ Unique<br/>No similar posts"]
+    UNIQUE --> PERSIST["Persist full record<br/>to SQLite"]
+
+    %% SIMILAR - FLAG AND PERSIST
+    SIM_DEC -->|"0.85-0.95"| SIMILAR["⚠️ Similar<br/>Flag for review"]
+    SIMILAR --> FLAG["Flag + persist<br/>Log similarity score"]
+
+    %% DUPLICATE - SKIP
+    SIM_DEC -->|"≥ 0.95"| DUP["⏭️ Duplicate<br/>Skip persisting"]
+    DUP --> DROP["Log postId only<br/>Do not persist"]
+
+    %% OUTPUT STRUCTURE
+    subgraph OUTPUT ["Stage6Output"]
+        direction TB
+        OUT_UNIQUE["uniquePosts: boolean"]
+        OUT_DUPIDS["duplicateIds: string[]"]
+        OUT_SCORES["similarityScores[]:<br/>{ postId, score }"]
+    end
+
+    PERSIST --> OUT_UNIQUE
+    FLAG --> OUT_UNIQUE
+    DROP --> OUT_DUPIDS
+
+    %% FINAL STORAGE
+    PERSIST --> DB["SQLite:<br/>competitor-ads.db<br/>PpomppuParsedRecord"]
+    FLAG --> DB
+
+    %% =========================================================================
+    %% STYLES
+    %% =========================================================================
+    classDef inputNode fill:#e6f3ff,stroke:#0066cc,stroke-width:2px,color:#000
+    classDef processNode fill:#cce5ff,stroke:#0066cc,stroke-width:1.5px,color:#000
+    classDef decisionNode fill:#fff0e6,stroke:#ff9900,stroke-width:1.5px,color:#000
+    classDef outputNode fill:#d1e7dd,stroke:#198754,stroke-width:1.5px,color:#000
+    classDef successNode fill:#d1e7dd,stroke:#198754,stroke-width:1px,color:#000
+    classDef warnNode fill:#fff3cd,stroke:#ffc107,stroke-width:1px,color:#000
+    classDef skipNode fill:#fff3cd,stroke:#ffc107,stroke-width:2px,color:#000
+    classDef storageNode fill:#e6ffe6,stroke:#009900,stroke-width:2px,color:#000
+
+    class S5_IN inputNode
+    class S6_PROC,S6_VEC,S6_STORE,S6_SIM processNode
+    class SIM_DEC decisionNode
+    class OUT_UNIQUE,OUT_DUPIDS,OUT_SCORES outputNode
+    class UNIQUE,PERSIST successNode
+    class SIMILAR,FLAG warnNode
+    class DUP,DROP skipNode
+    class DB storageNode

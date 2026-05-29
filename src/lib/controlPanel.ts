@@ -5,7 +5,7 @@ import type {
   DraftItem,
   PublisherHistoryEntry,
   TrendInsights
-} from '../../contracts/models';
+} from '../../lib/models';
 
 export type {
   ActivityLog,

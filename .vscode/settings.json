@@ -26,11 +26,29 @@
   "search.exclude": {
     "**/artifacts/publisher-runs/**": true,
     "**/ppomppu_profile/**": true,
-    "**/node_modules/**": true
+    "**/node_modules/**": true,
+    "**/.qwen/**": true,
+    "**/.npm/**": true,
+    "**/.local/**": true,
+    "**/.cache/**": true,
+    "**/data/**": true,
+    "**/.ai/**": true,
+    "**/storage/**": true
+  },
+  "files.exclude": {
+    "**/.qwen": true,
+    "**/.npm": true,
+    "**/.local": true,
+    "**/.cache": true,
+    "**/.ai": true
   },
   "files.watcherExclude": {
     "**/artifacts/publisher-runs/**": true,
-    "**/ppomppu_profile/**": true
+    "**/ppomppu_profile/**": true,
+    "**/.npm/**": true,
+    "**/.local/**": true,
+    "**/.cache/**": true,
+    "**/storage/**": true
   },
 
   "terminal.integrated.defaultProfile.linux": "bash",

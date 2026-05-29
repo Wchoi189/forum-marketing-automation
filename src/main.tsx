@@ -15,7 +15,6 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/operations" element={<App />} />
         <Route path="/controls" element={<App />} />
         <Route path="/publisher-runs" element={<App />} />
-        <Route path="/kakao" element={<App />} />
         <Route path="/analytics" element={
           <React.Suspense fallback={<div className="flex items-center justify-center h-screen bg-[#0a0a0a] text-white/30 animate-pulse">Loading…</div>}>
             <AnalyticsPage />

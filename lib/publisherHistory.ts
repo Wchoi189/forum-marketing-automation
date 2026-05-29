@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { ENV } from "../config/env.js";
-import type { PublisherHistoryEntry } from "../contracts/models.js";
+import type { PublisherHistoryEntry } from "../lib/models.js";
 
 export type { PublisherHistoryEntry };
 

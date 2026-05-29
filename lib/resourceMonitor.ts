@@ -165,6 +165,136 @@ export function capArtifactsBySize(maxMB = MAX_ARTIFACTS_SIZE_MB): number {
   return freed;
 }
 
+// ── Crawlee Dataset Cleanup ─────────────────────────────────────────────────
+
+const CRAWLEE_DATASETS_DIR = path.join(ENV.PROJECT_ROOT, 'storage', 'datasets', 'default');
+
+/**
+ * Delete all JSON files in the Crawlee default dataset directory.
+ * Data is persisted to SQLite (competitor-ads.db) after each crawl run,
+ * so these files are redundant intermediate artifacts.
+ */
+export function cleanCrawleeDatasets(): { deletedCount: number; deletedBytes: number } {
+  const result = { deletedCount: 0, deletedBytes: 0 };
+  if (!fs.existsSync(CRAWLEE_DATASETS_DIR)) return result;
+
+  for (const file of fs.readdirSync(CRAWLEE_DATASETS_DIR)) {
+    if (!file.endsWith('.json')) continue;
+    const filePath = path.join(CRAWLEE_DATASETS_DIR, file);
+    try {
+      const stat = fs.statSync(filePath);
+      fs.rmSync(filePath, { force: true });
+      result.deletedCount++;
+      result.deletedBytes += stat.size;
+    } catch (err) {
+      logger.warn({ event: 'resource.crawlee_datasets_cleanup_failed', file, err }, `Failed to delete dataset file: ${file}`);
+    }
+  }
+
+  if (result.deletedCount > 0) {
+    logger.info(
+      { event: 'resource.crawlee_datasets_cleaned', deleted: result.deletedCount, bytesFreed: result.deletedBytes },
+      `Crawlee datasets cleaned: ${result.deletedCount} files removed (${formatBytes(result.deletedBytes)} freed)`
+    );
+  }
+
+  return result;
+}
+
+// ── Market Data Snapshot Rotation ───────────────────────────────────────────
+
+const COMPETITOR_ADS_DIR = path.join(ENV.PROJECT_ROOT, 'artifacts', 'competitor-ads');
+export const KEEP_MARKET_DATA_SNAPSHOTS = 2;
+
+/**
+ * Delete market-data-* snapshot directories in artifacts/competitor-ads,
+ * keeping the `keepCount` most recent. Each run generates a new snapshot dir;
+ * older ones are redundant once data is in SQLite.
+ */
+export function cleanMarketDataSnapshots(keepCount = KEEP_MARKET_DATA_SNAPSHOTS): { deletedCount: number; deletedBytes: number } {
+  const result = { deletedCount: 0, deletedBytes: 0 };
+  if (!fs.existsSync(COMPETITOR_ADS_DIR)) return result;
+
+  const snapshots = fs.readdirSync(COMPETITOR_ADS_DIR, { withFileTypes: true })
+    .filter(e => e.isDirectory() && e.name.startsWith('market-data-'))
+    .map(e => {
+      const dirPath = path.join(COMPETITOR_ADS_DIR, e.name);
+      return { name: e.name, path: dirPath, mtime: fs.statSync(dirPath).mtimeMs };
+    })
+    .sort((a, b) => b.mtime - a.mtime); // newest first
+
+  const toDelete = snapshots.slice(keepCount);
+  for (const snap of toDelete) {
+    const size = dirSize(snap.path);
+    try {
+      fs.rmSync(snap.path, { recursive: true, force: true });
+      result.deletedCount++;
+      result.deletedBytes += size;
+    } catch (err) {
+      logger.warn({ event: 'resource.market_data_cleanup_failed', dir: snap.name, err }, `Failed to delete market-data snapshot: ${snap.name}`);
+    }
+  }
+
+  if (result.deletedCount > 0) {
+    logger.info(
+      { event: 'resource.market_data_rotated', deleted: result.deletedCount, bytesFreed: result.deletedBytes, kept: keepCount },
+      `Market data snapshots rotated: ${result.deletedCount} removed, kept ${keepCount} most recent (${formatBytes(result.deletedBytes)} freed)`
+    );
+  }
+
+  return result;
+}
+
+// ── Session Handover Archival ────────────────────────────────────────────────
+
+const SESSION_HANDOVERS_DIR = path.join(ENV.PROJECT_ROOT, '.agent', 'session-handovers');
+const SESSION_HANDOVERS_ARCHIVE_DIR = path.join(SESSION_HANDOVERS_DIR, 'archive');
+export const KEEP_SESSION_HANDOVERS = 5;
+
+/**
+ * Move old session handover JSON files to archive/, keeping the `keepCount` most recent.
+ * Template files (not matching the date-stamped pattern) are always preserved.
+ */
+export function archiveSessionHandovers(keepCount = KEEP_SESSION_HANDOVERS): { archivedCount: number } {
+  const result = { archivedCount: 0 };
+  if (!fs.existsSync(SESSION_HANDOVERS_DIR)) return result;
+
+  const DATED_PATTERN = /handover-.*-\d{8}.*\.json$/;
+  const files = fs.readdirSync(SESSION_HANDOVERS_DIR, { withFileTypes: true })
+    .filter(e => e.isFile() && e.name.endsWith('.json') && DATED_PATTERN.test(e.name))
+    .map(e => {
+      const filePath = path.join(SESSION_HANDOVERS_DIR, e.name);
+      return { name: e.name, path: filePath, mtime: fs.statSync(filePath).mtimeMs };
+    })
+    .sort((a, b) => b.mtime - a.mtime); // newest first
+
+  const toArchive = files.slice(keepCount);
+  if (toArchive.length === 0) return result;
+
+  if (!fs.existsSync(SESSION_HANDOVERS_ARCHIVE_DIR)) {
+    fs.mkdirSync(SESSION_HANDOVERS_ARCHIVE_DIR, { recursive: true });
+  }
+
+  for (const file of toArchive) {
+    const dest = path.join(SESSION_HANDOVERS_ARCHIVE_DIR, file.name);
+    try {
+      fs.renameSync(file.path, dest);
+      result.archivedCount++;
+    } catch (err) {
+      logger.warn({ event: 'resource.handover_archive_failed', file: file.name, err }, `Failed to archive handover: ${file.name}`);
+    }
+  }
+
+  if (result.archivedCount > 0) {
+    logger.info(
+      { event: 'resource.handovers_archived', archived: result.archivedCount, kept: keepCount },
+      `Session handovers archived: ${result.archivedCount} moved to archive/, kept ${keepCount} most recent`
+    );
+  }
+
+  return result;
+}
+
 // ── Activity Log Rotation ───────────────────────────────────────────────────
 
 /** Truncate activity_log.json to `keepEntries` if it exceeds `maxEntries`. */
@@ -330,10 +460,16 @@ export function runGarbageCollection(): {
   logRotated: number;
   browserProfile: { deletedDirs: number; freedBytes: number };
   browserRecycled: boolean;
+  crawleeDatasets: { deletedCount: number; deletedBytes: number };
+  marketDataSnapshots: { deletedCount: number; deletedBytes: number };
+  sessionHandovers: { archivedCount: number };
 } {
   const artifacts = rotateArtifacts();
   const logRotated = rotateActivityLog();
   const browserProfile = cleanBrowserProfile();
+  const crawleeDatasets = cleanCrawleeDatasets();
+  const marketDataSnapshots = cleanMarketDataSnapshots();
+  const sessionHandovers = archiveSessionHandovers();
 
   let browserRecycled = false;
   if (isSharedBrowserReady() && activeContexts.size === 0) {
@@ -344,7 +480,7 @@ export function runGarbageCollection(): {
     browserRecycled = true;
   }
 
-  return { artifacts, logRotated, browserProfile, browserRecycled };
+  return { artifacts, logRotated, browserProfile, browserRecycled, crawleeDatasets, marketDataSnapshots, sessionHandovers };
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

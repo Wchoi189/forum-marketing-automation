@@ -1,0 +1,75 @@
+%% =============================================================================
+%% STAGE 4: MERGE - Vote + Catalog Validation
+%% =============================================================================
+%% Purpose: Combine Cheerio and LLM results, validate against catalog
+%% Design Intent: Voting logic for confidence, catalog for product identity
+%% Change Impact: Final product list quality and attribution
+%% =============================================================================
+
+flowchart LR
+    %% INPUTS FROM STAGE 2 AND STAGE 3
+    S2_BLOCKS["cleanBlocks[]<br/>from Stage 2"] --> S4_VOTE
+    S3_PRODUCTS["llmProducts[]<br/>from Stage 3"] --> S4_VOTE
+    SKIP_IN["skipped=true<br/>from Stage 2"] --> S4_DIRECT
+
+    %% VOTING PROCESS
+    subgraph MERGE ["Vote + Merge (TypeScript)"]
+        direction TB
+        S4_VOTE["Vote logic:<br/>Cheerio vs LLM<br/>Match by name/duration"]
+        S4_VOTE --> S4_DUP["Duplicate removal"]
+        S4_DUP --> S4_ATTR["Source attribution<br/>per product"]
+        S4_ATTR --> S4_PRICE["Compute:<br/>price_per_month_krw"]
+    end
+
+    %% DIRECT PATH (LLM SKIPPED)
+    S4_DIRECT --> S4_DIRECT_MERGE["Merge cleanBlocks<br/>directly"]
+    S4_DIRECT_MERGE --> S4_CATALOG
+
+    %% CATALOG VALIDATION
+    S4_PRICE --> S4_CATALOG["product-catalog.json<br/>validation"]
+
+    %% CATALOG DECISION
+    S4_CATALOG --> CAT_DEC{"Catalog<br/>match?"}
+
+    %% REJECTION PATH
+    CAT_DEC -->|No| REJECT["Catalog rejection<br/>+ warning"]
+
+    %% ACCEPT PATH
+    CAT_DEC -->|Yes| S4_FINAL["Final product list"]
+
+    %% OUTPUT STRUCTURE
+    subgraph OUTPUT ["Stage4Output"]
+        direction TB
+        OUT_PRODUCTS["finalProducts[]:<br/>{ name, duration?,<br/>price?, source }"]
+        OUT_ATTR["sourceAttribution[]:<br/>{ productId, sources[],<br/>votes }"]
+        OUT_BREAK["confidenceBreakdown:<br/>{ overall, perProduct }"]
+        OUT_WARN["warnings[]"]
+    end
+
+    S4_FINAL --> OUT_PRODUCTS
+    REJECT --> OUT_WARN
+
+    %% SOURCE QUALITY
+    OUT_ATTR --> SOURCE{"source?"}
+    SOURCE -->|"mixed"| SOURCE_GOOD["✅ Good<br/>Multiple votes<br/>confidence ≥ 0.9"]
+    SOURCE -->|"single"| SOURCE_OK["⚠️ OK<br/>Single source<br/>confidence 0.7-0.8"]
+    SOURCE -->|"empty"| SOURCE_BAD["❌ Bad<br/>No products<br/>or rejection"]
+
+    %% =========================================================================
+    %% STYLES
+    %% =========================================================================
+    classDef inputNode fill:#e6f3ff,stroke:#0066cc,stroke-width:2px,color:#000
+    classDef processNode fill:#cce5ff,stroke:#0066cc,stroke-width:1.5px,color:#000
+    classDef decisionNode fill:#fff0e6,stroke:#ff9900,stroke-width:1.5px,color:#000
+    classDef outputNode fill:#d1e7dd,stroke:#198754,stroke-width:1.5px,color:#000
+    classDef successNode fill:#d1e7dd,stroke:#198754,stroke-width:1px,color:#000
+    classDef warnNode fill:#fff3cd,stroke:#ffc107,stroke-width:1px,color:#000
+    classDef errorNode fill:#f8d7da,stroke:#dc3545,stroke-width:1px,color:#000
+
+    class S2_BLOCKS,S3_PRODUCTS,SKIP_IN inputNode
+    class S4_VOTE,S4_DUP,S4_ATTR,S4_PRICE,S4_CATALOG,S4_FINAL,S4_DIRECT_MERGE processNode
+    class CAT_DEC,SOURCE decisionNode
+    class OUT_PRODUCTS,OUT_ATTR,OUT_BREAK,OUT_WARN outputNode
+    class SOURCE_GOOD successNode
+    class SOURCE_OK warnNode
+    class SOURCE_BAD,REJECT errorNode

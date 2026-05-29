@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'path';
 import fs from 'fs/promises';
 import type { BrowserContext } from 'playwright';
-import type { ActivityLog, PublisherRunDecision } from '../../contracts/models.js';
+import type { ActivityLog, PublisherRunDecision } from '../../lib/models.js';
 import { ENV } from '../../config/env.js';
 import { logger } from '../logger.js';
 import { LOG_EVENT } from '../logEvents.js';

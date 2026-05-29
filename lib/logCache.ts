@@ -1,5 +1,5 @@
 import fs from 'fs';
-import type { ActivityLog } from '../contracts/models.js';
+import type { ActivityLog } from '../lib/models.js';
 import { KEEP_ACTIVITY_LOG_ENTRIES } from './resourceMonitor.js';
 
 /**

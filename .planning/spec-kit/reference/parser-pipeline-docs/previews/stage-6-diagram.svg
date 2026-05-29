@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2508.9700000000003 356.225" width="2508.9700000000003" height="356.225" style="--bg:#FFFFFF;--fg:#27272A;background:var(--bg)">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+  text { font-family: 'Inter', system-ui, sans-serif; }
+  svg {
+    /* Derived from --bg and --fg (overridable via --line, --accent, etc.) */
+    --_text:          var(--fg);
+    --_text-sec:      var(--muted, color-mix(in srgb, var(--fg) 60%, var(--bg)));
+    --_text-muted:    var(--muted, color-mix(in srgb, var(--fg) 40%, var(--bg)));
+    --_text-faint:    color-mix(in srgb, var(--fg) 25%, var(--bg));
+    --_line:          var(--line, color-mix(in srgb, var(--fg) 30%, var(--bg)));
+    --_arrow:         var(--accent, color-mix(in srgb, var(--fg) 50%, var(--bg)));
+    --_node-fill:     var(--surface, color-mix(in srgb, var(--fg) 3%, var(--bg)));
+    --_node-stroke:   var(--border, color-mix(in srgb, var(--fg) 20%, var(--bg)));
+    --_group-fill:    var(--bg);
+    --_group-hdr:     color-mix(in srgb, var(--fg) 5%, var(--bg));
+    --_inner-stroke:  color-mix(in srgb, var(--fg) 12%, var(--bg));
+    --_key-badge:     color-mix(in srgb, var(--fg) 10%, var(--bg));
+  }
+</style>
+<defs>
+  <marker id="arrowhead" markerWidth="8" markerHeight="4.8" refX="8" refY="2.4" orient="auto">
+    <polygon points="0 0, 8 2.4, 0 4.8" fill="var(--_arrow)" />
+  </marker>
+  <marker id="arrowhead-start" markerWidth="8" markerHeight="4.8" refX="0" refY="2.4" orient="auto-start-reverse">
+    <polygon points="8 0, 0 2.4, 8 4.8" fill="var(--_arrow)" />
+  </marker>
+</defs>
+<rect x="40" y="64" width="371.45000000000005" height="248" rx="0" ry="0" fill="var(--_group-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+<rect x="40" y="64" width="371.45000000000005" height="28" rx="0" ry="0" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="1" />
+<text x="52" y="78" dy="0.35em" font-size="12" font-weight="600" fill="var(--_text-sec)">&quot;nomic-embed-text 768-dim&quot;</text>
+<rect x="1849.67" y="70" width="619.3000000000001" height="96" rx="0" ry="0" fill="var(--_group-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+<rect x="1849.67" y="70" width="619.3000000000001" height="28" rx="0" ry="0" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="1" />
+<text x="1861.67" y="84" dy="0.35em" font-size="12" font-weight="600" fill="var(--_text-sec)">&quot;Stage6Output&quot;</text>
+<polyline points="225.72500000000002,282 451.45,282 451.45,206" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="798.05,206 838.0500000000001,206" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1041.601668497841,222.8983315021591 1113.96,222.8983315021591 1113.96,236 1180.145,236" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1433.795,236 1505.97,236" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1041.601668497841,189.1016684978409 1113.96,189.1016684978409 1113.96,176 1176.57,176" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1437.3700000000001,176 1484.52,176" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1019.7012828284804,167.20128282848032 1113.96,167.20128282848032 1113.96,116 1169.42,116" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1444.52,116 1502.395,116" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1788.22,236 1829.67,236 1829.67,196 1960.3200000000002,196 1960.3200000000002,136" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1809.67,176 1829.67,176 1829.67,156 1960.3200000000002,156 1960.3200000000002,136" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1791.795,116 2173.6200000000003,116 2173.6200000000003,136" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1788.22,236 1829.67,236 1829.67,256 2159.32,256 2159.32,264" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1809.67,176 1829.67,176 1829.67,216 2159.32,216 2159.32,228" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="225.72500000000002,148 225.72500000000002,188" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="225.72500000000002,224 225.72500000000002,264" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<rect x="1083.08" y="222.5" width="61.760000000000005" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="1113.96" y="236" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">&quot;&lt; 0.85&quot;</text>
+<rect x="1074.5" y="162.5" width="78.92" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="1113.96" y="176" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">&quot;0.85-0.95&quot;</text>
+<rect x="1083.08" y="102.5" width="61.760000000000005" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="1113.96" y="116" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">&quot;≥ 0.95&quot;</text>
+<rect x="131.07500000000002" y="40" width="189.3" height="36" rx="0" ry="0" fill="#e6f3ff" stroke="#0066cc" stroke-width="2px" />
+<rect x="451.45" y="188" width="346.6" height="36" rx="0" ry="0" fill="#cce5ff" stroke="#0066cc" stroke-width="1.5px" />
+<polygon points="948.2750000000001,95.77499999999999 1058.5,206 948.2750000000001,316.225 838.0500000000001,206" fill="#fff0e6" stroke="#ff9900" stroke-width="1.5px" />
+<rect x="1180.145" y="218" width="253.65" height="36" rx="0" ry="0" fill="#d1e7dd" stroke="#198754" stroke-width="1px" />
+<rect x="1505.97" y="218" width="282.25" height="36" rx="0" ry="0" fill="#d1e7dd" stroke="#198754" stroke-width="1px" />
+<rect x="1176.57" y="158" width="260.8" height="36" rx="0" ry="0" fill="#fff3cd" stroke="#ffc107" stroke-width="1px" />
+<rect x="1484.52" y="158" width="325.15000000000003" height="36" rx="0" ry="0" fill="#fff3cd" stroke="#ffc107" stroke-width="1px" />
+<rect x="1169.42" y="98" width="275.1" height="36" rx="0" ry="0" fill="#fff3cd" stroke="#ffc107" stroke-width="2px" />
+<rect x="1502.395" y="98" width="289.40000000000003" height="36" rx="0" ry="0" fill="#fff3cd" stroke="#ffc107" stroke-width="2px" />
+<rect x="1946.6950000000002" y="228" width="425.25000000000006" height="36" rx="0" ry="0" fill="#e6ffe6" stroke="#009900" stroke-width="2px" />
+<rect x="56" y="112" width="339.45000000000005" height="36" rx="0" ry="0" fill="#cce5ff" stroke="#0066cc" stroke-width="1.5px" />
+<rect x="109.62500000000001" y="188" width="232.20000000000002" height="36" rx="0" ry="0" fill="#cce5ff" stroke="#0066cc" stroke-width="1.5px" />
+<rect x="77.45000000000002" y="264" width="296.55" height="36" rx="0" ry="0" fill="#cce5ff" stroke="#0066cc" stroke-width="1.5px" />
+<rect x="1865.67" y="118" width="189.3" height="36" rx="0" ry="0" fill="#d1e7dd" stroke="#198754" stroke-width="1.5px" />
+<rect x="2078.9700000000003" y="118" width="189.3" height="36" rx="0" ry="0" fill="#d1e7dd" stroke="#198754" stroke-width="1.5px" />
+<rect x="2292.27" y="118" width="160.70000000000002" height="36" rx="0" ry="0" fill="#d1e7dd" stroke="#198754" stroke-width="1.5px" />
+<text x="225.72500000000002" y="58" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;productsWithEvidence[</text>
+<text x="624.75" y="206" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;Cosine similarity&lt;br/&gt;vs stored embeddings&quot;</text>
+<text x="948.2750000000001" y="206" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;Similarity&lt;br/&gt;score?&quot;</text>
+<text x="1306.97" y="236" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;✅ Unique&lt;br/&gt;No similar posts&quot;</text>
+<text x="1647.095" y="236" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;Persist full record&lt;br/&gt;to SQLite&quot;</text>
+<text x="1306.97" y="176" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;⚠️ Similar&lt;br/&gt;Flag for review&quot;</text>
+<text x="1647.095" y="176" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;Flag + persist&lt;br/&gt;Log similarity score&quot;</text>
+<text x="1306.97" y="116" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;⏭️ Duplicate&lt;br/&gt;Skip persisting&quot;</text>
+<text x="1647.095" y="116" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;Log postId only&lt;br/&gt;Do not persist&quot;</text>
+<text x="2159.32" y="246" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;SQLite:&lt;br/&gt;competitor-ads.db&lt;br/&gt;PpomppuParsedRecord&quot;</text>
+<text x="225.72500000000002" y="130" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;Generate embedding:&lt;br/&gt;title + body text&quot;</text>
+<text x="225.72500000000002" y="206" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;768-dimensional&lt;br/&gt;vector&quot;</text>
+<text x="225.72500000000002" y="282" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;Store in:&lt;br/&gt;artifacts/embeddings/&quot;</text>
+<text x="1960.3200000000002" y="136" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;uniquePosts: boolean&quot;</text>
+<text x="2173.6200000000003" y="136" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;duplicateIds: string[</text>
+<text x="2372.62" y="136" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;similarityScores[</text>
+</svg>

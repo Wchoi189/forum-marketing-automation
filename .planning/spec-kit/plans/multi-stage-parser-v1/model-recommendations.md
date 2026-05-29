@@ -3,6 +3,26 @@
 **Target**: Next AI Agent
 **Context**: Use local Ollama for iterative testing
 **Endpoint**: `http://ollama:11434`
+**Hardware**: RTX 3090 24GB VRAM, Ryzen 9 9950X, 64GB RAM
+**Updated**: 2026-05-27
+
+---
+
+## Hardware Constraints
+
+**See**: `.planning/spec-kit/reference/hardware-context.md`
+
+| Constraint | Impact |
+|------------|--------|
+| 24 GB VRAM | Can run ONE 22 GB model (gemma2:27b-instruct) at max |
+| Single GPU | Sequential inference only, no parallel GPU work |
+| 16 CPU cores | Parallel Trafilatura, DuckDB across posts |
+| 64 GB RAM | In-memory processing, SQLite/Embedding cache |
+
+**Model Loading Strategy**:
+- Cannot load gemma2:27b-instruct (22 GB) + mistral-nemo (7.1 GB) simultaneously
+- Sequential: Classify (mistral-nemo) → Unload → Extract (gemma2:27b)
+- Or: Use smaller gemma2:9b (5.4 GB) + mistral-nemo (7.1 GB) = 12 GB (comfortable)
 
 ---
 
@@ -10,39 +30,44 @@
 
 | Model | Size | Use Case | Notes |
 |-------|------|----------|-------|
-| `gemma2:27b` | 15.6GB | **Primary extraction** | Default for `OLLAMA_OCR_MODEL`. Best accuracy, slower. |
-| `gemma2:9b` | 5.4GB | Fast extraction | Good for quick tests, 4x faster than 27b. |
-| `qwen3:30b-a3b` | 18.5GB | Complex reasoning | Large model for classification tasks. |
-| `qwen3.5:9b` | 6.5GB | Balanced | Good trade-off between speed and accuracy. |
-| `qwen3:8b` | 5.2GB | Fast fallback | Quick iteration testing. |
-| `qwen2.5vl:7b` | 5.9GB | **OCR/VLM** | Vision model for image extraction. |
-| `qwen2.5vl:3b` | 3.2GB | OCR fallback | Faster vision, lower accuracy. |
-| `qwen3-coder:30b` | 18.5GB | Code generation | For implementation work. |
-| `exaone3.5:latest` | 4.7GB | Korean specialist | Samsung model, good for Korean text. |
-| `nomic-embed-text` | 274MB | Embedding | For semantic similarity, dedup. |
-| `all-minilm:l6-v2` | 46MB | Fast embedding | Lightweight dedup check. |
+| `gemma2:27b-instruct-q6_K` | 22 GB | **Primary extraction** | Best accuracy, q6_K quantization, handles implicit names |
+| `mistral-nemo:latest` | 7.1 GB | **Primary classification** | Fast, structured output, Korean capable |
+| `snowflake-arctic-embed:latest` | 669 MB | **Primary embedding** | Korean text similarity for dedup |
+| `deepseek-r1:7b` | 4.7 GB | Reasoning model | Bloated marketing titles, comparison posts |
+| `llama3.1:latest` | 4.9 GB | Fallback classifier | General purpose, instruction following |
+| `aya-expanse:latest` | 5.1 GB | Multilingual specialist | Korean/English bilingual |
+| `gemma2:27b` | 15.6 GB | Previous extraction default | Good accuracy |
+| `gemma2:9b` | 5.4 GB | Fast extraction | Quick iteration testing |
+| `qwen3.5:9b` | 6.5 GB | Balanced | Speed + accuracy trade-off |
+| `qwen2.5vl:7b` | 5.9 GB | **OCR/VLM** | Vision model for image extraction |
+| `qwen2.5vl:3b` | 3.2 GB | OCR fallback | Faster vision, lower accuracy |
+| `exaone3.5:latest` | 4.7 GB | Korean specialist | Samsung model |
+| `nomic-embed-text:latest` | 274 MB | Embedding fallback | General purpose |
+| `all-minilm:l6-v2` | 46 MB | Fast embedding | Lightweight check |
 
 ---
 
 ## Recommended Usage
 
-### Stage 2 - Classification (Post Type Detection)
+### Stage 1 - Classification (Post Type Detection)
 **Task**: Classify post type → direct_offer | affiliate | promo_code | comparison
 
 **Recommended Models**:
-1. `gemma2:9b` - Fast, good for binary/multi-class classification
-2. `qwen3.5:9b` - Korean language specialist, handles marketing bloated titles
-3. `exaone3.5:latest` - Samsung Korean model, excellent for Korean NLU
+1. `mistral-nemo:latest` - **Primary**. Fast (7.1 GB), structured JSON output
+2. `llama3.1:latest` - Fallback. Good instruction following
+3. `aya-expanse:latest` - Multilingual. Korean/English mixed posts
+4. `deepseek-r1:7b` - Reasoning. Complex marketing intent
 
-**Prompt Strategy**: Single-pass classification with structured output.
+**Prompt Strategy**: Single-pass classification with structured JSON output.
 
 ### Stage 3 - Extraction (Product Info)
 **Task**: Extract name, price, duration, terms from filtered content
 
 **Recommended Models**:
-1. `gemma2:27b` - Best accuracy, handles implicit names from title
-2. `qwen3:30b-a3b` - Complex reasoning for bloated marketing titles
-3. `qwen3.5:9b` - Balanced, good for iterative testing
+1. `gemma2:27b-instruct-q6_K` - **Primary**. Best accuracy (22 GB), q6_K quality
+2. `deepseek-r1:7b` - Reasoning. Bloated marketing titles, implicit names
+3. `gemma2:27b` - Previous default. Good accuracy (15.6 GB)
+4. `gemma2:9b` - Fast iteration. Development testing
 
 **Prompt Strategy**: Pass title + body. Require JSON output. Use catalog matching.
 
@@ -59,38 +84,23 @@
 **Task**: Detect redundant scraping, similar posts
 
 **Recommended Models**:
-1. `nomic-embed-text` - Semantic similarity for post content
-2. `all-minilm:l6-v2` - Fast embedding check
+1. `snowflake-arctic-embed:latest` - **Primary**. Korean text similarity (669 MB)
+2. `nomic-embed-text:latest` - Fallback. General purpose (274 MB)
+3. `all-minilm:l6-v2` - Fast check. Lightweight (46 MB)
 
 ---
 
-## Recommended Additional Models (Not Installed)
+## Model Selection Matrix
 
-### For Classification
-| Model | Size | Why Install |
-|-------|------|-------------|
-| `llama3.1:8b` | 4.7GB | Fast, general classification |
-| `mistral:7b` | 4.1GB | Efficient, good for structured output |
-| `deepseek-r1:7b` | 4.7GB | Reasoning model, handles complex intent |
-
-### For Korean-specific
-| Model | Size | Why Install |
-|-------|------|-------------|
-| `gemma2:27b-instruct` | 15.6GB | Better instruction following for Korean |
-
-### For Embedding/Dedup
-| Model | Size | Why Install |
-|-------|------|-------------|
-| `snowflake-arctic-embed` | 229MB | Better Korean embedding |
-
-**Install Command**:
-```bash
-ollama pull <model_name>
-```
+| Task | Speed Priority | Accuracy Priority | Korean Specialist |
+|------|----------------|-------------------|-------------------|
+| Classification | `llama3.1` (4.9GB) | `mistral-nemo` (7.1GB) | `aya-expanse` (5.1GB) |
+| Extraction | `gemma2:9b` (5.4GB) | `gemma2:27b-instruct` (22GB) | `exaone3.5` (4.7GB) |
+| Reasoning | `deepseek-r1` (4.7GB) | `deepseek-r1` (4.7GB) | - |
+| OCR | `qwen2.5vl:3b` (3.2GB) | `qwen2.5vl:7b` (5.9GB) | - |
+| Embedding | `all-minilm` (46MB) | `snowflake-arctic` (669MB) | `snowflake-arctic` |
 
 ---
-
-## Iterative Testing Protocol
 
 ### Quick Test (Fast Feedback)
 ```bash

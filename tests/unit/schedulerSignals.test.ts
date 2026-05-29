@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import type { PublisherHistoryEntry } from "../../contracts/models.ts";
+import type { PublisherHistoryEntry } from "../../lib/models.ts";
 import {
   buildSchedulerAdaptationWindows,
   buildSchedulerSignalTimeline,

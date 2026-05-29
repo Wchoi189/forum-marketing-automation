@@ -1,0 +1,95 @@
+{
+  "session_id": "multi-stage-parser-20260527-0042",
+  "slice_index": 1,
+  "slice_name": "Stage 0 - Locate",
+  "status": "completed",
+  "started_at": "2026-05-27T00:00:00Z",
+  "ended_at": "2026-05-27T00:42:00Z",
+  "work_completed": [
+    "Created scripts/trafilatura_extract.py — Python bridge (stdin HTML → JSON {title, body, originalChars, cleanChars})",
+    "Created lib/competitor-intel/pipeline/stage0-locate/types.ts — Stage0Output type",
+    "Created lib/competitor-intel/pipeline/stage0-locate/index.ts — locateElements(html, postUrl) → Stage0Output",
+    "Trafilatura primary path: extract_metadata() for title, extract(include_tables=True) for body",
+    "Cheerio fallback: triggers when trafilatura body is empty, reads og:title via attr() not text()",
+    "Created tests/unit/competitor-intel/stage0-locate.test.ts — 5 tests, all PASS",
+    "TC-0.1 PASS: 구독트리 post, prices preserved, reductionRatio >= 0.6",
+    "TC-0.2 PASS: SharePlan noise post, 98% reduction (82,054 → 1,271 chars), reductionRatio >= 0.95",
+    "TC-0.3 PASS: 기프티콩~ implicit name post, titleText contains YouTube reference",
+    "TC-0.4 PASS: script-only body → trafilatura returns empty → Cheerio fallback, tool=cheerio, warning=trafilatura_empty_fallback_used",
+    "Sanity test PASS: Stage0Output shape always has required typed fields"
+  ],
+  "work_remaining": [
+    "Slice 2: Stage 1 - Classify (classifyPost, LLM, 5 post types) (3h)",
+    "Slice 3: Stage 2 - Filter (noise removal, signal score, contentForLlm) (4h)",
+    "Slice 4: Stage 3 - LLM Extract (extractWithLlm, implicit name resolution, Zod validation) (4h)",
+    "Slice 5: Stage 4 - Merge (vote/tie-breaker, catalog validation, source attribution) (4h)",
+    "Slice 6: Stage 5 - Evidence (evidence chain per product, provenance) (3h)",
+    "Slice 7: Stage 6 - Dedup (nomic-embed-text similarity, threshold 0.95/0.85) (2h)",
+    "Slice 8: Orchestrator + Adapter (orchestrator.ts, adapter.ts, migrate request-handler.ts) (4h)"
+  ],
+  "decisions_made": [
+    {
+      "decision": "Async child_process.spawn (not execSync) for Python bridge",
+      "rationale": "Timeout enforcement requires event loop; execSync blocks and cannot kill on timeout",
+      "impact": "locateElements is async, all callers must await"
+    },
+    {
+      "decision": "TC-0.4 trigger: script-only body HTML, not nav-only HTML",
+      "rationale": "trafilatura with no_fallback=False extracts nav list text ('Home\\nAbout'). Only script/style-only body reliably returns empty.",
+      "impact": "Test HTML for fallback = <body><script>var d={}</script></body>, NOT <nav>..."
+    },
+    {
+      "decision": "og:title via attr('content') not .text() in Cheerio fallback",
+      "rationale": "meta element has no text content; og:title value is in content attribute",
+      "impact": "Cheerio fallback title_selector for meta reads el.attr('content')"
+    },
+    {
+      "decision": "pipeline/ dir under lib/competitor-intel/ (not extraction/)",
+      "rationale": "Spec specifies lib/competitor-intel/pipeline/ as pipeline_dir",
+      "impact": "All stage modules live at lib/competitor-intel/pipeline/stage0-locate/ etc."
+    }
+  ],
+  "blockers": [],
+  "next_actions": [
+    "1. Read stage-classify-v1.json spec",
+    "2. Create lib/competitor-intel/pipeline/stage1-classify/ directory",
+    "3. Create stage1-classify/types.ts — Stage1Output type (postType, classifierConfidence, classifierEvidence, skipExtraction)",
+    "4. Create stage1-classify/classify-prompt.ts — prompt template for Ollama classification",
+    "5. Create stage1-classify/index.ts — classifyPost(stage0Output) → Stage1Output using Ollama gemma2:9b",
+    "6. Test with affiliate post (GamsGo) → postType=affiliate, skipExtraction=true",
+    "7. Test with direct offer post (구독트리) → postType=direct_offer, skipExtraction=false",
+    "8. Add TC-1.1 through TC-1.5 test cases"
+  ],
+  "test_results": {
+    "TC-0.1": "PASS — 구독트리 post, prices in bodyText, reductionRatio >= 0.6",
+    "TC-0.2": "PASS — SharePlan noise post, 98.5% reduction, reductionRatio >= 0.95",
+    "TC-0.3": "PASS — 기프티콩~ post, titleText references YouTube Premium",
+    "TC-0.4": "PASS — script-only body, trafilatura_empty_fallback_used warning, debugInfo.tool=cheerio",
+    "shape_sanity": "PASS — Stage0Output always has titleText, bodyText, reductionRatio as string/string/number"
+  },
+  "validation_posts": {
+    "551b849c00f1": "PASS — Stage 0 isolated title+body, prices preserved, reductionRatio >= 0.6",
+    "0aea7978e7b3": "PASS — Stage 0: 98% reduction, SharePlan noise removed, 82K → 1.2K chars",
+    "eb67ebba985c": "PASS — Stage 0: titleText contains YouTube reference (implicit name preserved in title)",
+    "9446cd3682da": "not tested yet (Stage 2+ needed)"
+  },
+  "files_created": [
+    "scripts/trafilatura_extract.py",
+    "lib/competitor-intel/pipeline/stage0-locate/types.ts",
+    "lib/competitor-intel/pipeline/stage0-locate/index.ts",
+    "tests/unit/competitor-intel/stage0-locate.test.ts"
+  ],
+  "metrics": {
+    "shareplan_reduction_actual": "98.5% (82,054 → 1,271 chars)",
+    "test_pass_rate": "5/5",
+    "trafilatura_timeout_ms": 5000,
+    "python_bin": "/parent/marketing-automation/.venv/bin/python3"
+  },
+  "references": {
+    "plan_spec": ".planning/spec-kit/plans/multi-stage-parser-v1/multi-stage-parser-v1.json",
+    "stage_spec": ".planning/spec-kit/plans/multi-stage-parser-v1/stage-locate-v1.json",
+    "next_stage_spec": ".planning/spec-kit/plans/multi-stage-parser-v1/stage-classify-v1.json",
+    "implementation": "lib/competitor-intel/pipeline/stage0-locate/",
+    "tests": "tests/unit/competitor-intel/stage0-locate.test.ts"
+  }
+}

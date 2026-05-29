@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { ActivityLog, PublisherHistoryEntry } from "../../contracts/models.ts";
+import type { ActivityLog, PublisherHistoryEntry } from "../../lib/models.ts";
 import type { TrendInsightsPayload } from "../../lib/trendInsights.ts";
 import { buildAdvisorContext, callGrokAdvisor, setAdvisorCache, getAdvisorCache } from "../../lib/aiAdvisor.ts";
 

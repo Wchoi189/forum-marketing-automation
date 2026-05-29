@@ -1,0 +1,152 @@
+%% =============================================================================
+%% MULTI-STAGE PARSER PIPELINE - OVERVIEW DIAGRAM
+%% =============================================================================
+%% Purpose: High-level flow visualization of the 6-stage extraction pipeline
+%% Design Intent: Show data flow, decision points, and early-exit paths
+%% Change Impact: Core extraction logic - changes affect all downstream consumers
+%% =============================================================================
+
+flowchart TD
+    %% =========================================================================
+    %% STAGE 0: LOCATE - Trafilatura + Cheerio fallback
+    %% =========================================================================
+    INPUT[/"Raw HTML<br/>+ postUrl"/] --> S0
+
+    subgraph SG0 ["Stage 0: LOCATE"]
+        direction TB
+        S0_PROC["Trafilatura.extract()<br/>+ Cheerio fallback"]
+        S0_PROC --> S0_OUT{"Output OK?"}
+        S0_OUT -->|Yes| Q0["Stage0Output"]
+        S0_OUT -->|Empty| S0_FALL["Cheerio selectors<br/>activated"]
+        S0_FALL --> Q0
+    end
+
+    %% =========================================================================
+    %% STAGE 1: CLASSIFY - Ollama gemma2:9b
+    %% =========================================================================
+    Q0 --> S1
+
+    subgraph SG1 ["Stage 1: CLASSIFY"]
+        direction TB
+        S1_PROC["Ollama gemma2:9b<br/>Single-pass classify"]
+        S1_PROC --> S1_DEC{"postType?"}
+    end
+
+    %% Early exit path for affiliate/promo_code
+    S1_DEC -->|"affiliate / promo_code"| EARLY["EARLY EXIT<br/>Record referral only"]
+    EARLY --> DB_MINIMAL["SQLite: referral record"]
+
+    %% Continue path for direct_offer/comparison/unknown
+    S1_DEC -->|"direct_offer / comparison"| Q1["Stage1Output"]
+
+    %% =========================================================================
+    %% STAGE 2: NOISE FILTER - Regex + Block scoring
+    %% =========================================================================
+    Q1 --> S2
+
+    subgraph SG2 ["Stage 2: NOISE FILTER"]
+        direction TB
+        S2_PROC["Split bodyText → blocks<br/>Apply noise regex<br/>Score each block"]
+        S2_PROC --> S2_SCORE{"signalScore?"}
+        S2_SCORE -->|"≥ 0.85"| LLMSKIP["SKIP Stage 3<br/>Use cleanBlocks"]
+        S2_SCORE -->|"0.6-0.85"| Q2_LLM["LLM required"]
+        S2_SCORE -->|"< 0.3"| Q2_BAD["Noise-dominant<br/>Low confidence"]
+    end
+
+    %% =========================================================================
+    %% STAGE 3: LLM EXTRACT - Ollama gemma2:27b
+    %% =========================================================================
+    Q2_LLM --> S3
+
+    subgraph SG3 ["Stage 3: LLM EXTRACT"]
+        direction TB
+        S3_PROC["Ollama gemma2:27b<br/>+ Zod validation<br/>+ Cross-pair filter"]
+        S3_PROC --> S3_ZOD{"Zod valid?"}
+        S3_ZOD -->|Yes| Q3["Stage3Output"]
+        S3_ZOD -->|No| S3_RETRY["Retry with<br/>strict prompt"]
+        S3_RETRY --> Q3
+    end
+
+    %% =========================================================================
+    %% STAGE 4: MERGE - Vote + Catalog validation
+    %% =========================================================================
+    LLMSKIP --> S4
+    Q3 --> S4
+    Q2_BAD --> S4
+
+    subgraph SG4 ["Stage 4: MERGE"]
+        direction TB
+        S4_PROC["Vote: Cheerio vs LLM<br/>Catalog match<br/>Duplicate removal"]
+        S4_PROC --> S4_CAT{"Catalog OK?"}
+        S4_CAT -->|Yes| Q4["Stage4Output"]
+        S4_CAT -->|No| S4_WARN["Rejection warning"]
+        S4_WARN --> Q4
+    end
+
+    %% =========================================================================
+    %% STAGE 5: EVIDENCE - Provenance assembly
+    %% =========================================================================
+    Q4 --> S5
+
+    subgraph SG5 ["Stage 5: EVIDENCE"]
+        direction TB
+        S5_PROC["Attach excerpts<br/>per field<br/>Build evidence chain"]
+        S5_PROC --> S5_EVID{"name_evidence<br/>exists?"}
+        S5_EVID -->|Yes| Q5["Stage5Output"]
+        S5_EVID -->|No| S5_LOW["Confidence lowered<br/>+ warning"]
+        S5_LOW --> Q5
+    end
+
+    %% =========================================================================
+    %% STAGE 6: DEDUP - Embedding similarity
+    %% =========================================================================
+    Q5 --> S6
+
+    subgraph SG6 ["Stage 6: DEDUP"]
+        direction TB
+        S6_PROC["Generate embedding<br/>nomic-embed-text<br/>768-dim"]
+        S6_PROC --> S6_SIM{"Similarity?"}
+        S6_SIM -->|"< 0.85"| Q6_UNIQUE["Unique<br/>Persist"]
+        S6_SIM -->|"≥ 0.95"| Q6_DUP["Duplicate<br/>Skip + log"]
+        S6_SIM -->|"0.85-0.95"| Q6_FLAG["Similar<br/>Flag + persist"]
+    end
+
+    %% =========================================================================
+    %% FINAL OUTPUTS
+    %% =========================================================================
+    Q6_UNIQUE --> DB["SQLite: competitor-ads.db<br/>Full record"]
+    Q6_DUP --> DROP["Drop<br/>Log postId only"]
+    Q6_FLAG --> DB
+
+    %% =========================================================================
+    %% STYLE DEFINITIONS - Color Tier System
+    %% =========================================================================
+    
+    %% Core/Layer1 - Main processing stages
+    classDef coreStage fill:#e6f3ff,stroke:#0066cc,stroke-width:2px,color:#000
+    
+    %% Middle/Layer2 - Decision points and outputs
+    classDef middleNode fill:#fff0e6,stroke:#ff9900,stroke-width:1.5px,color:#000
+    
+    %% Edge/Layer3 - Input/output terminals
+    classDef edgeNode fill:#f9f9f9,stroke:#ccc,stroke-width:1px,color:#000
+    
+    %% Status indicators
+    classDef successNode fill:#d1e7dd,stroke:#198754,stroke-width:1.5px,color:#000
+    classDef warningNode fill:#fff3cd,stroke:#ffc107,stroke-width:1.5px,color:#000
+    classDef errorNode fill:#f8d7da,stroke:#dc3545,stroke-width:1.5px,color:#000
+    
+    %% Subgraph styling
+    classDef subgraphStyle fill:#f8f9fa,stroke:#495057,stroke-width:1px
+
+    %% =========================================================================
+    %% CLASS ASSIGNMENTS
+    %% =========================================================================
+    class INPUT,DB,DB_MINIMAL,DROP edgeNode
+    class S0_PROC,S1_PROC,S2_PROC,S3_PROC,S4_PROC,S5_PROC,S6_PROC coreStage
+    class S0_OUT,S1_DEC,S2_SCORE,S3_ZOD,S4_CAT,S5_EVID,S6_SIM middleNode
+    class Q0,Q1,Q2_LLM,Q2_BAD,Q3,Q4,Q5 middleNode
+    class LLMSKIP,Q6_UNIQUE successNode
+    class EARLY,Q6_FLAG,S4_WARN,S5_LOW warningNode
+    class Q6_DUP,Q2_BAD errorNode
+    class SG0,SG1,SG2,SG3,SG4,SG5,SG6 subgraphStyle

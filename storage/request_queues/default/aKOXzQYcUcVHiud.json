@@ -1,9 +1,0 @@
-{
-	"id": "aKOXzQYcUcVHiud",
-	"json": "{\"id\":\"aKOXzQYcUcVHiud\",\"url\":\"https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207767\",\"loadedUrl\":\"https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207767\",\"uniqueKey\":\"다시봄을|https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207767\",\"method\":\"GET\",\"noRetry\":false,\"retryCount\":0,\"errorMessages\":[],\"headers\":{},\"userData\":{\"runId\":\"test-final-v5\",\"notesOverride\":\"test-cleanup\",\"__crawlee\":{\"state\":4}},\"handledAt\":\"2026-05-10T11:47:38.307Z\"}",
-	"method": "GET",
-	"orderNo": null,
-	"retryCount": 0,
-	"uniqueKey": "다시봄을|https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207767",
-	"url": "https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207767"
-}

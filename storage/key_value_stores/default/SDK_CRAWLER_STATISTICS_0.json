@@ -1,29 +1,51 @@
 {
-  "requestsFinished": 5,
-  "requestsFailed": 0,
-  "requestsRetries": 0,
+  "requestsFinished": 86,
+  "requestsFailed": 4,
+  "requestsRetries": 4,
   "requestsFailedPerMinute": 0,
-  "requestsFinishedPerMinute": 8,
-  "requestMinDurationMillis": 2377,
-  "requestMaxDurationMillis": 18301,
-  "requestTotalFailedDurationMillis": 0,
-  "requestTotalFinishedDurationMillis": 38776,
-  "crawlerStartedAt": "2026-05-10T11:47:04.937Z",
-  "crawlerFinishedAt": "2026-05-10T11:47:44.052Z",
-  "statsPersistedAt": "2026-05-10T11:47:44.052Z",
-  "crawlerRuntimeMillis": 39249,
-  "crawlerLastStartTimestamp": 1778413624803,
+  "requestsFinishedPerMinute": 16,
+  "requestMinDurationMillis": -547,
+  "requestMaxDurationMillis": 33895,
+  "requestTotalFailedDurationMillis": 10648,
+  "requestTotalFinishedDurationMillis": 295691,
+  "crawlerStartedAt": "2026-05-26T03:05:54.039Z",
+  "crawlerFinishedAt": "2026-05-26T03:11:20.269Z",
+  "statsPersistedAt": "2026-05-26T03:11:20.269Z",
+  "crawlerRuntimeMillis": 326325,
+  "crawlerLastStartTimestamp": 1779764753944,
   "requestRetryHistogram": [
-    5
+    86,
+    null,
+    4
   ],
   "statsId": 0,
-  "requestAvgFailedDurationMillis": null,
-  "requestAvgFinishedDurationMillis": 7755,
-  "requestTotalDurationMillis": 38776,
-  "requestsTotal": 5,
+  "requestAvgFailedDurationMillis": 2662,
+  "requestAvgFinishedDurationMillis": 3438,
+  "requestTotalDurationMillis": 306339,
+  "requestsTotal": 90,
   "requestsWithStatusCode": {
-    "200": 5
+    "200": 98
   },
-  "errors": {},
-  "retryErrors": {}
+  "errors": {
+    "/parent/marketing-automation/lib/competitor-intel/crawler/request-handler.ts:254:13": {
+      "missing error code": {
+        "Error": {
+          "Missing products; no structured product rows extracted for _": {
+            "count": 4
+          }
+        }
+      }
+    }
+  },
+  "retryErrors": {
+    "/parent/marketing-automation/lib/competitor-intel/crawler/request-handler.ts:254:13": {
+      "missing error code": {
+        "Error": {
+          "Missing products; no structured product rows extracted for _": {
+            "count": 8
+          }
+        }
+      }
+    }
+  }
 }

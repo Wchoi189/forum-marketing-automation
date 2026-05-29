@@ -83,6 +83,22 @@
 
 Full parsing in `config/env.ts`. Schema in `.planning/spec-kit/manifest/schemas/env.schema.json`.
 
+## Artifact GC
+
+GC runs automatically at startup + every 6h in production. Manual trigger: `npm run gc` (server must be running) or `POST /api/resource/gc`.
+
+All logic in `lib/resourceMonitor.ts`. Full policy: `.agent/knowledge/gc-policy.md`.
+
+| What | Path | Rule |
+|------|------|------|
+| Publisher run artifacts | `artifacts/publisher-runs/` | Delete dirs > 7 days old |
+| Crawlee dataset JSONs | `storage/datasets/default/*.json` | Delete all (data in SQLite) |
+| Market-data snapshots | `artifacts/competitor-ads/market-data-*/` | Keep latest 2 |
+| Activity log | `activity_log.json` | Trim to 500 if > 1000 entries |
+| Session handovers | `.agent/session-handovers/` | Keep latest 5, archive rest |
+
+**Never delete:** `artifacts/runtime-controls.json`, `artifacts/browser-storage-state.json`, `artifacts/competitor-ads/embeddings/`, `artifacts/competitor-ads/competitor-ads.db`, `.venv/`.
+
 ## Operational Rules
 
 See `AGENTS.md` — publisher success criteria, env var discipline, selector strategy, regression checklist.

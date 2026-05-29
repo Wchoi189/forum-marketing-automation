@@ -1,0 +1,70 @@
+%% =============================================================================
+%% STAGE 0: LOCATE - Trafilatura + Cheerio Fallback
+%% =============================================================================
+%% Purpose: Extract title and body text from raw HTML
+%% Design Intent: Python-first for quality, TypeScript fallback for reliability
+%% Change Impact: All downstream stages depend on titleText/bodyText quality
+%% =============================================================================
+
+flowchart LR
+    %% INPUT
+    HTML[/"Raw HTML<br/>+ postUrl"/] --> TRAF
+
+    %% TRAFILURA PATH (Primary)
+    subgraph TRAFILURA ["Trafilatura (Python subprocess)"]
+        direction TB
+        TRAF["trafilatura.extract()<br/>include_tables=True"]
+        TRAF --> TRAF_META["extract_metadata()<br/>→ title"]
+        TRAF --> TRAF_BODY["extract()<br/>→ bodyText"]
+    end
+
+    %% QUALITY CHECK
+    TRAF_META --> CHECK{"Both<br/>non-empty?"}
+    TRAF_BODY --> CHECK
+
+    %% FALLBACK PATH
+    CHECK -->|Empty| FALLBACK["Cheerio selectors<br/>activated"]
+    FALLBACK --> CHEERIO_TITLE["h1, .title,<br/>meta og:title"]
+    FALLBACK --> CHEERIO_BODY[".content,<br/>.post-body,<br/>article"]
+    
+    %% OUTPUT ASSEMBLY
+    CHECK -->|OK| ASSEMBLE
+    CHEERIO_TITLE --> ASSEMBLE
+    CHEERIO_BODY --> ASSEMBLE
+
+    subgraph OUTPUT ["Stage0Output"]
+        direction TB
+        OUT_TITLE["titleText: string"]
+        OUT_BODY["bodyText: string<br/>← CLEAN plain text"]
+        OUT_RATIO["reductionRatio: 0–1"]
+        OUT_WARN["warnings: string[]"]
+    end
+
+    ASSEMBLE --> OUT_TITLE
+    ASSEMBLE --> OUT_BODY
+    ASSEMBLE --> OUT_RATIO
+
+    %% QUALITY THRESHOLDS
+    OUT_RATIO --> THRESH{"ratio?"}
+    THRESH -->|"≥ 0.70"| GOOD["✅ Good"]
+    THRESH -->|"0.40-0.70"| OK["⚠️ Acceptable"]
+    THRESH -->|"< 0.40"| WARN["❌ Warn<br/>trafilatura_fallback_used"]
+
+    %% =========================================================================
+    %% STYLES
+    %% =========================================================================
+    classDef inputNode fill:#e6f3ff,stroke:#0066cc,stroke-width:2px,color:#000
+    classDef processNode fill:#cce5ff,stroke:#0066cc,stroke-width:1.5px,color:#000
+    classDef decisionNode fill:#fff0e6,stroke:#ff9900,stroke-width:1.5px,color:#000
+    classDef outputNode fill:#d1e7dd,stroke:#198754,stroke-width:1.5px,color:#000
+    classDef statusGood fill:#d1e7dd,stroke:#198754,stroke-width:1px,color:#000
+    classDef statusWarn fill:#fff3cd,stroke:#ffc107,stroke-width:1px,color:#000
+    classDef statusError fill:#f8d7da,stroke:#dc3545,stroke-width:1px,color:#000
+
+    class HTML inputNode
+    class TRAF,TRAF_META,TRAF_BODY,FALLBACK,CHEERIO_TITLE,CHEERIO_BODY,ASSEMBLE processNode
+    class CHECK,THRESH decisionNode
+    class OUT_TITLE,OUT_BODY,OUT_RATIO,OUT_WARN outputNode
+    class GOOD statusGood
+    class OK,WARN statusWarn
+    class WARN statusError

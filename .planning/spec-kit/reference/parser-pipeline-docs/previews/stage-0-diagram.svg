@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3510.46 287.075" width="3510.46" height="287.075" style="--bg:#FFFFFF;--fg:#27272A;background:var(--bg)">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+  text { font-family: 'Inter', system-ui, sans-serif; }
+  svg {
+    /* Derived from --bg and --fg (overridable via --line, --accent, etc.) */
+    --_text:          var(--fg);
+    --_text-sec:      var(--muted, color-mix(in srgb, var(--fg) 60%, var(--bg)));
+    --_text-muted:    var(--muted, color-mix(in srgb, var(--fg) 40%, var(--bg)));
+    --_text-faint:    color-mix(in srgb, var(--fg) 25%, var(--bg));
+    --_line:          var(--line, color-mix(in srgb, var(--fg) 30%, var(--bg)));
+    --_arrow:         var(--accent, color-mix(in srgb, var(--fg) 50%, var(--bg)));
+    --_node-fill:     var(--surface, color-mix(in srgb, var(--fg) 3%, var(--bg)));
+    --_node-stroke:   var(--border, color-mix(in srgb, var(--fg) 20%, var(--bg)));
+    --_group-fill:    var(--bg);
+    --_group-hdr:     color-mix(in srgb, var(--fg) 5%, var(--bg));
+    --_inner-stroke:  color-mix(in srgb, var(--fg) 12%, var(--bg));
+    --_key-badge:     color-mix(in srgb, var(--fg) 10%, var(--bg));
+  }
+</style>
+<defs>
+  <marker id="arrowhead" markerWidth="8" markerHeight="4.8" refX="8" refY="2.4" orient="auto">
+    <polygon points="0 0, 8 2.4, 0 4.8" fill="var(--_arrow)" />
+  </marker>
+  <marker id="arrowhead-start" markerWidth="8" markerHeight="4.8" refX="0" refY="2.4" orient="auto-start-reverse">
+    <polygon points="8 0, 0 2.4, 8 4.8" fill="var(--_arrow)" />
+  </marker>
+</defs>
+<rect x="297.9" y="40" width="534.7" height="172" rx="0" ry="0" fill="var(--_group-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+<rect x="297.9" y="40" width="534.7" height="28" rx="0" ry="0" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="1" />
+<text x="309.9" y="54" dy="0.35em" font-size="12" font-weight="600" fill="var(--_text-sec)">&quot;Trafilatura (Python subprocess)&quot;</text>
+<rect x="1962.7900000000002" y="78" width="939.85" height="96" rx="0" ry="0" fill="var(--_group-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+<rect x="1962.7900000000002" y="78" width="939.85" height="28" rx="0" ry="0" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="1" />
+<text x="1974.7900000000002" y="92" dy="0.35em" font-size="12" font-weight="600" fill="var(--_text-sec)">&quot;Stage0Output&quot;</text>
+<polyline points="257.9,144 575.9749999999999,144 575.9749999999999,106" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="707.6500000000001,182 872.6,182 872.6,144" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1065.9754066615028,156.7745933384973 1117.05,156.7745933384973 1117.05,164 1155.35,164" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1423.2999999999997,164 1453.02,164 1453.02,134 1511.34,134" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1423.2999999999997,164 1453.02,164 1453.02,194 1482.74,194" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1051.8198889614632,117.06988896146306 1117.05,117.06988896146306 1117.05,94 1878.19,94 1878.19,126" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1764.99,134 1878.19,134 1878.19,126" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1793.59,194 1878.19,194 1878.19,162" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="1922.79,144 2610.865,144" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="2610.865,144 2942.6400000000003,144" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="3036.1026990584683,124.26269905846794 3111.3,124.26269905846794 3111.3,84 3274.01,84" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="3055.84,144 3248.985,144" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="3036.1026990584683,163.73730094153206 3111.3,163.73730094153206 3111.3,204 3166.76,204" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="575.9749999999999,124 575.9749999999999,144 444.29999999999995,144 444.29999999999995,164" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="575.9749999999999,124 575.9749999999999,144 707.65,144 707.65,164" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<rect x="1094.75" y="150.5" width="44.6" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="1117.05" y="164" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">Empty</text>
+<rect x="1439.3" y="80.5" width="27.44" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="1453.02" y="94" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">OK</text>
+<rect x="3080.42" y="70.5" width="61.760000000000005" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="3111.3" y="84" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">&quot;≥ 0.70&quot;</text>
+<rect x="3071.84" y="130.5" width="78.92" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="3111.3" y="144" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">&quot;0.40-0.70&quot;</text>
+<rect x="3080.42" y="190.5" width="61.760000000000005" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="3111.3" y="204" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">&quot;&lt; 0.40&quot;</text>
+<rect x="39.999999999999986" y="126" width="217.9" height="36" rx="0" ry="0" fill="#e6f3ff" stroke="#0066cc" stroke-width="2px" />
+<polygon points="975.6750000000001,40.925 1078.75,144 975.6750000000001,247.075 872.6,144" fill="#fff0e6" stroke="#ff9900" stroke-width="1.5px" />
+<rect x="1155.35" y="146" width="267.95000000000005" height="36" rx="0" ry="0" fill="#cce5ff" stroke="#0066cc" stroke-width="1.5px" />
+<rect x="1511.34" y="116" width="253.65" height="36" rx="0" ry="0" fill="#cce5ff" stroke="#0066cc" stroke-width="1.5px" />
+<rect x="1482.74" y="176" width="310.85" height="36" rx="0" ry="0" fill="#cce5ff" stroke="#0066cc" stroke-width="1.5px" />
+<rect x="1833.5900000000001" y="126" width="89.2" height="36" rx="0" ry="0" fill="#cce5ff" stroke="#0066cc" stroke-width="1.5px" />
+<polygon points="2999.2400000000002,87.4 3055.84,144 2999.2400000000002,200.6 2942.6400000000003,144" fill="#fff0e6" stroke="#ff9900" stroke-width="1.5px" />
+<rect x="3274.01" y="66" width="89.2" height="36" rx="0" ry="0" fill="#d1e7dd" stroke="#198754" stroke-width="1px" />
+<rect x="3248.985" y="126" width="139.25" height="36" rx="0" ry="0" fill="#fff3cd" stroke="#ffc107" stroke-width="1px" />
+<rect x="3166.76" y="186" width="303.70000000000005" height="36" rx="0" ry="0" fill="#f8d7da" stroke="#dc3545" stroke-width="1px" />
+<rect x="545.675" y="88" width="60.6" height="36" rx="0" ry="0" fill="#cce5ff" stroke="#0066cc" stroke-width="1.5px" />
+<rect x="313.9" y="164" width="260.8" height="36" rx="0" ry="0" fill="#cce5ff" stroke="#0066cc" stroke-width="1.5px" />
+<rect x="598.7" y="164" width="217.9" height="36" rx="0" ry="0" fill="#cce5ff" stroke="#0066cc" stroke-width="1.5px" />
+<rect x="1978.7900000000002" y="126" width="167.85000000000002" height="36" rx="0" ry="0" fill="#d1e7dd" stroke="#198754" stroke-width="1.5px" />
+<rect x="2170.6400000000003" y="126" width="325.15000000000003" height="36" rx="0" ry="0" fill="#d1e7dd" stroke="#198754" stroke-width="1.5px" />
+<rect x="2519.79" y="126" width="182.15" height="36" rx="0" ry="0" fill="#d1e7dd" stroke="#198754" stroke-width="1.5px" />
+<rect x="2725.94" y="126" width="160.70000000000002" height="36" rx="0" ry="0" fill="#d1e7dd" stroke="#198754" stroke-width="1.5px" />
+<text x="148.95" y="144" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">/&quot;Raw HTML&lt;br/&gt;+ postUrl&quot;/</text>
+<text x="975.6750000000001" y="144" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;Both&lt;br/&gt;non-empty?&quot;</text>
+<text x="1289.3249999999998" y="164" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;Cheerio selectors&lt;br/&gt;activated&quot;</text>
+<text x="1638.165" y="134" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;h1, .title,&lt;br/&gt;meta og:title&quot;</text>
+<text x="1638.165" y="194" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;.content,&lt;br/&gt;.post-body,&lt;br/&gt;article&quot;</text>
+<text x="1878.19" y="144" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">ASSEMBLE</text>
+<text x="2999.2400000000002" y="144" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;ratio?&quot;</text>
+<text x="3318.61" y="84" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;✅ Good&quot;</text>
+<text x="3318.61" y="144" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;⚠️ Acceptable&quot;</text>
+<text x="3318.61" y="204" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;❌ Warn&lt;br/&gt;trafilatura_fallback_used&quot;</text>
+<text x="575.9749999999999" y="106" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">TRAF</text>
+<text x="444.29999999999995" y="182" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;extract_metadata()&lt;br/&gt;→ title&quot;</text>
+<text x="707.6500000000001" y="182" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;extract()&lt;br/&gt;→ bodyText&quot;</text>
+<text x="2062.715" y="144" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;titleText: string&quot;</text>
+<text x="2333.215" y="144" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;bodyText: string&lt;br/&gt;← CLEAN plain text&quot;</text>
+<text x="2610.865" y="144" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;reductionRatio: 0–1&quot;</text>
+<text x="2806.29" y="144" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="#000">&quot;warnings: string[</text>
+</svg>

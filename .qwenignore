@@ -1,0 +1,82 @@
+# Qwen Code AI indexing ignore file
+# Prevents token-heavy files from cluttering AI search and context
+
+# === PYTHON ENVIRONMENT ===
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# === NODE.JS ===
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# === GIT ===
+.git/
+
+# === SCRAPING DATA & STORAGE ===
+storage/
+*.db
+*.sqlite
+*.sqlite3
+
+# === ACTIVITY LOGS ===
+activity_log.json
+*.log
+logs/
+server.log
+
+# === ARTIFACTS (debug, screenshots, traces) ===
+artifacts/publisher-runs/
+artifacts/competitor-ads/
+artifacts/screenshots/
+artifacts/browser-storage-state.json
+artifacts/publisher-history.json
+artifacts/runtime-controls.json
+
+# === LARGE JSON FILES ===
+package-lock.json
+kakaoauto-controller.zip
+kakaoauto-controller-preview/migrated_prompt_history/
+
+# === KAKAO DATA ===
+data/kakao_chat_records_*/
+ppomppu_profile/
+
+# === SESSION HANDOVERS (historical) ===
+.agent/session-handovers/*.json
+!.agent/session-handovers/handover.md
+!.agent/session-handovers/template.json
+
+# === CACHES ===
+.cache/
+.local/
+.npm/
+.parcel-cache/
+.eslintcache
+
+# === COMPETITOR INTEL EXPORTS ===
+*.csv
+!lib/**/*.ts
+
+# === TEST RESULTS ===
+test-results/
+playwright-report/
+blob-report/
+coverage/
+
+# === OS FILES ===
+.DS_Store
+Thumbs.db
+
+# === EXPLICIT ALLOWLISTS (keep these indexed) ===
+!.agent/contracts/
+!.agent/skills/
+!.planning/spec-kit/specs/
+!.planning/spec-kit/manifest/
+!.planning/spec-kit/refs/
+!config/
+!tests/fixtures/

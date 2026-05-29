@@ -1,0 +1,73 @@
+%% =============================================================================
+%% STAGE 2: NOISE FILTER - Regex + Block Scoring
+%% =============================================================================
+%% Purpose: Remove noise and identify signal blocks before LLM
+%% Design Intent: Skip LLM when signal is strong enough (cost optimization)
+%% Change Impact: Determines LLM requirement and provides pre-filtered content
+%% =============================================================================
+
+flowchart LR
+    %% INPUT FROM STAGE 1
+    S1_IN["bodyText<br/>from Stage 1"] --> S2_SPLIT
+
+    %% BLOCK PROCESSING
+    subgraph FILTER ["Noise Filter (TypeScript)"]
+        direction TB
+        S2_SPLIT["Split bodyText<br/>→ blocks by newline"]
+        S2_SPLIT --> S2_REGEX["Apply noise_patterns:<br/>license/payment/FAQ regex"]
+        S2_REGEX --> S2_SCORE["Score each block:<br/>hasPrice + hasDuration<br/>+ hasProductKeyword"]
+    end
+
+    %% BLOCK OUTPUT
+    S2_SCORE --> BLOCKS["cleanBlocks[]:<br/>{ text, hasPrice,<br/>hasDuration, hasKeyword }"]
+
+    %% SIGNAL SCORE CALCULATION
+    BLOCKS --> S2_SIGNAL["Calculate signalScore:<br/>signal_blocks / total_blocks"]
+
+    %% DECISION POINT
+    S2_SIGNAL --> S2_DEC{"signalScore?"}
+
+    %% HIGH SIGNAL - SKIP LLM
+    S2_DEC -->|"≥ 0.85"| HIGH["✅ High signal<br/>LLM SKIPPED"]
+    HIGH --> SKIP_LLM["skipped=true<br/>llmProducts=[]<br/>Use cleanBlocks directly"]
+
+    %% MEDIUM SIGNAL - LLM REQUIRED
+    S2_DEC -->|"0.6-0.85"| MEDIUM["⚠️ Medium signal<br/>LLM required"]
+    MEDIUM --> LLM_REQ["llmRequired=true<br/>contentForLlm=<br/>filtered text"]
+
+    %% LOW SIGNAL - NOISE DOMINANT
+    S2_DEC -->|"< 0.3"| LOW["❌ Low signal<br/>Noise-dominant"]
+    LOW --> LOW_OUT["Proceed with<br/>low confidence"]
+
+    %% OUTPUT STRUCTURE
+    subgraph OUTPUT ["Stage2Output"]
+        direction TB
+        OUT_BLOCKS["cleanBlocks[]"]
+        OUT_REASONS["filterReasons[]:<br/>{ blockIndex, reason }"]
+        OUT_SCORE["signalScore: 0–1"]
+        OUT_LLM["llmRequired: boolean"]
+        OUT_CONTENT["contentForLlm: string"]
+    end
+
+    SKIP_LLM --> OUT_BLOCKS
+    LLM_REQ --> OUT_CONTENT
+    LOW_OUT --> OUT_SCORE
+
+    %% =========================================================================
+    %% STYLES
+    %% =========================================================================
+    classDef inputNode fill:#e6f3ff,stroke:#0066cc,stroke-width:2px,color:#000
+    classDef processNode fill:#cce5ff,stroke:#0066cc,stroke-width:1.5px,color:#000
+    classDef decisionNode fill:#fff0e6,stroke:#ff9900,stroke-width:1.5px,color:#000
+    classDef outputNode fill:#d1e7dd,stroke:#198754,stroke-width:1.5px,color:#000
+    classDef skipNode fill:#d1e7dd,stroke:#198754,stroke-width:2px,color:#000
+    classDef llmNode fill:#fff0e6,stroke:#ff9900,stroke-width:2px,color:#000
+    classDef warnNode fill:#f8d7da,stroke:#dc3545,stroke-width:2px,color:#000
+
+    class S1_IN inputNode
+    class S2_SPLIT,S2_REGEX,S2_SCORE,S2_SIGNAL processNode
+    class S2_DEC decisionNode
+    class OUT_BLOCKS,OUT_REASONS,OUT_SCORE,OUT_LLM,OUT_CONTENT outputNode
+    class HIGH,SKIP_LLM skipNode
+    class MEDIUM,LLM_REQ llmNode
+    class LOW,LOW_OUT warnNode

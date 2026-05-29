@@ -1,0 +1,78 @@
+%% =============================================================================
+%% STAGE 1: CLASSIFY - Ollama gemma2:9b
+%% =============================================================================
+%% Purpose: Determine extraction strategy based on post type
+%% Design Intent: Single-pass classification to avoid unnecessary LLM calls
+%% Change Impact: Determines early-exit vs full pipeline path
+%% =============================================================================
+
+flowchart LR
+    %% INPUT FROM STAGE 0
+    S0_IN["titleText<br/>+ bodyText"] --> S1_PROC
+
+    %% CLASSIFICATION PROCESS
+    subgraph CLASSIFY ["Ollama gemma2:9b"]
+        direction TB
+        S1_PROC["Single-pass<br/>classification"]
+        S1_PROC --> S1_PROMPT["Prompt:<br/>title + body<br/>→ JSON output"]
+        S1_PROMPT --> S1_PARSE["Parse response"]
+    end
+
+    %% CLASSIFICATION OUTPUT
+    S1_PARSE --> S1_TYPE{"postType?"}
+
+    %% EARLY EXIT PATHS
+    S1_TYPE -->|"affiliate"| EARLY_A["affiliate:<br/>Record referral URL<br/>only"]
+    S1_TYPE -->|"promo_code"| EARLY_P["promo_code:<br/>Record promo code<br/>only"]
+
+    %% FULL PIPELINE PATHS
+    S1_TYPE -->|"direct_offer"| FULL_D["direct_offer:<br/>Full extraction<br/>pipeline"]
+    S1_TYPE -->|"comparison"| FULL_C["comparison:<br/>Full extraction<br/>+ multi-product"]
+    S1_TYPE -->|"unknown"| FULL_U["unknown:<br/>Full extraction<br/>+ review flag"]
+
+    %% OUTPUT STRUCTURE
+    subgraph OUTPUT ["Stage1Output"]
+        direction TB
+        OUT_TYPE["postType: string"]
+        OUT_CONF["classifierConfidence: 0–1"]
+        OUT_EVID["classifierEvidence:<br/>{ excerpt, reasoning }"]
+    end
+
+    EARLY_A --> OUT_TYPE
+    EARLY_P --> OUT_TYPE
+    FULL_D --> OUT_TYPE
+    FULL_C --> OUT_TYPE
+    FULL_U --> OUT_TYPE
+
+    %% CONFIDENCE THRESHOLDS
+    OUT_CONF --> CONF{"confidence?"}
+    CONF -->|"≥ 0.9"| CONF_GOOD["✅ Good<br/>Proceed"]
+    CONF -->|"0.5-0.9"| CONF_OK["⚠️ OK<br/>Proceed"]
+    CONF -->|"< 0.5"| CONF_BAD["❌ Bad<br/>Review required"]
+
+    %% EARLY EXIT OUTPUT
+    EARLY_A --> DB_MIN["SQLite: referral<br/>record only"]
+    EARLY_P --> DB_MIN
+
+    %% =========================================================================
+    %% STYLES
+    %% =========================================================================
+    classDef inputNode fill:#e6f3ff,stroke:#0066cc,stroke-width:2px,color:#000
+    classDef processNode fill:#cce5ff,stroke:#0066cc,stroke-width:1.5px,color:#000
+    classDef decisionNode fill:#fff0e6,stroke:#ff9900,stroke-width:1.5px,color:#000
+    classDef outputNode fill:#d1e7dd,stroke:#198754,stroke-width:1.5px,color:#000
+    classDef earlyExit fill:#fff3cd,stroke:#ffc107,stroke-width:2px,color:#000
+    classDef fullPipeline fill:#d1e7dd,stroke:#198754,stroke-width:2px,color:#000
+    classDef statusGood fill:#d1e7dd,stroke:#198754,stroke-width:1px,color:#000
+    classDef statusWarn fill:#fff3cd,stroke:#ffc107,stroke-width:1px,color:#000
+    classDef statusError fill:#f8d7da,stroke:#dc3545,stroke-width:1px,color:#000
+
+    class S0_IN inputNode
+    class S1_PROC,S1_PROMPT,S1_PARSE processNode
+    class S1_TYPE,CONF decisionNode
+    class OUT_TYPE,OUT_CONF,OUT_EVID outputNode
+    class EARLY_A,EARLY_P,DB_MIN earlyExit
+    class FULL_D,FULL_C,FULL_U fullPipeline
+    class CONF_GOOD statusGood
+    class CONF_OK statusWarn
+    class CONF_BAD statusError

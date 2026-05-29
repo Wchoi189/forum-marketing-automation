@@ -1,0 +1,64 @@
+%% =============================================================================
+%% STAGE 5: EVIDENCE - Provenance Assembly
+%% =============================================================================
+%% Purpose: Attach source excerpts to each product field for traceability
+%% Design Intent: Fail-closed validation - name_evidence must exist
+%% Change Impact: Debugging capability, confidence transparency
+%% =============================================================================
+
+flowchart LR
+    %% INPUT FROM STAGE 4
+    S4_IN["finalProducts[]<br/>from Stage 4"] --> S5_PROC
+
+    %% EVIDENCE ASSEMBLY
+    subgraph EVIDENCE ["Provenance Assembly (TypeScript)"]
+        direction TB
+        S5_PROC["Find source block<br/>per product field"]
+        S5_PROC --> S5_NAME["Attach name_evidence:<br/>excerpt + source_type"]
+        S5_PROC --> S5_PRICE["Attach price_evidence:<br/>excerpt + source_type"]
+        S5_PROC --> S5_DUR["Attach duration_evidence:<br/>excerpt + source_type"]
+    end
+
+    %% EVIDENCE CHAIN
+    S5_NAME --> S5_CHAIN["Build evidenceChain[]:<br/>{ productId, field,<br/>source, excerpt }"]
+
+    %% VALIDATION
+    S5_CHAIN --> S5_CHECK{"name_evidence<br/>exists?"}
+
+    %% FAIL-CLOSED CHECK
+    S5_CHECK -->|No| S5_FAIL["FAIL-CLOSED:<br/>Confidence lowered<br/>+ warning"]
+    S5_CHECK -->|Yes| S5_OK["All evidence<br/>links present"]
+
+    %% OUTPUT STRUCTURE
+    subgraph OUTPUT ["Stage5Output"]
+        direction TB
+        OUT_PROD["productsWithEvidence[]:<br/>ProductWithEvidence"]
+        OUT_LINKS["EvidenceLink:<br/>{ source_type: html|llm,<br/>excerpt, confidence }"]
+        OUT_CHAIN["evidenceChain[]"]
+        OUT_READY["readyForPersist: boolean"]
+    end
+
+    S5_OK --> OUT_READY
+    S5_FAIL --> OUT_READY
+
+    %% PERSISTENCE CHECK
+    OUT_READY --> READY{"readyForPersist?"}
+    READY -->|"true"| GOOD["✅ Good<br/>Proceed to Stage 6"]
+    READY -->|"false"| BAD["❌ Bad<br/>Missing evidence<br/>Do not persist"]
+
+    %% =========================================================================
+    %% STYLES
+    %% =========================================================================
+    classDef inputNode fill:#e6f3ff,stroke:#0066cc,stroke-width:2px,color:#000
+    classDef processNode fill:#cce5ff,stroke:#0066cc,stroke-width:1.5px,color:#000
+    classDef decisionNode fill:#fff0e6,stroke:#ff9900,stroke-width:1.5px,color:#000
+    classDef outputNode fill:#d1e7dd,stroke:#198754,stroke-width:1.5px,color:#000
+    classDef successNode fill:#d1e7dd,stroke:#198754,stroke-width:1px,color:#000
+    classDef errorNode fill:#f8d7da,stroke:#dc3545,stroke-width:1px,color:#000
+
+    class S4_IN inputNode
+    class S5_PROC,S5_NAME,S5_PRICE,S5_DUR,S5_CHAIN processNode
+    class S5_CHECK,READY decisionNode
+    class OUT_PROD,OUT_LINKS,OUT_CHAIN,OUT_READY outputNode
+    class S5_OK,GOOD successNode
+    class S5_FAIL,BAD errorNode

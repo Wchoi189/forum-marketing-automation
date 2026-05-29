@@ -1,9 +1,0 @@
-{
-	"id": "LYqj8DtFGffLVbW",
-	"json": "{\"id\":\"LYqj8DtFGffLVbW\",\"url\":\"https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207768\",\"loadedUrl\":\"https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207768\",\"uniqueKey\":\"기프티콩~|https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207768\",\"method\":\"GET\",\"noRetry\":false,\"retryCount\":0,\"errorMessages\":[],\"headers\":{},\"userData\":{\"runId\":\"test-final-v5\",\"notesOverride\":\"test-cleanup\",\"__crawlee\":{\"state\":4}},\"handledAt\":\"2026-05-10T11:47:26.517Z\"}",
-	"method": "GET",
-	"orderNo": null,
-	"retryCount": 0,
-	"uniqueKey": "기프티콩~|https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207768",
-	"url": "https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207768"
-}

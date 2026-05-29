@@ -1,7 +1,7 @@
 import { ENV } from "../config/env.js";
 import { clamp } from "./utils.js";
 import type { AiAdvisorOutput } from "./aiAdvisor.js";
-import type { PublisherHistoryEntry } from "../contracts/models.js";
+import type { PublisherHistoryEntry } from "../lib/models.js";
 
 // ---------------------------------------------------------------------------
 // Types

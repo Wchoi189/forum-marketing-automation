@@ -38,6 +38,9 @@ export function createHealthRouter(deps: HealthRouterDeps): Router {
       artifacts: result.artifacts,
       logRotated: result.logRotated,
       browserProfile: result.browserProfile,
+      crawleeDatasets: result.crawleeDatasets,
+      marketDataSnapshots: result.marketDataSnapshots,
+      sessionHandovers: result.sessionHandovers,
       triggeredAt: new Date().toISOString(),
     });
   });

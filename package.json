@@ -12,13 +12,11 @@
     "scheduler:replay": "tsx scripts/scheduler_signal_replay.ts",
     "scheduler:replay:recent": "tsx scripts/scheduler_signal_replay.ts --window-days 14 --window-size 8 --history-limit 240 --output-dir artifacts/scheduler-replay/latest-recent",
     "scheduler:replay:runbook": "bash ops/systemd/scheduler-replay-report.sh",
-    "kakao:ingest": "tsx scripts/kakao-ingest.ts",
-    "kakao:annotate": "tsx scripts/kakao-annotate.ts",
-    "kakao:kb-export": "tsx scripts/kakao-kb-export.ts",
     "competitor-ads:intel": "tsx scripts/competitor-ads-intel.ts",
     "mempalace:seed": "bash scripts/mempalace-loop.sh seed",
     "mempalace:wake-up": "bash scripts/mempalace-loop.sh wake-up",
     "mempalace:checkpoint": "bash scripts/mempalace-loop.sh checkpoint",
+    "mempalace:slice-done": "bash scripts/mempalace-loop.sh checkpoint --include-plans --query 'slice complete next action'",
     "mempalace:handover": "bash scripts/mempalace-loop.sh handover",
     "publisher-history:parquet": "python3 scripts/publisher_history_jsonl_to_parquet.py",
     "build": "vite build",
@@ -29,7 +27,10 @@
     "test:unit": "tsx --test tests/unit/competitorAnalytics.test.ts tests/unit/controlPanelSync.test.ts tests/unit/schedulerSignals.test.ts",
     "test:mcp:parser": "tsx --test tests/integration/parser-mcp.integration.test.ts",
     "test:integration": "PROJECT_ROOT=. FORUM_PRIMARY_ID=ppomppu PPOMPPU_USER_ID=test-user PPOMPPU_USER_PW=test-pass BOT_PROFILE_DIR=/tmp/ppomppu-profile ACTIVITY_LOG_PATH=/tmp/activity-log.json XAI_API_KEY=test-xai-key NL_WEBHOOK_SECRET=test-secret tsx --test tests/integration/api.integration.test.ts tests/integration/playbook-runner.integration.test.ts tests/integration/nlWebhook.test.ts",
-    "test:competitor-intel": "tsx --test 'tests/unit/competitor-intel/*.test.ts' 'tests/integration/competitor-intel.integration.test.ts'"
+    "test:competitor-intel": "tsx --test 'tests/unit/competitor-intel/*.test.ts' 'tests/integration/competitor-intel.integration.test.ts'",
+    "gc": "PROJECT_ROOT=. npx tsx scripts/gc.ts",
+    "gc:api": "curl -s -X POST http://localhost:3000/api/resource/gc | npx --yes json",
+    "gc:dry": "curl -s http://localhost:3000/api/health/resources | npx --yes json artifacts activityLog"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -75,7 +76,6 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0",
-    "xlsx": "^0.18.5"
+    "vite": "^6.2.0"
   }
 }

@@ -110,27 +110,34 @@
   "session_protocol": {
     "session_start": {
       "steps": [
-        "Load current slice from multi-stage-parser-v1.json implementation_sequence",
-        "Read previous handover if exists",
-        "Verify prerequisites from slice.dependencies",
-        "Set state to IDLE"
+        "MemPalace wake-up fires automatically via SessionStart hook (mempalace-startup.js).",
+        "Read .agent/state/state.index.json — local authority always wins over MemPalace.",
+        "Read last_handover_file from state index.",
+        "Load current slice from multi-stage-parser-v1.json implementation_sequence.",
+        "Verify prerequisites from slice.dependencies.",
+        "Set state to IDLE."
       ]
     },
     "session_work": {
       "steps": [
-        "Implement slice functionality",
-        "Run test cases for slice",
-        "Update state machine per stage completion",
-        "Log decisions to handover draft"
-      ]
+        "Implement slice functionality.",
+        "Run test cases for slice.",
+        "MemPalace checkpoint fires automatically via PostToolUse hook when TAP output has '# fail 0' (5-min cooldown).",
+        "Manual fallback: npm run mempalace:slice-done",
+        "Update state machine per stage completion.",
+        "Log decisions to handover draft."
+      ],
+      "auto_checkpoint_trigger": "PostToolUse(Bash) — TAP '# fail 0' detected. Runs: mempalace checkpoint --include-plans"
     },
     "session_end": {
       "steps": [
-        "Create handover file with current progress",
-        "Update state.index.json",
-        "Run mempalace checkpoint if available",
-        "Provide copy-paste handover summary"
-      ]
+        "Create handover-YYYYMMDD-HHMM.json from .agent/session-handovers/template.json.",
+        "Update .agent/state/state.index.json last_handover_file.",
+        "Run: npm run mempalace:handover -- --file .agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+        "Stop hook reminds if agent state files have uncommitted changes.",
+        "Provide copy-paste resume block."
+      ],
+      "handover_reminder": "Stop hook (mempalace-stop.js) fires when git detects changes in .agent/session-handovers or .agent/state."
     }
   },
   "validation_posts": {

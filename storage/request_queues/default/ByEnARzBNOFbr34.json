@@ -1,9 +1,0 @@
-{
-	"id": "ByEnARzBNOFbr34",
-	"json": "{\"id\":\"ByEnARzBNOFbr34\",\"url\":\"https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207762\",\"loadedUrl\":\"https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207762\",\"uniqueKey\":\"행복shms|https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207762\",\"method\":\"GET\",\"noRetry\":false,\"retryCount\":0,\"errorMessages\":[],\"headers\":{},\"userData\":{\"runId\":\"test-final-v5\",\"notesOverride\":\"test-cleanup\",\"__crawlee\":{\"state\":4}},\"handledAt\":\"2026-05-10T11:47:43.851Z\"}",
-	"method": "GET",
-	"orderNo": null,
-	"retryCount": 0,
-	"uniqueKey": "행복shms|https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207762",
-	"url": "https://www.ppomppu.co.kr/zboard/view.php?id=gonggu&page=1&divpage=41&no=207762"
-}

@@ -10,11 +10,9 @@ export const WATCH_IGNORED = [
   '**/storage/**',
   '**/templates/**',
   '**/ppomppu_profile/**',
-  '**/data/**',
   '**/.venv/**',
   '**/dist/**',
   '**/node_modules/**',
   '**/.git/**',
-  '**/kakaoauto-controller-preview/**',
   '**/mempalace*/**',
 ];

@@ -1,4 +1,4 @@
-import type { ActivityLog } from "../contracts/models.js";
+import type { ActivityLog } from "../lib/models.js";
 import { clamp } from "../lib/utils.js";
 
 /** Mirrors `.planning/spec-kit/specs/scheduler-adaptation.policy.json` trend_multiplier_bounds */

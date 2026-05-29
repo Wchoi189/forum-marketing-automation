@@ -1,6 +1,6 @@
 {
-  "stateVersion": 29,
-  "persistedAt": "2026-05-24T22:35:32.210Z",
+  "stateVersion": 45,
+  "persistedAt": "2026-05-26T16:24:56.677Z",
   "schedulerEnabled": true,
   "schedulerBaseIntervalMinutes": 60,
   "schedulerQuietHoursStart": 3,

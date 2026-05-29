@@ -36,8 +36,16 @@ type EnvConfig = {
   MCP_PARSER_MAX_STORED_SNAPSHOTS: number;
   /** Ollama endpoint for OCR/VLM requests. */
   OLLAMA_ENDPOINT: string;
-  /** OCR/VLM model to use for image extraction. */
+  /** OCR/VLM model for image extraction (vision-capable, e.g. qwen2.5vl:7b). */
   OLLAMA_OCR_MODEL: string;
+  /** Stage 1: post-type classification model (e.g. mistral-nemo:latest). */
+  OLLAMA_CLASSIFIER_MODEL: string;
+  /** Stage 3: product extraction model (e.g. gemma2:27b-instruct-q6_K). */
+  OLLAMA_EXTRACT_MODEL: string;
+  /** Stage 6: embedding model for dedup similarity (e.g. snowflake-arctic-embed:latest). */
+  OLLAMA_EMBED_MODEL: string;
+  /** Reasoning/chain-of-thought model for complex posts (e.g. deepseek-r1:7b). */
+  OLLAMA_REASONING_MODEL: string;
   /** Per-request timeout for Ollama OCR/VLM (ms). */
   OLLAMA_REQUEST_TIMEOUT_MS: number;
   /** Max retries for Ollama OCR/VLM calls. */
@@ -75,34 +83,6 @@ type EnvConfig = {
   NL_WEBHOOK_SECRET: string | null;
   /** Slack Webhook URL for outgoing notifications. Null when absent. */
   SLACK_WEBHOOK_URL: string | null;
-  /** Kill-switch for /kakao-webhook endpoint. Returns 503 when false. */
-  KAKAO_WEBHOOK_ENABLED: boolean;
-  /** Kakao Open Builder bot ID. Used to validate incoming skill payloads. Null = no validation. */
-  KAKAO_OPENBUILDER_BOT_ID: string | null;
-  /** Kakao app Admin Key. Used for outbound channel API calls. */
-  KAKAO_ADMIN_KEY: string | null;
-  /** Kakao Open Builder skill secret. Reserved for future HMAC verification of inbound requests. */
-  KAKAO_SKILL_SECRET: string | null;
-  /** OpenAI API key for Kakao auto-reply (Phase 5). Null when absent — auto-reply silently disabled. */
-  OPENAI_API_KEY: string | null;
-  /** Kill-switch for LLM auto-reply on the Kakao webhook. Must be explicitly enabled by operator. */
-  KAKAO_AUTOREPLY_ENABLED: boolean;
-  /** Per-call timeout in ms for Kakao auto-reply. Falls back to neutral ACK on timeout. */
-  KAKAO_AUTOREPLY_TIMEOUT_MS: number;
-  /** Kill-switch for PostgreSQL persistence of Kakao messages. Default false. */
-  KAKAO_DB_ENABLED: boolean;
-  /** Postgres host for Kakao DB. Defaults to localhost. */
-  KAKAO_DB_HOST: string;
-  /** Postgres port for Kakao DB. */
-  KAKAO_DB_PORT: number;
-  /** Postgres database name for Kakao DB. */
-  KAKAO_DB_NAME: string;
-  /** Postgres user for Kakao DB. */
-  KAKAO_DB_USER: string;
-  /** Postgres password for Kakao DB. */
-  KAKAO_DB_PASSWORD: string;
-  /** Postgres schema name for Kakao tables. Isolated from other project schemas. */
-  KAKAO_DB_SCHEMA: string;
   /** 1-based index of draft item to load from saved drafts (preview rows between items are skipped automatically). */
   PUBLISHER_DRAFT_ITEM_INDEX: number;
   /** When true, skip scheduler, observer, and publisher on startup — API + frontend only. */
@@ -229,7 +209,11 @@ function buildEnv(): EnvConfig {
     BOT_NAV_TIMEOUT_MS: optionalInt("BOT_NAV_TIMEOUT_MS", 30000, 5000, 120000),
     MCP_PARSER_MAX_STORED_SNAPSHOTS: optionalInt("MCP_PARSER_MAX_STORED_SNAPSHOTS", 200, 10, 1000),
     OLLAMA_ENDPOINT: optionalString("OLLAMA_ENDPOINT", "http://ollama:11434"),
-    OLLAMA_OCR_MODEL: optionalString("OLLAMA_OCR_MODEL", "gemma2:27b"),
+    OLLAMA_OCR_MODEL: optionalString("OLLAMA_OCR_MODEL", "qwen2.5vl:7b"),
+    OLLAMA_CLASSIFIER_MODEL: optionalString("OLLAMA_CLASSIFIER_MODEL", "mistral-nemo:latest"),
+    OLLAMA_EXTRACT_MODEL: optionalString("OLLAMA_EXTRACT_MODEL", "gemma2:27b-instruct-q6_K"),
+    OLLAMA_EMBED_MODEL: optionalString("OLLAMA_EMBED_MODEL", "snowflake-arctic-embed:latest"),
+    OLLAMA_REASONING_MODEL: optionalString("OLLAMA_REASONING_MODEL", "deepseek-r1:7b"),
     OLLAMA_REQUEST_TIMEOUT_MS: optionalInt("OLLAMA_REQUEST_TIMEOUT_MS", 30000, 1000, 120000),
     OLLAMA_MAX_RETRIES: optionalInt("OLLAMA_MAX_RETRIES", 1, 0, 10),
     OLLAMA_MAX_IMAGE_MEGAPIXELS: optionalInt("OLLAMA_MAX_IMAGE_MEGAPIXELS", 8, 1, 64),
@@ -247,20 +231,6 @@ function buildEnv(): EnvConfig {
     NL_WEBHOOK_ENABLED: optionalBool("NL_WEBHOOK_ENABLED", true),
     NL_WEBHOOK_SECRET: optionalStringOrNull("NL_WEBHOOK_SECRET"),
     SLACK_WEBHOOK_URL: optionalStringOrNull("SLACK_WEBHOOK_URL"),
-    KAKAO_WEBHOOK_ENABLED: optionalBool("KAKAO_WEBHOOK_ENABLED", false),
-    KAKAO_OPENBUILDER_BOT_ID: optionalStringOrNull("KAKAO_OPENBUILDER_BOT_ID"),
-    KAKAO_ADMIN_KEY: optionalStringOrNull("KAKAO_ADMIN_KEY"),
-    KAKAO_SKILL_SECRET: optionalStringOrNull("KAKAO_SKILL_SECRET"),
-    OPENAI_API_KEY: optionalStringOrNull("OPENAI_API_KEY"),
-    KAKAO_AUTOREPLY_ENABLED: optionalBool("KAKAO_AUTOREPLY_ENABLED", false),
-    KAKAO_AUTOREPLY_TIMEOUT_MS: optionalInt("KAKAO_AUTOREPLY_TIMEOUT_MS", 2400, 500, 5000),
-    KAKAO_DB_ENABLED: optionalBool("KAKAO_DB_ENABLED", false),
-    KAKAO_DB_HOST: optionalString("KAKAO_DB_HOST", "localhost"),
-    KAKAO_DB_PORT: optionalInt("KAKAO_DB_PORT", 5432, 1, 65535),
-    KAKAO_DB_NAME: optionalString("KAKAO_DB_NAME", "trading_system"),
-    KAKAO_DB_USER: optionalString("KAKAO_DB_USER", "postgres"),
-    KAKAO_DB_PASSWORD: optionalString("KAKAO_DB_PASSWORD", ""),
-    KAKAO_DB_SCHEMA: optionalString("KAKAO_DB_SCHEMA", "shareplan"),
     PUBLISHER_DRAFT_ITEM_INDEX: optionalInt("PUBLISHER_DRAFT_ITEM_INDEX", 1, 1, 50),
     DEV_SKIP_BOT: optionalBool("DEV_SKIP_BOT", false),
     IS_DEV: process.env.NODE_ENV === "development",

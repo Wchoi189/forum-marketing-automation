@@ -6,7 +6,7 @@
  */
 
 import type { BrowserContext } from 'playwright';
-import type { ActivityLog } from '../../contracts/models.js';
+import type { ActivityLog } from '../../lib/models.js';
 import { ENV } from '../../config/env.js';
 import { logger } from '../logger.js';
 import { LOG_EVENT } from '../logEvents.js';

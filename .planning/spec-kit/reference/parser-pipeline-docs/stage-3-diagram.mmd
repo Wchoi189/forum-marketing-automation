@@ -1,0 +1,74 @@
+%% =============================================================================
+%% STAGE 3: LLM EXTRACT - Ollama gemma2:27b
+%% =============================================================================
+%% Purpose: Extract structured product data from pre-filtered content
+%% Design Intent: Heavy LLM for complex parsing, Zod for output validation
+%% Change Impact: Product extraction quality, catalog matching
+%% =============================================================================
+
+flowchart LR
+    %% INPUT FROM STAGE 2
+    S2_IN["contentForLlm<br/>+ titleText"] --> S3_PROC
+
+    %% LLM PROCESSING
+    subgraph LLM ["Ollama gemma2:27b"]
+        direction TB
+        S3_PROC["Build prompt:<br/>title + content<br/>+ postType context"]
+        S3_PROC --> S3_CALL["LLM call:<br/>Implicit name resolution<br/>title → body"]
+        S3_CALL --> S3_JSON["JSON output:<br/>{ products[], confidence }"]
+    end
+
+    %% VALIDATION
+    S3_JSON --> S3_ZOD["Zod schema validation"]
+
+    %% ZOD DECISION
+    S3_ZOD --> ZOD_DEC{"Valid?"}
+
+    %% INVALID - RETRY
+    ZOD_DEC -->|No| RETRY["Retry once<br/>with stricter prompt"]
+    RETRY --> S3_PROC
+
+    %% VALID - CONTINUE
+    ZOD_DEC -->|Yes| S3_FILTER["Cross-pair artifact<br/>filter"]
+
+    %% ARTIFACT FILTERING
+    S3_FILTER --> ARTIFACT_DEC{"Junk<br/>detected?"}
+    ARTIFACT_DEC -->|Yes| REJECT["Reject:<br/>generic names<br/>cross-pair errors"]
+    ARTIFACT_DEC -->|No| S3_FINAL["Final products"]
+
+    %% OUTPUT STRUCTURE
+    subgraph OUTPUT ["Stage3Output"]
+        direction TB
+        OUT_PRODUCTS["llmProducts[]:<br/>{ name, duration?,<br/>price?, confidence }"]
+        OUT_PROMPT["promptContext: string"]
+        OUT_CONF["llmConfidence: 0–1"]
+        OUT_SKIP["skipped: boolean"]
+    end
+
+    S3_FINAL --> OUT_PRODUCTS
+    REJECT --> OUT_SKIP
+
+    %% CONFIDENCE THRESHOLDS
+    OUT_CONF --> CONF{"llmConfidence?"}
+    CONF -->|"≥ 0.7"| GOOD["✅ Good<br/>Catalog match"]
+    CONF -->|"0.5-0.7"| OK["⚠️ OK<br/>Proceed"]
+    CONF -->|"< 0.5"| BAD["❌ Bad<br/>Cross-pair or junk"]
+
+    %% =========================================================================
+    %% STYLES
+    %% =========================================================================
+    classDef inputNode fill:#e6f3ff,stroke:#0066cc,stroke-width:2px,color:#000
+    classDef processNode fill:#cce5ff,stroke:#0066cc,stroke-width:1.5px,color:#000
+    classDef decisionNode fill:#fff0e6,stroke:#ff9900,stroke-width:1.5px,color:#000
+    classDef outputNode fill:#d1e7dd,stroke:#198754,stroke-width:1.5px,color:#000
+    classDef successNode fill:#d1e7dd,stroke:#198754,stroke-width:1px,color:#000
+    classDef warnNode fill:#fff3cd,stroke:#ffc107,stroke-width:1px,color:#000
+    classDef errorNode fill:#f8d7da,stroke:#dc3545,stroke-width:1px,color:#000
+
+    class S2_IN inputNode
+    class S3_PROC,S3_CALL,S3_JSON,S3_ZOD,S3_FILTER,S3_FINAL processNode
+    class ZOD_DEC,ARTIFACT_DEC,CONF decisionNode
+    class OUT_PRODUCTS,OUT_PROMPT,OUT_CONF,OUT_SKIP outputNode
+    class GOOD successNode
+    class OK warnNode
+    class BAD,REJECT errorNode
