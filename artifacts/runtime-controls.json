@@ -1,6 +1,6 @@
 {
-  "stateVersion": 29,
-  "persistedAt": "2026-05-24T22:35:32.210Z",
+  "stateVersion": 65,
+  "persistedAt": "2026-06-01T20:29:07.852Z",
   "schedulerEnabled": true,
   "schedulerBaseIntervalMinutes": 60,
   "schedulerQuietHoursStart": 3,
@@ -23,5 +23,5 @@
   "observerMinIntervalBetweenRunsMs": 0,
   "publisherDraftItemIndex": 2,
   "nlWebhookEnabled": true,
-  "observerGapThresholdMin": 9
+  "observerGapThresholdMin": 7
 }

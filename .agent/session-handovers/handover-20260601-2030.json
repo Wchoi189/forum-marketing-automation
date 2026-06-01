@@ -1,0 +1,70 @@
+{
+  "handover_id": "handover-20260601-2030",
+  "timestamp_utc": "2026-06-01T20:30:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "typescript-server-optimization",
+  "phase": "completed",
+  "objective": "Review audit results from scratch/analysis_results_typescript_server_crash2.md and adopt optimizations in the current project to address TypeScript language server and workspace resource constraints.",
+  "non_goals": [],
+  "current_state": {
+    "completed": [
+      "Tuned tsconfig.server.json to explicitly include all backend/test paths, resolving the loose file inferred project issue in tsserver",
+      "Resolved all 15 compiler/type checking errors in the server/backend codebase",
+      "Aligned Vite watcher-ignores with VS Code settings.json",
+      "Allocated 8GB memory for tsserver using typescript.maxTsServerMemory settings parameter",
+      "Integrated server type checks in package.json lint script to fail early on type regressions"
+    ],
+    "gaps": []
+  },
+  "status": "success",
+  "decisions_locked": [
+    "Server and client typescript configs now run synchronously during lint",
+    "VS Code ignores heavy runtime folders like artifacts, storage, temp, and .agent to maintain high-performance editor operations"
+  ],
+  "acceptance_criteria": [
+    "All server and frontend TypeScript files pass tsc --noEmit check successfully",
+    "VS Code settings.json contains watcherExclude and search.exclude mirroring config/watch.ts ignored patterns",
+    "VS Code settings.json allocates typescript.maxTsServerMemory to 8192",
+    "package.json lint script checks both tsconfig.json and tsconfig.server.json"
+  ],
+  "implementation_plan": [],
+  "practical_recommendations": [
+    "Keep compiler configuration modular to preserve separation between client (src) and server (lib/routes/config) modules",
+    "Make sure any newly added relative imports in tsconfig.server.json scope contain explicit file extensions (e.g., .js) to comply with NodeNext requirements"
+  ],
+  "completed_items": [
+    "Optimized tsconfig.server.json includes",
+    "Fixed 15 compilation/type errors in server files",
+    "Synced watch list to VS Code search/watcher exclusions",
+    "Wrote lint script upgrade for package.json",
+    "Configured 8GB maximum memory size for language server"
+  ],
+  "pending_items": [],
+  "decisions": [
+    "Cast Ajv2020 inside runtime-validation.ts to bypass standard TS default-import resolution quirks while retaining Node ESM/tsx runtime compatibility",
+    "Used explicit type casts for validation image structure when TS compiler fails to narrow return union type"
+  ],
+  "constraints": [],
+  "env_requirements": [],
+  "next_actions": [
+    "No immediate follow-up required. The TS language server and workspace are fully optimized and compile-safe!"
+  ],
+  "artifacts_touched": [
+    "tsconfig.server.json",
+    "package.json",
+    ".vscode/settings.json",
+    "lib/competitor-intel/crawler/crawlee-config.ts",
+    "lib/competitor-intel/crawler/request-handler.ts",
+    "lib/competitor-intel/discovery/board-scanner.ts",
+    "lib/competitor-intel/extraction/ocr.ts",
+    "lib/competitor-intel/extraction/vlm.ts",
+    "lib/competitor-intel/extraction/pipeline.ts",
+    "lib/competitor-intel/vendor-strategy.ts",
+    "config/runtime-validation.ts",
+    "src/hooks/controlPanelSync.ts",
+    "src/lib/controlPanel.ts"
+  ]
+}

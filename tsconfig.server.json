@@ -3,7 +3,27 @@
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "allowImportingTsExtensions": false,
+    "allowImportingTsExtensions": true,
     "allowJs": false
-  }
+  },
+  "include": [
+    "server.ts",
+    "bot.ts",
+    "lib/**/*.ts",
+    "config/**/*.ts",
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "routes/**/*.ts",
+    "mcp/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "artifacts",
+    "ppomppu_profile",
+    "scratch",
+    "data",
+    ".venv",
+    "src"
+  ]
 }

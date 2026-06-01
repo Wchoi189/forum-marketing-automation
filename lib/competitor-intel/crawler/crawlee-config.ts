@@ -6,7 +6,7 @@
  */
 
 import { PlaywrightCrawler, type RequestQueue } from "crawlee";
-import type { PlaywrightCrawleeContext } from "crawlee";
+import type { PlaywrightCrawlingContext } from "crawlee";
 import { ENV } from "../../../config/env.js";
 
 export type CrawlerOptions = {
@@ -19,7 +19,7 @@ export type CrawlerOptions = {
 };
 
 export function createPlaywrightCrawler(
-  requestHandler: (context: PlaywrightCrawleeContext) => Promise<void>,
+  requestHandler: (context: PlaywrightCrawlingContext) => Promise<void>,
   opts: CrawlerOptions = {},
 ): PlaywrightCrawler {
   const {

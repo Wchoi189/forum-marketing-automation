@@ -1,4 +1,4 @@
-import type { ControlPanelState } from '../lib/controlPanel';
+import type { ControlPanelState } from '../lib/controlPanel.js';
 
 export type ControlPanelSyncTracker = {
   highestVersionSeen: number;

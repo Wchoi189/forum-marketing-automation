@@ -7,7 +7,7 @@
  */
 
 import * as cheerio from "cheerio";
-import type { CheerioCrawleeContext } from "crawlee";
+import type { CheerioCrawlingContext } from "crawlee";
 
 export type BoardPost = {
   postUrl: string;
@@ -250,7 +250,7 @@ export async function scanBoard(opts: ScanOptions): Promise<BoardPost[]> {
 export function createBoardScanHandler(
   deps: { selectors: PpomppuListingSelectors; vendorKey?: string; seenUrls: Set<string>; results: BoardPost[] },
 ) {
-  return function handler(context: CheerioCrawleeContext): void {
+  return function handler(context: CheerioCrawlingContext): void {
     const { $, request } = context;
     const { selectors, vendorKey, seenUrls, results } = deps;
 
