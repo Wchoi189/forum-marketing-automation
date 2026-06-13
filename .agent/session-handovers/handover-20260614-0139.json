@@ -1,0 +1,39 @@
+{
+  "handover_id": "handover-20260614-0139",
+  "timestamp_utc": "2026-06-13T16:39:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "completed",
+  "objective": "Update the Adobe Creative Cloud pricing card to 4 months / 40,000원.",
+  "non_goals": [],
+  "current_state": {
+    "completed": [
+      "Updated the Adobe Creative Cloud '연간 요금제' card from 12 months to 4 months.",
+      "Updated the price from 120,000원 to 40,000원.",
+      "Retained the monthly average string '(월 평균 10,000원)' as the math remains consistent."
+    ],
+    "gaps": []
+  },
+  "status": "success",
+  "decisions_locked": [],
+  "acceptance_criteria": [
+    "Adobe Creative Cloud card correctly displays 4개월 and 40,000원.",
+    "Linter passes."
+  ],
+  "implementation_plan": [],
+  "practical_recommendations": [],
+  "completed_items": [
+    "Corrected Adobe Creative Cloud template card."
+  ],
+  "pending_items": [],
+  "decisions": [],
+  "constraints": [],
+  "env_requirements": [],
+  "next_actions": [],
+  "artifacts_touched": [
+    "templates/ppompu-ad-design-system/ui_kits/ppompu-ad/redesign-v4v1.html"
+  ]
+}
