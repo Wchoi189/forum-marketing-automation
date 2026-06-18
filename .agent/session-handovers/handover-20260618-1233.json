@@ -1,0 +1,47 @@
+{
+  "handover_id": "handover-20260618-1233",
+  "timestamp_utc": "2026-06-18T03:33:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "completed",
+  "objective": "Update pricing for Notion Business (3개월), Coursera Plus (12개월), Lovable Lite (12개월), and YouTube Premium (12개월 단독) in redesign-v4v1.html.",
+  "non_goals": [],
+  "current_state": {
+    "completed": [
+      "Updated Notion Business (3개월) price from 20,000원 to 15,000원 and monthly average from 6,666원 to 5,000원.",
+      "Updated Coursera Plus (12개월) price from 54,900원 to 40,000원, monthly average from 4,575원 to 3,333원, saving percentage to 93%, and description text to 연 40,000원.",
+      "Updated Lovable Lite (12개월) price from 40,000원 to 30,000원, monthly average from 3,333원 to 2,500원, and discount percentage to 63%.",
+      "Updated YouTube Premium (12개월 단독) price from 65,000원 to 62,900원 and monthly average from 5,416원 to 5,241원.",
+      "Verified all unit, integration, and parser-mcp tests pass successfully."
+    ],
+    "gaps": []
+  },
+  "status": "success",
+  "decisions_locked": [],
+  "acceptance_criteria": [
+    "Notion Business (3개월) displays 15,000원 (monthly average 5,000원).",
+    "Coursera Plus (12개월) displays 40,000원 (monthly average 3,333원, 93% savings, description matching).",
+    "Lovable Lite (12개월) displays 30,000원 (monthly average 2,500원, 63% savings).",
+    "YouTube Premium (12개월 단독) displays 62,900원 (monthly average 5,241원).",
+    "All regression tests pass successfully."
+  ],
+  "implementation_plan": [],
+  "practical_recommendations": [],
+  "completed_items": [
+    "Update Notion Business (3개월) price card.",
+    "Update Coursera Plus (12개월) price card and description.",
+    "Update Lovable Lite (12개월) price card.",
+    "Update YouTube Premium (12개월 단독) price card."
+  ],
+  "pending_items": [],
+  "decisions": [],
+  "constraints": [],
+  "env_requirements": [],
+  "next_actions": [],
+  "artifacts_touched": [
+    "templates/ppompu-ad-design-system/ui_kits/ppompu-ad/redesign-v4v1.html"
+  ]
+}

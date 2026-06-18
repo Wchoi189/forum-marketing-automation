@@ -1,0 +1,40 @@
+{
+  "handover_id": "handover-20260615-1102",
+  "timestamp_utc": "2026-06-15T02:02:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "completed",
+  "objective": "Update the price for Notion Business (12개월) in redesign-v4v1.html from 50,000원 to 60,000원.",
+  "non_goals": [],
+  "current_state": {
+    "completed": [
+      "Updated Notion Business (12개월) price from 50,000원 to 60,000원 in redesign-v4v1.html.",
+      "Recalculated and updated the average monthly price for Notion Business (12개월) from 4,166원 to 5,000원 in redesign-v4v1.html.",
+      "Verified all unit and integration tests pass successfully."
+    ],
+    "gaps": []
+  },
+  "status": "success",
+  "decisions_locked": [],
+  "acceptance_criteria": [
+    "Notion Business (12개월) price card displays 60,000원.",
+    "Notion Business (12개월) monthly average cost displays 5,000원.",
+    "Tests pass successfully."
+  ],
+  "implementation_plan": [],
+  "practical_recommendations": [],
+  "completed_items": [
+    "Update Notion Business (12개월) price to 60,000원."
+  ],
+  "pending_items": [],
+  "decisions": [],
+  "constraints": [],
+  "env_requirements": [],
+  "next_actions": [],
+  "artifacts_touched": [
+    "templates/ppompu-ad-design-system/ui_kits/ppompu-ad/redesign-v4v1.html"
+  ]
+}
