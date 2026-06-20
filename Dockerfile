@@ -2,7 +2,10 @@
 FROM node:20-slim AS frontend-build
 WORKDIR /build
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ gcc && \
+    rm -rf /var/lib/apt/lists/* && \
+    npm ci
 COPY . .
 RUN npm run build
 
@@ -11,7 +14,7 @@ FROM node:20-slim AS server-deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl wget gnupg && \
+    ca-certificates curl wget gnupg python3 make g++ gcc && \
     rm -rf /var/lib/apt/lists/* && \
     npm ci --omit=dev && \
     npm install tsx && \
