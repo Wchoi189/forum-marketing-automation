@@ -23,8 +23,13 @@
     "source.fixAll.eslint": "explicit"
   },
 
+  "typescript.maxTsServerMemory": 8192,
   "search.exclude": {
-    "**/artifacts/publisher-runs/**": true,
+    "**/activity_log.json": true,
+    "**/artifacts/**": true,
+    "**/.agent/**": true,
+    "**/storage/**": true,
+    "**/templates/**": true,
     "**/ppomppu_profile/**": true,
     "**/node_modules/**": true,
     "**/.qwen/**": true,
@@ -33,7 +38,11 @@
     "**/.cache/**": true,
     "**/data/**": true,
     "**/.ai/**": true,
-    "**/storage/**": true
+    "**/.venv/**": true,
+    "**/dist/**": true,
+    "**/.git/**": true,
+    "**/kakaoauto-controller-preview/**": true,
+    "**/mempalace*/**": true
   },
   "files.exclude": {
     "**/.qwen": true,
@@ -43,12 +52,22 @@
     "**/.ai": true
   },
   "files.watcherExclude": {
-    "**/artifacts/publisher-runs/**": true,
+    "**/activity_log.json": true,
+    "**/artifacts/**": true,
+    "**/.agent/**": true,
+    "**/storage/**": true,
+    "**/templates/**": true,
     "**/ppomppu_profile/**": true,
     "**/.npm/**": true,
     "**/.local/**": true,
     "**/.cache/**": true,
-    "**/storage/**": true
+    "**/data/**": true,
+    "**/.venv/**": true,
+    "**/dist/**": true,
+    "**/node_modules/**": true,
+    "**/.git/**": true,
+    "**/kakaoauto-controller-preview/**": true,
+    "**/mempalace*/**": true
   },
 
   "terminal.integrated.defaultProfile.linux": "bash",

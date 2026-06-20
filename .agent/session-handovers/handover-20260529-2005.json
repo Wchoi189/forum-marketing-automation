@@ -1,0 +1,64 @@
+{
+  "handover_id": "handover-20260529-2005",
+  "timestamp_utc": "2026-05-30T08:32:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "implementation",
+  "objective": "Update YouTube Premium offering in Ppompu ad templates (가족플랜 sold out, 개인단독 3개월 20,000원, 12개월 65,000원, 12개월 연장형 75,000원) and Kakao chat menu.",
+  "non_goals": [],
+  "current_state": {
+    "completed": [
+      "Updated redesign-v4v1 copy.html (가족플랜 to 품절, 개인단독 3개월 to 20,000원, 12개월 단독 to 65,000원, 12개월 연장형 to 75,000원)",
+      "Updated redesign-v4v1.html with identical YouTube Premium layout structure and notice boxes",
+      "Symmetrically updated bottom notice boxes and descriptions in both copy and main HTML templates",
+      "Updated kakao_chat_menu.txt with correct private plan offerings",
+      "Woke up and checkpointed MemPalace memory index successfully",
+      "Ran package.json lint and unit tests successfully (100% green)"
+    ],
+    "gaps": []
+  },
+  "status": "completed",
+  "decisions_locked": [
+    "YouTube Premium 가족플랜 is marked as 일시 품절",
+    "YouTube Premium 개인단독 3개월 is offered for 20,000 KRW, 12개월 단독 is offered for 65,000 KRW, 12개월 연장형 is offered for 75,000 KRW"
+  ],
+  "acceptance_criteria": [
+    "Clean compilation with npm run lint",
+    "Unit tests are green with npm run test:unit",
+    "All templates preserve raw style guidelines (strictly inline styles, no classes/external deps)"
+  ],
+  "implementation_plan": [
+    {
+      "step": 1,
+      "name": "Update templates and menus",
+      "actions": [
+        "Update redesign-v4v1 copy.html",
+        "Update redesign-v4v1.html",
+        "Update kakao_chat_menu.txt"
+      ]
+    }
+  ],
+  "practical_recommendations": [],
+  "completed_items": [
+    "Updated redesign-v4v1 copy.html",
+    "Updated redesign-v4v1.html",
+    "Updated kakao_chat_menu.txt"
+  ],
+  "pending_items": [],
+  "decisions": [
+    "Update YouTube Premium plans to reflect real-time inventory and pricing adjustments"
+  ],
+  "constraints": [
+    "Only inline styles are allowed in ppompu-ad templates"
+  ],
+  "env_requirements": [],
+  "next_actions": [],
+  "artifacts_touched": [
+    "templates/ppompu-ad-design-system/ui_kits/ppompu-ad/redesign-v4v1 copy.html",
+    "templates/ppompu-ad-design-system/ui_kits/ppompu-ad/redesign-v4v1.html",
+    "templates/ads/kakao_business_channel/kakao_chat_menu.txt"
+  ]
+}

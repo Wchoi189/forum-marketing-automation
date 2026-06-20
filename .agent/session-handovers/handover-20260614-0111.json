@@ -1,0 +1,44 @@
+{
+  "handover_id": "handover-20260614-0111",
+  "timestamp_utc": "2026-06-13T16:11:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "completed",
+  "objective": "Update pricing for Adobe, n8n, Coursera, and migrate SurfShark to NordVPN.",
+  "non_goals": [],
+  "current_state": {
+    "completed": [
+      "Updated Adobe Creative Cloud: 12개월 to 4개월, 120,000원 to 40,000원.",
+      "Updated n8n (Cloud Starter): 70,000원 to 64,900원.",
+      "Updated Coursera Plus: 60,000원 to 54,900원.",
+      "Migrated SurfShark VPN to NordVPN: updated top navigation link, section title, and description points to highlight NordLynx, 10 devices, No-Logs, and OTT bypassing."
+    ],
+    "gaps": []
+  },
+  "status": "success",
+  "decisions_locked": [
+    "Retained the pricing structure for NordVPN (same as SurfShark: 2개월, 3개월) as requested.",
+    "Calculated the new monthly averages accurately for n8n (5,408원) and Coursera (4,575원)."
+  ],
+  "acceptance_criteria": [
+    "Prices and durations reflect user requests accurately.",
+    "SurfShark VPN is completely replaced by NordVPN.",
+    "Linter passes."
+  ],
+  "implementation_plan": [],
+  "practical_recommendations": [],
+  "completed_items": [
+    "Updated template inline HTML directly."
+  ],
+  "pending_items": [],
+  "decisions": [],
+  "constraints": [],
+  "env_requirements": [],
+  "next_actions": [],
+  "artifacts_touched": [
+    "templates/ppompu-ad-design-system/ui_kits/ppompu-ad/redesign-v4v1.html"
+  ]
+}

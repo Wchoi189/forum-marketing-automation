@@ -34,7 +34,7 @@ export async function runVlmParse(
 ): Promise<{ parsed: Record<string, unknown> | null; raw: string }> {
   const validation = validateImageForVlm(imageBuffer, 16);
   if (!validation.ok) {
-    console.log(`  [runVlmParse] image rejected: ${validation.reason}`);
+    console.log(`  [runVlmParse] image rejected: ${(validation as any).reason}`);
     return { parsed: null, raw: "" };
   }
 

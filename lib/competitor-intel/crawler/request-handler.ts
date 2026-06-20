@@ -200,7 +200,7 @@ async function extractWithBrowserFallback(
  * and pushes to Crawlee Dataset.
  */
 export function createRequestHandler(deps: HandlerDeps) {
-  return async function handler(context: PlaywrightCrawleeContext): Promise<void> {
+  return async function handler(context: PlaywrightCrawlingContext): Promise<void> {
     const { page, request } = context;
     const { artifactRoot, registry } = deps;
 

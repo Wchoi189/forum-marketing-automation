@@ -1,4 +1,5 @@
-import type { ParsedResult } from "../types.js";
+import type { ParsedResult } from "./types.js";
+export type { ParsedResult };
 
 export type VendorSelectors = {
   /** CSS selectors to find content body, most specific first */

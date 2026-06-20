@@ -81,7 +81,7 @@ function estimateOcrConfidence(text: string): number {
 export async function runOcr(imageBuffer: Buffer): Promise<{ text: string; confidence: number } | null> {
   const validation = validateImageForVlm(imageBuffer, 16);
   if (!validation.ok) {
-    console.log(`  [runOcr] image rejected: ${validation.reason}`);
+    console.log(`  [runOcr] image rejected: ${(validation as any).reason}`);
     return null;
   }
 

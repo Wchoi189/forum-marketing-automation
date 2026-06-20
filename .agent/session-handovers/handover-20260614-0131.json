@@ -1,0 +1,39 @@
+{
+  "handover_id": "handover-20260614-0131",
+  "timestamp_utc": "2026-06-13T16:30:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "completed",
+  "objective": "Fix the Google AI Pro manager card and description back to 18 months and 30,000원.",
+  "non_goals": [],
+  "current_state": {
+    "completed": [
+      "Reverted the accidental overwrite that changed the Google AI Pro Family Manager card from 18개월/30,000원 to 4개월/40,000원.",
+      "Restored the monthly average text '(월 평균 1,667원)' below the price on the card.",
+      "Updated the corresponding text in the new condensed description box to correctly reference '(18개월)'."
+    ],
+    "gaps": []
+  },
+  "status": "success",
+  "decisions_locked": [],
+  "acceptance_criteria": [
+    "Google AI Pro Family Manager card displays 18개월 and 30,000원.",
+    "Linter passes."
+  ],
+  "implementation_plan": [],
+  "practical_recommendations": [],
+  "completed_items": [
+    "Corrected Google AI Pro template card and description."
+  ],
+  "pending_items": [],
+  "decisions": [],
+  "constraints": [],
+  "env_requirements": [],
+  "next_actions": [],
+  "artifacts_touched": [
+    "templates/ppompu-ad-design-system/ui_kits/ppompu-ad/redesign-v4v1.html"
+  ]
+}

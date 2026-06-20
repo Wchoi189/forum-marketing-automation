@@ -3,6 +3,7 @@ import type { Page } from "playwright";
 import type { AdProduct, EvidenceSource } from "../types.js";
 import { isImageLargeEnough } from "./image-utils.js";
 import { cleanProductName, deduplicateProducts } from "../../competitor-ad-parser/product-name-utils.js";
+import type { ProjectedNode } from "../../parser/index.js";
 
 // ── Noise / stop-word patterns for text-block product extraction ─────────────
 // These indicate the block is NOT a product offering (FAQ, payment info, etc.)

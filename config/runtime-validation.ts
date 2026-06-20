@@ -32,7 +32,7 @@ function resolveManifestRef(ref: string): string {
   return path.join(MANIFEST_ROOT, cleanRef);
 }
 
-function validateOrThrow(ajv: Ajv2020, schema: JsonObject, payload: unknown, label: string): void {
+function validateOrThrow(ajv: any, schema: JsonObject, payload: unknown, label: string): void {
   const validate = ajv.compile(schema);
   assert(validate(payload), `${label} schema mismatch: ${ajv.errorsText(validate.errors)}`);
 }
@@ -61,8 +61,8 @@ function getDefinitionFromRef(schema: JsonObject, definitionRef: string): unknow
 }
 
 export async function validateRuntimeContracts(): Promise<void> {
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = new (Ajv2020 as any)({ allErrors: true, strict: false });
+  (addFormats as any)(ajv);
 
   const projectManifestSchemaPath = path.join(SCHEMA_ROOT, 'project.manifest.schema.json');
   const envSchemaPath = path.join(SCHEMA_ROOT, 'env.schema.json');
