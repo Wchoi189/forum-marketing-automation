@@ -21,6 +21,8 @@ import fs from "node:fs";
 import path from "node:path";
 import * as XLSX from "xlsx";
 
+XLSX.set_fs(fs);
+
 // ── KB row type ───────────────────────────────────────────────────────────────
 
 interface KbRow {

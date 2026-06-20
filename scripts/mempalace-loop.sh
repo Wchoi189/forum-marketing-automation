@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure local bin is in PATH for newly provisioned environments
+export PATH="/home/qubit/.local/bin:${PATH}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 STATE_INDEX_PATH="${PROJECT_ROOT}/.agent/state/state.index.json"
