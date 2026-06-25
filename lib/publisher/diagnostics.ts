@@ -13,7 +13,7 @@ import { logger } from '../logger.js';
 export function publisherArtifactDirForRun(): string | null {
   if (!ENV.PUBLISHER_DEBUG_SCREENSHOTS && !ENV.PUBLISHER_DEBUG_TRACE) return null;
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return path.join(ENV.PROJECT_ROOT, 'artifacts', 'publisher-runs', timestamp);
+  return path.join(ENV.ARTIFACTS_DIR, 'publisher-runs', timestamp);
 }
 
 export async function publisherDebugScreenshot(page: Page, runDir: string | null, label: string): Promise<void> {
@@ -30,7 +30,7 @@ export async function publisherFailureScreenshot(page: Page | null, preferredDir
   if (!page) return;
   const dir =
     preferredDir ??
-    path.join(ENV.PROJECT_ROOT, 'artifacts', 'publisher-runs', 'failures', new Date().toISOString().replace(/[:.]/g, '-'));
+    path.join(ENV.ARTIFACTS_DIR, 'publisher-runs', 'failures', new Date().toISOString().replace(/[:.]/g, '-'));
   await fs.mkdir(dir, { recursive: true });
   const file = path.join(dir, 'error.png');
   await page.screenshot({ path: file, fullPage: true }).catch(() => null);

@@ -11,6 +11,7 @@ type EnvConfig = {
   PPOMPPU_USER_PW: string;
   BOT_PROFILE_DIR: string;
   ACTIVITY_LOG_PATH: string;
+  ARTIFACTS_DIR: string;
   OBSERVER_GAP_THRESHOLD: number;
   RUN_INTERVAL_MINUTES: number;
   MANUAL_OVERRIDE_ENABLED: boolean;
@@ -211,6 +212,7 @@ function buildEnv(): EnvConfig {
     PPOMPPU_USER_PW: ppomppuUserPw,
     BOT_PROFILE_DIR: resolvePath(botProfileDirRaw, projectRoot),
     ACTIVITY_LOG_PATH: resolvePath(activityLogPathRaw, projectRoot),
+    ARTIFACTS_DIR: resolvePath(optionalString("ARTIFACTS_DIR", "artifacts"), projectRoot),
     OBSERVER_GAP_THRESHOLD: optionalInt("OBSERVER_GAP_THRESHOLD", 5, 1, 50),
     RUN_INTERVAL_MINUTES: optionalInt("RUN_INTERVAL_MINUTES", 60, 5, 1440),
     MANUAL_OVERRIDE_ENABLED: optionalBool("MANUAL_OVERRIDE_ENABLED", true),

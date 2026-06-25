@@ -87,6 +87,7 @@ USER app
 ENV NODE_ENV=production \
     BOT_PROFILE_DIR=/app/data/browser-profile \
     ACTIVITY_LOG_PATH=/app/data/logs/activity_log.json \
+    ARTIFACTS_DIR=/app/data/artifacts \
     BROWSER_HEADLESS=true \
     DEV_SKIP_BOT=false \
     DRY_RUN_MODE=true

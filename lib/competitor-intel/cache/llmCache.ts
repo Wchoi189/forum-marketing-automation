@@ -7,8 +7,9 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { ENV } from "../../../config/env.js";
 
-const CACHE_DIR = path.join(process.cwd(), "artifacts", "competitor-ads", "llm-cache");
+const CACHE_DIR = path.join(ENV.ARTIFACTS_DIR, "competitor-ads", "llm-cache");
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 type CacheEntry = {

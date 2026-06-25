@@ -6,7 +6,7 @@ import type { Database as Db } from "better-sqlite3";
 export type { Db as Database };
 import { ENV } from "../config/env.js";
 
-const DB_DIR = path.join(ENV.PROJECT_ROOT, "artifacts", "competitor-ads");
+const DB_DIR = path.join(ENV.ARTIFACTS_DIR, "competitor-ads");
 const DB_FILE = path.join(DB_DIR, "competitor-ads.db");
 
 const SCHEMA = `
@@ -60,22 +60,22 @@ export function openDatabase(dbPath?: string): Db {
   db.exec(SCHEMA);
 
   // Migration: add products_full_json column to existing databases
-  const hasColumn = db.prepare("PRAGMA table_info(records)").all()
-    .some((col: { name: string }) => col.name === "products_full_json");
+  const hasColumn = (db.prepare("PRAGMA table_info(records)").all() as { name: string }[])
+    .some((col) => col.name === "products_full_json");
   if (!hasColumn) {
     db.exec("ALTER TABLE records ADD COLUMN products_full_json TEXT");
   }
 
   // Migration: add account_type column to existing databases
-  const hasAccountType = db.prepare("PRAGMA table_info(records)").all()
-    .some((col: { name: string }) => col.name === "account_type");
+  const hasAccountType = (db.prepare("PRAGMA table_info(records)").all() as { name: string }[])
+    .some((col) => col.name === "account_type");
   if (!hasAccountType) {
     db.exec("ALTER TABLE records ADD COLUMN account_type TEXT");
   }
 
   // Migration: add content_hash column for incremental extraction
-  const hasContentHash = db.prepare("PRAGMA table_info(records)").all()
-    .some((col: { name: string }) => col.name === "content_hash");
+  const hasContentHash = (db.prepare("PRAGMA table_info(records)").all() as { name: string }[])
+    .some((col) => col.name === "content_hash");
   if (!hasContentHash) {
     db.exec("ALTER TABLE records ADD COLUMN content_hash TEXT");
   }

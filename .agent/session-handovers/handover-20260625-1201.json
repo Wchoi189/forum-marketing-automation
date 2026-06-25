@@ -1,0 +1,59 @@
+{
+  "handover_id": "handover-20260625-1201",
+  "timestamp_utc": "2026-06-25T16:01:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "completed",
+  "objective": "Decouple artifacts directory from hardcoded paths and fix Docker permission denied errors.",
+  "non_goals": [],
+  "current_state": {
+    "completed": [
+      "Added ARTIFACTS_DIR env variable support to config/env.ts, allowing centralized configuration.",
+      "Replaced hardcoded artifacts paths across the repository with ENV.ARTIFACTS_DIR to route publisher run screenshots/traces to properly permissioned directories.",
+      "Added ARTIFACTS_DIR environment variable in Dockerfile and docker-compose.yml pointing to /app/data/artifacts volume.",
+      "Called capArtifactsBySize() in resourceMonitor.ts runGarbageCollection() to automatically enforce 500MB sizing limits.",
+      "Fixed TypeScript linter errors in competitor-ad-sqlite.ts database migration routines.",
+      "Ran all unit, integration, and linting checks successfully."
+    ],
+    "gaps": []
+  },
+  "status": "success",
+  "decisions_locked": [],
+  "acceptance_criteria": [
+    "No hardcoded 'artifacts' strings referring directly to process.cwd() or PROJECT_ROOT.",
+    "Container writes trace files and debug screenshots to /app/data/artifacts volume instead of /app/artifacts.",
+    "Garbage collection caps artifacts directories under 500MB.",
+    "TS compilation passes without linter errors in database layers."
+  ],
+  "implementation_plan": [],
+  "practical_recommendations": [],
+  "completed_items": [
+    "Add ARTIFACTS_DIR env variable config.",
+    "Update Docker configs (Dockerfile, docker-compose.yml).",
+    "Replace hardcoded paths in diagnostics.ts, resourceMonitor.ts, publisherHistory.ts, kakaoSkill.ts, runtimeControls.ts, competitor-ad-sqlite.ts, llmCache.ts, parserSignal.ts.",
+    "Fix ts lint issues in competitor-ad-sqlite.ts.",
+    "Add capArtifactsBySize() in runGarbageCollection().",
+    "Verify project test suite passes."
+  ],
+  "pending_items": [],
+  "decisions": [],
+  "constraints": [],
+  "env_requirements": [],
+  "next_actions": [],
+  "artifacts_touched": [
+    "Dockerfile",
+    "docker-compose.yml",
+    "config/env.ts",
+    "lib/competitor-ad-sqlite.ts",
+    "lib/competitor-intel/cache/llmCache.ts",
+    "lib/kakaoSkill.ts",
+    "lib/observer/parserSignal.ts",
+    "lib/publisher/diagnostics.ts",
+    "lib/publisherHistory.ts",
+    "lib/resourceMonitor.ts",
+    "lib/runtimeControls.ts"
+  ]
+}

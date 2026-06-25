@@ -5,15 +5,15 @@ import type { PublisherHistoryEntry } from "../contracts/models.js";
 
 export type { PublisherHistoryEntry };
 
-const LEGACY_REL_PATH = path.join("artifacts", "publisher-history.json");
-const JSONL_REL_DIR = path.join("artifacts", "publisher-history");
+const LEGACY_REL_PATH = "publisher-history.json";
+const JSONL_REL_DIR = "publisher-history";
 
 function historyFilePath(): string {
-  return path.join(ENV.PROJECT_ROOT, LEGACY_REL_PATH);
+  return path.join(ENV.ARTIFACTS_DIR, LEGACY_REL_PATH);
 }
 
 function historyJsonlDirPath(): string {
-  return path.join(ENV.PROJECT_ROOT, JSONL_REL_DIR);
+  return path.join(ENV.ARTIFACTS_DIR, JSONL_REL_DIR);
 }
 
 function partitionDate(iso: string): string {

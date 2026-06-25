@@ -171,7 +171,7 @@ export async function captureBoardRowRegionArtifact(
   parserBundle?: ParserBundle
 ): Promise<string> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const artifactDir = path.join(ENV.PROJECT_ROOT, 'artifacts', 'board-diagnostics');
+  const artifactDir = path.join(ENV.ARTIFACTS_DIR, 'board-diagnostics');
   await fs.mkdir(artifactDir, { recursive: true });
   const artifactPath = path.join(artifactDir, `board-row-region-${timestamp}.json`);
 

@@ -3,7 +3,7 @@ import path from "path";
 import { ENV } from "../config/env.js";
 import { clamp } from "./utils.js";
 
-const REL_PATH = path.join("artifacts", "runtime-controls.json");
+const REL_PATH = "runtime-controls.json";
 let runtimeControlsWriteQueue: Promise<void> = Promise.resolve();
 
 export type RuntimeControlsStateMeta = {
@@ -25,7 +25,7 @@ export class RuntimeControlsVersionConflictError extends Error {
 }
 
 function filePath(): string {
-  return path.join(ENV.PROJECT_ROOT, REL_PATH);
+  return path.join(ENV.ARTIFACTS_DIR, REL_PATH);
 }
 
 function enqueueRuntimeControlsWrite<T>(operation: () => Promise<T>): Promise<T> {

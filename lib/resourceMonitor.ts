@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 import { ENV } from '../config/env.js';
 import { logger } from './logger.js';
 
-const ARTIFACTS_DIR = path.join(ENV.PROJECT_ROOT, 'artifacts', 'publisher-runs');
+const ARTIFACTS_DIR = path.join(ENV.ARTIFACTS_DIR, 'publisher-runs');
 export const MAX_ARTIFACT_AGE_DAYS = 7;
 export const MAX_ACTIVITY_LOG_ENTRIES = 1000;
 export const KEEP_ACTIVITY_LOG_ENTRIES = 500;
@@ -332,6 +332,7 @@ export function runGarbageCollection(): {
   browserRecycled: boolean;
 } {
   const artifacts = rotateArtifacts();
+  capArtifactsBySize(); // Enforce 500MB size limit
   const logRotated = rotateActivityLog();
   const browserProfile = cleanBrowserProfile();
 

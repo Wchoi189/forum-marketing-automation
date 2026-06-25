@@ -69,11 +69,11 @@ export type KakaoMessageEntry = {
 
 // ── JSONL logger ───────────────────────────────────────────────────────────────
 
-const HISTORY_REL_DIR = path.join("artifacts", "kakao-history");
+const HISTORY_REL_DIR = "kakao-history";
 
 function todayLogPath(): string {
   const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const dir = path.join(ENV.PROJECT_ROOT, HISTORY_REL_DIR);
+  const dir = path.join(ENV.ARTIFACTS_DIR, HISTORY_REL_DIR);
   fs.mkdirSync(dir, { recursive: true });
   return path.join(dir, `${date}.jsonl`);
 }
