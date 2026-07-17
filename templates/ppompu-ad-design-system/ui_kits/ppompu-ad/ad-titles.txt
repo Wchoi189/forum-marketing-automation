@@ -18,3 +18,59 @@ Matches the coverage of "구독플레이스" but emphasizes the variety of your 
 
 > **[SharePlan] 유튜브/제미나이/퍼플렉시티/VPN/넷플릭스 - 한 곳에서 끝내는 구독**
 > **[SharePlan] 유튜브/제미나이/퍼플렉시티/VPN - 한 곳에서 끝내는 구독**
+
+### 5. The "Full Stack Developer" Hook (B2B & Tech Focus)
+Targets the new productivity and no-code tools (Lovable, n8n, Notion) alongside core AI.
+> **[SharePlan] 선조치 후결제 | YT/구글AI/Lovable/n8n/노션/VPN**
+
+### 6. The "Creator & Design" Hook (Creative Focus)
+Highlights the new design tools (Canva, Adobe) paired with AI and YouTube.
+> **[SharePlan] 선조치 후결제 | YT/구글AI/어도비/캔바/노션/VPN**
+
+### 7. The "Mega Bundle / All-in-One" Hook (Maximum Breadth)
+Shows off the sheer volume of high-value SaaS products now available.
+> **[SharePlan] 선조치 후결제 | 유튜브/구글AI/코세라/캔바/노션/n8n**
+
+### 8. The "Trust & Productivity" Hook
+Emphasizes professional tools with the high-trust payment model.
+> **[SharePlan] 안심 후결제 | YT/구글AI/Lovable/n8n/노션/캔바**
+
+### 9. The "AI Power User" Hook (AI Tool Focus)
+Highlights the heavy-hitting AI tools for power users.
+> **[SharePlan] 선조치 후결제 | ChatGPT/클로드/구글AI/퍼플렉시티/VPN**
+
+### 10. The "Student & Learner" Hook (Education & Productivity)
+Aims at students and self-improvers needing learning and organization tools.
+> **[SharePlan] 안심 후결제 | YT/코세라/노션/캔바/구글AI/VPN**
+
+### 11. The "Media & Entertainment" Hook (Broad Appeal)
+Focuses on the most popular mass-market entertainment subscriptions with a touch of AI.
+> **[SharePlan] 선조치 후결제 | 유튜브/넷플릭스/스포티파이/구글AI/VPN**
+
+### 12. The "Global Freelancer" Hook (Remote Work)
+Mixes creative and productivity tools tailored for digital nomads or freelancers.
+> **[SharePlan] 안심 후결제 | 어도비/캔바/노션/ChatGPT/구글AI/YT**
+
+### 13. The "No-Code Builder" Hook (Niche B2B)
+Targets the rapidly growing no-code and automation market.
+> **[SharePlan] 선조치 후결제 | Lovable/n8n/노션/구글AI/VPN**
+
+### 14. The "Tech Stack & Startup" Hook (Developer Focus)
+Targets startup teams or developers needing backend infrastructure and agile collaboration tools.
+> **[SharePlan] 스타트업 개발 패키지 | 수파베이스/레일웨이/리니어/아사나**
+
+### 15. The "Design & UI/UX" Hook (Creator/Web Builder Focus)
+Geared towards UI/UX designers and web builders looking for high-end design suites.
+> **[SharePlan] 디자이너 필수팩 | 피그마/프레이머/매직패턴 최저가 후결제**
+
+### 16. The "B2B Professional" Hook (Sales & PM Focus)
+Aimed at corporate professionals, sales, and project managers.
+> **[SharePlan] 업무 효율 극대화 | 마소365/링크드인 프리미엄/인터콤/아사나**
+
+### 17. The "Finance & Trading" Hook (Niche Investor Focus)
+Targeted directly at the high-intent trading and finance demographic.
+> **[SharePlan] 안심 후결제 | 트레이딩뷰 프리미엄 월 2만원 특가**
+
+### 18. The "Full IT Suite" Hook (Broad Tech Appeal)
+A blended, all-in-one IT software package combining Dev, Design, and Office tools.
+> **[SharePlan] 기획/디자인/개발 | Supabase/Figma/Linear/MS365 안심 구독**

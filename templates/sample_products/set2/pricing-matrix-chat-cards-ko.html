@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OTT P2P Pricing Matrix</title>
+<style>
+:root { --bg:#f7f6f2; --surface:#ffffff; --line:#ddd7cf; --text:#1f1d19; --muted:#6c665f; --accent:#0f766e; --accent2:#155e75; --warn:#8b5e34; --radius:18px; }
+*{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);line-height:1.55} .wrap{max-width:1180px;margin:0 auto;padding:32px 18px 60px} h1{font-size:36px;margin:0 0 10px} p.lead{margin:0 0 24px;color:var(--muted)} .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:18px 0 28px} .meta .box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px} .meta .k{font-size:13px;color:var(--muted)} .meta .v{font-size:20px;font-weight:700;margin-top:6px} table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:20px;overflow:hidden} th,td{padding:14px 12px;border-bottom:1px solid #ece7e0;vertical-align:top;font-size:14px} th{background:#f1ede7;text-align:left} tr:last-child td{border-bottom:none} .section{margin-top:34px} .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px} .card{background:linear-gradient(180deg,#ffffff,#f8f6f1);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.05)} .badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#d9f3ef;color:#0f5f59;font-size:12px;font-weight:700;margin-bottom:12px} .price{font-size:28px;font-weight:800;color:var(--accent);margin:10px 0} .small{font-size:13px;color:var(--muted)} .copy{background:#faf8f4;border:1px dashed #d7cfc3;border-radius:16px;padding:14px;white-space:pre-line;font-size:14px} .footer{margin-top:28px;color:var(--muted);font-size:13px} @media (max-width:720px){h1{font-size:28px} th,td{font-size:13px;padding:11px 10px} .price{font-size:24px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>공유용 가격표 및 채팅 카드</h1>
+  <p class="lead">후보 기준가를 KRW로 환산하고, 30%·35%·40% 마크업 판매가를 한 번에 볼 수 있도록 정리한 자료입니다.</p>
+  <div class="meta">
+    <div class="box"><div class="k">환산 기준</div><div class="v">1 USD = 1,507.42 KRW</div></div>
+    <div class="box"><div class="k">기본 권장안</div><div class="v">40% 마크업</div></div>
+    <div class="box"><div class="k">카드 문구</div><div class="v">한국어 채팅 공지용</div></div>
+  </div>
+
+  <div class="section">
+    <h2>가격 매트릭스</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>상품명</th><th>기간</th><th>기준가(USD)</th><th>원가(KRW)</th><th>30%</th><th>35%</th><th>40%</th><th>비고</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Supabase Pro 12개월</td><td>12개월</td><td>$40</td><td>60,297원</td><td>78,386원</td><td>81,401원</td><td><strong>84,416원</strong></td><td>공식 요금제 구조 확인, 후보가 기준가로 사용</td></tr><tr><td>Figma Education 12개월</td><td>12개월</td><td>$10</td><td>15,074원</td><td>19,596원</td><td>20,350원</td><td><strong>21,104원</strong></td><td>교육용 플랜 특수 요금, 후보가 기준가로 사용</td></tr><tr><td>TradingView Pro 1개월</td><td>1개월</td><td>$10</td><td>15,074원</td><td>19,596원</td><td>20,350원</td><td><strong>21,104원</strong></td><td>공식 Pro 월 요금 공개, 후보가 기준가로 사용</td></tr><tr><td>MagicPattern 12개월</td><td>12개월</td><td>$25</td><td>37,686원</td><td>48,992원</td><td>50,876원</td><td><strong>52,760원</strong></td><td>공개 가격 매칭 제한, 후보가 기준가로 사용</td></tr><tr><td>Intercom Essential 12개월</td><td>12개월</td><td>$30</td><td>45,223원</td><td>58,790원</td><td>61,051원</td><td><strong>63,312원</strong></td><td>좌석/사용량 혼합 과금, 후보가 기준가로 사용</td></tr><tr><td>Asana 연간 플랜 12개월</td><td>12개월</td><td>$30</td><td>45,223원</td><td>58,790원</td><td>61,051원</td><td><strong>63,312원</strong></td><td>사용자당 연간 과금 구조, 후보가 기준가로 사용</td></tr><tr><td>Microsoft 365 12개월</td><td>12개월</td><td>$5</td><td>7,537원</td><td>9,798원</td><td>10,175원</td><td><strong>10,552원</strong></td><td>후보가가 공식 소매가보다 매우 낮아 검증 필요</td></tr><tr><td>Railway Pro 12개월</td><td>12개월</td><td>$40</td><td>60,297원</td><td>78,386원</td><td>81,401원</td><td><strong>84,416원</strong></td><td>공식 Pro 구조 확인, 후보가 기준가로 사용</td></tr><tr><td>LinkedIn Premium 75% 할인 바우처 12개월</td><td>12개월</td><td>$20</td><td>30,148원</td><td>39,192원</td><td>40,700원</td><td><strong>42,207원</strong></td><td>바우처형 상품으로 후보가 기준가로 사용</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>샘플 상품 카드</h2>
+    <div class="cards">
+      <div class='card'><div class='badge'>채팅 공지용</div><h3>Supabase Pro 12개월</h3><div class='price'>84,416원</div><p class='small'>Supabase Pro 12개월 12개월 · 지금 문의 시 빠르게 안내드립니다.</p><div class='copy'>Supabase Pro 12개월 특가 안내
+- 이용기간: 12개월
+- 안내가: 84,416원
+- 특징: 계정 세팅형 / 빠른 전달 / 채팅 문의 가능
+- 참고: 재고와 공급 상황에 따라 안내가가 변동될 수 있습니다.</div></div><div class='card'><div class='badge'>채팅 공지용</div><h3>Figma Education 12개월</h3><div class='price'>21,104원</div><p class='small'>Figma Education 12개월 12개월 · 지금 문의 시 빠르게 안내드립니다.</p><div class='copy'>Figma Education 12개월 특가 안내
+- 이용기간: 12개월
+- 안내가: 21,104원
+- 특징: 계정 세팅형 / 빠른 전달 / 채팅 문의 가능
+- 참고: 재고와 공급 상황에 따라 안내가가 변동될 수 있습니다.</div></div><div class='card'><div class='badge'>채팅 공지용</div><h3>TradingView Pro 1개월</h3><div class='price'>21,104원</div><p class='small'>TradingView Pro 1개월 1개월 · 지금 문의 시 빠르게 안내드립니다.</p><div class='copy'>TradingView Pro 1개월 특가 안내
+- 이용기간: 1개월
+- 안내가: 21,104원
+- 특징: 계정 세팅형 / 빠른 전달 / 채팅 문의 가능
+- 참고: 재고와 공급 상황에 따라 안내가가 변동될 수 있습니다.</div></div><div class='card'><div class='badge'>채팅 공지용</div><h3>MagicPattern 12개월</h3><div class='price'>52,760원</div><p class='small'>MagicPattern 12개월 12개월 · 지금 문의 시 빠르게 안내드립니다.</p><div class='copy'>MagicPattern 12개월 특가 안내
+- 이용기간: 12개월
+- 안내가: 52,760원
+- 특징: 계정 세팅형 / 빠른 전달 / 채팅 문의 가능
+- 참고: 재고와 공급 상황에 따라 안내가가 변동될 수 있습니다.</div></div><div class='card'><div class='badge'>채팅 공지용</div><h3>Intercom Essential 12개월</h3><div class='price'>63,312원</div><p class='small'>Intercom Essential 12개월 12개월 · 지금 문의 시 빠르게 안내드립니다.</p><div class='copy'>Intercom Essential 12개월 특가 안내
+- 이용기간: 12개월
+- 안내가: 63,312원
+- 특징: 계정 세팅형 / 빠른 전달 / 채팅 문의 가능
+- 참고: 재고와 공급 상황에 따라 안내가가 변동될 수 있습니다.</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>추천 공지 문구</h2>
+    <div class="copy">[구독 특가 안내]
+원하시는 생산성/디자인/업무툴 구독 상품을 합리적인 조건으로 안내드립니다.
+- 12개월 / 1개월 상품별 상이
+- 빠른 세팅 및 전달
+- 상품별 재고 수시 변동
+- 문의 시 실시간 가능 여부 안내
+
+예시: Supabase Pro 12개월, Railway Pro 12개월, TradingView Pro 1개월 등</div>
+  </div>
+
+  <div class="footer">내부 후보 기준가 기반 정리본입니다. 공식 리테일가와 차이가 큰 상품은 별도 검증 후 안내 권장.</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,7 @@
+﻿Catalog ID,Raw seller title,Approved internal title,Official vendor name,Plan / duration,Commercial modifier,Korean description,Confidence,Next action
+CAT-0001,supabase 12m - 40$,Supabase Pro Plan 12개월,Supabase Pro,12개월,Own email / private access,"구독형 프로 플랜, 계정 연동형",High,Official price/access confirmation
+CAT-0003,Linkedin 75% Discount voucher 12 months - 20$,LinkedIn Premium All-in-One 12개월 바우처 (75% off),LinkedIn Premium All-in-One,12개월,75% off voucher,"프로모션 바우처, 할인 조건형",High,Confirm voucher redemption terms
+CAT-0005,Linear business - 20$ 12 months includes 5 seats,Linear Business 12개월,Linear Business,12개월,Seat bundle / workspace access,워크스페이스 좌석형 연간 플랜,High,Confirm 5-seat bundle condition
+CAT-0006,Framer - 30$ 12 months,Framer Pro 12개월,Framer Pro,12개월,Annualized reseller offer,웹사이트 빌더 프로 플랜,Medium,Confirm site/workspace plan type
+CAT-0002,Trading view one month - 10$ (provisioned account),TradingView Premium 1개월 (Provisioned Account),TradingView Premium,1개월,Provisioned account,차트/트레이딩 도구 프리미엄 플랜,High,Confirm Premium vs legacy Pro wording
+CAT-0004,Ms office 365 12 months - 5$,Microsoft 365 Personal 12개월,Microsoft 365 Personal,12개월,Likely 1-person annual code,개인용 생산성 구독 플랜,Medium,Verify Personal vs Family SKU
