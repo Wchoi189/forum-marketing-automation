@@ -165,7 +165,15 @@ export class ParserSessionManager {
 
   private async getBrowser(): Promise<Browser> {
     if (!this.browserPromise) {
-      this.browserPromise = chromium.launch({ headless: this.headless });
+      this.browserPromise = chromium.launch({
+        headless: this.headless,
+        args: [
+          '--disable-disk-cache',
+          '--disable-crash-reporter',
+          '--disable-breakpad',
+          '--disable-dev-shm-usage',
+        ]
+      });
     }
     return this.browserPromise;
   }

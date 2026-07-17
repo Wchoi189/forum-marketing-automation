@@ -183,12 +183,12 @@ export async function startServer() {
   });
 
   if (!skipBot) {
-    const gcResult = runGarbageCollection();
+    const gcResult = await runGarbageCollection();
     if (gcResult.artifacts.deletedCount > 0 || gcResult.logRotated > 0) {
       logger.info({ event: 'resource.gc_startup', artifactsDeleted: gcResult.artifacts.deletedCount, logRotated: gcResult.logRotated }, 'Startup garbage collection completed');
     }
   }
-  const resourceWarnings = checkResourceThresholds();
+  const resourceWarnings = await checkResourceThresholds();
   if (resourceWarnings.length > 0) {
     logger.warn({ event: 'resource.startup_warnings', warnings: resourceWarnings }, `Resource warnings at startup: ${resourceWarnings.join('; ')}`);
   }
@@ -198,12 +198,16 @@ export async function startServer() {
   // Not run in dev/test to avoid interfering with artifact inspection.
   if (process.env.NODE_ENV === 'production' && !skipBot) {
     const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
-    setInterval(() => {
-      const result = runGarbageCollection();
-      logger.info(
-        { event: 'resource.gc_periodic', artifactsDeleted: result.artifacts.deletedCount, logRotated: result.logRotated },
-        'Periodic GC completed'
-      );
+    setInterval(async () => {
+      try {
+        const result = await runGarbageCollection();
+        logger.info(
+          { event: 'resource.gc_periodic', artifactsDeleted: result.artifacts.deletedCount, logRotated: result.logRotated },
+          'Periodic GC completed'
+        );
+      } catch (err) {
+        logger.error({ event: 'resource.gc_periodic_failed', err }, 'Periodic GC failed');
+      }
     }, SIX_HOURS_MS).unref(); // .unref() so the timer does not prevent clean process exit
   }
 

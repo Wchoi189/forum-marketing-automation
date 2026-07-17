@@ -12,6 +12,12 @@
     ],
     "retention_days": 30
   },
+  "docker_logging": {
+    "driver": "json-file",
+    "max_size": "10m",
+    "max_file": "3",
+    "rationale": "Prevents infinite NVMe SSD wear from unbounded container logs."
+  },
   "alerts": [
     {
       "id": "service_down",

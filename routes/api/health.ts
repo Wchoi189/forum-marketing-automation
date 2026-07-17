@@ -25,21 +25,29 @@ export function createHealthRouter(deps: HealthRouterDeps): Router {
     });
   });
 
-  router.get('/api/health/resources', (_req, res) => {
-    const metrics = getResourceMetrics();
-    const warnings = checkResourceThresholds();
-    res.json({ ...metrics, warnings });
+  router.get('/api/health/resources', async (_req, res) => {
+    try {
+      const metrics = await getResourceMetrics();
+      const warnings = await checkResourceThresholds();
+      res.json({ ...metrics, warnings });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get resource metrics" });
+    }
   });
 
-  router.post('/api/resource/gc', (_req, res) => {
-    const result = runGarbageCollection();
-    if (result.logRotated) deps.invalidatePollingCaches();
-    res.json({
-      artifacts: result.artifacts,
-      logRotated: result.logRotated,
-      browserProfile: result.browserProfile,
-      triggeredAt: new Date().toISOString(),
-    });
+  router.post('/api/resource/gc', async (_req, res) => {
+    try {
+      const result = await runGarbageCollection();
+      if (result.logRotated) deps.invalidatePollingCaches();
+      res.json({
+        artifacts: result.artifacts,
+        logRotated: result.logRotated,
+        browserProfile: result.browserProfile,
+        triggeredAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to run garbage collection" });
+    }
   });
 
   return router;

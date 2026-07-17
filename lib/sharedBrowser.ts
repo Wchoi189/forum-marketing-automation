@@ -13,9 +13,12 @@ const STORAGE_STATE_PATH = path.join(ENV.BOT_PROFILE_DIR, 'browser-storage-state
 /** Reduces trivial AutomationControlled / headless flags and caps per-process memory. */
 export const CHROMIUM_LAUNCH_ARGS = [
   '--disable-blink-features=AutomationControlled',
-  '--js-flags=--max-old-space-size=100',  // 100 MB V8 heap — appropriate for 512 MB hosts (was 2048)
+  '--js-flags=--max-old-space-size=100',  // 100 MB V8 heap
   '--disable-gpu',
   '--disable-dev-shm-usage',  // mandatory on VMs with small /dev/shm (< 64 MB)
+  '--disable-disk-cache',     // SAVE NVMe: completely disable disk caching
+  '--disable-crash-reporter', // SAVE NVMe: no crashpad dumps
+  '--disable-breakpad',       // SAVE NVMe: no crashpad dumps
 ] as const;
 
 /** Cache-busting headers applied to every browser request. */

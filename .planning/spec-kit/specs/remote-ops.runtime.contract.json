@@ -25,6 +25,11 @@
       "timeout_seconds": 30
     }
   },
+  "docker_container_constraints": {
+    "minimum_memory_limit": "1G",
+    "init_process_required": true,
+    "rationale": "Node.js + Headless Chromium requires ~1GB to avoid OOM kills. init=true is required to reap orphaned Chromium processes."
+  },
   "env_loading": {
     "source": "aws_ssm_parameter_store",
     "bootstrap_script": "ops/systemd/load-env-from-ssm.sh",

@@ -111,6 +111,7 @@ Location: `.planning/known-issues/`
 | ID | Title | Severity |
 |----|-------|----------|
 | [KE-001](.planning/known-issues/KE-001-scheduler-gap-recheck.md) | Scheduler reverts to 60-min interval after successful publish | critical |
+| [KE-002](.planning/known-issues/KE-002-nvme-ssd-wear-and-docker-oom.md) | System unresponsiveness and rapid NVMe SSD wear from Docker/Playwright | critical |
 
 When you confirm a new bug required >1 debugging iteration or produced misleading symptoms,
 add an entry: copy the frontmatter from an existing entry, increment the ID, fill all sections.
