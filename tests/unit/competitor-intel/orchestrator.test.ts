@@ -36,7 +36,7 @@ function makeStage5(numProducts = 1, warnings: string[] = []): Stage5Output {
   return {
     productsWithEvidence: Array.from({ length: numProducts }, (_, i) => ({
       name: "YouTube Premium",
-      name_evidence: { source_type: "mixed" as const, excerpt: "유튜브 프리미엄 1달 4,000원", confidence: 0.9 },
+      name_evidence: { source_type: "html", excerpt: "유튜브 프리미엄 1달 4,000원", confidence: 0.9 },
       price_krw: 4000,
       duration_months: 1,
       confidence: 0.9,
