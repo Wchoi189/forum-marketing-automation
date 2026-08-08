@@ -1,4 +1,5 @@
 import type { Locator, Page } from "playwright";
+import { PLAYBOOK_STEP_IDS } from "../constants.js";
 
 export type SelectorResolutionStep = {
   step_id: string;
@@ -86,7 +87,7 @@ export async function resolveFirstVisibleLocator(
       await new Promise((resolve) => setTimeout(resolve, pollMs));
     }
 
-    if (step.step_id === "confirm-load-draft-modal" && lastCount > 0) {
+    if (step.step_id === PLAYBOOK_STEP_IDS.CONFIRM_LOAD_DRAFT_MODAL && lastCount > 0) {
       // Keep scanning selectors; fallback row/preview flow runs in runPublisherPlaybook().
     }
   }

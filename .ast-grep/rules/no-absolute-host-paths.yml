@@ -1,0 +1,12 @@
+id: no-absolute-host-paths
+language: TypeScript
+severity: error
+message: Hardcoded absolute host path. Derive from ENV.PROJECT_ROOT / ENV.ARTIFACTS_DIR instead.
+note: |
+  Absolute paths rooted at /parent, /app, or /home only exist on one machine.
+  They silently break tests, Docker builds, and other developers' checkouts —
+  this pattern caused every integration test to write to a nonexistent directory.
+  Read paths through config/env.ts, which resolves them per environment.
+rule:
+  kind: string
+  regex: '^["'']/(parent|app|home)/'

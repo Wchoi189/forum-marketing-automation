@@ -24,8 +24,10 @@ import { ENV } from "../../config/env.ts";
 type BotDeps = NonNullable<Parameters<typeof createApp>[0]>;
 
 const AUTH_HEADER = "Bearer test-secret";
-const PROJECT_ROOT = ENV.PROJECT_ROOT;
-const RUNTIME_CONTROLS_PATH = path.join(PROJECT_ROOT, "artifacts", "runtime-controls.json");
+// Resolve through ENV.ARTIFACTS_DIR, not PROJECT_ROOT + "artifacts". The test
+// runner redirects ARTIFACTS_DIR to a temp directory; hardcoding the layout
+// makes the test read a different file than the server writes.
+const RUNTIME_CONTROLS_PATH = path.join(ENV.ARTIFACTS_DIR, "runtime-controls.json");
 
 function makeMockDeps(): BotDeps {
   return {

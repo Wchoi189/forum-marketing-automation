@@ -50,11 +50,7 @@ logs/
 *.pdf
 
 # Allow explicitly selected documentation and session targets
-!AgentQMS/
 !docs/
-!.dev/context/sessions/
-!.dev/context/decisions/
-!.dev/tasks/
 !README.md
 !CLAUDE.md
 !PROJECT_MAP.yaml

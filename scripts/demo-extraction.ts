@@ -10,8 +10,12 @@ import { cleanProductName, deduplicateProducts } from "../lib/competitor-ad-pars
 import { extractProductsFromText, findPostedAt } from "../lib/competitor-intel/extraction/pipeline.js";
 import { runTextExtraction } from "../lib/competitor-intel/extraction/text-extraction.js";
 import type { EvidenceSource, AdProduct, CompetitorAdRecord } from "../lib/competitor-intel/types.js";
+import * as path from "node:path";
+import { ENV } from "../config/env.js";
 
-const HTML_DIR = "/parent/marketing-automation/artifacts/competitor-ads/test-cleanup-retry-20260511/raw_html";
+const HTML_DIR =
+  process.env.DEMO_HTML_DIR ??
+  path.join(ENV.ARTIFACTS_DIR, "competitor-ads", "test-cleanup-retry-20260511", "raw_html");
 
 const VENDORS = [
   "0b80b387d62a",

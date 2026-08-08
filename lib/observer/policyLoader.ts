@@ -12,9 +12,9 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { ENV } from '../../config/env.js';
-import { readRuntimeGapPersistedOverride, readPersistedGapSourcePin } from '../runtimeControls.js';
-import type { ObserverControls, ObserverControlsWithGap } from '../controls.js';
-import { getObserverControls } from '../controls.js';
+import { readGapPersistedOverride, readGapSourcePin } from '../state/index.js';
+import type { ObserverControls, ObserverControlsWithGap } from '../state/index.js';
+import { getObserverControls } from '../state/index.js';
 
 // ---------------------------------------------------------------------------
 // Internal types — not exported; consumers get the public ObserverPolicy shape
@@ -156,7 +156,7 @@ export async function loadObserverPolicyBase(): Promise<ObserverPolicyBase> {
 }
 
 export async function resolveEffectiveGapThresholdMin(specGap: number): Promise<{ value: number; source: 'file' | 'env' | 'spec' }> {
-  const pin = await readPersistedGapSourcePin();
+  const pin = await readGapSourcePin();
   if (pin === 'spec') {
     return { value: specGap, source: 'spec' };
   }
@@ -166,7 +166,7 @@ export async function resolveEffectiveGapThresholdMin(specGap: number): Promise<
     return { value: envVal ?? specGap, source: envVal !== null ? 'env' : 'spec' };
   }
   // Default precedence: file → env → spec
-  const persisted = await readRuntimeGapPersistedOverride();
+  const persisted = await readGapPersistedOverride();
   if (persisted !== null) return { value: persisted, source: 'file' };
   if (envVal !== null) return { value: envVal, source: 'env' };
   return { value: specGap, source: 'spec' };
@@ -187,8 +187,8 @@ export async function loadObserverPolicy(): Promise<ObserverPolicy> {
 export async function getObserverControlsWithGap(): Promise<ObserverControlsWithGap> {
   const base = await loadObserverPolicyBase();
   const [persisted, pin, resolved] = await Promise.all([
-    readRuntimeGapPersistedOverride(),
-    readPersistedGapSourcePin(),
+    readGapPersistedOverride(),
+    readGapSourcePin(),
     resolveEffectiveGapThresholdMin(base.specGapThresholdMin).then(r => r),
   ]);
   const raw = process.env.OBSERVER_GAP_THRESHOLD;

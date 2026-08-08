@@ -2,7 +2,11 @@ import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 
-dotenv.config({ override: true });
+// Explicit process environment wins over the .env file. Do NOT pass
+// `override: true` here — it lets a stale developer .env clobber values that
+// docker-compose, CI, or the test runner set deliberately. That is what caused
+// every integration test to write to a nonexistent absolute ARTIFACTS_DIR.
+dotenv.config();
 
 type EnvConfig = {
   PROJECT_ROOT: string;

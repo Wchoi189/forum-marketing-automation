@@ -42,7 +42,10 @@ export function createHealthRouter(deps: HealthRouterDeps): Router {
       res.json({
         artifacts: result.artifacts,
         logRotated: result.logRotated,
+        tempFilesRemoved: result.tempFilesRemoved,
+        handoversArchived: result.handoversArchived,
         browserProfile: result.browserProfile,
+        browserRecycled: result.browserRecycled,
         triggeredAt: new Date().toISOString(),
       });
     } catch (error) {

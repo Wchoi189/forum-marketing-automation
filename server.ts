@@ -29,7 +29,7 @@ import {
 import {
   readPersistedSchedulerControls,
   readPersistedNlWebhookEnabled,
-} from "./lib/runtimeControls.js";
+} from "./lib/state/index.js";
 import { getResourceMetrics, checkResourceThresholds, runGarbageCollection } from "./lib/resourceMonitor.js";
 import * as kakaoDb from "./lib/kakaoDb.js";
 import type { PublisherRunDecision } from "./contracts/models.js";
@@ -184,8 +184,17 @@ export async function startServer() {
 
   if (!skipBot) {
     const gcResult = await runGarbageCollection();
-    if (gcResult.artifacts.deletedCount > 0 || gcResult.logRotated > 0) {
-      logger.info({ event: 'resource.gc_startup', artifactsDeleted: gcResult.artifacts.deletedCount, logRotated: gcResult.logRotated }, 'Startup garbage collection completed');
+    if (gcResult.artifacts.deletedCount > 0 || gcResult.logRotated > 0 || gcResult.tempFilesRemoved > 0 || gcResult.handoversArchived > 0) {
+      logger.info(
+        {
+          event: 'resource.gc_startup',
+          artifactsDeleted: gcResult.artifacts.deletedCount,
+          logRotated: gcResult.logRotated,
+          tempFilesRemoved: gcResult.tempFilesRemoved,
+          handoversArchived: gcResult.handoversArchived,
+        },
+        'Startup garbage collection completed'
+      );
     }
   }
   const resourceWarnings = await checkResourceThresholds();
@@ -202,7 +211,13 @@ export async function startServer() {
       try {
         const result = await runGarbageCollection();
         logger.info(
-          { event: 'resource.gc_periodic', artifactsDeleted: result.artifacts.deletedCount, logRotated: result.logRotated },
+          {
+            event: 'resource.gc_periodic',
+            artifactsDeleted: result.artifacts.deletedCount,
+            logRotated: result.logRotated,
+            tempFilesRemoved: result.tempFilesRemoved,
+            handoversArchived: result.handoversArchived,
+          },
           'Periodic GC completed'
         );
       } catch (err) {

@@ -11,7 +11,7 @@ import { ENV } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { classifyIntent, buildStatusSummary, extractIntervalMinutes, extractGapThreshold } from '../../lib/nlWebhook.js';
 import { getAdvisorCache, markAdvisorCacheApplied } from '../../lib/aiAdvisor.js';
-import { writeRuntimeControls, writeRuntimeGapPersistedOverride } from '../../lib/runtimeControls.js';
+import { persistState, persistGapOverride } from '../../lib/state/index.js';
 import { buildTrendInsightsPayload } from '../../lib/trendInsights.js';
 import { readPublisherHistory } from '../../lib/publisherHistory.js';
 import type { BotDeps } from '../../lib/scheduler.js';
@@ -65,7 +65,7 @@ export function createNlRouter(opts: NlRouterDeps): Router {
       const dispatchMap: Record<string, string> = {
         pause_scheduler: 'POST /api/control-panel', resume_scheduler: 'POST /api/control-panel',
         force_publish: 'POST /api/run-publisher', set_interval: 'POST /api/control-panel',
-        set_gap_threshold: 'writeRuntimeGapPersistedOverride', apply_ai_recommendation: 'POST /api/apply-ai-recommendation',
+        set_gap_threshold: 'persistGapOverride', apply_ai_recommendation: 'POST /api/apply-ai-recommendation',
         status_query: 'GET /api/control-panel + GET /api/trend-insights + GET /api/publisher-history',
       };
       res.json({ intent, dispatched_to: dispatchMap[intent] ?? 'unknown', result: null, dry_run: true }); return;
@@ -78,7 +78,7 @@ export function createNlRouter(opts: NlRouterDeps): Router {
       switch (intent) {
         case 'pause_scheduler': {
           if (scheduler) scheduler.setEnabled(false);
-          const persistMeta = await writeRuntimeControls({ schedulerEnabled: false });
+          const persistMeta = await persistState({ schedulerEnabled: false });
           const controlPanel = await opts.buildCP(scheduler, opts.getNlWebhookEnabled(), { stateVersion: persistMeta.stateVersion, persistedAt: persistMeta.persistedAt });
           dispatchedTo = 'POST /api/control-panel';
           result = { schedulerEnabled: false, stateVersion: persistMeta.stateVersion, persistedAt: persistMeta.persistedAt, controlPanel };
@@ -86,7 +86,7 @@ export function createNlRouter(opts: NlRouterDeps): Router {
         }
         case 'resume_scheduler': {
           if (scheduler) scheduler.setEnabled(true);
-          const persistMeta = await writeRuntimeControls({ schedulerEnabled: true });
+          const persistMeta = await persistState({ schedulerEnabled: true });
           const controlPanel = await opts.buildCP(scheduler, opts.getNlWebhookEnabled(), { stateVersion: persistMeta.stateVersion, persistedAt: persistMeta.persistedAt });
           dispatchedTo = 'POST /api/control-panel';
           result = { schedulerEnabled: true, stateVersion: persistMeta.stateVersion, persistedAt: persistMeta.persistedAt, controlPanel };
@@ -102,7 +102,7 @@ export function createNlRouter(opts: NlRouterDeps): Router {
           const intervalMinutes = extractIntervalMinutes(extractedParams);
           if (intervalMinutes === null) { res.status(422).json({ error: 'missing_param', reason: 'intervalMinutes could not be extracted or is out of range (5–480)' }); return; }
           if (scheduler) scheduler.setControls({ baseIntervalMinutes: intervalMinutes });
-          const persistMeta = await writeRuntimeControls({ schedulerBaseIntervalMinutes: intervalMinutes });
+          const persistMeta = await persistState({ schedulerBaseIntervalMinutes: intervalMinutes });
           const controlPanel = await opts.buildCP(scheduler, opts.getNlWebhookEnabled(), { stateVersion: persistMeta.stateVersion, persistedAt: persistMeta.persistedAt });
           dispatchedTo = 'POST /api/control-panel';
           result = { baseIntervalMinutes: intervalMinutes, stateVersion: persistMeta.stateVersion, persistedAt: persistMeta.persistedAt, controlPanel };
@@ -111,9 +111,9 @@ export function createNlRouter(opts: NlRouterDeps): Router {
         case 'set_gap_threshold': {
           const gapThreshold = extractGapThreshold(extractedParams);
           if (gapThreshold === null) { res.status(422).json({ error: 'missing_param', reason: 'observerGapThresholdMin could not be extracted or is out of range (1–50)' }); return; }
-          const persistMeta = await writeRuntimeGapPersistedOverride(gapThreshold);
+          const persistMeta = await persistGapOverride(gapThreshold);
           const controlPanel = await opts.buildCP(scheduler, opts.getNlWebhookEnabled(), { stateVersion: persistMeta.stateVersion, persistedAt: persistMeta.persistedAt });
-          dispatchedTo = 'writeRuntimeGapPersistedOverride';
+          dispatchedTo = 'persistGapOverride';
           result = { observerGapThresholdMin: gapThreshold, stateVersion: persistMeta.stateVersion, persistedAt: persistMeta.persistedAt, controlPanel };
           break;
         }
@@ -124,7 +124,7 @@ export function createNlRouter(opts: NlRouterDeps): Router {
           if (ageMs > 30 * 60 * 1000) { res.status(422).json({ error: 'recommendation_stale' }); return; }
           const { recommendedIntervalMinutes, recommendedGapThreshold } = cached.result.recommendation;
           if (scheduler) scheduler.setControls({ baseIntervalMinutes: recommendedIntervalMinutes });
-          const persistMeta = await writeRuntimeControls({ observerGapThresholdMin: recommendedGapThreshold, schedulerBaseIntervalMinutes: recommendedIntervalMinutes });
+          const persistMeta = await persistState({ observerGapThresholdMin: recommendedGapThreshold, schedulerBaseIntervalMinutes: recommendedIntervalMinutes });
           const controlPanel = await opts.buildCP(scheduler, opts.getNlWebhookEnabled(), { stateVersion: persistMeta.stateVersion, persistedAt: persistMeta.persistedAt });
           opts.setCachedControlPanel({ payload: controlPanel, expiresAt: Date.now() + CONTROL_PANEL_CACHE_MS });
           markAdvisorCacheApplied();

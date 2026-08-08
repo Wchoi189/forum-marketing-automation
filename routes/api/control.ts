@@ -25,22 +25,20 @@ import {
   setObserverControls,
   getPublisherControls,
   setPublisherControls,
-} from '../../lib/controls.js';
-import type { ObserverControlsWithGap } from '../../lib/controls.js';
+  readPersistedObserverControls,
+  readPersistedPublisherControls,
+  readPersistedSchedulerControls,
+  readPersistedNlWebhookEnabled,
+  readStateMeta,
+  persistAllControlPanelSettings,
+  StateVersionConflictError,
+} from '../../lib/state/index.js';
+import type { ObserverControlsWithGap } from '../../lib/state/index.js';
 import {
   getObserverControlsWithGap,
 } from '../../lib/observer/policyLoader.js';
 import { getPublisherStatus } from '../../lib/publisherStepStore.js';
 import { PARSER_OPTIONS } from '../../lib/observer/parserSignal.js';
-import {
-  readPersistedObserverControls,
-  readPersistedPublisherControls,
-  readPersistedSchedulerControls,
-  readPersistedNlWebhookEnabled,
-  RuntimeControlsVersionConflictError,
-  persistAllControlPanelSettings,
-  writeRuntimeControls,
-} from '../../lib/runtimeControls.js';
 import {
   PRESET_CONFIG,
   type BotDeps,
@@ -91,8 +89,6 @@ export async function buildControlPanelResponse(
   nlWebhookEnabled: boolean,
   stateMetaOverride?: { stateVersion: number; persistedAt: string | null }
 ): Promise<ControlPanelResponse> {
-  const { readRuntimeControlsStateMeta } = await import('../../lib/runtimeControls.js');
-
   const [autoPublisherState, observer, publisher, stateMeta] = await Promise.all([
     (scheduler ? scheduler.getState() : Promise.resolve(null)).then((st) =>
       st ?? {
@@ -118,7 +114,7 @@ export async function buildControlPanelResponse(
     ),
     getObserverControlsWithGap(),
     Promise.resolve(getPublisherControls()),
-    stateMetaOverride ? Promise.resolve(stateMetaOverride) : readRuntimeControlsStateMeta(),
+    stateMetaOverride ? Promise.resolve(stateMetaOverride) : readStateMeta(),
   ]);
 
   return {
@@ -397,7 +393,7 @@ export function createControlRouter(opts: ControlRouterDeps): Router {
         }
       }
 
-      if (error instanceof RuntimeControlsVersionConflictError) {
+      if (error instanceof StateVersionConflictError) {
         const latest = await buildControlPanelResponse(scheduler, opts.getNlWebhookEnabled());
         res.status(409).json({ error: 'CONTROL_PANEL_VERSION_CONFLICT', expectedVersion: error.expectedVersion, currentVersion: error.currentVersion, currentState: latest });
         return;

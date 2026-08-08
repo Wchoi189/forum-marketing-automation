@@ -840,8 +840,7 @@ test("POST /api/control-panel enforces expectedVersion concurrency", async () =>
 });
 
 test("POST /api/control-panel persists gapPersistedOverride and GET reflects it", async () => {
-  const root = ENV.PROJECT_ROOT;
-  const rcPath = path.join(root, "artifacts", "runtime-controls.json");
+  const rcPath = path.join(ENV.ARTIFACTS_DIR, "runtime-controls.json");
   let hadFile = false;
   let prior = "";
   try {

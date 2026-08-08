@@ -30,7 +30,7 @@ function cleanup(dir: string) {
 
 // ── Resource Monitor: Browser Profile Cleanup ───────────────────────────────
 
-test("cleanBrowserProfile removes cache directories", () => {
+test("cleanBrowserProfile removes cache directories", async () => {
   const profile = mkdtemp("test-browser-");
   // Create cache directories that should be cleaned
   fs.mkdirSync(path.join(profile, "Default", "Cache", "Cache_Data"), { recursive: true });
@@ -43,7 +43,7 @@ test("cleanBrowserProfile removes cache directories", () => {
   // Create a file that should NOT be cleaned (profile root)
   fs.writeFileSync(path.join(profile, "Preferences"), '{"account_id":"test"}');
 
-  const result = cleanBrowserProfile(profile);
+  const result = await cleanBrowserProfile(profile);
 
   assert.ok(result.deletedDirs >= 3, `Expected at least 3 dirs cleaned, got ${result.deletedDirs}`);
   assert.ok(result.freedBytes >= 1500, `Expected at least 1500 bytes freed, got ${result.freedBytes}`);
@@ -62,15 +62,15 @@ test("cleanBrowserProfile removes cache directories", () => {
   cleanup(profile);
 });
 
-test("cleanBrowserProfile handles missing profile gracefully", () => {
-  const result = cleanBrowserProfile("/tmp/nonexistent-browser-profile-test");
+test("cleanBrowserProfile handles missing profile gracefully", async () => {
+  const result = await cleanBrowserProfile("/tmp/nonexistent-browser-profile-test");
   assert.equal(result.deletedDirs, 0);
   assert.equal(result.freedBytes, 0);
 });
 
-test("cleanBrowserProfile handles empty profile", () => {
+test("cleanBrowserProfile handles empty profile", async () => {
   const profile = mkdtemp("test-browser-empty-");
-  const result = cleanBrowserProfile(profile);
+  const result = await cleanBrowserProfile(profile);
   assert.equal(result.deletedDirs, 0);
   assert.equal(result.freedBytes, 0);
   cleanup(profile);
@@ -78,8 +78,8 @@ test("cleanBrowserProfile handles empty profile", () => {
 
 // ── Resource Monitor: GC Integration ────────────────────────────────────────
 
-test("runGarbageCollection returns all three sections", () => {
-  const result = runGarbageCollection();
+test("runGarbageCollection returns all three sections", async () => {
+  const result = await runGarbageCollection();
   assert.ok("artifacts" in result, "Should have artifacts section");
   assert.ok("logRotated" in result, "Should have logRotated section");
   assert.ok("browserProfile" in result, "Should have browserProfile section");
@@ -89,8 +89,8 @@ test("runGarbageCollection returns all three sections", () => {
 
 // ── Resource Monitor: Metrics Collection ────────────────────────────────────
 
-test("getResourceMetrics returns complete structure", () => {
-  const metrics = getResourceMetrics();
+test("getResourceMetrics returns complete structure", async () => {
+  const metrics = await getResourceMetrics();
 
   assert.ok("process" in metrics);
   assert.ok("artifacts" in metrics);
@@ -105,8 +105,8 @@ test("getResourceMetrics returns complete structure", () => {
   assert.ok(typeof metrics.chromiumProcesses === "number");
 });
 
-test("checkResourceThresholds returns array of warnings", () => {
-  const warnings = checkResourceThresholds();
+test("checkResourceThresholds returns array of warnings", async () => {
+  const warnings = await checkResourceThresholds();
   assert.ok(Array.isArray(warnings));
 });
 

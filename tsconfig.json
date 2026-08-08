@@ -1,4 +1,11 @@
 {
+  // Browser half of the build: the React control panel under src/, compiled by Vite.
+  //
+  // The split from tsconfig.server.json is deliberate and must not be merged.
+  // This side uses "moduleResolution": "bundler" (Vite resolves bare specifiers
+  // and extensionless imports); the server side uses NodeNext, which requires
+  // explicit .js extensions on relative imports. One config cannot express both.
+  // `npm run lint` runs tsc over each in turn.
   "compilerOptions": {
     "target": "ES2022",
     "experimentalDecorators": true,

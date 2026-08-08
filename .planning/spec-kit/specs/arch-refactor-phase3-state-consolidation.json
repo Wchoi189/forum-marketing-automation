@@ -1,0 +1,52 @@
+{
+  "spec_id": "arch-refactor-phase3-state-consolidation-v1",
+  "phase": "P3",
+  "status": "done",
+  "purpose": "Consolidate scattered state management into unified lib/state module.",
+  "design_intent": "Single source of truth for state types and operations. Reduce cognitive load and risk of drift between in-memory and persisted types.",
+  "change_impact": "New state module is canonical source. Original files re-export for backward compatibility.",
+  "acceptance_criteria": [
+    "lib/state/types.ts defines ObserverControls, PublisherControls, SchedulerControls",
+    "lib/state/persistence.ts handles atomic file writes",
+    "lib/state/observer.ts, publisher.ts, scheduler.ts provide unified APIs",
+    "lib/controls.ts and lib/runtimeControls.ts re-export for backward compatibility",
+    "npm run lint passes"
+  ],
+  "deliverables": [
+    {
+      "file": "lib/state/types.ts",
+      "change": "New: shared type definitions"
+    },
+    {
+      "file": "lib/state/persistence.ts",
+      "change": "New: atomic file write operations"
+    },
+    {
+      "file": "lib/state/observer.ts",
+      "change": "New: unified observer state management"
+    },
+    {
+      "file": "lib/state/publisher.ts",
+      "change": "New: unified publisher state management"
+    },
+    {
+      "file": "lib/state/scheduler.ts",
+      "change": "New: scheduler persistence helpers"
+    },
+    {
+      "file": "lib/state/index.ts",
+      "change": "New: barrel export for state module"
+    },
+    {
+      "file": "lib/controls.ts",
+      "change": "Replaced with re-exports from lib/state (backward compatible)"
+    },
+    {
+      "file": "lib/runtimeControls.ts",
+      "change": "Replaced with re-exports from lib/state (backward compatible)"
+    }
+  ],
+  "references": {
+    "feedback_source": ".planning/audit/codebase-feedback-2026-08-08.md"
+  }
+}
