@@ -131,6 +131,8 @@ export type RuntimeControlsFile = {
 
   // Publisher
   publisherDraftItemIndex?: number;
+  /** ISO timestamp when publishing is blocked until (rate limit backoff). */
+  publishBlockedUntil?: string | null;
 
   // Additional runtime configuration overrides
   customParserEnabled?: boolean;
@@ -231,6 +233,7 @@ export type PersistedObserverControls = {
 
 export type PersistedPublisherControls = {
   draftItemIndex: number;
+  publishBlockedUntil: string | null;
 };
 
 /**
@@ -278,6 +281,17 @@ export async function readPersistedPublisherControls(): Promise<Partial<Persiste
   const data = await readRuntimeControls();
   const result: Partial<PersistedPublisherControls> = {};
   if (typeof data.publisherDraftItemIndex === "number") result.draftItemIndex = clamp(data.publisherDraftItemIndex, 1, 50);
+  if (typeof data.publishBlockedUntil === "string" || data.publishBlockedUntil === null) {
+    // Validate it's a valid ISO timestamp
+    if (typeof data.publishBlockedUntil === "string") {
+      const t = Date.parse(data.publishBlockedUntil);
+      if (Number.isFinite(t)) {
+        result.publishBlockedUntil = data.publishBlockedUntil;
+      }
+    } else if (data.publishBlockedUntil === null) {
+      result.publishBlockedUntil = null;
+    }
+  }
   return result;
 }
 
@@ -405,4 +419,20 @@ export async function persistAllControlPanelSettings(opts: {
     },
     { expectedVersion: opts.expectedVersion }
   );
+}
+
+/**
+ * Persist the rate limit backoff timestamp.
+ * Set to null to clear the backoff (e.g., after successful publish).
+ */
+export async function persistPublishBlockedUntil(value: string | null): Promise<RuntimeControlsStateMeta> {
+  return mutateRuntimeControls((existing) => {
+    const next: RuntimeControlsFile = { ...existing };
+    if (value === null) {
+      delete next.publishBlockedUntil;
+    } else {
+      next.publishBlockedUntil = value;
+    }
+    return next;
+  });
 }

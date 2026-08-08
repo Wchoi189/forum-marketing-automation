@@ -13,6 +13,7 @@ export const LOG_EVENT = {
   publisherArtifactsDir: 'publisher.artifacts.dir',
   publisherArtifactsTrace: 'publisher.artifacts.trace',
   publisherArtifactsTraceDiscarded: 'publisher.artifacts.trace.discarded',
+  publisherRateLimited: 'publisher.rate_limited',
   schedulerStarted: 'scheduler.started',
   schedulerTickStarted: 'scheduler.tick.started',
   schedulerTickSkipped: 'scheduler.tick.skipped',

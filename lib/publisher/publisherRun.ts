@@ -192,6 +192,26 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
       };
     }
 
+    // Check rate limit backoff
+    const publisherControls = getPublisherControls();
+    if (!force && publisherControls.publishBlockedUntil) {
+      const blockedUntil = new Date(publisherControls.publishBlockedUntil);
+      if (blockedUntil > new Date()) {
+        const remainingMs = blockedUntil.getTime() - Date.now();
+        const remainingMin = Math.ceil(remainingMs / 60000);
+        logger.info(
+          { event: LOG_EVENT.publisherRunSkipped, runId, decision: 'rate_limited', blockedUntil: publisherControls.publishBlockedUntil, remainingMin },
+          '[Publisher] rate_limited skip — backoff active'
+        );
+        return await finish(
+          false,
+          `[Publisher] Rate limited — ${remainingMin} minutes remaining until ${publisherControls.publishBlockedUntil}`,
+          'rate_limited',
+          log
+        );
+      }
+    }
+
     debugDir = publisherArtifactDirForRun();
     let traceStarted = false;
     /** When tracing ran: persist zip on failure or when success-path sampling hits. */
@@ -227,9 +247,9 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
       if (statusCode >= 400 || diagnostics.isForbidden) {
         throw new Error(
           `PUBLISHER_BOARD_BLOCKED: status=${statusCode} title="${diagnostics.title}" url="${diagnostics.url}"` +
-            (statusCode === 403
-              ? ' | hint=403_often_bot_or_waf_not_login — try headed Chrome, custom BROWSER_USER_AGENT, or non-datacenter IP'
-              : '')
+          (statusCode === 403
+            ? ' | hint=403_often_bot_or_waf_not_login — try headed Chrome, custom BROWSER_USER_AGENT, or non-datacenter IP'
+            : '')
         );
       }
       if (diagnostics.writeButtonCount === 0) {
@@ -272,6 +292,10 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
           if (page) await publisherDebugScreenshot(page, debugDir, '06-success');
         }
       });
+      if (flow.decision === 'rate_limited') {
+        const rateLimitedResult = await finish(false, flow.message, 'rate_limited', log);
+        return { ...rateLimitedResult, gapInfo: { currentGap: log.current_gap_count, requiredGap: policy.gapThresholdMin } };
+      }
       if (flow.decision === 'dry_run') {
         logger.info({ event: LOG_EVENT.publisherSubmitSkipped, runId, decision: flow.decision, status: 'success' }, 'Dry-run mode enabled. Submit click intentionally skipped.');
       } else {

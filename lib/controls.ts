@@ -42,6 +42,8 @@ export type ObserverControlsWithGap = ObserverControls & {
 export type PublisherControls = {
   /** 1-based saved-draft item row (alternating item / preview rows use offset automatically). */
   draftItemIndex: number;
+  /** ISO timestamp when publishing is allowed again after rate limit. */
+  publishBlockedUntil: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -56,7 +58,8 @@ const observerControls: ObserverControls = {
 };
 
 const publisherControls: PublisherControls = {
-  draftItemIndex: ENV.PUBLISHER_DRAFT_ITEM_INDEX
+  draftItemIndex: ENV.PUBLISHER_DRAFT_ITEM_INDEX,
+  publishBlockedUntil: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -101,5 +104,8 @@ export function setPublisherControls(next: Partial<PublisherControls>): Publishe
     1,
     50
   );
+  if (typeof next.publishBlockedUntil === "string" || next.publishBlockedUntil === null) {
+    publisherControls.publishBlockedUntil = next.publishBlockedUntil;
+  }
   return getPublisherControls();
 }

@@ -12,10 +12,14 @@ import {
   assertVerifiedPublishRedirect,
   resolveBoardIdFromEntryUrl
 } from './stateTransitions.js';
+import { detectRateLimit, type RateLimitInfo } from '../ui/rateLimit.js';
+import { setPublisherControls } from '../../controls.js';
+import { persistPublishBlockedUntil } from '../../runtimeControls.js';
 
 export type PublisherFlowOutcome = {
-  decision: 'dry_run' | 'published_verified';
+  decision: 'dry_run' | 'published_verified' | 'rate_limited';
   message: string;
+  rateLimitInfo?: RateLimitInfo;
 };
 
 export type RunPublisherFlowInput = {
@@ -49,7 +53,33 @@ export async function runPublisherFlow(input: RunPublisherFlowInput): Promise<Pu
 
   assertSubmitStepsPresent(submitSteps.length);
 
-  await runPublisherPlaybook(page, { ...playbook, steps: nonSubmitSteps }, runtime, onStepStart, onStepEnd);
+  // Split nonSubmitSteps to check for rate limit after click-write
+  const clickWriteIndex = nonSubmitSteps.findIndex((s) => s.step_id === 'click-write');
+  const preClickWriteSteps = clickWriteIndex >= 0 ? nonSubmitSteps.slice(0, clickWriteIndex + 1) : nonSubmitSteps;
+  const postClickWriteSteps = clickWriteIndex >= 0 ? nonSubmitSteps.slice(clickWriteIndex + 1) : [];
+
+  // Run steps up to and including click-write
+  await runPublisherPlaybook(page, { ...playbook, steps: preClickWriteSteps }, runtime, onStepStart, onStepEnd);
+
+  // Check for rate limit after clicking write button
+  const rateLimitStatus = await detectRateLimit(page);
+  if (rateLimitStatus.blocked) {
+    // Set backoff time with a small buffer
+    const blockedUntil = new Date(Date.now() + (rateLimitStatus.remainingMinutes + 1) * 60 * 1000).toISOString();
+    setPublisherControls({ publishBlockedUntil: blockedUntil });
+    await persistPublishBlockedUntil(blockedUntil).catch(() => null);
+
+    return {
+      decision: 'rate_limited',
+      message: rateLimitStatus.message,
+      rateLimitInfo: rateLimitStatus,
+    };
+  }
+
+  // Run remaining non-submit steps (open drafts, load draft, verify)
+  if (postClickWriteSteps.length > 0) {
+    await runPublisherPlaybook(page, { ...playbook, steps: postClickWriteSteps }, runtime, onStepStart, onStepEnd);
+  }
   await onBeforeSubmit?.();
 
   if (dryRunMode) {
@@ -68,6 +98,10 @@ export async function runPublisherFlow(input: RunPublisherFlowInput): Promise<Pu
   ]);
 
   assertVerifiedPublishRedirect(page.url(), boardId);
+
+  // Clear any rate limit backoff on successful publish
+  setPublisherControls({ publishBlockedUntil: null });
+  await persistPublishBlockedUntil(null).catch(() => null);
 
   await onSuccess?.();
   return {

@@ -45,7 +45,8 @@ export type PublisherRunDecision =
   | "manual_override_disabled"
   | "published_verified"
   | "dry_run"
-  | "publisher_error";
+  | "publisher_error"
+  | "rate_limited";
 
 /** Append-only log of auto/manual publisher runs (see artifacts/publisher-history/*.jsonl). */
 export interface PublisherHistoryEntry {
@@ -118,10 +119,10 @@ export interface SchedulerSignalDiagnostics {
     isolatedMultiplier: number;
     baselineMultiplier: number;
     reason:
-      | "insufficient_opportunity_windows"
-      | "opportunity_rich"
-      | "opportunity_balanced"
-      | "opportunity_degraded";
+    | "insufficient_opportunity_windows"
+    | "opportunity_rich"
+    | "opportunity_balanced"
+    | "opportunity_degraded";
   };
   latestWindow: {
     windowIndex: number;
@@ -132,10 +133,10 @@ export interface SchedulerSignalDiagnostics {
     baselineMultiplier: number;
     opportunityScore: number;
     reason:
-      | "insufficient_opportunity_windows"
-      | "opportunity_rich"
-      | "opportunity_balanced"
-      | "opportunity_degraded";
+    | "insufficient_opportunity_windows"
+    | "opportunity_rich"
+    | "opportunity_balanced"
+    | "opportunity_degraded";
   } | null;
   calibration: SchedulerSignalCalibration;
 }
