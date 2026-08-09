@@ -59,7 +59,7 @@ export async function getLogs() {
 }
 
 // ── Browser lifecycle ─────────────────────────────────────────────────────────
-import { closeSharedBrowser, isSharedBrowserReady, activeContexts } from './lib/sharedBrowser.js';
+import { closeSharedBrowser, isSharedBrowserReady, activeContexts } from './lib/browser/index.js';
 import { logger } from './lib/logging/index.js';
 
 export async function shutdownBrowser(): Promise<void> {

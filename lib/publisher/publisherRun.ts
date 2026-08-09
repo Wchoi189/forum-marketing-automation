@@ -23,10 +23,8 @@ import {
 import { runPublisherFlow } from './flow/runPublisherFlow.js';
 import type { DraftRowSelectionDiagnostics, PlaybookRuntimeContext } from '../playbookRunner.js';
 import { setPublisherStep, setPublisherRunning, playbookStepToCanvasStep } from '../publisherStepStore.js';
-import { createBrowserContext, saveStorageState } from '../sharedBrowser.js';
-import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from '../playwright/browser-eval-polyfill.js';
+import { createBrowserContext, saveStorageState, BROWSER_EVAL_NAME_POLYFILL_SCRIPT, registerBrowserDebugHandlers } from '../browser/index.js';
 import { sendSlackNotification } from '../notifications.js';
-import { registerBrowserDebugHandlers } from '../browserDebug.js';
 import { getBoardDiagnostics, attemptPpomppuLoginFromBoard } from '../observer/boardDiagnostics.js';
 import { loadObserverPolicy } from '../observer/policyLoader.js';
 import { getPublisherControls } from '../state/index.js';

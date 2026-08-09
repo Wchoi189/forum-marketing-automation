@@ -1,5 +1,5 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from '../lib/playwright/browser-eval-polyfill.js';
+import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from '../lib/browser/index.js';
 
 const DEFAULT_MAX_SESSION_AGE_MS = 30 * 60 * 1000; // 30 minutes
 const DEFAULT_MAX_SESSIONS = 10;

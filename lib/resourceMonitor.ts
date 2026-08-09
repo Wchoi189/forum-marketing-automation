@@ -414,7 +414,7 @@ export async function checkResourceThresholds(): Promise<string[]> {
   return warnings;
 }
 
-import { closeSharedBrowser, activeContexts, isSharedBrowserReady } from './sharedBrowser.js';
+import { closeSharedBrowser, activeContexts, isSharedBrowserReady } from './browser/index.js';
 
 /** Run all garbage collection tasks. Returns summary of what was cleaned. */
 export async function runGarbageCollection(): Promise<{

@@ -14,7 +14,7 @@ import {
   registerSignalHandlers,
 } from "./bot.js";
 import { getSharedLogCache } from "./lib/logCache.js";
-import { initSharedBrowser } from "./lib/sharedBrowser.js";
+import { initSharedBrowser } from "./lib/browser/index.js";
 import { ENV } from "./config/env.js";
 import { WATCH_IGNORED } from "./config/watch.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";

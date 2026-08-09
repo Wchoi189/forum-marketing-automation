@@ -97,6 +97,7 @@
 
   "module_entry_points": {
     "$comment": "A file outside one of these directories must import it through its entry point, not by reaching into an internal file. Enforced for relative imports between tracked .ts/.tsx files.",
+    "lib/browser": "lib/browser/index.ts",
     "lib/competitor-ad-parser": "lib/competitor-ad-parser/index.ts",
     "lib/competitor-intel": "lib/competitor-intel/index.ts",
     "lib/kakao": "lib/kakao/index.ts",

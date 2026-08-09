@@ -48,7 +48,7 @@ In highly resource-constrained environments (e.g. 512MB RAM cloud hosts), memory
 2. **Chromium Heap Limit**:
    * **Rule**: Restrict Chromium's V8 engine space by passing max space old flags at launch:
      ```typescript
-     // lib/sharedBrowser.ts
+     // lib/browser/shared.ts
      '--js-flags=--max-old-space-size=100'
      ```
 
