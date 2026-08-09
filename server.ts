@@ -31,7 +31,7 @@ import {
   readPersistedNlWebhookEnabled,
 } from "./lib/state/index.js";
 import { getResourceMetrics, checkResourceThresholds, runGarbageCollection } from "./lib/resourceMonitor.js";
-import * as kakaoDb from "./lib/kakaoDb.js";
+import { db as kakaoDb } from "./lib/kakao/index.js";
 import type { PublisherRunDecision } from "./contracts/models.js";
 
 // ── Route modules ─────────────────────────────────────────────────────────────

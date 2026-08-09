@@ -17,9 +17,13 @@ import path from 'path';
 import fs from 'fs';
 import { ENV } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
-import { isValidKakaoPayload, logKakaoMessage, simpleTextResponse as kakaoSimpleText } from '../../lib/kakaoSkill.js';
-import { getAutoReply as kakaoGetAutoReply } from '../../lib/kakaoAutoReply.js';
-import * as kakaoDb from '../../lib/kakaoDb.js';
+import {
+  isValidKakaoPayload,
+  logKakaoMessage,
+  simpleTextResponse as kakaoSimpleText,
+  getAutoReply as kakaoGetAutoReply,
+  db as kakaoDb,
+} from '../../lib/kakao/index.js';
 
 export function createKakaoRouter(): Router {
   const router = Router();

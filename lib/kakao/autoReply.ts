@@ -16,8 +16,8 @@
  */
 
 import OpenAI from "openai";
-import { ENV } from "../config/env.js";
-import { logger } from "./logger.js";
+import { ENV } from "../../config/env.js";
+import { logger } from "../logger.js";
 
 // ── FAQ context ───────────────────────────────────────────────────────────────
 // Compact representation of the 20-entry KB (same source as kakao-kb-export.ts).
