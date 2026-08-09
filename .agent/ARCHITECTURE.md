@@ -27,18 +27,39 @@ lib/
 │   ├── scheduler.ts      # Scheduler controls
 │   ├── nlWebhook.ts      # NL webhook kill-switch
 │   └── controlPanel.ts   # Whole-panel single-write persistence
-├── scheduler/            # Gap-driven publishing orchestration
+├── scheduler/            # Gap-driven publishing orchestration (run.ts is the tick loop)
 ├── publisher/            # Publishing automation
 │   ├── flow/             # Playbook-driven flow orchestration
 │   └── ui/               # Page interactions (rateLimit, draftModal, submit)
 ├── observer/             # Board observation and parsing
-├── competitor-intel/     # Competitor ad extraction pipeline
+├── browser/              # Chromium lifecycle: shared browser, debug handlers, eval polyfill
+├── logging/              # pino instance + LOG_EVENT vocabulary
+├── analytics/            # Derived numbers from history: trends, scheduler signals, competitor EDA
+├── kakao/                # KakaoTalk skill: webhook types, Postgres log, auto-reply
+├── competitor-intel/     # Competitor ad extraction pipeline (crawls and writes)
+├── competitor-store/     # SQLite corpus of extracted ads + dashboard read model
+├── competitor-ad-parser/ # Deterministic Cheerio HTML -> record parser
 └── parser/               # DOM projection and diff utilities
 
 src/                      # React UI (control panel)
 contracts/                # Shared type definitions
 config/                   # Environment and validation
 ```
+
+**When a `lib/` entry becomes a directory:** it is a directory with an
+`index.ts` when it owns a domain concept with more than one file's worth of
+behavior; it is a loose file when it is a single-purpose utility with no
+internal structure. There is no middle state — a loose file that grows a
+companion becomes a directory in the same change. Every directory above is a
+declared entry point in `.structure.json`, so nothing outside it may import
+past its `index.ts`.
+
+The three `competitor-*` modules split by direction and by weight:
+`competitor-intel/` crawls and writes, `competitor-store/` stores and reads,
+`competitor-ad-parser/` turns HTML into records. `competitor-store/` is
+deliberately not inside `competitor-intel/` — that barrel re-exports the
+Crawlee crawler, and the API server reads the database on every dashboard
+request.
 
 **State access rule:** import from `lib/state/index.js` only. The former
 `lib/controls.ts` and `lib/runtimeControls.ts` shims were deleted on 2026-08-08;

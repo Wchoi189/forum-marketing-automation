@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-08
 **Author:** Claude (post-implementation review of the cleanup in `cleanup-requirements-2026-08-08.md`)
-**Status:** Part 6 steps 1–6 shipped (2026-08-09). Steps 7–9 open.
+**Status:** Part 6 steps 1–7 shipped (2026-08-09). Steps 8–9 open.
 
 | Step | State |
 |---|---|
@@ -12,12 +12,14 @@
 | 4 `.structure.json` + validator | Done — `scripts/check-structure.ts`, `npm run lint:structure`, own CI step |
 | 5 Pre-commit hook | Done — `scripts/hooks/pre-commit`, installed by `npm run hooks:install` |
 | 6 Spec lifecycle | Done — see the amendment to 4.3 below. Hard gate, no ratchet. |
-| 7–9 | Open, see Part 6 |
+| 7 `lib/` module extraction | Done — see the amendment to 5.2 below. Baseline 82 → 76. |
+| 8–9 | Open, see Part 6 |
 
 Step 4 shipped wider than "root allowlist only": placement rules, module entry
 points, and size budgets are all checked. Module entry points run as a **ratchet**
-rather than a hard gate — 82 cross-module imports already exist, so the count is
-recorded as `module_boundary_baseline` and only an increase fails. Step 7 lowers it.
+rather than a hard gate — 82 cross-module imports already existed, so the count is
+recorded as `module_boundary_baseline` and only an increase fails. Step 7 lowered
+it to 76.
 
 Companion documents:
 - `.planning/audit/codebase-feedback-2026-08-08.md` — original architecture audit
@@ -313,6 +315,61 @@ Applying the rule to today's 24 loose files:
 | **resolve** | `competitor-ad-sqlite.ts`, `competitor-intel-ui.ts` | Live outside `lib/competitor-intel/` despite the name. Either move in or rename to explain why not. |
 
 Each is a small mechanical change. Do them one per commit so `git log` stays readable — and only *after* CI is running, so they are verified rather than hoped.
+
+#### Amendment — what actually shipped (2026-08-09)
+
+Six commits, one per module, each verified by `npm test` before the next.
+`lib/` went from 24 loose files and 8 directories to 11 and 12.
+
+```
+lib/scheduler.ts                        -> lib/scheduler/run.ts
+lib/kakaoSkill|Db|AutoReply.ts          -> lib/kakao/{skill,db,autoReply}.ts
+lib/logger.ts, lib/logEvents.ts         -> lib/logging/{logger,events}.ts
+lib/sharedBrowser.ts, browserDebug.ts,
+  lib/playwright/browser-eval-polyfill.ts -> lib/browser/{shared,debug,evalPolyfill}.ts
+lib/trendInsights|schedulerSignals|
+  competitorAnalytics.ts                -> lib/analytics/{trends,schedulerSignals,competitors}.ts
+lib/competitor-ad-sqlite.ts,
+  lib/competitor-intel-ui.ts            -> lib/competitor-store/{sqlite,queries}.ts
+```
+
+Three places where the grouping above turned out to be wrong, all for the same
+underlying reason — **a barrel is a runtime import, so grouping by topic can
+change what gets loaded**:
+
+1. **`logCache.ts` is not in `lib/logging/`.** It caches `activity_log.json` —
+   domain records, not application diagnostics — and it imports
+   `lib/resourceMonitor.ts`, which imports the logger. Barrelling it in would
+   have made `lib/logging` and `lib/resourceMonitor` mutually importing through
+   the entry point, and the module rule would then have forced us to keep that.
+
+2. **`competitor-ad-sqlite.ts` and `competitor-intel-ui.ts` became their own
+   module rather than moving into `lib/competitor-intel/`.** That barrel
+   re-exports `createPlaywrightCrawler`; `routes/api/logs.ts` opens this
+   database on every dashboard request and six scripts open it directly.
+   Following 5.2 literally would have put Crawlee and Playwright in the API
+   server's import graph — on the host KE-002 is about. Split by weight instead:
+   `competitor-intel/` crawls and writes, `competitor-store/` stores and reads.
+
+3. **`lib/playwright/` was folded into `lib/browser/`**, slightly past what 5.2
+   listed. It was a one-file directory with no `index.ts` covering the same
+   concern, and leaving it would have meant two browser modules side by side.
+
+The rule in 5.1 is now stated in `CLAUDE.md` and `.agent/ARCHITECTURE.md`, and
+every new directory is a declared entry point in `.structure.json`, so the
+grouping is enforced rather than described.
+
+Still loose in `lib/`, deliberately: `utils.ts`, `index.ts`, `scheduleJitter.ts`,
+`notifications.ts`, `publisherStepStore.ts`, `logCache.ts`, `publisherHistory.ts`,
+`playbookRunner.ts`, `nlWebhook.ts`, `aiAdvisor.ts`, `resourceMonitor.ts`.
+
+`module_boundary_baseline` went 82 → 78 (scheduler) → 76 (competitor-store).
+Roughly 50 of the remaining 76 are `scripts/*` and `tests/*` reaching into
+`lib/competitor-intel/` and `lib/competitor-ad-parser/` internals; the rest are
+`bot.ts`, `lib/playbookRunner.ts`, and the observer/publisher pair reaching past
+each other's entry points. Both are wider than one file's worth of work: the
+first needs those two barrels to grow real public surfaces, the second is a
+dependency untangle. Neither belongs in this step.
 
 ### 5.3 Size budgets as a conversation trigger
 

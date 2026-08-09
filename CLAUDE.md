@@ -12,11 +12,15 @@
 | `lib/publisher/flow/runPublisherFlow.ts` | Splits playbook into non-submit and submit halves. Runs non-submit sequentially, then submit in parallel with `waitForPublishLandingUrl`. |
 | `lib/publisherStepStore.ts` | Shared in-memory step tracker. Written by `bot.ts` as publisher progresses; read by `GET /api/publisher-status`. |
 | `lib/publisherHistory.ts` | Append-only JSONL + Parquet log of every publisher run. |
-| `lib/trendInsights.ts` | Hourly post-rate profile and scheduler interval multiplier from activity logs. |
+| `lib/analytics/` | Derived numbers from history, no browser and no state writes: `trends.ts` (hourly post-rate profile, scheduler interval multiplier, share of voice), `schedulerSignals.ts`, `competitors.ts` (competitor EDA payload). |
+| `lib/logging/` | `logger` (pino) and `LOG_EVENT`. Always imported together. `lib/logCache.ts` is *not* part of this module — it caches `activity_log.json`, and folding it in would make logging and `resourceMonitor` mutually importing. |
+| `lib/browser/` | Chromium lifecycle: shared browser and contexts, page debug handlers, `evaluate()` name polyfill. Absorbed the former `lib/playwright/`. |
+| `lib/kakao/` | KakaoTalk skill: payload types and validator, Postgres message log (`db`, a namespace export), auto-reply. |
 | `lib/state/` | **Single source of truth for runtime state.** In-memory controls + atomic persistence to `ARTIFACTS_DIR/runtime-controls.json` with optimistic concurrency (`stateVersion`). Import only from `lib/state/index.js`. Replaced `lib/controls.ts` and `lib/runtimeControls.ts`, both deleted 2026-08-08. |
 | `lib/resourceMonitor.ts` | Garbage collection and resource metrics. `PUBLISHER_RUNS_DIR` is scoped to `artifacts/publisher-runs/` — **not** all of `ARTIFACTS_DIR`. Widening it would delete the competitor-intel database. |
 | `lib/competitor-intel/` | Crawlee-based competitor ad extraction pipeline. Hybrid: Cheerio noise reduction → Ollama structured extraction. Entry: `scripts/competitor-ads-intel.ts`. See AGENTS.md for operational guide and `.planning/competitor-intel-playbook.md` for extraction knowledge base. |
 | `config/product-catalog.json` | **Source of truth** for product name mapping. Vendors use varied names for the same product — this JSON maps regex patterns to canonical names. **Do not add product names in TypeScript code** — add entries to this JSON file. See `.agent/knowledge/product-catalog.md` for the workflow. |
+| `lib/competitor-store/` | SQLite corpus of extracted ads (`sqlite.ts`) and the dashboard read model over it (`queries.ts`). **Not** inside `lib/competitor-intel/`: that barrel re-exports the Crawlee crawler, and `routes/api/logs.ts` opens this database on every dashboard request. Dependency runs one way, intel → store. |
 | `lib/competitor-ad-parser/` | Deterministic Cheerio-based Ppomppu ad HTML parser (`parsePpomppuPost`). No browser needed. Used by `scripts/competitor-ads-intel.ts`. |
 | `lib/parser/` | DOM projection system (`subtree`, `pageOutline`, `snapshotDiff`). Used by observer and parser MCP. |
 
@@ -104,9 +108,16 @@ not the root.
 
 The same file also declares module entry points (`lib/state`, `lib/publisher`, …
 must be imported through their `index.ts`) and a 500-line size budget with named
-exemptions. The module rule is a **ratchet**: today's 82 violations are recorded as
-`module_boundary_baseline`, and adding an 83rd fails. Install the matching
+exemptions. The module rule is a **ratchet**: today's 76 violations are recorded as
+`module_boundary_baseline`, and adding a 77th fails. Lower the number whenever a
+refactor drops it — `lint:structure` prints the new value. Install the matching
 pre-commit hook with `npm run hooks:install`.
+
+**When a `lib/` entry becomes a directory:** it owns a domain concept with more
+than one file's worth of behavior, and it gets an `index.ts` plus an entry in
+`module_entry_points`. A single-purpose utility with no internal structure stays
+a loose file. A loose file that grows a companion becomes a directory in the
+same change.
 
 ## Spec-Kit Layout
 

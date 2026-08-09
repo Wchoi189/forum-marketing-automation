@@ -10,8 +10,8 @@
 
   "scope": {
     "in": [
-      "New pure function shareOfVoiceMultiplierFromSoV(sovPercent: number): number in trendInsights.ts",
-      "New pure function computeShareOfVoice(logs, windowDays, ourAuthorSubstring): number in trendInsights.ts",
+      "New pure function shareOfVoiceMultiplierFromSoV(sovPercent: number): number in lib/analytics/trends.ts",
+      "New pure function computeShareOfVoice(logs, windowDays, ourAuthorSubstring): number in lib/analytics/trends.ts",
       "TrendInsightsPayload extended with sovPercent and sovFactor fields",
       "buildTrendInsightsPayload updated to accept ourAuthorSubstring option and compute both fields",
       "server.ts recalcTrendFactor: blend trendFactor × sovFactor, clamp to combined bounds",
@@ -95,7 +95,7 @@
     "GET /api/trend-insights response includes sovPercent and sovFactor fields",
     "recalcTrendFactor returns clamp(trendFactor × sovFactor, 0.5, 2.0)",
     "If OUR_AUTHOR_SUBSTRING env var absent, defaults to 'shareplan' — existing behaviour preserved",
-    "No changes to lib/competitorAnalytics.ts",
+    "No changes to lib/analytics/competitors.ts",
     "No new API endpoints or files beyond tests/unit/trendInsights.test.ts"
   ]
 }
