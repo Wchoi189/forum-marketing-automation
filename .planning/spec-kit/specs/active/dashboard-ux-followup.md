@@ -1,3 +1,7 @@
+---
+status: proposed
+---
+
 # Dashboard UX follow-up (deferred)
 
 **Purpose:** Capture the next UX iteration after publisher reporting and gap policy work lands, so a future session can execute incrementally without a risky one-shot redesign.
@@ -60,6 +64,6 @@
 
 ## References
 
-- [.planning/spec-kit/specs/ui-route-map.json](ui-route-map.json)
-- [.planning/spec-kit/specs/ui-refactor-backlog.json](ui-refactor-backlog.json)
+- [.planning/spec-kit/reference/ui-route-map.json](../../reference/ui-route-map.json)
+- [.planning/spec-kit/specs/active/ui-refactor-backlog.json](ui-refactor-backlog.json)
 - [.planning/spec-kit/manifest/workflow.ppomppu-gonggu-v1.json](../manifest/workflow.ppomppu-gonggu-v1.json)

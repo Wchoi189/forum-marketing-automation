@@ -3,7 +3,7 @@
   "id": "app-shell-decompose-v1",
   "title": "App Shell Decomposition — Extract Pages, Components, Hooks",
   "version": 1,
-  "status": "proposed",
+  "status": "shipped",
   "purpose": "Decompose src/App.tsx (1,832 lines) into a route-driven shell with extracted pages, presentational components, and data hooks. Eliminate God-component anti-pattern.",
   "design_intent": "One page, one primary decision. Keep App.tsx as a thin dispatcher (~50 lines): sidebar nav, header bar, and <Outlet> or route-based conditional rendering. All data fetching, forms, charts, and modals live in their own files.",
   "scope": {

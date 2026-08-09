@@ -1,5 +1,6 @@
 {
   "spec_id": "nl-webhook-v1",
+  "status": "shipped",
   "purpose": "Accept natural language commands via HTTP webhook and translate them to existing API actions using Grok 4, eliminating the need for SSH-based config changes.",
   "design_intent": "The webhook is a thin translation layer only. It classifies intent then dispatches to already-validated API endpoints. It adds no new execution paths — if an intent maps to a forbidden action, the existing endpoint rejects it.",
   "change_impact": "Adds POST /api/nl-command. No changes to existing endpoints or scheduler logic.",

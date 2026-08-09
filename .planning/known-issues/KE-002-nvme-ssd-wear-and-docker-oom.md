@@ -43,7 +43,7 @@ A perfect storm of three aggressive I/O and memory issues:
 
 ## Prevention
 
-- Memory bounds and logging constraints are now codified in `.planning/spec-kit/specs/remote-ops.runtime.contract.json` and `remote-ops.observability.contract.json`.
+- Memory bounds and logging constraints are now codified in `.planning/spec-kit/contracts/remote-ops.runtime.contract.json` and `remote-ops.observability.contract.json`.
 - All future browser contexts MUST use `--disable-disk-cache` if the storage directory is on a physical disk rather than a RAM disk.
 
 ## Lessons Learned

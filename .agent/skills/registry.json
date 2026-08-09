@@ -14,7 +14,7 @@
         "never_delete": [
           ".agent/session-handovers/handover.md",
           ".planning/spec-kit/plans/tasks/session-handover-*.md (most recent by date)",
-          ".planning/spec-kit/specs/*.json (unless marked deferred AND >14 days old)",
+          ".planning/spec-kit/specs/active/*.json (unless marked deferred AND >14 days old)",
           "artifacts/publisher-runs/<today>/"
         ],
         "archive_before_delete": true,

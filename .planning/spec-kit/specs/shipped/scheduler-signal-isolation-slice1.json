@@ -1,7 +1,7 @@
 {
   "slice_id": "scheduler-signal-isolation-slice1-v1",
   "phase": "P4",
-  "status": "done",
+  "status": "shipped",
   "purpose": "Define the first implementation slice that isolates scheduler adaptation signals from frequent gap-policy recheck noise.",
   "design_intent": "Separate opportunity-quality measurements from enforcement cadence so interval adaptation reflects real publish opportunities, not skip-heavy recheck traffic.",
   "change_impact": "Affects scheduler adaptation inputs, trend insight derivation, and replay/backtest verification artifacts used for operational tuning.",
@@ -147,7 +147,7 @@
   ],
   "references": {
     "plan": ".planning/spec-kit/plans/state-authority-hardening.plan.json",
-    "final_goal": ".planning/spec-kit/specs/state-authority-final-goal-v1.json",
-    "scheduler_policy": ".planning/spec-kit/specs/scheduler-adaptation.policy.json"
+    "final_goal": ".planning/spec-kit/specs/active/state-authority-final-goal-v1.json",
+    "scheduler_policy": ".planning/spec-kit/contracts/scheduler-adaptation.policy.json"
   }
 }

@@ -108,6 +108,27 @@ exemptions. The module rule is a **ratchet**: today's 82 violations are recorded
 `module_boundary_baseline`, and adding an 83rd fails. Install the matching
 pre-commit hook with `npm run hooks:install`.
 
+## Spec-Kit Layout
+
+`.planning/spec-kit/` holds three kinds of document, and the directory says which:
+
+| Path | Contents | Status field |
+|------|----------|--------------|
+| `contracts/` | Behavior contracts, policies, rulesets. **Loaded at runtime** by `config/runtime-validation.ts` and `lib/observer/policyLoader.ts` | None — a contract is current or superseded, never "done" |
+| `reference/` | Reviewer pack: API/route catalogs, screen inventories, design guidelines, risk registers | None |
+| `specs/active/` | In-flight and proposed work. **The only directory to read when orienting** | `proposed` or `active` |
+| `specs/shipped/` | Implemented; kept for the design rationale | `shipped` |
+| `specs/archive/` | Superseded or abandoned | `superseded` |
+| `plans/`, `tasks/`, `manifest/` | Execution plans, task lists, runtime manifests and JSON schemas | None |
+
+Status vocabulary is **closed** — `proposed | active | shipped | superseded` — and
+the directory must agree with the field. `npm run lint:structure` fails on a
+mismatch, an unknown status, a spec loose in `specs/`, or a status field appearing
+on a contract. Markdown specs declare status in YAML frontmatter.
+
+`contracts/` is the only spec-kit directory besides `manifest/` copied into the
+Docker image. A file the runtime reads belongs there, not in `specs/`.
+
 **Retention:** every directory that grows without bound has an owner row in the
 table in `.agent/OPERATIONS.md`. Add one when you add such a directory.
 `npm run clean:all -- --dry-run` shows what is prunable.

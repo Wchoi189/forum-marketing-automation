@@ -1,6 +1,7 @@
 {
   "id": "analytics-eda-quality-v1",
   "title": "Competitor EDA: Unit Test Coverage for Derivation Logic",
+  "status": "shipped",
   "type": "quality",
   "version": "1",
   "parent_spec": "analytics-eda-polish-v2",

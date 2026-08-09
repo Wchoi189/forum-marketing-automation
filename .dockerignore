@@ -14,7 +14,7 @@ tests/
 .claude/
 .planning/
 !.planning/spec-kit/manifest/
-!.planning/spec-kit/specs/
+!.planning/spec-kit/contracts/
 *.md
 !README.md
 .vscode/

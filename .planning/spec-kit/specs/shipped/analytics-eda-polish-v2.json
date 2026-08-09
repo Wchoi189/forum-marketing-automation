@@ -1,6 +1,7 @@
 {
   "id": "analytics-eda-polish-v2",
   "title": "Competitor EDA: UX Polish & Data Accuracy Fixes",
+  "status": "shipped",
   "type": "enhancement",
   "version": "2",
   "parent_spec": "analytics-eda-refactor-v1",

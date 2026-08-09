@@ -6,6 +6,7 @@
  *   2. placement rules       - file patterns denied at the root or anywhere
  *   3. module entry points   - no reaching into a module's internals from outside
  *   4. size budgets          - files over the line budget need an exemption entry
+ *   5. spec lifecycle        - every spec-kit spec declares a status matching its directory
  *
  * Only tracked files are inspected, so generated directories (artifacts/, dist/,
  * node_modules/) are out of scope by construction.
@@ -40,10 +41,18 @@ interface Manifest {
     module_entry_points: Severity;
     module_boundary_baseline: number;
     size_budgets: Severity;
+    spec_lifecycle: Severity;
   };
   root: { allowed_files: string[]; allowed_dirs: string[] };
   placement_rules: PlacementRule[];
   module_entry_points: Record<string, string>;
+  spec_lifecycle: {
+    root: string;
+    statuses: string[];
+    status_dir: Record<string, string>;
+    stateless_dirs: Record<string, string>;
+    ignore: string[];
+  };
   size_budgets: {
     default_max_lines: number;
     include: string[];
@@ -234,6 +243,91 @@ function checkSizeBudgets(files: string[], manifest: Manifest): void {
   }
 }
 
+/** Top-level `status` for JSON, `status:` frontmatter for markdown. Null when absent. */
+function declaredStatus(file: string): string | null {
+  const text = fs.readFileSync(path.join(PROJECT_ROOT, file), 'utf8');
+
+  if (file.endsWith('.json')) {
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    return typeof parsed.status === 'string' ? parsed.status : null;
+  }
+  if (file.endsWith('.md')) {
+    const frontmatter = /^---\n([\s\S]*?)\n---/.exec(text);
+    const status = frontmatter && /^status:\s*(\S+)\s*$/m.exec(frontmatter[1]);
+    return status ? status[1] : null;
+  }
+  return null;
+}
+
+/**
+ * A spec-kit document is one of two things, and the directory says which:
+ * a work item under specs/ (has a lifecycle) or current truth under
+ * contracts/ and reference/ (has none). Directory and status must agree.
+ */
+function checkSpecLifecycle(files: string[], manifest: Manifest): void {
+  const severity = manifest.enforcement.spec_lifecycle;
+  const { root, statuses, status_dir, stateless_dirs, ignore } = manifest.spec_lifecycle;
+  const specsRoot = `${root}/specs/`;
+  const validDirs = [...new Set(Object.values(status_dir))];
+
+  for (const file of files) {
+    if (!file.startsWith(`${root}/`)) continue;
+    if (ignore.includes(path.basename(file))) continue;
+
+    const relative = file.slice(root.length + 1);
+    const topDir = relative.slice(0, relative.indexOf('/'));
+
+    if (topDir in stateless_dirs) {
+      if (declaredStatus(file) !== null) {
+        report(
+          severity,
+          `${file} is under ${topDir}/ but declares a status.\n` +
+            `    ${stateless_dirs[topDir]}\n` +
+            `    Drop the status field, or move the file under ${root}/specs/ if it really is a work item.`,
+        );
+      }
+      continue;
+    }
+
+    if (!file.startsWith(specsRoot)) continue;
+
+    const bucket = path.dirname(file).slice(root.length + 1);
+    if (!validDirs.includes(bucket)) {
+      report(
+        severity,
+        `${file} sits directly in ${root}/specs/.\n` +
+          `    Every spec belongs to a lifecycle bucket: ${validDirs.join(', ')}.`,
+      );
+      continue;
+    }
+
+    const status = declaredStatus(file);
+    if (status === null) {
+      report(
+        severity,
+        `${file} declares no status.\n` +
+          `    Add one of: ${statuses.join(', ')} (JSON: top-level "status"; markdown: --- status: x --- frontmatter).`,
+      );
+      continue;
+    }
+    if (!statuses.includes(status)) {
+      report(
+        severity,
+        `${file} has status "${status}", outside the closed vocabulary.\n` +
+          `    Allowed: ${statuses.join(', ')}.`,
+      );
+      continue;
+    }
+    if (status_dir[status] !== bucket) {
+      report(
+        severity,
+        `${file} has status "${status}" but lives in ${bucket}/.\n` +
+          `    "${status}" belongs in ${status_dir[status]}/. Move the file, or correct the status.`,
+      );
+    }
+  }
+}
+
 function main(): void {
   const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8')) as Manifest;
   const files = trackedFiles();
@@ -242,6 +336,7 @@ function main(): void {
   checkPlacementRules(files, manifest);
   checkModuleBoundaries(files, manifest);
   checkSizeBudgets(files, manifest);
+  checkSpecLifecycle(files, manifest);
 
   for (const warning of warnings) console.warn(`  ! ${warning}\n`);
 

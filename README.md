@@ -104,11 +104,11 @@ Re-running with the same `--input-csv` skips posts already in `records.jsonl.gz`
 ## AWS Remote Ops (Spec-Driven)
 
 - Spec contracts:
-  - `.planning/spec-kit/specs/remote-ops.access.contract.json`
-  - `.planning/spec-kit/specs/remote-ops.runtime.contract.json`
-  - `.planning/spec-kit/specs/remote-ops.deploy.contract.json`
-  - `.planning/spec-kit/specs/remote-ops.observability.contract.json`
-  - `.planning/spec-kit/specs/remote-ops.acceptance.plan.json`
+  - `.planning/spec-kit/contracts/remote-ops.access.contract.json`
+  - `.planning/spec-kit/contracts/remote-ops.runtime.contract.json`
+  - `.planning/spec-kit/contracts/remote-ops.deploy.contract.json`
+  - `.planning/spec-kit/contracts/remote-ops.observability.contract.json`
+  - `.planning/spec-kit/plans/remote-ops.acceptance.plan.json`
 - Taskset:
   - `.planning/spec-kit/tasks/implementation.tasks.json` (`remote_ops_taskset`)
 - Operational templates and runbooks:

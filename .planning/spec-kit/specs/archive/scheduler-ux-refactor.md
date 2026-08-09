@@ -1,3 +1,7 @@
+---
+status: superseded
+---
+
 # Spec: Scheduler UX Overhaul + App.tsx Modularization
 
 _Moved from .planning/specs/scheduler-ux-refactor.md on 2026-04-11 to consolidate planning root._

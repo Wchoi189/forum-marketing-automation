@@ -15,7 +15,8 @@
     "placement_rules": "error",
     "module_entry_points": "warn",
     "module_boundary_baseline": 82,
-    "size_budgets": "error"
+    "size_budgets": "error",
+    "spec_lifecycle": "error"
   },
 
   "root": {
@@ -103,6 +104,29 @@
     "lib/publisher": "lib/publisher/index.ts",
     "lib/scheduler": "lib/scheduler/index.ts",
     "lib/state": "lib/state/index.ts"
+  },
+
+  "spec_lifecycle": {
+    "$comment": [
+      "Step 6 of structure-roadmap-2026-08-08.md. The spec-kit corpus is three kinds of document, not one:",
+      "  contracts/ and reference/ are CURRENT TRUTH - they are correct or superseded, never 'done'. They carry no status.",
+      "  specs/ are WORK ITEMS with a lifecycle, and each one declares where it is via a closed vocabulary.",
+      "Seven vocabularies (done, implemented, active, ACTIVE, IN_PROGRESS, proposed, draft) collapsed into the four below.",
+      "Directory and status must agree, so neither can drift without the other being wrong."
+    ],
+    "root": ".planning/spec-kit",
+    "statuses": ["proposed", "active", "shipped", "superseded"],
+    "status_dir": {
+      "proposed": "specs/active",
+      "active": "specs/active",
+      "shipped": "specs/shipped",
+      "superseded": "specs/archive"
+    },
+    "stateless_dirs": {
+      "contracts": "Behavior contracts, policies, rulesets. Current truth - a contract is never 'shipped'.",
+      "reference": "Catalogs, inventories, design guidelines, risk registers. The reviewer pack."
+    },
+    "ignore": ["mempalace.yaml", "README.md"]
   },
 
   "size_budgets": {

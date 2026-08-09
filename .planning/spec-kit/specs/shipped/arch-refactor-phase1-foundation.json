@@ -1,7 +1,7 @@
 {
   "spec_id": "arch-refactor-phase1-foundation-v1",
   "phase": "P1",
-  "status": "done",
+  "status": "shipped",
   "purpose": "Establish foundation for architecture refactor: fix lint errors, document test framework, add barrel exports.",
   "design_intent": "Remove existing TypeScript errors that create noise, ensure new developers can understand the test framework, and enable cleaner imports via barrel exports.",
   "change_impact": "Affects all developers working in the codebase - reduces lint noise, improves onboarding, enables path alias usage.",

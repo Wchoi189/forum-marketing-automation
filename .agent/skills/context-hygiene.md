@@ -14,7 +14,7 @@
 - `artifacts/publisher-runs/` entries from **today**
 - `.agent/state/state.index.json`
 - `.agent/contracts/*.json`
-- `.planning/spec-kit/specs/*.json` unless confirmed deferred AND >14 days old
+- `.planning/spec-kit/specs/active/*.json` unless confirmed deferred AND >14 days old
 - Any file under `.gitignore` exclusion that is not git-tracked
 
 ### ARCHIVE BEFORE DELETE

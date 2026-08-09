@@ -16,7 +16,20 @@
       "id": "planning_semantic_specs",
       "path": ".planning/spec-kit/specs",
       "allowed_formats": ["json", "md"],
-      "notes": "each spec should include intent fields (purpose/design_intent/change_impact) with concise semantics"
+      "lifecycle_buckets": ["active", "shipped", "archive"],
+      "notes": "work items with a lifecycle. Every spec lives in a bucket and declares a matching status (proposed|active|shipped|superseded); enforced by npm run lint:structure. Each spec should include intent fields (purpose/design_intent/change_impact) with concise semantics"
+    },
+    {
+      "id": "planning_contracts",
+      "path": ".planning/spec-kit/contracts",
+      "allowed_formats": ["json"],
+      "notes": "behavior contracts, policies, rulesets. Current truth, never 'done' — no status field. Loaded at runtime by config/runtime-validation.ts and lib/observer/policyLoader.ts"
+    },
+    {
+      "id": "planning_reference",
+      "path": ".planning/spec-kit/reference",
+      "allowed_formats": ["json", "md", "txt"],
+      "notes": "reviewer pack: API/route catalogs, screen inventories, design guidelines, risk registers. Current truth — no status field"
     },
     {
       "id": "agent_state_container",

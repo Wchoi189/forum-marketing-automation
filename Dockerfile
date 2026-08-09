@@ -74,7 +74,7 @@ COPY --chown=app:app ops/ ./ops/
 
 # Copy manifest schemas needed at runtime for validation
 COPY --chown=app:app .planning/spec-kit/manifest/ .planning/spec-kit/manifest/
-COPY --chown=app:app .planning/spec-kit/specs/ .planning/spec-kit/specs/
+COPY --chown=app:app .planning/spec-kit/contracts/ .planning/spec-kit/contracts/
 COPY --chown=app:app .agent/contracts/ .agent/contracts/
 
 # Create persistent data directories (mounted as volumes at runtime)

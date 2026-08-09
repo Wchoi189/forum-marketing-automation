@@ -1,7 +1,7 @@
 {
   "slice_id": "state-authority-ops-closeout-slice1-v1",
   "phase": "P5",
-  "status": "done",
+  "status": "shipped",
   "purpose": "Close out the state-authority hardening plan by consolidating operator-facing provenance visibility, runbook guidance, and acceptance evidence.",
   "design_intent": "Ensure operators can explain effective control values and scheduler adaptation rationale from APIs, UI, and runbooks without code inspection.",
   "change_impact": "Updates planning/operations documentation and completion trackers; no runtime contract behavior is changed.",
@@ -99,9 +99,9 @@
     "notes": "P5 closeout artifacts prepared; optional post-closeout enhancements stay out of acceptance gate."
   },
   "references": {
-    "final_goal": ".planning/spec-kit/specs/state-authority-final-goal-v1.json",
+    "final_goal": ".planning/spec-kit/specs/active/state-authority-final-goal-v1.json",
     "hardening_plan": ".planning/spec-kit/plans/state-authority-hardening.plan.json",
-    "p4_slice2": ".planning/spec-kit/specs/scheduler-signal-isolation-slice2.json",
+    "p4_slice2": ".planning/spec-kit/specs/shipped/scheduler-signal-isolation-slice2.json",
     "runtime_runbook": "ops/systemd/README.md"
   }
 }

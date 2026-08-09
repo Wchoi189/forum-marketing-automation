@@ -2,7 +2,7 @@
   "id": "scheduler-sov-multiplier-v1",
   "title": "Scheduler Integration — Share-of-Voice Multiplier (Shape A)",
   "parent": "scheduler-adaptation-v1",
-  "status": "draft",
+  "status": "proposed",
   "created": "2026-04-10",
   "summary": "Add a second scheduler signal: a Share-of-Voice multiplier that blends with the existing turnover multiplier. Low SoV → shorter interval (publish more); high SoV → longer interval (slow down). Additive on top of the existing pipeline — does not replace the turnover factor.",
 

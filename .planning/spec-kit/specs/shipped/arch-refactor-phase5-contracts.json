@@ -1,7 +1,7 @@
 {
   "spec_id": "arch-refactor-phase5-contracts-v1",
   "phase": "P5",
-  "status": "done",
+  "status": "shipped",
   "purpose": "Extract magic strings to constants and consolidate type exports.",
   "design_intent": "Eliminate magic string coupling between playbook JSON and runtime code. Provide single source of truth for step IDs and decisions.",
   "change_impact": "Publisher code now uses PLAYBOOK_STEP_IDS constants instead of hardcoded strings.",
