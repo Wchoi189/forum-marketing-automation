@@ -17,7 +17,7 @@
  *   lib/browserDebug.ts              — registerBrowserDebugHandlers
  *   lib/sharedBrowser.ts             — shutdownBrowser (via closeSharedBrowser)
  *   lib/logCache.ts                  — getLogs (via getSharedLogCache)
- *   lib/runtimeControls.ts           — persistGapThresholdPersistedOverride (writeRuntimeGapPersistedOverride)
+ *   lib/runtimeControls.ts           — persistGapThresholdPersistedOverride (persistGapOverride)
  */
 
 // ── Controls ────────────────────────────────────────────────────────────────
@@ -25,21 +25,21 @@ export type {
   ObserverControls,
   ObserverControlsWithGap,
   PublisherControls
-} from './lib/controls.js';
+} from './lib/state/index.js';
 export {
   getObserverControls,
   setObserverControls,
   getPublisherControls,
   setPublisherControls
-} from './lib/controls.js';
+} from './lib/state/index.js';
 
 // ── Policy loader ────────────────────────────────────────────────────────────
 export { getObserverControlsWithGap } from './lib/observer/policyLoader.js';
 
 // ── Persisted gap override ───────────────────────────────────────────────────
-import { writeRuntimeGapPersistedOverride } from './lib/runtimeControls.js';
+import { persistGapOverride } from './lib/state/index.js';
 export async function persistGapThresholdPersistedOverride(value: number | null): Promise<void> {
-  await writeRuntimeGapPersistedOverride(value);
+  await persistGapOverride(value);
 }
 
 // ── Parser options (consumed by /api/parser-metrics) ────────────────────────
@@ -88,8 +88,8 @@ export function registerSignalHandlers(): void {
 }
 
 // ── Bot controls initialisation ───────────────────────────────────────────────
-import { readPersistedObserverControls, readPersistedPublisherControls } from './lib/runtimeControls.js';
-import { setObserverControls, setPublisherControls } from './lib/controls.js';
+import { readPersistedObserverControls, readPersistedPublisherControls } from './lib/state/index.js';
+import { setObserverControls, setPublisherControls } from './lib/state/index.js';
 
 /**
  * Load persisted observer + publisher controls from disk and apply them.

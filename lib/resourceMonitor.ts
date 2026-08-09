@@ -6,7 +6,7 @@ const execAsync = util.promisify(exec);
 import { ENV } from '../config/env.js';
 import { logger } from './logger.js';
 
-const ARTIFACTS_DIR = path.join(ENV.ARTIFACTS_DIR, 'publisher-runs');
+const PUBLISHER_RUNS_DIR = path.join(ENV.ARTIFACTS_DIR, 'publisher-runs');
 export const MAX_ARTIFACT_AGE_DAYS = 7;
 export const MAX_ACTIVITY_LOG_ENTRIES = 1000;
 export const KEEP_ACTIVITY_LOG_ENTRIES = 500;
@@ -104,14 +104,14 @@ interface RotationResult {
 export async function rotateArtifacts(maxAgeDays = MAX_ARTIFACT_AGE_DAYS): Promise<RotationResult> {
   const result: RotationResult = { deletedCount: 0, deletedBytes: 0, remainingCount: 0, remainingBytes: 0 };
 
-  if (!fs.existsSync(ARTIFACTS_DIR)) return result;
+  if (!fs.existsSync(PUBLISHER_RUNS_DIR)) return result;
 
   const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
-  const entries = await fs.promises.readdir(ARTIFACTS_DIR, { withFileTypes: true });
+  const entries = await fs.promises.readdir(PUBLISHER_RUNS_DIR, { withFileTypes: true });
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const dirPath = path.join(ARTIFACTS_DIR, entry.name);
+    const dirPath = path.join(PUBLISHER_RUNS_DIR, entry.name);
     const stat = await fs.promises.stat(dirPath);
 
     if (stat.mtimeMs < cutoff) {
@@ -137,15 +137,15 @@ export async function rotateArtifacts(maxAgeDays = MAX_ARTIFACT_AGE_DAYS): Promi
 
 /** Enforce a hard size cap on the artifacts directory by deleting oldest first. */
 export async function capArtifactsBySize(maxMB = MAX_ARTIFACTS_SIZE_MB): Promise<number> {
-  if (!fs.existsSync(ARTIFACTS_DIR)) return 0;
+  if (!fs.existsSync(PUBLISHER_RUNS_DIR)) return 0;
 
   const maxBytes = maxMB * 1024 * 1024;
-  const entriesRaw = await fs.promises.readdir(ARTIFACTS_DIR, { withFileTypes: true });
+  const entriesRaw = await fs.promises.readdir(PUBLISHER_RUNS_DIR, { withFileTypes: true });
   
   const entries = [];
   for (const e of entriesRaw) {
     if (!e.isDirectory()) continue;
-    const dirPath = path.join(ARTIFACTS_DIR, e.name);
+    const dirPath = path.join(PUBLISHER_RUNS_DIR, e.name);
     const mtime = (await fs.promises.stat(dirPath)).mtimeMs;
     const size = await dirSize(dirPath);
     entries.push({ name: e.name, path: dirPath, mtime, size });
@@ -171,6 +171,87 @@ export async function capArtifactsBySize(maxMB = MAX_ARTIFACTS_SIZE_MB): Promise
   }
 
   return freed;
+}
+
+// ── Orphaned Temp File Cleanup ──────────────────────────────────────────────
+
+/**
+ * Delete `*.tmp` files left behind by interrupted atomic writes.
+ *
+ * `writeFileAtomic` in lib/state/persistence.ts writes to
+ * `<name>.<pid>.<timestamp>.tmp` before renaming into place. A write that
+ * throws between those two steps leaks the temp file permanently.
+ */
+export async function cleanOrphanedTempFiles(maxAgeMs = 60 * 60 * 1000): Promise<number> {
+  if (!fs.existsSync(ENV.ARTIFACTS_DIR)) return 0;
+
+  const cutoff = Date.now() - maxAgeMs;
+  let deleted = 0;
+
+  try {
+    const entries = await fs.promises.readdir(ENV.ARTIFACTS_DIR, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.tmp')) continue;
+      const filePath = path.join(ENV.ARTIFACTS_DIR, entry.name);
+      const stat = await fs.promises.stat(filePath);
+      if (stat.mtimeMs >= cutoff) continue; // may belong to an in-flight write
+      await fs.promises.rm(filePath, { force: true });
+      deleted++;
+    }
+  } catch (err) {
+    logger.warn({ event: 'resource.temp_cleanup_failed', err }, 'Failed to clean orphaned temp files');
+    return deleted;
+  }
+
+  if (deleted > 0) {
+    logger.info({ event: 'resource.temp_files_cleaned', deleted }, `Removed ${deleted} orphaned temp file(s)`);
+  }
+  return deleted;
+}
+
+// ── Session Handover Rotation ───────────────────────────────────────────────
+
+export const KEEP_SESSION_HANDOVERS = 10;
+
+/**
+ * Move all but the newest `keep` session handovers into an archive subdirectory.
+ *
+ * `.agent/session-handovers/` is append-only and had grown to 49 files. Nothing
+ * reads handovers older than the last few sessions, but they dominate the
+ * directory listing an agent sees when orienting itself.
+ */
+export async function rotateSessionHandovers(keep = KEEP_SESSION_HANDOVERS): Promise<number> {
+  const dir = path.join(ENV.PROJECT_ROOT, '.agent', 'session-handovers');
+  if (!fs.existsSync(dir)) return 0;
+
+  const archiveDir = path.join(dir, 'archive');
+  // Files that are structural rather than session output.
+  const pinned = new Set(['template.json', 'handover-YYYYMMDD-HHMM.json', 'mempalace.yaml']);
+
+  try {
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    const handovers = entries
+      .filter((e) => e.isFile() && e.name.endsWith('.json') && !pinned.has(e.name))
+      .map((e) => e.name)
+      .sort(); // timestamped names sort chronologically
+
+    if (handovers.length <= keep) return 0;
+
+    const toArchive = handovers.slice(0, handovers.length - keep);
+    await fs.promises.mkdir(archiveDir, { recursive: true });
+    for (const name of toArchive) {
+      await fs.promises.rename(path.join(dir, name), path.join(archiveDir, name));
+    }
+
+    logger.info(
+      { event: 'resource.handovers_rotated', archived: toArchive.length, kept: keep },
+      `Archived ${toArchive.length} session handover(s), kept newest ${keep}`
+    );
+    return toArchive.length;
+  } catch (err) {
+    logger.warn({ event: 'resource.handover_rotate_failed', err }, 'Failed to rotate session handovers');
+    return 0;
+  }
 }
 
 // ── Activity Log Rotation ───────────────────────────────────────────────────
@@ -242,8 +323,8 @@ export async function getResourceMetrics(): Promise<ResourceMetrics> {
 
   // Artifacts
   let artifacts: ResourceMetrics['artifacts'] = { directoryCount: 0, totalSizeMb: 0, exceedsSizeCap: false, oldestDays: null, newestDays: null };
-  if (fs.existsSync(ARTIFACTS_DIR)) {
-    const entries = await fs.promises.readdir(ARTIFACTS_DIR, { withFileTypes: true });
+  if (fs.existsSync(PUBLISHER_RUNS_DIR)) {
+    const entries = await fs.promises.readdir(PUBLISHER_RUNS_DIR, { withFileTypes: true });
     let totalSize = 0;
     let oldestMs: number | null = null;
     let newestMs: number | null = null;
@@ -251,7 +332,7 @@ export async function getResourceMetrics(): Promise<ResourceMetrics> {
     for (const e of entries) {
       if (!e.isDirectory()) continue;
       dirCount++;
-      const dirPath = path.join(ARTIFACTS_DIR, e.name);
+      const dirPath = path.join(PUBLISHER_RUNS_DIR, e.name);
       const stat = await fs.promises.stat(dirPath);
       const size = await dirSize(dirPath);
       totalSize += size;
@@ -339,12 +420,16 @@ import { closeSharedBrowser, activeContexts, isSharedBrowserReady } from './shar
 export async function runGarbageCollection(): Promise<{
   artifacts: RotationResult;
   logRotated: number;
+  tempFilesRemoved: number;
+  handoversArchived: number;
   browserProfile: { deletedDirs: number; freedBytes: number };
   browserRecycled: boolean;
 }> {
   const artifacts = await rotateArtifacts();
   await capArtifactsBySize(); // Enforce 500MB size limit
   const logRotated = await rotateActivityLog();
+  const tempFilesRemoved = await cleanOrphanedTempFiles();
+  const handoversArchived = await rotateSessionHandovers();
   const browserProfile = await cleanBrowserProfile();
 
   let browserRecycled = false;
@@ -356,7 +441,7 @@ export async function runGarbageCollection(): Promise<{
     browserRecycled = true;
   }
 
-  return { artifacts, logRotated, browserProfile, browserRecycled };
+  return { artifacts, logRotated, tempFilesRemoved, handoversArchived, browserProfile, browserRecycled };
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -365,7 +450,7 @@ async function dirSize(dir: string): Promise<number> {
   if (!fs.existsSync(dir)) return 0;
   try {
     const { stdout } = await execAsync(`du -sb "${dir}"`);
-    return parseInt(stdout.split('\\t')[0], 10);
+    return parseInt(stdout.trim().split(/\s/)[0] ?? '', 10) || 0;
   } catch {
     return 0; // Fallback or permission error
   }

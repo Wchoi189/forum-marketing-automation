@@ -1,0 +1,34 @@
+{
+  "spec_id": "arch-refactor-phase5-contracts-v1",
+  "phase": "P5",
+  "status": "done",
+  "purpose": "Extract magic strings to constants and consolidate type exports.",
+  "design_intent": "Eliminate magic string coupling between playbook JSON and runtime code. Provide single source of truth for step IDs and decisions.",
+  "change_impact": "Publisher code now uses PLAYBOOK_STEP_IDS constants instead of hardcoded strings.",
+  "acceptance_criteria": [
+    "lib/publisher/constants.ts defines PLAYBOOK_STEP_IDS and PUBLISHER_DECISIONS",
+    "Publisher flow uses constants instead of magic strings",
+    "npm run lint passes"
+  ],
+  "deliverables": [
+    {
+      "file": "lib/publisher/constants.ts",
+      "change": "New: PLAYBOOK_STEP_IDS and PUBLISHER_DECISIONS constants"
+    },
+    {
+      "file": "lib/publisher/flow/runPublisherFlow.ts",
+      "change": "Updated to use PLAYBOOK_STEP_IDS constants"
+    },
+    {
+      "file": "lib/publisher/ui/selectorResolver.ts",
+      "change": "Updated to use PLAYBOOK_STEP_IDS constants"
+    },
+    {
+      "file": "lib/publisher/index.ts",
+      "change": "Barrel export now includes constants"
+    }
+  ],
+  "references": {
+    "feedback_source": ".planning/audit/codebase-feedback-2026-08-08.md"
+  }
+}

@@ -2,7 +2,11 @@ import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 
-dotenv.config({ override: true });
+// Explicit process environment wins over the .env file. Do NOT pass
+// `override: true` here — it lets a stale developer .env clobber values that
+// docker-compose, CI, or the test runner set deliberately. That is what caused
+// every integration test to write to a nonexistent absolute ARTIFACTS_DIR.
+dotenv.config();
 
 type EnvConfig = {
   PROJECT_ROOT: string;
@@ -173,11 +177,22 @@ function optionalJitterMode(name: string, fallback: "none" | "uniform"): "none" 
   throw new Error(`[ENV] ${name} must be "none" or "uniform"`);
 }
 
+/**
+ * The one place in this repo allowed to name an absolute host path.
+ *
+ * It exists solely to *detect and strip* values left over from an older checkout
+ * that lived at this location. Every other path must be derived from PROJECT_ROOT
+ * or ARTIFACTS_DIR — which is what `.ast-grep/rules/no-absolute-host-paths.yml`
+ * enforces everywhere else.
+ */
+// ast-grep-ignore: no-absolute-host-paths
+const LEGACY_PATH_PREFIX = "/parent/marketing-automation";
+
 function buildEnv(): EnvConfig {
   let projectRoot = process.env.PROJECT_ROOT?.trim() || "";
-  
+
   // Fall back to process.cwd() if projectRoot is empty or matches legacy /parent path which does not exist
-  if (!projectRoot || (projectRoot.startsWith("/parent/marketing-automation") && !fs.existsSync("/parent/marketing-automation"))) {
+  if (!projectRoot || (projectRoot.startsWith(LEGACY_PATH_PREFIX) && !fs.existsSync(LEGACY_PATH_PREFIX))) {
     projectRoot = process.cwd();
   }
 
@@ -197,7 +212,7 @@ function buildEnv(): EnvConfig {
   let activityLogPathRaw = requiredString("ACTIVITY_LOG_PATH");
 
   // Auto-rewrite legacy paths if the legacy directory doesn't exist
-  const legacyPrefix = "/parent/marketing-automation";
+  const legacyPrefix = LEGACY_PATH_PREFIX;
   if (botProfileDirRaw.startsWith(legacyPrefix) && !fs.existsSync(legacyPrefix)) {
     botProfileDirRaw = botProfileDirRaw.substring(legacyPrefix.length).replace(/^[/\\]+/, "");
   }

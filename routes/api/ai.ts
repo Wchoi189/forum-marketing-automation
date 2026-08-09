@@ -20,7 +20,7 @@ import {
   getAdvisorTokenStats,
 } from '../../lib/aiAdvisor.js';
 import { readPublisherHistory } from '../../lib/publisherHistory.js';
-import { writeRuntimeControls } from '../../lib/runtimeControls.js';
+import { persistState } from '../../lib/state/index.js';
 import type { LogCache } from '../../lib/logCache.js';
 import type { SchedulerController } from '../routerTypes.js';
 import type { buildControlPanelResponse } from './control.js';
@@ -87,7 +87,7 @@ export function createAiRouter(deps: AiRouterDeps): Router {
 
     const { recommendedIntervalMinutes, recommendedGapThreshold } = cached.result.recommendation;
     if (scheduler) scheduler.setControls({ baseIntervalMinutes: recommendedIntervalMinutes });
-    const persistMeta = await writeRuntimeControls({ observerGapThresholdMin: recommendedGapThreshold, schedulerBaseIntervalMinutes: recommendedIntervalMinutes });
+    const persistMeta = await persistState({ observerGapThresholdMin: recommendedGapThreshold, schedulerBaseIntervalMinutes: recommendedIntervalMinutes });
     const controlPanel = await deps.buildCP(scheduler, deps.getNlWebhookEnabled(), { stateVersion: persistMeta.stateVersion, persistedAt: persistMeta.persistedAt });
     deps.setCachedControlPanel({ payload: controlPanel, expiresAt: Date.now() + CONTROL_PANEL_CACHE_MS });
     markAdvisorCacheApplied();

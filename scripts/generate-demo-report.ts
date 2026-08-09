@@ -6,6 +6,7 @@
 import * as cheerio from "cheerio";
 import * as fs from "node:fs";
 import path from "node:path";
+import { ENV } from "../config/env.js";
 import { parsePpomppuPost } from "../lib/competitor-ad-parser/ppomppu-parser.js";
 import { cleanProductName, deduplicateProducts } from "../lib/competitor-ad-parser/product-name-utils.js";
 import { extractProductsFromText } from "../lib/competitor-intel/extraction/pipeline.js";
@@ -13,7 +14,7 @@ import { runTextExtraction } from "../lib/competitor-intel/extraction/text-extra
 import { callOllamaGenerate } from "../lib/competitor-intel/extraction/ocr.js";
 import type { EvidenceSource, AdProduct } from "../lib/competitor-intel/types.js";
 
-const HTML_DIR = "/parent/marketing-automation/artifacts/competitor-ads/live-20260511/raw_html";
+const HTML_DIR = path.join(ENV.ARTIFACTS_DIR, "competitor-ads/live-20260511/raw_html");
 
 const VENDORS = [
   "0b80b387d62a",

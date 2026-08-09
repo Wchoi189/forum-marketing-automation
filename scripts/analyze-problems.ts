@@ -4,15 +4,19 @@
  */
 
 import * as fs from "node:fs";
+import * as path from "node:path";
 import * as cheerio from "cheerio";
+import { ENV } from "../config/env.js";
 import { parsePpomppuPost } from "../lib/competitor-ad-parser/ppomppu-parser.js";
 import { extractProductsFromText } from "../lib/competitor-intel/extraction/pipeline.js";
 import { runTextExtraction } from "../lib/competitor-intel/extraction/text-extraction.js";
 import { callOllamaGenerate } from "../lib/competitor-intel/extraction/ocr.js";
 import type { EvidenceSource } from "../lib/competitor-intel/types.js";
 
-const CONSOLIDATED_DIR =
-  "/parent/marketing-automation/artifacts/competitor-ads/test-pipeline-1page-v2/raw_html";
+const CONSOLIDATED_DIR = path.join(
+  ENV.ARTIFACTS_DIR,
+  "competitor-ads/test-pipeline-1page-v2/raw_html",
+);
 
 // ── Problematic files identified from full pipeline test ──
 const PROBLEM_FILES: Array<{

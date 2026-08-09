@@ -27,9 +27,12 @@ mine_dir() {
 }
 
 mine_core() {
-  mine_dir "${PROJECT_ROOT}/AgentQMS"                           "AgentQMS/ (manifests, conventions)"
-  mine_dir "${PROJECT_ROOT}/.dev/context/sessions"               "Sessions/"
-  mine_dir "${PROJECT_ROOT}/.dev/context/decisions"              "Decisions/"
+  # AgentQMS/ moved to archive/ and .dev/ was empty and deleted (2026-08-08
+  # workspace cleanup). Agent-facing knowledge now lives under .agent/.
+  mine_dir "${PROJECT_ROOT}/.agent/knowledge"                    ".agent/knowledge/ (conventions, playbooks)"
+  mine_dir "${PROJECT_ROOT}/.agent/contracts"                    ".agent/contracts/ (manifests)"
+  mine_dir "${PROJECT_ROOT}/.agent/session-handovers"            "Sessions/"
+  mine_dir "${PROJECT_ROOT}/.planning/known-issues"              "Decisions/"
 }
 
 case "${1:-}" in

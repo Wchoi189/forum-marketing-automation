@@ -1,0 +1,38 @@
+{
+  "spec_id": "arch-refactor-phase1-foundation-v1",
+  "phase": "P1",
+  "status": "done",
+  "purpose": "Establish foundation for architecture refactor: fix lint errors, document test framework, add barrel exports.",
+  "design_intent": "Remove existing TypeScript errors that create noise, ensure new developers can understand the test framework, and enable cleaner imports via barrel exports.",
+  "change_impact": "Affects all developers working in the codebase - reduces lint noise, improves onboarding, enables path alias usage.",
+  "acceptance_criteria": [
+    "npm run lint passes with zero errors",
+    "tests/README.md explains test framework and commands",
+    "Barrel exports exist in lib/, lib/publisher/, lib/observer/"
+  ],
+  "deliverables": [
+    {
+      "file": "tests/integration/bot-stability.test.ts",
+      "change": "Fixed async/await handling for cleanBrowserProfile, runGarbageCollection, getResourceMetrics, checkResourceThresholds"
+    },
+    {
+      "file": "tests/README.md",
+      "change": "New file documenting test framework, commands, and patterns"
+    },
+    {
+      "file": "lib/index.ts",
+      "change": "New barrel export for commonly used utilities and types"
+    },
+    {
+      "file": "lib/publisher/index.ts",
+      "change": "New barrel export for publisher module"
+    },
+    {
+      "file": "lib/observer/index.ts",
+      "change": "New barrel export for observer module"
+    }
+  ],
+  "references": {
+    "feedback_source": ".planning/audit/codebase-feedback-2026-08-08.md"
+  }
+}

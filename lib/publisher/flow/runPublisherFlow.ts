@@ -13,8 +13,9 @@ import {
   resolveBoardIdFromEntryUrl
 } from './stateTransitions.js';
 import { detectRateLimit, type RateLimitInfo } from '../ui/rateLimit.js';
-import { setPublisherControls } from '../../controls.js';
-import { persistPublishBlockedUntil } from '../../runtimeControls.js';
+import { setPublisherControls } from '../../state/index.js';
+import { persistPublishBlockedUntil } from '../../state/index.js';
+import { PLAYBOOK_STEP_IDS } from '../constants.js';
 
 export type PublisherFlowOutcome = {
   decision: 'dry_run' | 'published_verified' | 'rate_limited';
@@ -54,7 +55,7 @@ export async function runPublisherFlow(input: RunPublisherFlowInput): Promise<Pu
   assertSubmitStepsPresent(submitSteps.length);
 
   // Split nonSubmitSteps to check for rate limit after click-write
-  const clickWriteIndex = nonSubmitSteps.findIndex((s) => s.step_id === 'click-write');
+  const clickWriteIndex = nonSubmitSteps.findIndex((s) => s.step_id === PLAYBOOK_STEP_IDS.CLICK_WRITE);
   const preClickWriteSteps = clickWriteIndex >= 0 ? nonSubmitSteps.slice(0, clickWriteIndex + 1) : nonSubmitSteps;
   const postClickWriteSteps = clickWriteIndex >= 0 ? nonSubmitSteps.slice(clickWriteIndex + 1) : [];
 
@@ -91,7 +92,7 @@ export async function runPublisherFlow(input: RunPublisherFlowInput): Promise<Pu
 
   const boardId = resolveBoardIdFromEntryUrl(runtime.boardEntryUrl);
   // Submit remains playbook-driven; success still requires verified list/view landing URL.
-  onStepStart?.('submit-post');
+  onStepStart?.(PLAYBOOK_STEP_IDS.SUBMIT_POST);
   await Promise.all([
     waitForPublishLandingUrl(page, boardId, postSubmitWaitMs),
     runPublisherPlaybook(page, { ...playbook, steps: submitSteps }, runtime, undefined, onStepEnd)

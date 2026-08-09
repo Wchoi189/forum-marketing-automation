@@ -11,3 +11,7 @@ files:
 ignores:
   - src/hooks/**
   - src/AnalyticsPage.tsx
+  # Pre-existing debt: 5 inline fetches. Extracting them into a hook is tracked as
+  # Phase E in .planning/audit/structure-roadmap-2026-08-08.md. Listed here rather
+  # than downgrading the rule's severity, so the rule still fails for every new file.
+  - src/pages/KakaoDashboard.tsx

@@ -18,7 +18,7 @@ import { parseBoardRows } from './boardParser.js';
 import { getBoardDiagnostics } from './boardDiagnostics.js';
 import { collectParserSignal, captureBoardRowRegionArtifact, combinedConfidence, createManualReviewMessage } from './parserSignal.js';
 import { loadObserverPolicy } from './policyLoader.js';
-import { getObserverControls } from '../controls.js';
+import { getObserverControls } from '../state/index.js';
 import { getSharedLogCache } from '../logCache.js';
 import { registerBrowserDebugHandlers } from '../browserDebug.js';
 import fs from 'fs/promises';

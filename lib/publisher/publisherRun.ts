@@ -30,7 +30,7 @@ import { sendSlackNotification } from '../notifications.js';
 import { registerBrowserDebugHandlers } from '../browserDebug.js';
 import { getBoardDiagnostics, attemptPpomppuLoginFromBoard } from '../observer/boardDiagnostics.js';
 import { loadObserverPolicy } from '../observer/policyLoader.js';
-import { getPublisherControls } from '../controls.js';
+import { getPublisherControls } from '../state/index.js';
 import { runObserver } from '../observer/observerRun.js';
 
 // ---------------------------------------------------------------------------

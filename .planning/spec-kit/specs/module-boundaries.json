@@ -22,6 +22,25 @@
       "allowed_dependencies": ["playwright", "config/*", "lib/parser/*", "contracts/*", "planning_specs_readonly"]
     },
     {
+      "module_id": "runtime_state",
+      "paths": ["lib/state/"],
+      "responsibility": "Single source of truth for observer, publisher, scheduler, and NL-webhook runtime state. Owns in-memory controls, atomic persistence to ARTIFACTS_DIR/runtime-controls.json, and optimistic concurrency via stateVersion.",
+      "allowed_dependencies": ["config/*", "lib/utils.ts"],
+      "forbidden_dependencies": ["lib/scheduler.ts", "lib/observer/*", "lib/publisher/*", "routes/*", "playwright"],
+      "design_intent": "Consolidated from the former lib/controls.ts (in-memory) and lib/runtimeControls.ts (persistence) on 2026-08-08. Both shims were deleted. Importing state through any aggregation layer is forbidden because a duplicate error class in the old shim broke instanceof checks and downgraded HTTP 409 conflict responses to 500.",
+      "change_impact": "server.ts, bot.ts, routes/api/control.ts, routes/api/nl.ts, routes/api/ai.ts, lib/observer/*, lib/publisher/*",
+      "public_entry_point": "lib/state/index.ts"
+    },
+    {
+      "module_id": "scheduler",
+      "paths": ["lib/scheduler.ts", "lib/scheduler/"],
+      "responsibility": "Gap-driven publishing orchestration: tick loop, interval computation, presets, quiet/active hour multipliers, and jitter.",
+      "allowed_dependencies": ["lib/state/*", "lib/trendInsights.ts", "lib/schedulerSignals.ts", "lib/scheduleJitter.ts", "config/*", "contracts/*"],
+      "forbidden_dependencies": ["routes/*", "src/*"],
+      "design_intent": "lib/scheduler/ holds types and presets; lib/scheduler.ts holds the orchestration loop. The barrel re-exports startScheduler from the parent file, so callers import lib/scheduler/index.js and never reach past it.",
+      "public_entry_point": "lib/scheduler/index.ts"
+    },
+    {
       "module_id": "analytics_lib",
       "paths": ["lib/competitorAnalytics.ts", "lib/trendInsights.ts"],
       "responsibility": "Transform activity logs into analytics payloads and guidance.",
@@ -38,8 +57,28 @@
     "backend": "medium_to_high",
     "contracts": "high"
   },
+  "barrel_exports": {
+    "policy": "Every multi-file lib module exposes exactly one public entry point. Cross-module imports go through it; reaching into a sibling module's internal files is a boundary violation.",
+    "entry_points": {
+      "lib/state/": "lib/state/index.ts",
+      "lib/scheduler/": "lib/scheduler/index.ts",
+      "lib/observer/": "lib/observer/index.ts",
+      "lib/publisher/": "lib/publisher/index.ts",
+      "lib/parser/": "lib/parser/index.ts",
+      "lib/competitor-intel/": "lib/competitor-intel/index.ts"
+    }
+  },
+  "removed_modules": [
+    {
+      "paths": ["lib/controls.ts", "lib/runtimeControls.ts"],
+      "removed_on": "2026-08-08",
+      "superseded_by": "runtime_state",
+      "reason": "Deprecated re-export shims over lib/state/. Kept a duplicate RuntimeControlsVersionConflictError class that no code path threw, so instanceof never matched and POST /api/control-panel returned 500 instead of 409 on a version conflict."
+    }
+  ],
   "refactor_policy": [
     "Prefer extracting by feature slice: route + state + API clients + presentational components.",
-    "Preserve fail-closed automation and contract validation during UI refactors."
+    "Preserve fail-closed automation and contract validation during UI refactors.",
+    "When consolidating a module, delete the old entry point in the same change. Compatibility shims that duplicate types or error classes silently break instanceof and type narrowing."
   ]
 }

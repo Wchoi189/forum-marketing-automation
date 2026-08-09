@@ -1,0 +1,36 @@
+{
+  "spec_id": "arch-refactor-phase4-file-decomposition-v1",
+  "phase": "P4",
+  "status": "done",
+  "purpose": "Split large files into focused modules for better maintainability.",
+  "design_intent": "Reduce cognitive load by organizing code into single-responsibility modules. Enable easier navigation and testing.",
+  "change_impact": "New scheduler subdirectory with types and presets. Original scheduler.ts imports from subdirectory.",
+  "acceptance_criteria": [
+    "lib/scheduler/types.ts contains BotDeps, ControlPanelPreset, AutoPublisherControls, PresetConfig",
+    "lib/scheduler/presets.ts contains PRESET_CONFIG, normalizeAutoPublisherControls, helper functions",
+    "lib/scheduler/index.ts provides barrel exports",
+    "lib/scheduler.ts imports from subdirectory",
+    "npm run lint passes"
+  ],
+  "deliverables": [
+    {
+      "file": "lib/scheduler/types.ts",
+      "change": "New: scheduler type definitions extracted from scheduler.ts"
+    },
+    {
+      "file": "lib/scheduler/presets.ts",
+      "change": "New: preset configurations and helper functions"
+    },
+    {
+      "file": "lib/scheduler/index.ts",
+      "change": "New: barrel export for scheduler module"
+    },
+    {
+      "file": "lib/scheduler.ts",
+      "change": "Updated imports to use subdirectory modules"
+    }
+  ],
+  "references": {
+    "feedback_source": ".planning/audit/codebase-feedback-2026-08-08.md"
+  }
+}

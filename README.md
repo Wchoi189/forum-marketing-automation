@@ -38,10 +38,11 @@ Collects structured data from Ppomppu OTT board competitor ads into an auditable
 ### Quick Start
 1. Prepare a CSV with vendor IDs and post URLs:
    - Format: `vendor_id,post_url,notes_override`
-   - Sample: `examples/competitor-ads-intel.sample.csv`
+   - Write it anywhere outside the repo, or under `mcp/examples/`. No sample CSV
+     ships with the project.
 2. Run:
    ```bash
-   npm run competitor-ads:intel -- --input-csv examples/competitor-ads-intel.sample.csv --run-id 2026-05-09 --rate-limit-rps 1
+   npm run competitor-ads:intel -- --input-csv <your-vendors>.csv --run-id 2026-05-09 --rate-limit-rps 1
    ```
 
 ### Output
@@ -208,7 +209,7 @@ Replay outputs include:
   - Run `snapshot_diff` with `beforeSnapshotId` and `afterSnapshotId`.
 - Agent-facing guidance:
   - Rule: `.cursor/rules/parser-mcp-usage.mdc`
-  - Canonical call examples: `examples/mcp-parser-calls.json`
+  - Canonical call examples: `mcp/examples/mcp-parser-calls.json`
 
 ### Parser MCP Env Knobs
 - `MCP_PARSER_HOST` (default: `127.0.0.1`)

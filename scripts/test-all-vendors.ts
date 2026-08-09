@@ -5,15 +5,19 @@
  */
 
 import * as fs from "node:fs";
+import * as path from "node:path";
 import * as cheerio from "cheerio";
+import { ENV } from "../config/env.js";
 import { parsePpomppuPost } from "../lib/competitor-ad-parser/ppomppu-parser.js";
 import { extractProductsFromText } from "../lib/competitor-intel/extraction/pipeline.js";
 import { runTextExtraction } from "../lib/competitor-intel/extraction/text-extraction.js";
 import { extractContentTextForLlm, productsLookJunk, extractLeafTextBlocks, computeCompletenessScore } from "../lib/competitor-intel/extraction/content-utils.js";
 import type { AdProduct } from "../lib/competitor-intel/types.js";
 
-const HTML_DIR =
-  "/parent/marketing-automation/artifacts/competitor-ads/test-pipeline-1page-v2/raw_html";
+const HTML_DIR = path.join(
+  ENV.ARTIFACTS_DIR,
+  "competitor-ads/test-pipeline-1page-v2/raw_html",
+);
 
 type VendorExpectation = {
   fileId: string;

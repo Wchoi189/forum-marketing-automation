@@ -1,4 +1,10 @@
 {
+  // Node half of the build: Express server, bot runtime, lib/, scripts/, tests/.
+  // Run via tsx, never bundled.
+  //
+  // Inherits compilerOptions from tsconfig.json but overrides module resolution
+  // to NodeNext — relative imports here must carry explicit .js extensions.
+  // Keep the two configs separate; see the header comment in tsconfig.json.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "NodeNext",

@@ -1,0 +1,38 @@
+{
+  "spec_id": "arch-refactor-phase2-documentation-v1",
+  "phase": "P2",
+  "status": "done",
+  "purpose": "Decompose dense AGENTS.md into focused, single-purpose documents for faster information retrieval.",
+  "design_intent": "Reduce cognitive load by separating concerns: architecture, operations, known issues, and quick-start references.",
+  "change_impact": "Affects how developers navigate documentation - now has clear entry points per topic.",
+  "acceptance_criteria": [
+    "AGENTS.md is concise (< 100 lines) and serves as index",
+    "Focused docs exist for Architecture, Operations, Known Issues",
+    "No information loss from original AGENTS.md"
+  ],
+  "deliverables": [
+    {
+      "file": ".agent/README.md",
+      "change": "New quick-start guide with essential links"
+    },
+    {
+      "file": ".agent/ARCHITECTURE.md",
+      "change": "Architecture overview, module structure, goals"
+    },
+    {
+      "file": ".agent/OPERATIONS.md",
+      "change": "Operations guide: debug workflow, selector strategy, gap health"
+    },
+    {
+      "file": ".agent/KNOWN_ISSUES.md",
+      "change": "KEDB pointer and entry process"
+    },
+    {
+      "file": "AGENTS.md",
+      "change": "Reduced to concise index (~55 lines from 213)"
+    }
+  ],
+  "references": {
+    "feedback_source": ".planning/audit/codebase-feedback-2026-08-08.md"
+  }
+}

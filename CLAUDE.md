@@ -13,7 +13,8 @@
 | `lib/publisherStepStore.ts` | Shared in-memory step tracker. Written by `bot.ts` as publisher progresses; read by `GET /api/publisher-status`. |
 | `lib/publisherHistory.ts` | Append-only JSONL + Parquet log of every publisher run. |
 | `lib/trendInsights.ts` | Hourly post-rate profile and scheduler interval multiplier from activity logs. |
-| `lib/runtimeControls.ts` | Persisted gap threshold file override (read/write). |
+| `lib/state/` | **Single source of truth for runtime state.** In-memory controls + atomic persistence to `ARTIFACTS_DIR/runtime-controls.json` with optimistic concurrency (`stateVersion`). Import only from `lib/state/index.js`. Replaced `lib/controls.ts` and `lib/runtimeControls.ts`, both deleted 2026-08-08. |
+| `lib/resourceMonitor.ts` | Garbage collection and resource metrics. `PUBLISHER_RUNS_DIR` is scoped to `artifacts/publisher-runs/` — **not** all of `ARTIFACTS_DIR`. Widening it would delete the competitor-intel database. |
 | `lib/competitor-intel/` | Crawlee-based competitor ad extraction pipeline. Hybrid: Cheerio noise reduction → Ollama structured extraction. Entry: `scripts/competitor-ads-intel.ts`. See AGENTS.md for operational guide and `.planning/competitor-intel-playbook.md` for extraction knowledge base. |
 | `config/product-catalog.json` | **Source of truth** for product name mapping. Vendors use varied names for the same product — this JSON maps regex patterns to canonical names. **Do not add product names in TypeScript code** — add entries to this JSON file. See `.agent/knowledge/product-catalog.md` for the workflow. |
 | `lib/competitor-ad-parser/` | Deterministic Cheerio-based Ppomppu ad HTML parser (`parsePpomppuPost`). No browser needed. Used by `scripts/competitor-ads-intel.ts`. |
@@ -23,9 +24,11 @@
 
 | File | Role |
 |------|------|
-| `src/App.tsx` | All dashboard state, routing, and API calls (~1800 lines). Four route-driven views: Overview / Operations / Controls / Publisher Runs. |
+| `src/App.tsx` | Shell and routing only (156 lines). State lives in `src/hooks/`, views in `src/pages/`. |
+| `src/hooks/useAppData.ts` | Dashboard data orchestration: fetching, polling, refresh. The former App.tsx god-object's state layer. |
+| `src/pages/` | One file per route: Overview, Operations, Controls, PublisherRuns, CompetitorIntel, KakaoDashboard. |
 | `src/PipelineCanvas.tsx` | ReactFlow canvas. Prop `currentStep: PipelineStepId`. Six stages: `navigate → login-page → login → write-post → restore-draft → publish`. |
-| `src/AnalyticsPage.tsx` | Competitor EDA charts. Standalone route `/analytics`. |
+| `src/AnalyticsPage.tsx` | Competitor EDA charts. Standalone route `/analytics`. Largest frontend file (799 lines) — decomposition candidate. |
 
 ## Non-Obvious Architecture Facts
 
@@ -41,9 +44,9 @@
 - The `loginPromptVisible` diagnostic is **unreliable on the redirect hop**. When ppomppu redirects unauthenticated requests to `login.php?r_url=...`, the intermediate page shows "403 Forbidden" (nginx) or "Loading..." as its title — no "로그인" text exists in the body. The code now attempts login unconditionally whenever the write button is missing.
 - ppomppu WAF returns 403 on Playwright's default headless user agent. `DEFAULT_BROWSER_USER_AGENT` in `config/env.ts` is required, not optional.
 
-**Pipeline step tracking:** `publisherStepStore.ts` → `GET /api/publisher-status` (non-blocking). App.tsx polls every 1.5s when `loading || autoPublisher.running`. Mapping: `playbookStepToCanvasStep()` in `publisherStepStore.ts`.
+**Pipeline step tracking:** `publisherStepStore.ts` → `GET /api/publisher-status` (non-blocking). `src/hooks/useAppData.ts` runs a single adaptive interval: 5s base, dropping to 1.5s step polling while the publisher is running. Mapping: `playbookStepToCanvasStep()` in `publisherStepStore.ts`.
 
-**Observer refresh:** `POST /api/run-observer` blocks for 5–30s. App.tsx fires `silentRefreshObserver()` (no loading state) on mount and after every publish run.
+**Observer refresh:** `POST /api/run-observer` blocks for 5–30s. `src/hooks/useAppData.ts` fires `silentRefreshObserver()` (no loading state) on mount and after every publish run.
 
 ## API Surface
 
@@ -82,6 +85,35 @@
 | `NL_WEBHOOK_SECRET` | _(absent)_ | If set, requests must include `Authorization: Bearer <secret>` |
 
 Full parsing in `config/env.ts`. Schema in `.planning/spec-kit/manifest/schemas/env.schema.json`.
+
+## Workspace Layout
+
+| Path | Contents |
+|------|----------|
+| `.agent/` | Agent-facing docs: `ARCHITECTURE.md`, `OPERATIONS.md`, `KNOWN_ISSUES.md`, contracts, knowledge, session handovers |
+| `.planning/` | Specs, roadmaps, audits, known-issue writeups |
+| `archive/` | Frozen, unreferenced content. Nothing here is loaded at runtime. See `archive/README.md` |
+| `artifacts/`, `data/`, `dist/` | Generated. All gitignored — do not commit files here |
+
+Root-level markdown is limited to `README.md` (humans), `CLAUDE.md` (this file),
+and `AGENTS.md`. New agent-facing docs go in `.agent/`, not the root.
+
+**Retention:** every directory that grows without bound has an owner row in the
+table in `.agent/OPERATIONS.md`. Add one when you add such a directory.
+`npm run clean:all -- --dry-run` shows what is prunable.
+
+## Environment Loading
+
+`config/env.ts` calls `dotenv.config()` **without** `override: true`, so explicit
+process environment beats `.env`. That is what lets Docker, CI, and
+`scripts/run-tests.sh` redirect paths. Restoring `override: true` re-breaks them.
+
+Tests run through `scripts/run-tests.sh`, which points `ARTIFACTS_DIR`,
+`BOT_PROFILE_DIR`, and `ACTIVITY_LOG_PATH` at a temp directory removed on exit.
+Never write a test that assumes `PROJECT_ROOT + "artifacts"`.
+
+Absolute host paths in source (`/parent/…`, `/app/…`, `/home/…`) are rejected by
+`.ast-grep/rules/no-absolute-host-paths.yml`.
 
 ## Operational Rules
 
