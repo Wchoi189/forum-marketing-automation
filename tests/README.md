@@ -20,7 +20,8 @@ tests/
 ## Running Tests
 
 ```bash
-# Run all tests (lint + unit + integration)
+# Run all tests: lint (tsc x2 + ast-grep) + unit + integration + mcp:parser + competitor-intel.
+# This is exactly what CI runs.
 npm run test
 
 # Run only unit tests

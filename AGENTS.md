@@ -6,10 +6,14 @@ Quick reference for AI agents working in this repository.
 
 ```bash
 npm run mempalace:wake-up   # REQUIRED at session start
-npm run lint                # TypeScript check
+npm run lint                # TypeScript check (both configs) + ast-grep scan
 npm run test:unit           # Fast unit tests
 npm run test:integration    # API/publisher tests
 ```
+
+`npm run lint` and `npm test` both run in CI (`.github/workflows/ci.yml`) on every
+pull request and every push to `main`. A red check blocks the merge — treat a
+local failure the same way.
 
 ## Documentation
 
