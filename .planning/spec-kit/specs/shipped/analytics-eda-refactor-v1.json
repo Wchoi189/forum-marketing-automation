@@ -1,6 +1,7 @@
 {
   "id": "analytics-eda-refactor-v1",
   "title": "Competitor EDA: Data-to-Action Refactor",
+  "status": "shipped",
   "type": "feature",
   "purpose": "Transform the Competitor EDA page from a raw-data dump into an operator-facing insight surface. Move from passive observation to a drill-down, human-readable analytics experience that informs posting decisions.",
   "design_intent": "SaaS-style progressive disclosure: KPI summary at top, interactive summary table in the middle, charts that respond to selection, bot signals hidden behind an advanced toggle. One screen, one primary decision: 'who is dominant in my space right now, and when should I post?'",

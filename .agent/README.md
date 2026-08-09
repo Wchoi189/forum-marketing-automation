@@ -50,4 +50,4 @@ npm run mempalace:wake-up
 
 Then call `mempalace_status` (MCP) to confirm palace state.
 
-See [MemPalace spec](../.planning/spec-kit/specs/mempalace-memory-loop-v1.json) for details.
+See [MemPalace spec](../.planning/spec-kit/specs/active/mempalace-memory-loop-v1.json) for details.

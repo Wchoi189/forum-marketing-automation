@@ -18,7 +18,7 @@
 ### IN (index and retrieve)
 - `.agent/session-handovers/*.json`
 - `.agent/state/state.index.json`
-- `.planning/spec-kit/specs/*.json`
+- `.planning/spec-kit/specs/active/*.json`
 - `.planning/spec-kit/plans/**/*.json`
 
 ### OUT (exclude by default)
@@ -60,7 +60,7 @@ Use this after each meaningful micro-task (decision, blocker, accepted slice).
 2. Re-index memory artifacts only:
 - `mempalace mine .agent/state`
 - `mempalace mine .agent/session-handovers`
-- `mempalace mine .planning/spec-kit/specs`
+- `mempalace mine .planning/spec-kit/specs/active`
 
 3. Validate retrieval:
 - `mempalace search "current objective" --wing marketing_automation`

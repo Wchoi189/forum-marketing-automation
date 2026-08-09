@@ -42,11 +42,18 @@ the repo root fails the build; put it in `.agent/` (how the system works now) or
 ## Key Files
 
 ```
-config/env.ts              # Environment parsing (canonical)
-.agent/contracts/          # Data and API contracts
-.planning/spec-kit/specs/  # Semantic specs
-.planning/known-issues/    # KEDB entries
+config/env.ts                    # Environment parsing (canonical)
+.agent/contracts/                # Data and API contracts
+.planning/spec-kit/contracts/    # Behavior contracts and policies (current truth)
+.planning/spec-kit/reference/    # Reviewer pack: catalogs, inventories, guidelines
+.planning/spec-kit/specs/active/ # In-flight work — read this when orienting
+.planning/known-issues/          # KEDB entries
 ```
+
+Specs carry a `status` of `proposed | active | shipped | superseded`, and the
+directory must match it (`specs/active`, `specs/shipped`, `specs/archive`).
+`npm run lint:structure` fails on a mismatch. Contracts and reference docs are
+current truth and carry no status.
 
 ## Session Workflow
 

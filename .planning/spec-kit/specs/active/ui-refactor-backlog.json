@@ -1,5 +1,6 @@
 {
   "spec_id": "ui-refactor-backlog-v1",
+  "status": "active",
   "purpose": "Small, semantics-first backlog for transitioning to a SaaS-like multi-page layout.",
   "principles": [
     "Keep behavior stable while changing layout and ownership boundaries.",

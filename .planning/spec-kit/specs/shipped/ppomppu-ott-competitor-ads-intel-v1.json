@@ -1,7 +1,7 @@
 {
   "spec_id": "ppomppu-ott-competitor-ads-intel-v1",
   "title": "Ppomppu OTT Competitor Ads Intelligence (Manual Collection)",
-  "status": "implemented",
+  "status": "shipped",
   "implemented_at": "2026-05-09",
   "purpose": "Define a manual, one-time-per-post collection workflow that extracts competitor ad details from Ppomppu OTT board posts into a structured dataset with audit artifacts.",
   "design_intent": "Prefer deterministic, low-volume scraping and extraction with strong evidence retention. Use HTML parsing for text ads first, then OCR and VLM only when needed. Keep the pipeline manual and fail-closed on ambiguous extraction.",

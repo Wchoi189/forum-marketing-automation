@@ -1,5 +1,6 @@
 {
   "goal_id": "state-authority-final-goal-v1",
+  "status": "active",
   "purpose": "Define the final architecture goal for reliable publish opportunity capture and deterministic state synchronization.",
   "design_intent": "Harden the existing file-based architecture so runtime controls, scheduler decisions, and UI state converge on one authoritative server state with explicit provenance and failure semantics.",
   "change_impact": "Affects API contracts, scheduler behavior, frontend state orchestration, persistence flow, and operational runbooks; reduces missed publishes and restart drift risk.",
@@ -61,8 +62,8 @@
   "references": {
     "constitution": ".planning/spec-kit/constitution.md",
     "execution_loop_plan": ".planning/spec-kit/plans/execution-loop.plan.json",
-    "runtime_contract": ".planning/spec-kit/specs/execution-loop.contract.json",
-    "state_sync_architecture": ".planning/spec-kit/specs/state-sync-architecture.md",
+    "runtime_contract": ".planning/spec-kit/contracts/execution-loop.contract.json",
+    "state_sync_architecture": ".planning/spec-kit/specs/shipped/state-sync-architecture.md",
     "project_manifest": ".planning/spec-kit/manifest/project.manifest.json"
   }
 }

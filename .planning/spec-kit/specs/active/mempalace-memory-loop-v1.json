@@ -1,6 +1,6 @@
 {
   "spec_id": "mempalace-memory-loop-v1",
-  "status": "ACTIVE",
+  "status": "active",
   "purpose": "Define a deterministic memory loop for AI session continuity using MemPalace while keeping local handover/state files authoritative.",
   "design_intent": "Improve wake-up quality and handover reliability by indexing only working-memory artifacts instead of source code by default.",
   "change_impact": "Affects agent startup, checkpoint discipline, and handover consistency; does not change runtime behavior.",
@@ -8,7 +8,7 @@
     "in": [
       ".agent/state/state.index.json",
       ".agent/session-handovers/handover-*.json",
-      ".planning/spec-kit/specs/*.json",
+      ".planning/spec-kit/specs/active/*.json",
       ".planning/spec-kit/plans/**/*.json"
     ],
     "out": [
@@ -75,6 +75,6 @@
     "agent_skill": ".agent/skills/mempalace-management.md",
     "handover_template": ".agent/session-handovers/template.json",
     "state_index": ".agent/state/state.index.json",
-    "folder_conventions": ".planning/spec-kit/specs/folder-conventions.json"
+    "folder_conventions": ".planning/spec-kit/contracts/folder-conventions.json"
   }
 }

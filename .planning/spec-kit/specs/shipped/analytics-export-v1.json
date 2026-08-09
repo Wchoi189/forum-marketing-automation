@@ -2,7 +2,7 @@
   "id": "analytics-export-v1",
   "title": "Competitor EDA — CSV Export",
   "parent": "analytics-eda-polish-v2",
-  "status": "active",
+  "status": "shipped",
   "created": "2026-04-10",
   "summary": "Add a CSV export button to AnalyticsPage that downloads the current summary table as a .csv file. No new API endpoint required — data is derived client-side from payload.summary.",
 

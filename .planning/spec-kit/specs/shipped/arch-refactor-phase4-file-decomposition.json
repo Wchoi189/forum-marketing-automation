@@ -1,7 +1,7 @@
 {
   "spec_id": "arch-refactor-phase4-file-decomposition-v1",
   "phase": "P4",
-  "status": "done",
+  "status": "shipped",
   "purpose": "Split large files into focused modules for better maintainability.",
   "design_intent": "Reduce cognitive load by organizing code into single-responsibility modules. Enable easier navigation and testing.",
   "change_impact": "New scheduler subdirectory with types and presets. Original scheduler.ts imports from subdirectory.",

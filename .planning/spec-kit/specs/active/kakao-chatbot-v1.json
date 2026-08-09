@@ -1,5 +1,6 @@
 {
   "spec_id": "kakao-chatbot-v1",
+  "status": "active",
   "purpose": "Define the infrastructure, data architecture, and phased rollout plan for a Kakao Business Channel chatbot serving SharePlan's subscription sharing customers.",
   "design_intent": "Build logging-first infrastructure to capture and structure conversation data before any automation. The chatbot system is completely isolated from the publisher/scheduler system. All AI automation is additive and gated behind kill-switches.",
   "change_impact": "New subsystem only. No changes to publisher, scheduler, observer, or any existing API routes. Route POST /kakao-webhook is separate from the /api/* namespace.",

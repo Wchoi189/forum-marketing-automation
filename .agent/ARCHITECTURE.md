@@ -46,7 +46,7 @@ a duplicate `RuntimeControlsVersionConflictError` class living in the shim meant
 `instanceof` checks silently failed and version conflicts returned HTTP 500
 instead of 409. Do not reintroduce an aggregation layer over `lib/state/`.
 
-See [module-boundaries.json](../.planning/spec-kit/specs/module-boundaries.json) for dependency rules.
+See [module-boundaries.json](../.planning/spec-kit/reference/module-boundaries.json) for dependency rules.
 
 ## Environment Variables
 
@@ -106,5 +106,5 @@ restart the session to reload them.
 ## AI-Friendly Development
 
 - Use feature-slice changes (route + state + API usage + tests + spec update).
-- Update reviewer-pack docs in `.planning/spec-kit/specs/` with runtime-facing changes.
+- Update reviewer-pack docs in `.planning/spec-kit/reference/` with runtime-facing changes.
 - Favor deterministic acceptance criteria and explicit failure behavior over vague narratives.

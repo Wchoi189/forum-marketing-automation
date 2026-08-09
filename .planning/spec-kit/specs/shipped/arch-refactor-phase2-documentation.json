@@ -1,7 +1,7 @@
 {
   "spec_id": "arch-refactor-phase2-documentation-v1",
   "phase": "P2",
-  "status": "done",
+  "status": "shipped",
   "purpose": "Decompose dense AGENTS.md into focused, single-purpose documents for faster information retrieval.",
   "design_intent": "Reduce cognitive load by separating concerns: architecture, operations, known issues, and quick-start references.",
   "change_impact": "Affects how developers navigate documentation - now has clear entry points per topic.",

@@ -100,7 +100,7 @@ export async function loadObserverPolicyBase(): Promise<ObserverPolicyBase> {
     observerPolicyBasePromise = (async () => {
       const [workflow, decisionRules] = await Promise.all([
         readPlanningJson<WorkflowManifest>('manifest/workflow.ppomppu-gonggu-v1.json'),
-        readPlanningJson<DecisionRules>('specs/decision-rules.json')
+        readPlanningJson<DecisionRules>('contracts/decision-rules.json')
       ]);
 
       const workflowRules = workflow.observer_rules;

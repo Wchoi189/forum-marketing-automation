@@ -1,3 +1,7 @@
+---
+status: shipped
+---
+
 # State Synchronization Architecture
 
 **Status:** Implemented through P5 closeout (2026-04-17)

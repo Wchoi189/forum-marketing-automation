@@ -1,5 +1,6 @@
 {
   "spec_id": "ai-advisor-v1",
+  "status": "shipped",
   "purpose": "Define an AI advisory layer that synthesizes KPI signals into scheduling recommendations using Grok 4. Advisor output is read-only intent; execution stays on existing API paths.",
   "design_intent": "AI advises, existing API executes. The advisor never writes files, triggers browser runs, or modifies scheduler state directly. All output flows through the validated /api/control-panel path.",
   "change_impact": "Adds a new precedence tier to scheduler-adaptation.policy.json between operator preset and trend multiplier. Operator always wins. Existing rule-based fallback is preserved if the AI call fails.",

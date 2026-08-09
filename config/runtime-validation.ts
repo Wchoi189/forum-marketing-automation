@@ -13,7 +13,8 @@ type PlaybookStep = {
 const PLANNING_ROOT = path.join(ENV.PROJECT_ROOT, '.planning', 'spec-kit');
 const MANIFEST_ROOT = path.join(PLANNING_ROOT, 'manifest');
 const SCHEMA_ROOT = path.join(MANIFEST_ROOT, 'schemas');
-const SPECS_ROOT = path.join(PLANNING_ROOT, 'specs');
+// Contracts, not specs: these are current truth with no lifecycle. See .structure.json spec_lifecycle.
+const CONTRACTS_ROOT = path.join(PLANNING_ROOT, 'contracts');
 const AGENT_ROOT = path.join(ENV.PROJECT_ROOT, '.agent');
 
 async function readJson(filePath: string): Promise<JsonObject> {
@@ -70,9 +71,9 @@ export async function validateRuntimeContracts(): Promise<void> {
   const playbookSchemaPath = path.join(SCHEMA_ROOT, 'playbook.schema.json');
   const dataContractsSchemaPath = path.join(SCHEMA_ROOT, 'data-contracts.schema.json');
   const projectManifestPath = path.join(MANIFEST_ROOT, 'project.manifest.json');
-  const executionLoopContractPath = path.join(SPECS_ROOT, 'execution-loop.contract.json');
-  const decisionRulesPath = path.join(SPECS_ROOT, 'decision-rules.json');
-  const apiContractPath = path.join(SPECS_ROOT, 'api-contract.json');
+  const executionLoopContractPath = path.join(CONTRACTS_ROOT, 'execution-loop.contract.json');
+  const decisionRulesPath = path.join(CONTRACTS_ROOT, 'decision-rules.json');
+  const apiContractPath = path.join(CONTRACTS_ROOT, 'api-contract.json');
   const activityLogContractPath = path.join(AGENT_ROOT, 'contracts', 'activity-log.contract.json');
 
   const [
@@ -237,7 +238,7 @@ export async function validateRuntimeContracts(): Promise<void> {
       'api-contract.json route missing response_schema_ref'
     );
     const parsedResponseRef = parseSchemaRef(responseSchemaRef);
-    const responseSchemaPath = path.normalize(path.resolve(SPECS_ROOT, parsedResponseRef.fileRef));
+    const responseSchemaPath = path.normalize(path.resolve(CONTRACTS_ROOT, parsedResponseRef.fileRef));
     assert(
       responseSchemaPath === path.normalize(dataContractsSchemaPath),
       `api-contract response_schema_ref must point to data-contracts.schema.json: ${responseSchemaRef}`
@@ -251,7 +252,7 @@ export async function validateRuntimeContracts(): Promise<void> {
     if (requestSchemaRef !== null && requestSchemaRef !== undefined) {
       assert(typeof requestSchemaRef === 'string', `api-contract request_schema_ref must be string or null`);
       const parsedRequestRef = parseSchemaRef(requestSchemaRef);
-      const requestSchemaPath = path.normalize(path.resolve(SPECS_ROOT, parsedRequestRef.fileRef));
+      const requestSchemaPath = path.normalize(path.resolve(CONTRACTS_ROOT, parsedRequestRef.fileRef));
       assert(
         requestSchemaPath === path.normalize(dataContractsSchemaPath),
         `api-contract request_schema_ref must point to data-contracts.schema.json: ${requestSchemaRef}`

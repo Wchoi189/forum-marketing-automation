@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-08
 **Author:** Claude (post-implementation review of the cleanup in `cleanup-requirements-2026-08-08.md`)
-**Status:** Part 6 steps 1–5 shipped (2026-08-09). Steps 6–9 open.
+**Status:** Part 6 steps 1–6 shipped (2026-08-09). Steps 7–9 open.
 
 | Step | State |
 |---|---|
@@ -11,7 +11,8 @@
 | 3 ast-grep in CI | Done — `@ast-grep/cli` devDependency, `ast-grep scan` in `npm run lint`, PR #2 |
 | 4 `.structure.json` + validator | Done — `scripts/check-structure.ts`, `npm run lint:structure`, own CI step |
 | 5 Pre-commit hook | Done — `scripts/hooks/pre-commit`, installed by `npm run hooks:install` |
-| 6–9 | Open, see Part 6 |
+| 6 Spec lifecycle | Done — see the amendment to 4.3 below. Hard gate, no ratchet. |
+| 7–9 | Open, see Part 6 |
 
 Step 4 shipped wider than "root allowlist only": placement rules, module entry
 points, and size budgets are all checked. Module entry points run as a **ratchet**
@@ -259,6 +260,29 @@ Recommendation:
 ```
 
 Plus a required `status` field with a **closed vocabulary** — `proposed | active | shipped | superseded` — validated by `check-structure.ts` against the directory a spec sits in. Directory and field must agree; disagreement is a build failure. That prevents the current seven-vocabulary sprawl from re-forming.
+
+#### Amendment — what actually shipped (2026-08-09)
+
+The recommendation above assumed the 55 files were one kind of document. They were three, and forcing a lifecycle onto all of them would have been a lie: a contract is never "shipped", it is current or superseded. The corpus split as:
+
+```
+.planning/spec-kit/
+├── contracts/      15 — behavior contracts, policies, rulesets. No status.
+├── reference/      14 — reviewer pack: catalogs, inventories, guidelines, risk registers. No status.
+├── plans/           2 moved in — *.plan.json joined the existing plans/
+└── specs/
+    ├── active/      7 — status proposed (3) or active (4)
+    ├── shipped/    18 — status shipped
+    └── archive/     1 — status superseded (absorbed the old spec-kit/archive/specs/)
+```
+
+`proposed` and `active` share the `active/` bucket: both mean "not done, read this when orienting". The `status_dir` map in `.structure.json` is many-to-one for exactly that reason.
+
+Four failure modes are enforced at `error` severity, no ratchet: wrong bucket for the declared status, a status outside the vocabulary, a spec sitting loose in `specs/`, and a status field appearing on a `contracts/` or `reference/` document. Markdown specs declare status in YAML frontmatter.
+
+**The classification was checked against the code, not the spec text.** `copilotkit-coach-v1.json` claimed `IN_PROGRESS` but `@copilotkit` is not in `package.json` — it is `proposed`. `app-shell-decompose-v1.json` claimed `proposed` but `src/App.tsx` is 156 lines with `src/pages/` extracted — it is `shipped`. Nine specs claiming `done` were verified against `routes/api/`, `src/`, and `tests/` before being moved.
+
+**One real breakage was found by doing this.** Three files the runtime loads — `execution-loop.contract.json`, `decision-rules.json`, `api-contract.json` — were in `specs/`, and `Dockerfile` copied only `specs/` into the image. `config/runtime-validation.ts` (`SPECS_ROOT` → `CONTRACTS_ROOT`), `lib/observer/policyLoader.ts`, `Dockerfile`, and `.dockerignore` were all updated. The lesson generalizes: **a directory the runtime reads from should be named for what it is, not for the workflow that produced it.**
 
 ---
 

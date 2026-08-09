@@ -17,7 +17,7 @@
 
 - Source guide: `/home/vscode/.gemini/antigravity/brain/.../cloud_deployment_optimization_guide.md.resolved`
 - Constitution: `.planning/spec-kit/constitution.md`
-- Remote-ops contracts: `.planning/spec-kit/specs/remote-ops.*.contract.json`
+- Remote-ops contracts: `.planning/spec-kit/contracts/remote-ops.*.contract.json`
 - Existing ops scripts: `ops/deploy/`, `ops/systemd/`, `ops/aws/`
 - AGENTS.md — publisher success criteria, env var discipline, regression checklist
 

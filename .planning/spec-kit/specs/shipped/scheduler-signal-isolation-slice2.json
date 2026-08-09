@@ -1,7 +1,7 @@
 {
   "slice_id": "scheduler-signal-isolation-slice2-v1",
   "phase": "P4",
-  "status": "done",
+  "status": "shipped",
   "purpose": "Operationalize scheduler signal isolation with diagnostics visibility, runbook command paths, and calibration reporting over recent publisher history.",
   "design_intent": "Make opportunity-signal adaptation observable and repeatable for operators without changing publisher fail-closed behavior or control-panel authority semantics.",
   "change_impact": "Affects diagnostics API payloads, overview dashboards, replay report outputs, and operator runbook procedures for scheduler tuning.",
