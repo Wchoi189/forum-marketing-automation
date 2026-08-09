@@ -12,10 +12,6 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    env:
-      # No test launches a browser (bot-stability only inspects process counts),
-      # so skip the ~200 MB browser download in the playwright postinstall.
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -24,7 +20,18 @@ jobs:
           node-version: "20"
           cache: npm
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
+        env:
+          # The postinstall would fetch chromium, firefox and webkit. Only chromium
+          # is used, and it is installed explicitly in the next step.
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+      # tests/unit/parser-session.test.ts and tests/integration/parser-mcp.integration.test.ts
+      # both drive mcp/parser-session.ts, which calls chromium.launch(). --with-deps
+      # pulls the system libraries the runner image does not ship.
+      - name: Install chromium
+        run: npx playwright install --with-deps chromium
 
       # tsc (both configs) + ast-grep scan
       - name: Lint
