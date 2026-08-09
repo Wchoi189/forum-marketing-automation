@@ -2,7 +2,21 @@
 
 **Date:** 2026-08-08
 **Author:** Claude (post-implementation review of the cleanup in `cleanup-requirements-2026-08-08.md`)
-**Status:** Open — this is a follow-up backlog, nothing here is implemented
+**Status:** Part 6 steps 1–5 shipped (2026-08-09). Steps 6–9 open.
+
+| Step | State |
+|---|---|
+| 1 Re-enable CI | Done — `.github/workflows/ci.yml`, PR #2 |
+| 2 Ollama tests | Done — gated behind a reachability probe, PR #2 |
+| 3 ast-grep in CI | Done — `@ast-grep/cli` devDependency, `ast-grep scan` in `npm run lint`, PR #2 |
+| 4 `.structure.json` + validator | Done — `scripts/check-structure.ts`, `npm run lint:structure`, own CI step |
+| 5 Pre-commit hook | Done — `scripts/hooks/pre-commit`, installed by `npm run hooks:install` |
+| 6–9 | Open, see Part 6 |
+
+Step 4 shipped wider than "root allowlist only": placement rules, module entry
+points, and size budgets are all checked. Module entry points run as a **ratchet**
+rather than a hard gate — 82 cross-module imports already exist, so the count is
+recorded as `module_boundary_baseline` and only an increase fails. Step 7 lowers it.
 
 Companion documents:
 - `.planning/audit/codebase-feedback-2026-08-08.md` — original architecture audit

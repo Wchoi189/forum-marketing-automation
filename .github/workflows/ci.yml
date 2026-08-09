@@ -27,13 +27,20 @@ jobs:
           # is used, and it is installed explicitly in the next step.
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
+      # Root allowlist, placement rules, module entry points, size budgets.
+      # Runs before the chromium download because it takes about a second and is the
+      # check most likely to fail on an otherwise-fine change.
+      - name: Structure
+        run: npm run lint:structure
+
       # tests/unit/parser-session.test.ts and tests/integration/parser-mcp.integration.test.ts
       # both drive mcp/parser-session.ts, which calls chromium.launch(). --with-deps
       # pulls the system libraries the runner image does not ship.
       - name: Install chromium
         run: npx playwright install --with-deps chromium
 
-      # tsc (both configs) + ast-grep scan
+      # tsc (both configs) + ast-grep scan + the structure check again (cheap, and it
+      # keeps `npm run lint` locally equivalent to what CI enforces)
       - name: Lint
         run: npm run lint
 

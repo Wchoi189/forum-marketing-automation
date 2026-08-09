@@ -1,0 +1,122 @@
+{
+  "$comment": [
+    "Machine-readable structure policy. Enforced by scripts/check-structure.ts (npm run lint:structure).",
+    "Rationale in .planning/audit/structure-roadmap-2026-08-08.md Part 3.",
+    "Only git-tracked files are checked. Generated directories (artifacts/, data/, dist/, node_modules/) are gitignored and therefore invisible to this check by construction."
+  ],
+
+  "enforcement": {
+    "$comment": [
+      "error = exit 1, warn = printed but does not fail the build.",
+      "module_entry_points starts at warn: pre-existing cross-module imports exist today (bot.ts, lib/playbookRunner.ts, the observer/publisher pair, lib/scheduler.ts vs lib/scheduler/).",
+      "Untangling them is step 7 of structure-roadmap-2026-08-08.md. module_boundary_baseline is a ratchet: existing violations are tolerated, but adding one fails the build. Lower it as they are fixed; flip to error at zero."
+    ],
+    "root_allowlist": "error",
+    "placement_rules": "error",
+    "module_entry_points": "warn",
+    "module_boundary_baseline": 82,
+    "size_budgets": "error"
+  },
+
+  "root": {
+    "policy": "allowlist",
+    "rationale": "Anything not listed here belongs in a subdirectory. Adding an entry requires a reason in the PR description.",
+    "allowed_files": [
+      ".dockerignore",
+      ".env.docker.example",
+      ".env.example",
+      ".gitignore",
+      ".mempalaceignore",
+      ".structure.json",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "Dockerfile",
+      "Makefile",
+      "README.md",
+      "bot.ts",
+      "docker-compose.yml",
+      "docker-entrypoint.sh",
+      "index.html",
+      "package-lock.json",
+      "package.json",
+      "server.ts",
+      "sgconfig.yml",
+      "tsconfig.json",
+      "tsconfig.server.json",
+      "vite.config.ts"
+    ],
+    "allowed_dirs": [
+      ".agent",
+      ".ast-grep",
+      ".claude",
+      ".cursor",
+      ".github",
+      ".planning",
+      ".vscode",
+      "archive",
+      "config",
+      "contracts",
+      "data",
+      "lib",
+      "mcp",
+      "ops",
+      "routes",
+      "scripts",
+      "src",
+      "storage",
+      "templates",
+      "tests"
+    ],
+    "dir_purpose": {
+      ".agent": "Current truth: how the system works now (architecture, operations, known issues).",
+      ".planning": "Intent and history: specs, roadmaps, audits. A record of a moment.",
+      "archive": "Frozen, unreferenced content. Nothing here is loaded at runtime.",
+      "data": "Pipeline inputs and outputs. Mostly gitignored.",
+      "ops": "Deployment and systemd units.",
+      "scripts": "Developer-invoked entry points, reachable from an npm script.",
+      "storage": "Crawlee key-value and dataset stores.",
+      "templates": "Ad design assets."
+    }
+  },
+
+  "placement_rules": [
+    {
+      "pattern": "*.md",
+      "deny_at_root": true,
+      "except": ["README.md", "CLAUDE.md", "AGENTS.md"],
+      "goes_to": ".agent/ (agent-facing current truth) or .planning/ (specs, audits, roadmaps)"
+    },
+    { "pattern": "*.zip", "deny_anywhere": true, "reason": "Build outputs are not versioned. Rebuild from source." },
+    { "pattern": "*.orig", "deny_anywhere": true, "reason": "Merge/backup leftovers." },
+    { "pattern": "*.rej", "deny_anywhere": true, "reason": "Failed patch leftovers." },
+    { "pattern": "*.bak", "deny_anywhere": true, "reason": "Use git." },
+    { "pattern": "*.bak.*", "deny_anywhere": true, "reason": "Use git." },
+    { "pattern": "*.log", "deny_anywhere": true, "reason": "Runtime output belongs in artifacts/, which is gitignored." }
+  ],
+
+  "module_entry_points": {
+    "$comment": "A file outside one of these directories must import it through its entry point, not by reaching into an internal file. Enforced for relative imports between tracked .ts/.tsx files.",
+    "lib/competitor-ad-parser": "lib/competitor-ad-parser/index.ts",
+    "lib/competitor-intel": "lib/competitor-intel/index.ts",
+    "lib/observer": "lib/observer/index.ts",
+    "lib/parser": "lib/parser/index.ts",
+    "lib/publisher": "lib/publisher/index.ts",
+    "lib/scheduler": "lib/scheduler/index.ts",
+    "lib/state": "lib/state/index.ts"
+  },
+
+  "size_budgets": {
+    "rationale": "Not a hard law - a trigger for a conversation. Exceeding it requires an entry in exemptions with a reason, which is what makes the growth visible in review.",
+    "default_max_lines": 500,
+    "include": ["config/", "contracts/", "lib/", "mcp/", "routes/", "scripts/", "src/", "tests/"],
+    "extensions": [".ts", ".tsx"],
+    "exemptions": {
+      "tests/integration/api.integration.test.ts": "973 - one case per endpoint; splitting by route group is tracked in structure-roadmap-2026-08-08.md",
+      "src/AnalyticsPage.tsx": "799 - decomposition tracked in structure-roadmap-2026-08-08.md item 4",
+      "src/pages/CompetitorIntelPage.tsx": "575 - chart-heavy page, same decomposition pass as AnalyticsPage",
+      "routes/api/logs.ts": "569 - analytics work that likely belongs in lib/, item 5",
+      "src/hooks/useAppData.ts": "541 - dashboard data orchestration; split per-domain when it grows again",
+      "lib/competitorAnalytics.ts": "520 - candidate member of a future lib/analytics/ module, item 5.2"
+    }
+  }
+}
