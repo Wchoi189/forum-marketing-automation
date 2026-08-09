@@ -6,7 +6,9 @@ Quick reference for AI agents working in this repository.
 
 ```bash
 npm run mempalace:wake-up   # REQUIRED at session start
-npm run lint                # TypeScript check (both configs) + ast-grep scan
+npm run lint                # tsc (both configs) + ast-grep scan + structure check
+npm run lint:structure      # .structure.json policy only (~1s)
+npm run hooks:install       # pre-commit hook running the structure check
 npm run test:unit           # Fast unit tests
 npm run test:integration    # API/publisher tests
 ```
@@ -14,6 +16,12 @@ npm run test:integration    # API/publisher tests
 `npm run lint` and `npm test` both run in CI (`.github/workflows/ci.yml`) on every
 pull request and every push to `main`. A red check blocks the merge — treat a
 local failure the same way.
+
+**Where a new file goes** is enforced, not advisory. `.structure.json` allowlists the
+repo root, denies `*.zip`/`*.bak`/`*.log` anywhere, declares module entry points, and
+caps source files at 500 lines with named exemptions. Writing a findings document to
+the repo root fails the build; put it in `.agent/` (how the system works now) or
+`.planning/` (specs, audits, roadmaps).
 
 ## Documentation
 

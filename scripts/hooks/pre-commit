@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Installed by scripts/install-hooks.sh. Do not edit .git/hooks/pre-commit directly -
+# .git/ is not versioned, so edits there are invisible to everyone else.
+#
+# Fast local mirror of the CI structure gate. tsc, ast-grep and the test suite are
+# deliberately not run here: CI is the authority, this is only the fast feedback that
+# stops a misplaced file from reaching a PR.
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+if ! npm run --silent lint:structure; then
+  echo
+  echo "pre-commit: structure check failed (see .structure.json)."
+  echo "Commit anyway with: git commit --no-verify"
+  exit 1
+fi

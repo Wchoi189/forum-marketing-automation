@@ -95,8 +95,18 @@ Full parsing in `config/env.ts`. Schema in `.planning/spec-kit/manifest/schemas/
 | `archive/` | Frozen, unreferenced content. Nothing here is loaded at runtime. See `archive/README.md` |
 | `artifacts/`, `data/`, `dist/` | Generated. All gitignored — do not commit files here |
 
-Root-level markdown is limited to `README.md` (humans), `CLAUDE.md` (this file),
-and `AGENTS.md`. New agent-facing docs go in `.agent/`, not the root.
+`.structure.json` is the machine-readable version of this section, enforced by
+`npm run lint:structure` (part of `npm run lint`, and a separate CI step). The root
+is an **allowlist**: a new file or directory there fails the build until it is
+declared with a reason. Root-level markdown is limited to `README.md` (humans),
+`CLAUDE.md` (this file), and `AGENTS.md`. New agent-facing docs go in `.agent/`,
+not the root.
+
+The same file also declares module entry points (`lib/state`, `lib/publisher`, …
+must be imported through their `index.ts`) and a 500-line size budget with named
+exemptions. The module rule is a **ratchet**: today's 82 violations are recorded as
+`module_boundary_baseline`, and adding an 83rd fails. Install the matching
+pre-commit hook with `npm run hooks:install`.
 
 **Retention:** every directory that grows without bound has an owner row in the
 table in `.agent/OPERATIONS.md`. Add one when you add such a directory.
