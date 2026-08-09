@@ -5,8 +5,10 @@
  */
 
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { createHash } from "node:crypto";
 import * as cheerio from "cheerio";
+import { ENV } from "../config/env.js";
 import { parsePpomppuPost } from "../lib/competitor-ad-parser/ppomppu-parser.js";
 import { cleanProductName, deduplicateProducts } from "../lib/competitor-ad-parser/product-name-utils.js";
 import { extractProductsFromText } from "../lib/competitor-intel/extraction/pipeline.js";
@@ -15,8 +17,7 @@ import { extractContentTextForLlm, productsLookJunk, extractLeafTextBlocks, comp
 import { openDatabase, insertRecord, upsertVendorProfile } from "../lib/competitor-ad-sqlite.js";
 import type { AdProduct } from "../lib/competitor-intel/types.js";
 
-const HTML_DIR =
-  "/parent/marketing-automation/artifacts/competitor-ads/live-20260511/raw_html";
+const HTML_DIR = path.join(ENV.ARTIFACTS_DIR, "competitor-ads/live-20260511/raw_html");
 
 const INCREMENTAL = process.argv.includes("--incremental");
 

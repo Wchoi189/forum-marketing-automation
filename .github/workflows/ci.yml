@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      # No test launches a browser (bot-stability only inspects process counts),
+      # so skip the ~200 MB browser download in the playwright postinstall.
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      # tsc (both configs) + ast-grep scan
+      - name: Lint
+        run: npm run lint
+
+      # unit + integration + mcp:parser + competitor-intel.
+      # scripts/run-tests.sh supplies a hermetic env; no .env exists in CI.
+      - name: Test
+        run: npm test

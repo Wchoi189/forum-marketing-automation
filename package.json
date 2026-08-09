@@ -24,8 +24,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit && tsc --project tsconfig.server.json --noEmit",
-    "test": "npm run lint && npm run test:unit && npm run test:integration && npm run test:mcp:parser",
+    "lint": "tsc --noEmit && tsc --project tsconfig.server.json --noEmit && ast-grep scan",
+    "test": "npm run lint && npm run test:unit && npm run test:integration && npm run test:mcp:parser && npm run test:competitor-intel",
     "test:unit": "bash scripts/run-tests.sh 'tests/unit/*.test.ts'",
     "test:mcp:parser": "bash scripts/run-tests.sh tests/integration/parser-mcp.integration.test.ts",
     "test:integration": "bash scripts/run-tests.sh tests/integration/api.integration.test.ts tests/integration/playbook-runner.integration.test.ts tests/integration/nlWebhook.test.ts tests/integration/bot-stability.test.ts",
@@ -56,6 +56,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@ast-grep/cli": "^0.45.1",
     "@tailwindcss/vite": "^4.1.14",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",

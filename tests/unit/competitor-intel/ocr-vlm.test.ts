@@ -1,7 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { ENV } from "../../../config/env.js";
 import { extractJsonObject } from "../../../lib/competitor-intel/extraction/vlm.js";
 import { estimateOcrConfidence, callOllamaGenerate } from "../../../lib/competitor-intel/extraction/ocr.js";
+
+/**
+ * Model required by the two live tests at the bottom of this file. Reachability
+ * alone is not enough — both assert on `modelUsed`, so a running Ollama without
+ * this model still fails. Probe for the model, not just the port.
+ */
+const REQUIRED_OLLAMA_MODEL = "qwen3:1.7b";
+
+async function ollamaSkipReason(): Promise<string | false> {
+  const base = ENV.OLLAMA_ENDPOINT.replace(/\/$/, "");
+  try {
+    const response = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(1500) });
+    if (!response.ok) return `Ollama at ${base} returned ${response.status}`;
+    const body = (await response.json()) as { models?: Array<{ name?: string }> };
+    const available = body.models?.some((m) => m.name === REQUIRED_OLLAMA_MODEL) ?? false;
+    return available ? false : `Ollama at ${base} has no ${REQUIRED_OLLAMA_MODEL}`;
+  } catch {
+    return `Ollama unreachable at ${base}`;
+  }
+}
+
+const skipOllama = await ollamaSkipReason();
 
 // ---------------------------------------------------------------------------
 // extractJsonObject — pure function
@@ -91,7 +114,7 @@ test("estimateOcrConfidence: short text without price → 0.7", () => {
 // callOllamaGenerate — live Ollama integration
 // ---------------------------------------------------------------------------
 
-test("callOllamaGenerate: text-only call to qwen3:1.7b succeeds", async () => {
+test("callOllamaGenerate: text-only call to qwen3:1.7b succeeds", { skip: skipOllama }, async () => {
   const result = await callOllamaGenerate(
     "Reply with exactly: hello",
     undefined,
@@ -102,7 +125,7 @@ test("callOllamaGenerate: text-only call to qwen3:1.7b succeeds", async () => {
   assert.equal(result.modelUsed, "qwen3:1.7b");
 });
 
-test("callOllamaGenerate: falls back to secondary model when primary missing", async () => {
+test("callOllamaGenerate: falls back to secondary model when primary missing", { skip: skipOllama }, async () => {
   // Primary model doesn't exist, should fall back to the known available model
   const result = await callOllamaGenerate(
     "Reply with: hi",
