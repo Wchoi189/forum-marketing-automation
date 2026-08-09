@@ -16,7 +16,7 @@ import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { ENV } from '../../config/env.js';
-import { logger } from '../../lib/logger.js';
+import { logger } from '../../lib/logging/index.js';
 import {
   isValidKakaoPayload,
   logKakaoMessage,

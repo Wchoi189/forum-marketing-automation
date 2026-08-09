@@ -60,7 +60,7 @@ export async function getLogs() {
 
 // ── Browser lifecycle ─────────────────────────────────────────────────────────
 import { closeSharedBrowser, isSharedBrowserReady, activeContexts } from './lib/sharedBrowser.js';
-import { logger } from './lib/logger.js';
+import { logger } from './lib/logging/index.js';
 
 export async function shutdownBrowser(): Promise<void> {
   if (activeContexts.size > 0 || isSharedBrowserReady()) {

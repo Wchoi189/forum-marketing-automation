@@ -16,8 +16,7 @@ import {
   COMBINED_MULTIPLIER_MAX,
 } from '../trendInsights.js';
 import { summarizeSchedulerSignals } from '../schedulerSignals.js';
-import { logger } from '../logger.js';
-import { LOG_EVENT } from '../logEvents.js';
+import { logger, LOG_EVENT } from '../logging/index.js';
 import { ENV } from '../../config/env.js';
 
 import { PRESET_CONFIG, isHourInRange, normalizeAutoPublisherControls } from './presets.js';

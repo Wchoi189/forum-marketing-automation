@@ -6,8 +6,7 @@
  */
 
 import type { Page } from "playwright";
-import { logger } from "../../logger.js";
-import { LOG_EVENT } from "../../logEvents.js";
+import { logger, LOG_EVENT } from "../../logging/index.js";
 
 /** Korean text indicating rate limit is active. */
 const RATE_LIMIT_MARKER = "글 등록 후 60분이 지나야 다음 게시물을 등록할 수 있습니다";

@@ -17,8 +17,7 @@ import { Router, type RequestHandler } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { ENV } from '../../config/env.js';
-import { logger } from '../../lib/logger.js';
-import { LOG_EVENT } from '../../lib/logEvents.js';
+import { logger, LOG_EVENT } from '../../lib/logging/index.js';
 import { extractErrorCode } from '../../lib/utils.js';
 import {
   getObserverControls,

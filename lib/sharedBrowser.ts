@@ -2,7 +2,7 @@ import { chromium, type Browser, type BrowserContext, type BrowserContextOptions
 import fs from 'node:fs';
 import path from 'node:path';
 import { ENV } from '../config/env.js';
-import { logger } from './logger.js';
+import { logger } from './logging/index.js';
 
 /**
  * Storage state (login cookies) is persisted to the shared volume so it survives

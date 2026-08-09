@@ -18,8 +18,7 @@ import { initSharedBrowser } from "./lib/sharedBrowser.js";
 import { ENV } from "./config/env.js";
 import { WATCH_IGNORED } from "./config/watch.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
-import { logger } from "./lib/logger.js";
-import { LOG_EVENT } from "./lib/logEvents.js";
+import { logger, LOG_EVENT } from "./lib/logging/index.js";
 import { readPublisherHistory } from "./lib/publisherHistory.js";
 import {
   startScheduler,

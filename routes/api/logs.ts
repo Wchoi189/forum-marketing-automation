@@ -19,8 +19,7 @@
 
 import { Router, type RequestHandler } from 'express';
 import { buildCompetitorAnalyticsPayload, parseAnalyticsQuery } from '../../lib/competitorAnalytics.js';
-import { logger } from '../../lib/logger.js';
-import { LOG_EVENT } from '../../lib/logEvents.js';
+import { logger, LOG_EVENT } from '../../lib/logging/index.js';
 import { extractErrorCode } from '../../lib/utils.js';
 import { readPublisherHistory } from '../../lib/publisherHistory.js';
 import { buildTrendInsightsPayload } from '../../lib/trendInsights.js';

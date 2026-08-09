@@ -8,7 +8,7 @@
 import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { ENV } from '../../config/env.js';
-import { logger } from '../../lib/logger.js';
+import { logger } from '../../lib/logging/index.js';
 import { classifyIntent, buildStatusSummary, extractIntervalMinutes, extractGapThreshold } from '../../lib/nlWebhook.js';
 import { getAdvisorCache, markAdvisorCacheApplied } from '../../lib/aiAdvisor.js';
 import { persistState, persistGapOverride } from '../../lib/state/index.js';

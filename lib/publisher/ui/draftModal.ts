@@ -2,8 +2,7 @@ import type { Locator, Page } from "playwright";
 
 import { PLAYBOOK_LOCATOR_TIMEOUT_MS } from "../core/timeouts.js";
 import type { PlaybookRuntimeContext } from "../../playbookRunner.js";
-import { logger } from "../../logger.js";
-import { LOG_EVENT } from "../../logEvents.js";
+import { logger, LOG_EVENT } from "../../logging/index.js";
 
 const DRAFT_MODAL_FALLBACK_VISIBLE_TIMEOUT_MS = 500;
 const DRAFT_MODAL_ACTION_TIMEOUT_MS = 1000;

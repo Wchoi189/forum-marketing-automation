@@ -4,7 +4,7 @@ import { exec } from 'child_process';
 import util from 'util';
 const execAsync = util.promisify(exec);
 import { ENV } from '../config/env.js';
-import { logger } from './logger.js';
+import { logger } from './logging/index.js';
 
 const PUBLISHER_RUNS_DIR = path.join(ENV.ARTIFACTS_DIR, 'publisher-runs');
 export const MAX_ARTIFACT_AGE_DAYS = 7;
