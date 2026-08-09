@@ -44,7 +44,7 @@ import {
   type BotDeps,
   type AutoPublisherControls,
   type ControlPanelPreset,
-} from '../../lib/scheduler.js';
+} from '../../lib/scheduler/index.js';
 import type { SchedulerController } from '../routerTypes.js';
 
 // ── Shared control panel response builder ─────────────────────────────────────

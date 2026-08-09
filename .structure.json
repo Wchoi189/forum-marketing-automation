@@ -8,13 +8,13 @@
   "enforcement": {
     "$comment": [
       "error = exit 1, warn = printed but does not fail the build.",
-      "module_entry_points starts at warn: pre-existing cross-module imports exist today (bot.ts, lib/playbookRunner.ts, the observer/publisher pair, lib/scheduler.ts vs lib/scheduler/).",
+      "module_entry_points starts at warn: pre-existing cross-module imports exist today (bot.ts, lib/playbookRunner.ts, the observer/publisher pair).",
       "Untangling them is step 7 of structure-roadmap-2026-08-08.md. module_boundary_baseline is a ratchet: existing violations are tolerated, but adding one fails the build. Lower it as they are fixed; flip to error at zero."
     ],
     "root_allowlist": "error",
     "placement_rules": "error",
     "module_entry_points": "warn",
-    "module_boundary_baseline": 82,
+    "module_boundary_baseline": 78,
     "size_budgets": "error",
     "spec_lifecycle": "error"
   },

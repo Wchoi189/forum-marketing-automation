@@ -5,6 +5,6 @@
  * the SchedulerController type without a circular dependency on server.ts.
  */
 
-import type { startScheduler } from '../lib/scheduler.js';
+import type { startScheduler } from '../lib/scheduler/index.js';
 
 export type SchedulerController = ReturnType<typeof startScheduler>;

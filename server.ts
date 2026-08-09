@@ -25,7 +25,7 @@ import {
   startScheduler,
   type BotDeps,
   type ControlPanelPreset,
-} from "./lib/scheduler.js";
+} from "./lib/scheduler/index.js";
 import {
   readPersistedSchedulerControls,
   readPersistedNlWebhookEnabled,

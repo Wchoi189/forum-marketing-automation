@@ -14,7 +14,7 @@ import { getAdvisorCache, markAdvisorCacheApplied } from '../../lib/aiAdvisor.js
 import { persistState, persistGapOverride } from '../../lib/state/index.js';
 import { buildTrendInsightsPayload } from '../../lib/trendInsights.js';
 import { readPublisherHistory } from '../../lib/publisherHistory.js';
-import type { BotDeps } from '../../lib/scheduler.js';
+import type { BotDeps } from '../../lib/scheduler/index.js';
 import type { LogCache } from '../../lib/logCache.js';
 import type { SchedulerController } from '../routerTypes.js';
 import type { buildControlPanelResponse } from './control.js';
