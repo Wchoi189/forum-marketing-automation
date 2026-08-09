@@ -4,7 +4,7 @@ import type { ActivityLog } from "../../contracts/models.ts";
 import {
   shareOfVoiceMultiplierFromSoV,
   computeShareOfVoice
-} from "../../lib/trendInsights.ts";
+} from "../../lib/analytics/index.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -8,7 +8,7 @@ import {
   buildSchedulerSignalTimeline,
   classifySchedulerSignal,
   summarizeSchedulerSignals,
-} from "../../lib/schedulerSignals.ts";
+} from "../../lib/analytics/index.ts";
 
 type FixturePayload = {
   id: string;

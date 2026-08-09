@@ -12,7 +12,7 @@ import { logger } from '../../lib/logging/index.js';
 import { classifyIntent, buildStatusSummary, extractIntervalMinutes, extractGapThreshold } from '../../lib/nlWebhook.js';
 import { getAdvisorCache, markAdvisorCacheApplied } from '../../lib/aiAdvisor.js';
 import { persistState, persistGapOverride } from '../../lib/state/index.js';
-import { buildTrendInsightsPayload } from '../../lib/trendInsights.js';
+import { buildTrendInsightsPayload } from '../../lib/analytics/index.js';
 import { readPublisherHistory } from '../../lib/publisherHistory.js';
 import type { BotDeps } from '../../lib/scheduler/index.js';
 import type { LogCache } from '../../lib/logCache.js';

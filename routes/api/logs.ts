@@ -18,11 +18,10 @@
  */
 
 import { Router, type RequestHandler } from 'express';
-import { buildCompetitorAnalyticsPayload, parseAnalyticsQuery } from '../../lib/competitorAnalytics.js';
+import { buildCompetitorAnalyticsPayload, parseAnalyticsQuery, buildTrendInsightsPayload, OPPORTUNITY_MULTIPLIER_MAX, OPPORTUNITY_MULTIPLIER_MIN, buildSchedulerAdaptationWindows, buildSchedulerSignalTimeline, summarizeSchedulerSignals } from '../../lib/analytics/index.js';
 import { logger, LOG_EVENT } from '../../lib/logging/index.js';
 import { extractErrorCode } from '../../lib/utils.js';
 import { readPublisherHistory } from '../../lib/publisherHistory.js';
-import { buildTrendInsightsPayload } from '../../lib/trendInsights.js';
 import {
   getOverview,
   getVendorSummaries,
@@ -34,13 +33,6 @@ import {
 import { openDatabase } from '../../lib/competitor-ad-sqlite.js';
 import { ENV } from '../../config/env.js';
 import type { SchedulerSignalDiagnostics, PublisherHistoryEntry } from '../../contracts/models.js';
-import {
-  OPPORTUNITY_MULTIPLIER_MAX,
-  OPPORTUNITY_MULTIPLIER_MIN,
-  buildSchedulerAdaptationWindows,
-  buildSchedulerSignalTimeline,
-  summarizeSchedulerSignals,
-} from '../../lib/schedulerSignals.js';
 import type { LogCache } from '../../lib/logCache.js';
 import type { SchedulerController } from '../routerTypes.js';
 

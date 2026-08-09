@@ -7,15 +7,7 @@
 
 import { clamp } from '../utils.js';
 import { applyScheduleJitter } from '../scheduleJitter.js';
-import {
-  computeTurnoverAnalysis,
-  trendMultiplierFromAvgRate,
-  computeShareOfVoice,
-  shareOfVoiceMultiplierFromSoV,
-  COMBINED_MULTIPLIER_MIN,
-  COMBINED_MULTIPLIER_MAX,
-} from '../trendInsights.js';
-import { summarizeSchedulerSignals } from '../schedulerSignals.js';
+import { computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoice, shareOfVoiceMultiplierFromSoV, COMBINED_MULTIPLIER_MIN, COMBINED_MULTIPLIER_MAX, summarizeSchedulerSignals } from '../analytics/index.js';
 import { logger, LOG_EVENT } from '../logging/index.js';
 import { ENV } from '../../config/env.js';
 

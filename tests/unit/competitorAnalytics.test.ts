@@ -1,11 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { ActivityLog } from "../../contracts/models.ts";
-import type { CompetitorAnalyticsQuery } from "../../lib/competitorAnalytics.ts";
-import {
-  buildCompetitorAnalyticsPayload,
-  parseAnalyticsQuery
-} from "../../lib/competitorAnalytics.ts";
+import { buildCompetitorAnalyticsPayload, parseAnalyticsQuery } from "../../lib/analytics/index.ts";
+import type { CompetitorAnalyticsQuery } from "../../lib/analytics/index.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

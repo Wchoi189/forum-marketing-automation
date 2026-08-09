@@ -1,4 +1,4 @@
-import type { PublisherHistoryEntry, PublisherRunDecision } from "../contracts/models.js";
+import type { PublisherHistoryEntry, PublisherRunDecision } from "../../contracts/models.js";
 
 export type SchedulerSignalClass =
   | "gap_recheck"
