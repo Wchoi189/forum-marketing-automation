@@ -4,7 +4,7 @@
  */
 import fs from "node:fs";
 import zlib from "node:zlib";
-import { openDatabase, insertRecord, upsertVendorProfile } from "../lib/competitor-ad-sqlite.js";
+import { openDatabase, insertRecord, upsertVendorProfile } from "../lib/competitor-store/index.js";
 
 const JSONL_PATH = "artifacts/competitor-ads/live-20260511/data/records.jsonl.gz";
 

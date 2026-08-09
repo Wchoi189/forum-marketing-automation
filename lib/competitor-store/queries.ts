@@ -5,9 +5,9 @@
  * Reads from the competitor-ads SQLite database.
  */
 
-import type { Database } from "./competitor-ad-sqlite.js";
-import type { AdProduct } from "./competitor-intel/types.js";
-import { cleanProductName } from "./competitor-ad-parser/product-name-utils.js";
+import type { Database } from "./sqlite.js";
+import type { AdProduct } from "../competitor-intel/index.js";
+import { cleanProductName } from "../competitor-ad-parser/index.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

@@ -28,7 +28,7 @@ import {
   groupByAuthor,
   syncDatasetToSqlite,
 } from "../lib/competitor-intel/index.js";
-import { openDatabase, listVendorProfiles, getRecordCount, isRecordKnown } from "../lib/competitor-ad-sqlite.js";
+import { openDatabase, listVendorProfiles, getRecordCount, isRecordKnown } from "../lib/competitor-store/index.js";
 
 // ── CLI args ─────────────────────────────────────────────────────────────────
 

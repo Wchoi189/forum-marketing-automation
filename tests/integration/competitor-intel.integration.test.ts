@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { loadCsvRows, recordIdFrom, buildRecordBase } from "../../lib/competitor-intel/index.js";
-import { openDatabase, isRecordKnown, insertRecord, upsertVendorProfile, listVendorProfiles, getRecordCount } from "../../lib/competitor-ad-sqlite.js";
+import { openDatabase, isRecordKnown, insertRecord, upsertVendorProfile, listVendorProfiles, getRecordCount } from "../../lib/competitor-store/index.js";
 
 // ---------------------------------------------------------------------------
 // CSV parser integration
