@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import type { Database as Db } from "better-sqlite3";
 
 export type { Db as Database };
-import { ENV } from "../config/env.js";
+import { ENV } from "../../config/env.js";
 
 const DB_DIR = path.join(ENV.ARTIFACTS_DIR, "competitor-ads");
 const DB_FILE = path.join(DB_DIR, "competitor-ads.db");
@@ -191,7 +191,7 @@ export function upsertVendorProfile(db: Db, vendorId: string, params: {
   );
 }
 
-type VendorProfile = {
+export type VendorProfile = {
   vendor_id: string;
   author_name: string | null;
   first_seen_post_url: string | null;

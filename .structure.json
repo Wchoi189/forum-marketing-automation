@@ -8,13 +8,13 @@
   "enforcement": {
     "$comment": [
       "error = exit 1, warn = printed but does not fail the build.",
-      "module_entry_points starts at warn: pre-existing cross-module imports exist today (bot.ts, lib/playbookRunner.ts, the observer/publisher pair, lib/scheduler.ts vs lib/scheduler/).",
+      "module_entry_points starts at warn: pre-existing cross-module imports exist today (bot.ts, lib/playbookRunner.ts, the observer/publisher pair).",
       "Untangling them is step 7 of structure-roadmap-2026-08-08.md. module_boundary_baseline is a ratchet: existing violations are tolerated, but adding one fails the build. Lower it as they are fixed; flip to error at zero."
     ],
     "root_allowlist": "error",
     "placement_rules": "error",
     "module_entry_points": "warn",
-    "module_boundary_baseline": 82,
+    "module_boundary_baseline": 76,
     "size_budgets": "error",
     "spec_lifecycle": "error"
   },
@@ -97,8 +97,13 @@
 
   "module_entry_points": {
     "$comment": "A file outside one of these directories must import it through its entry point, not by reaching into an internal file. Enforced for relative imports between tracked .ts/.tsx files.",
+    "lib/analytics": "lib/analytics/index.ts",
+    "lib/browser": "lib/browser/index.ts",
     "lib/competitor-ad-parser": "lib/competitor-ad-parser/index.ts",
     "lib/competitor-intel": "lib/competitor-intel/index.ts",
+    "lib/competitor-store": "lib/competitor-store/index.ts",
+    "lib/kakao": "lib/kakao/index.ts",
+    "lib/logging": "lib/logging/index.ts",
     "lib/observer": "lib/observer/index.ts",
     "lib/parser": "lib/parser/index.ts",
     "lib/publisher": "lib/publisher/index.ts",
@@ -140,7 +145,7 @@
       "src/pages/CompetitorIntelPage.tsx": "575 - chart-heavy page, same decomposition pass as AnalyticsPage",
       "routes/api/logs.ts": "569 - analytics work that likely belongs in lib/, item 5",
       "src/hooks/useAppData.ts": "541 - dashboard data orchestration; split per-domain when it grows again",
-      "lib/competitorAnalytics.ts": "520 - candidate member of a future lib/analytics/ module, item 5.2"
+      "lib/analytics/competitors.ts": "520 - moved into lib/analytics/ by item 5.2; splitting the EDA payload builder from the event extractor is still open"
     }
   }
 }

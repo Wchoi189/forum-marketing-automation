@@ -11,7 +11,7 @@
  *   npx tsx scripts/discover-catalog-gaps.ts --vendor "OTT대장"  (filter by vendor)
  */
 
-import { openDatabase } from "../lib/competitor-ad-sqlite.js";
+import { openDatabase } from "../lib/competitor-store/index.js";
 import { matchProductName, getProductNameMap } from "../lib/competitor-intel/extraction/product-catalog.js";
 import type { AdProduct } from "../lib/competitor-intel/types.js";
 

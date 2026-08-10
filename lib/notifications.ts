@@ -1,5 +1,5 @@
 import { ENV } from "../config/env.js";
-import { logger } from "./logger.js";
+import { logger } from "./logging/index.js";
 
 /**
  * Sends a notification to Slack using an Incoming Webhook URL.

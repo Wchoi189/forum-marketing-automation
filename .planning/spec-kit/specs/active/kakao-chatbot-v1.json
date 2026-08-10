@@ -82,7 +82,7 @@
     },
     "live_jsonl": {
       "path": "artifacts/kakao-history/YYYY-MM-DD.jsonl",
-      "written_by": "lib/kakaoSkill.ts logKakaoMessage()",
+      "written_by": "lib/kakao/skill.ts logKakaoMessage()",
       "started": "2026-04-18"
     },
     "knowledge_base_template": {
@@ -133,7 +133,7 @@
       "name": "Webhook Infrastructure",
       "status": "DONE",
       "deliverables": [
-        "lib/kakaoSkill.ts — types, validator, JSONL logger, response builder",
+        "lib/kakao/skill.ts — types, validator, JSONL logger, response builder",
         "POST /kakao-webhook in server.ts",
         "KAKAO_WEBHOOK_ENABLED kill-switch in config/env.ts",
         "artifacts/kakao-history/YYYY-MM-DD.jsonl live logging",
@@ -192,7 +192,7 @@
       "deliverables": [
         "Intent classification: OpenAI classifies incoming utterance against known intent taxonomy",
         "Response generation: retrieves matching FAQ from KB or generates from annotated examples",
-        "lib/kakaoAutoReply.ts — wraps OpenAI call, respects KAKAO_AUTOREPLY_ENABLED kill-switch",
+        "lib/kakao/autoReply.ts — wraps OpenAI call, respects KAKAO_AUTOREPLY_ENABLED kill-switch",
         "3-second timeout compliance: immediate ACK if LLM call cannot complete in time",
         "Dev channel only until operator validates reply quality"
       ],

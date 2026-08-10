@@ -14,7 +14,7 @@ import { cleanProductName, deduplicateProducts } from "../lib/competitor-ad-pars
 import { extractProductsFromText } from "../lib/competitor-intel/extraction/pipeline.js";
 import { runTextExtraction } from "../lib/competitor-intel/extraction/text-extraction.js";
 import { extractContentTextForLlm, productsLookJunk, extractLeafTextBlocks, computeCompletenessScore } from "../lib/competitor-intel/extraction/content-utils.js";
-import { openDatabase, insertRecord, upsertVendorProfile } from "../lib/competitor-ad-sqlite.js";
+import { openDatabase, insertRecord, upsertVendorProfile } from "../lib/competitor-store/index.js";
 import type { AdProduct } from "../lib/competitor-intel/types.js";
 
 const HTML_DIR = path.join(ENV.ARTIFACTS_DIR, "competitor-ads/live-20260511/raw_html");

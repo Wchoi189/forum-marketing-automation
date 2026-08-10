@@ -21,5 +21,5 @@ export {
   normalizeAutoPublisherControls,
 } from './presets.js';
 
-// Main scheduler function (re-exported from main file)
-export { startScheduler } from '../scheduler.js';
+// Scheduler loop
+export { startScheduler } from './run.js';

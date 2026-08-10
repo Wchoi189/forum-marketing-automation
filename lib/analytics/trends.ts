@@ -1,5 +1,5 @@
-import type { ActivityLog } from "../contracts/models.js";
-import { clamp } from "../lib/utils.js";
+import type { ActivityLog } from "../../contracts/models.js";
+import { clamp } from "../utils.js";
 
 /** Mirrors `.planning/spec-kit/contracts/scheduler-adaptation.policy.json` trend_multiplier_bounds */
 export const TREND_MULTIPLIER_MIN = 0.65;

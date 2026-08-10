@@ -1,8 +1,8 @@
 import { ENV } from "../config/env.js";
 import { clamp } from "./utils.js";
-import { logger } from "./logger.js";
+import { logger } from "./logging/index.js";
 import type { ActivityLog, PublisherHistoryEntry } from "../contracts/models.js";
-import type { TrendInsightsPayload } from "./trendInsights.js";
+import type { TrendInsightsPayload } from "./analytics/index.js";
 
 // ---------------------------------------------------------------------------
 // Types

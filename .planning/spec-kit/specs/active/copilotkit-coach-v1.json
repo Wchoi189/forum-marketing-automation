@@ -141,7 +141,7 @@
       "operator_edited": "BOOLEAN — true if operator changed the suggestion before use",
       "created_at": "TIMESTAMPTZ DEFAULT NOW()"
     },
-    "migration": "Added in Sprint 6a via CREATE TABLE IF NOT EXISTS in lib/kakaoDb.ts ensureReady()",
+    "migration": "Added in Sprint 6a via CREATE TABLE IF NOT EXISTS in lib/kakao/db.ts ensureReady()",
     "retention": "No automatic purge. Review after 30 days of prod use."
   },
 
@@ -226,7 +226,7 @@
         "COPILOTKIT_ENABLED + COPILOT_CONTEXT_TURNS added to config/env.ts",
         "POST /api/copilotkit endpoint in server.ts — 503 when disabled",
         "lib/copilotCoach.ts — CopilotRuntime setup, COACH_SYSTEM_PROMPT, model wiring",
-        "coach_events table + labels JSONB column on chat_history both added in lib/kakaoDb.ts ensureReady() (ALTER TABLE ... ADD COLUMN IF NOT EXISTS labels JSONB)",
+        "coach_events table + labels JSONB column on chat_history both added in lib/kakao/db.ts ensureReady() (ALTER TABLE ... ADD COLUMN IF NOT EXISTS labels JSONB)",
         "GET /api/kakao/thread/:userKey — returns PII-scrubbed last N turns",
         "/api/kakao/status extended to include copilotEnabled field"
       ],

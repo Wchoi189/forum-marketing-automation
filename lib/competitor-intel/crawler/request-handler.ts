@@ -14,7 +14,7 @@ import type { VendorRegistry as VendorRegistryType } from "../index.js";
 import { parsePpomppuPost } from "../../competitor-ad-parser/index.js";
 import { cleanProductName, deduplicateProducts } from "../../competitor-ad-parser/product-name-utils.js";
 import { subtree } from "../../parser/index.js";
-import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from "../../playwright/browser-eval-polyfill.js";
+import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from "../../browser/index.js";
 import type { CompetitorAdRecord, AdProduct, EvidenceSource, AdEvidence } from "../types.js";
 import { postIdFromUrl, buildRecordBase } from "../storage/record-builder.js";
 import { chooseContentSelector, collectImages, extractTextBlocks, findPostedAt, extractProductsFromText } from "../extraction/pipeline.js";

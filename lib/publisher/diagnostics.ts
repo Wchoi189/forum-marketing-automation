@@ -3,7 +3,7 @@ import path from 'path';
 import type { Page } from 'playwright';
 
 import { ENV } from '../../config/env.js';
-import { logger } from '../logger.js';
+import { logger } from '../logging/index.js';
 
 /**
  * Timestamp-based per-run directory for readable artifact chronology.

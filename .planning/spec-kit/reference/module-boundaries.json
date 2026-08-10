@@ -26,25 +26,37 @@
       "paths": ["lib/state/"],
       "responsibility": "Single source of truth for observer, publisher, scheduler, and NL-webhook runtime state. Owns in-memory controls, atomic persistence to ARTIFACTS_DIR/runtime-controls.json, and optimistic concurrency via stateVersion.",
       "allowed_dependencies": ["config/*", "lib/utils.ts"],
-      "forbidden_dependencies": ["lib/scheduler.ts", "lib/observer/*", "lib/publisher/*", "routes/*", "playwright"],
+      "forbidden_dependencies": ["lib/scheduler/*", "lib/observer/*", "lib/publisher/*", "routes/*", "playwright"],
       "design_intent": "Consolidated from the former lib/controls.ts (in-memory) and lib/runtimeControls.ts (persistence) on 2026-08-08. Both shims were deleted. Importing state through any aggregation layer is forbidden because a duplicate error class in the old shim broke instanceof checks and downgraded HTTP 409 conflict responses to 500.",
       "change_impact": "server.ts, bot.ts, routes/api/control.ts, routes/api/nl.ts, routes/api/ai.ts, lib/observer/*, lib/publisher/*",
       "public_entry_point": "lib/state/index.ts"
     },
     {
       "module_id": "scheduler",
-      "paths": ["lib/scheduler.ts", "lib/scheduler/"],
+      "paths": ["lib/scheduler/"],
       "responsibility": "Gap-driven publishing orchestration: tick loop, interval computation, presets, quiet/active hour multipliers, and jitter.",
-      "allowed_dependencies": ["lib/state/*", "lib/trendInsights.ts", "lib/schedulerSignals.ts", "lib/scheduleJitter.ts", "config/*", "contracts/*"],
+      "allowed_dependencies": ["lib/state/*", "lib/analytics/*", "lib/scheduleJitter.ts", "lib/logging/*", "config/*", "contracts/*"],
       "forbidden_dependencies": ["routes/*", "src/*"],
-      "design_intent": "lib/scheduler/ holds types and presets; lib/scheduler.ts holds the orchestration loop. The barrel re-exports startScheduler from the parent file, so callers import lib/scheduler/index.js and never reach past it.",
+      "design_intent": "run.ts holds the orchestration loop, types.ts and presets.ts the configuration. Consolidated on 2026-08-09: the loop used to live in lib/scheduler.ts beside the directory, and the barrel re-exported it from there, so the entry point pointed outward and every caller counted as a boundary violation.",
       "public_entry_point": "lib/scheduler/index.ts"
     },
     {
       "module_id": "analytics_lib",
-      "paths": ["lib/competitorAnalytics.ts", "lib/trendInsights.ts"],
-      "responsibility": "Transform activity logs into analytics payloads and guidance.",
-      "allowed_dependencies": ["contracts/*"]
+      "paths": ["lib/analytics/"],
+      "responsibility": "Transform history into derived payloads: board turnover and share of voice (trends.ts), publisher run signal classification (schedulerSignals.ts), competitor EDA (competitors.ts).",
+      "allowed_dependencies": ["contracts/*", "lib/utils.ts"],
+      "forbidden_dependencies": ["playwright", "lib/state/*", "routes/*"],
+      "design_intent": "All three read history and return a payload. None touch the browser or write state, which is what makes them unit-testable without fixtures.",
+      "public_entry_point": "lib/analytics/index.ts"
+    },
+    {
+      "module_id": "competitor_store",
+      "paths": ["lib/competitor-store/"],
+      "responsibility": "SQLite corpus of extracted competitor ads (sqlite.ts) and the dashboard read model over it (queries.ts).",
+      "allowed_dependencies": ["better-sqlite3", "config/*", "lib/competitor-intel/index.ts", "lib/competitor-ad-parser/index.ts"],
+      "forbidden_dependencies": ["crawlee", "playwright", "routes/*", "src/*"],
+      "design_intent": "Kept out of lib/competitor-intel/ on 2026-08-09: that barrel re-exports createPlaywrightCrawler, and routes/api/logs.ts opens this database on every dashboard request. Folding them together would put Crawlee and Playwright in the API server's import graph on a host that has already OOMed (KE-002). Dependency runs one way, intel -> store.",
+      "public_entry_point": "lib/competitor-store/index.ts"
     },
     {
       "module_id": "contracts_and_validation",

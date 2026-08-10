@@ -6,9 +6,9 @@
  */
 
 import { Dataset } from "crawlee";
-import { openDatabase, isRecordKnown, insertRecord, upsertVendorProfile } from "../../competitor-ad-sqlite.js";
+import { openDatabase, isRecordKnown, insertRecord, upsertVendorProfile } from "../../competitor-store/index.js";
+import type { Database } from "../../competitor-store/index.js";
 import { exportDatasetToJsonlGz } from "./jsonl-export.js";
-import type { Database } from "../../competitor-ad-sqlite.js";
 
 export type SyncResult = {
   /** Records successfully inserted into SQLite */

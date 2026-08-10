@@ -12,7 +12,7 @@
 import path from 'path';
 import fs from 'fs/promises';
 import { ENV } from '../../config/env.js';
-import { logger } from '../logger.js';
+import { logger } from '../logging/index.js';
 import { pageOutline, snapshotDiff, subtree, type ProjectedNode, type ProjectedSnapshot } from '../parser/index.js';
 
 // ---------------------------------------------------------------------------

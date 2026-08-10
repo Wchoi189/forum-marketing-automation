@@ -14,24 +14,23 @@ import {
   registerSignalHandlers,
 } from "./bot.js";
 import { getSharedLogCache } from "./lib/logCache.js";
-import { initSharedBrowser } from "./lib/sharedBrowser.js";
+import { initSharedBrowser } from "./lib/browser/index.js";
 import { ENV } from "./config/env.js";
 import { WATCH_IGNORED } from "./config/watch.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
-import { logger } from "./lib/logger.js";
-import { LOG_EVENT } from "./lib/logEvents.js";
+import { logger, LOG_EVENT } from "./lib/logging/index.js";
 import { readPublisherHistory } from "./lib/publisherHistory.js";
 import {
   startScheduler,
   type BotDeps,
   type ControlPanelPreset,
-} from "./lib/scheduler.js";
+} from "./lib/scheduler/index.js";
 import {
   readPersistedSchedulerControls,
   readPersistedNlWebhookEnabled,
 } from "./lib/state/index.js";
 import { getResourceMetrics, checkResourceThresholds, runGarbageCollection } from "./lib/resourceMonitor.js";
-import * as kakaoDb from "./lib/kakaoDb.js";
+import { db as kakaoDb } from "./lib/kakao/index.js";
 import type { PublisherRunDecision } from "./contracts/models.js";
 
 // ── Route modules ─────────────────────────────────────────────────────────────

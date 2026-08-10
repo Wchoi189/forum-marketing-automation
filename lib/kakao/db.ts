@@ -1,7 +1,7 @@
 import pg from "pg";
-import { ENV } from "../config/env.js";
-import { logger } from "./logger.js";
-import type { KakaoSkillPayload } from "./kakaoSkill.js";
+import { ENV } from "../../config/env.js";
+import { logger } from "../logging/index.js";
+import type { KakaoSkillPayload } from "./skill.js";
 
 let pool: pg.Pool | null = null;
 

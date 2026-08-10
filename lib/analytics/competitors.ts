@@ -1,4 +1,4 @@
-import type { ActivityLog, Post } from "../contracts/models.js";
+import type { ActivityLog, Post } from "../../contracts/models.js";
 
 export type AnalyticsBucket = "hour" | "day" | "week";
 

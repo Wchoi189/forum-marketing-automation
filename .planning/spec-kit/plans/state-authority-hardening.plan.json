@@ -29,7 +29,7 @@
       "done_evidence": [
         "lib/runtimeControls.ts serialized atomic write queue",
         "server.ts control-panel await + failure handling",
-        "lib/logEvents.ts persist-failed event"
+        "lib/logging/events.ts persist-failed event"
       ],
       "exit_criteria": [
         "No fire-and-forget control persistence paths remain in control-panel flow",

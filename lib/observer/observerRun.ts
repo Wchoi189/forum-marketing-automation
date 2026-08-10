@@ -8,11 +8,9 @@
 import type { BrowserContext } from 'playwright';
 import type { ActivityLog } from '../../contracts/models.js';
 import { ENV } from '../../config/env.js';
-import { logger } from '../logger.js';
-import { LOG_EVENT } from '../logEvents.js';
+import { logger, LOG_EVENT } from '../logging/index.js';
 import { extractErrorCode } from '../utils.js';
-import { createBrowserContext } from '../sharedBrowser.js';
-import { BROWSER_EVAL_NAME_POLYFILL_SCRIPT } from '../playwright/browser-eval-polyfill.js';
+import { createBrowserContext, BROWSER_EVAL_NAME_POLYFILL_SCRIPT, registerBrowserDebugHandlers } from '../browser/index.js';
 import { BOT_MAX_WAIT_MS } from '../publisher/core/timeouts.js';
 import { parseBoardRows } from './boardParser.js';
 import { getBoardDiagnostics } from './boardDiagnostics.js';
@@ -20,7 +18,6 @@ import { collectParserSignal, captureBoardRowRegionArtifact, combinedConfidence,
 import { loadObserverPolicy } from './policyLoader.js';
 import { getObserverControls } from '../state/index.js';
 import { getSharedLogCache } from '../logCache.js';
-import { registerBrowserDebugHandlers } from '../browserDebug.js';
 import fs from 'fs/promises';
 
 // ---------------------------------------------------------------------------

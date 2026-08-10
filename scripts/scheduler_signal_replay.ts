@@ -8,7 +8,7 @@ import {
   buildSchedulerAdaptationWindows,
   buildSchedulerSignalTimeline,
   summarizeSchedulerSignals,
-} from "../lib/schedulerSignals.js";
+} from "../lib/analytics/index.js";
 
 type CliOptions = {
   historyDir: string;

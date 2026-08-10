@@ -14,7 +14,7 @@ export * from './publisher/index.js';
 export * from './observer/index.js';
 
 // Logger
-export { logger } from './logger.js';
+export { logger } from './logging/index.js';
 
 // Utilities
 export { clamp, clampInt } from './utils.js';

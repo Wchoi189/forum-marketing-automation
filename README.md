@@ -128,7 +128,7 @@ Execution loop per session: `spec_update -> task_selection -> implement_slice ->
 ### Auditing `ReferenceError: __name is not defined` in the observer
 TypeScript can emit `__name(...)` inside functions serialized for `page.evaluate`. The browser does not provide that helper.
 
-1. **Required:** every `BrowserContext` used by the bot or parser MCP registers `lib/playwright/browser-eval-polyfill.ts` via `addInitScript` **before** navigation (see `addStealthInitScripts` in `bot.ts` and `ParserSessionManager` in `mcp/parser-session.ts`).
+1. **Required:** every `BrowserContext` used by the bot or parser MCP registers `lib/browser/evalPolyfill.ts` via `addInitScript` **before** navigation (see `addStealthInitScripts` in `bot.ts` and `ParserSessionManager` in `mcp/parser-session.ts`).
 2. **Code style:** in `lib/parser/dom-projector.ts`, keep in-page logic as `const` arrows, not nested `function` declarations (reduces stray `__name` emit).
 3. **After code changes:** restart `npm run dev` and run `npm run test` (parser MCP test exercises real Chromium + `page.evaluate`).
 

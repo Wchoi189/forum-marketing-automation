@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
-import type { AuthorSummaryRow, CompetitorAnalyticsPayload } from '../lib/competitorAnalytics';
+import type { AuthorSummaryRow, CompetitorAnalyticsPayload } from '../lib/analytics/index';
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 

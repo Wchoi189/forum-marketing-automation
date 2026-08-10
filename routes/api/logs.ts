@@ -18,30 +18,13 @@
  */
 
 import { Router, type RequestHandler } from 'express';
-import { buildCompetitorAnalyticsPayload, parseAnalyticsQuery } from '../../lib/competitorAnalytics.js';
-import { logger } from '../../lib/logger.js';
-import { LOG_EVENT } from '../../lib/logEvents.js';
+import { buildCompetitorAnalyticsPayload, parseAnalyticsQuery, buildTrendInsightsPayload, OPPORTUNITY_MULTIPLIER_MAX, OPPORTUNITY_MULTIPLIER_MIN, buildSchedulerAdaptationWindows, buildSchedulerSignalTimeline, summarizeSchedulerSignals } from '../../lib/analytics/index.js';
+import { logger, LOG_EVENT } from '../../lib/logging/index.js';
 import { extractErrorCode } from '../../lib/utils.js';
 import { readPublisherHistory } from '../../lib/publisherHistory.js';
-import { buildTrendInsightsPayload } from '../../lib/trendInsights.js';
-import {
-  getOverview,
-  getVendorSummaries,
-  listRecords,
-  getRecord,
-  getProductPrices,
-  getActivityTimeline,
-} from '../../lib/competitor-intel-ui.js';
-import { openDatabase } from '../../lib/competitor-ad-sqlite.js';
+import { getOverview, getVendorSummaries, listRecords, getRecord, getProductPrices, getActivityTimeline, openDatabase } from '../../lib/competitor-store/index.js';
 import { ENV } from '../../config/env.js';
 import type { SchedulerSignalDiagnostics, PublisherHistoryEntry } from '../../contracts/models.js';
-import {
-  OPPORTUNITY_MULTIPLIER_MAX,
-  OPPORTUNITY_MULTIPLIER_MIN,
-  buildSchedulerAdaptationWindows,
-  buildSchedulerSignalTimeline,
-  summarizeSchedulerSignals,
-} from '../../lib/schedulerSignals.js';
 import type { LogCache } from '../../lib/logCache.js';
 import type { SchedulerController } from '../routerTypes.js';
 

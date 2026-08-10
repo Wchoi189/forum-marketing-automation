@@ -8,8 +8,8 @@
  * publisher share the same debug handler registration logic.
  */
 
-import { ENV } from '../config/env.js';
-import { logger } from './logger.js';
+import { ENV } from '../../config/env.js';
+import { logger } from '../logging/index.js';
 
 /** Enable request/response/cookie logging if BROWSER_REQUEST_LOGGING is enabled. */
 export function registerBrowserDebugHandlers(page: import('playwright').Page, label: string): void {

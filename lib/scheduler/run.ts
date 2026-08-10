@@ -1,31 +1,18 @@
 /**
- * lib/scheduler.ts
+ * lib/scheduler/run.ts
  *
  * Main scheduler orchestration for automated publishing.
- * Types and presets are in lib/scheduler/ subdirectory.
+ * Import through lib/scheduler/index.ts, not directly.
  */
 
-import { clamp } from './utils.js';
-import { applyScheduleJitter } from './scheduleJitter.js';
-import {
-  computeTurnoverAnalysis,
-  trendMultiplierFromAvgRate,
-  computeShareOfVoice,
-  shareOfVoiceMultiplierFromSoV,
-  COMBINED_MULTIPLIER_MIN,
-  COMBINED_MULTIPLIER_MAX,
-} from './trendInsights.js';
-import { summarizeSchedulerSignals } from './schedulerSignals.js';
-import { logger } from './logger.js';
-import { LOG_EVENT } from './logEvents.js';
-import { ENV } from '../config/env.js';
+import { clamp } from '../utils.js';
+import { applyScheduleJitter } from '../scheduleJitter.js';
+import { computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoice, shareOfVoiceMultiplierFromSoV, COMBINED_MULTIPLIER_MIN, COMBINED_MULTIPLIER_MAX, summarizeSchedulerSignals } from '../analytics/index.js';
+import { logger, LOG_EVENT } from '../logging/index.js';
+import { ENV } from '../../config/env.js';
 
-// Import types and presets from subdirectory
-export type { BotDeps, ControlPanelPreset, AutoPublisherControls, PresetConfig } from './scheduler/types.js';
-export { PRESET_CONFIG, isHourInRange, normalizeAutoPublisherControls } from './scheduler/presets.js';
-
-import { PRESET_CONFIG, isHourInRange, normalizeAutoPublisherControls } from './scheduler/presets.js';
-import type { AutoPublisherControls, ControlPanelPreset, BotDeps } from './scheduler/types.js';
+import { PRESET_CONFIG, isHourInRange, normalizeAutoPublisherControls } from './presets.js';
+import type { AutoPublisherControls, ControlPanelPreset, BotDeps } from './types.js';
 
 export function startScheduler(
   deps: BotDeps,

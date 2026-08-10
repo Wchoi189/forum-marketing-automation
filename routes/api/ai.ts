@@ -9,8 +9,8 @@
 
 import { Router } from 'express';
 import { ENV } from '../../config/env.js';
-import { logger } from '../../lib/logger.js';
-import { buildTrendInsightsPayload } from '../../lib/trendInsights.js';
+import { logger } from '../../lib/logging/index.js';
+import { buildTrendInsightsPayload } from '../../lib/analytics/index.js';
 import {
   buildAdvisorContext,
   callGrokAdvisor,
