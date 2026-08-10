@@ -10,6 +10,7 @@ Structured bug records with symptoms, root cause, diagnosis path, and lessons le
 |----|-------|----------|
 | [KE-001](../.planning/known-issues/KE-001-scheduler-gap-recheck.md) | Scheduler reverts to 60-min interval after successful publish | critical |
 | [KE-002](../.planning/known-issues/KE-002-nvme-ssd-wear-and-docker-oom.md) | System unresponsiveness and rapid NVMe SSD wear from Docker/Playwright | critical |
+| [KE-003](../.planning/known-issues/KE-003-activity-log-order-assumptions.md) | Three readers of `activity_log.json` disagree about which end is newest (latent) | low |
 
 ## Adding New Entries
 

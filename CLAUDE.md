@@ -12,7 +12,7 @@
 | `lib/publisher/flow/runPublisherFlow.ts` | Splits playbook into non-submit and submit halves. Runs non-submit sequentially, then submit in parallel with `waitForPublishLandingUrl`. |
 | `lib/publisherStepStore.ts` | Shared in-memory step tracker. Written by `bot.ts` as publisher progresses; read by `GET /api/publisher-status`. |
 | `lib/publisherHistory.ts` | Append-only JSONL + Parquet log of every publisher run. |
-| `lib/analytics/` | Derived numbers from history, no browser and no state writes: `trends.ts` (hourly post-rate profile, scheduler interval multiplier, share of voice), `schedulerSignals.ts`, `competitors.ts` (competitor EDA payload). |
+| `lib/analytics/` | Derived numbers from history, no browser and no state writes: `trends.ts` (hourly post-rate profile, scheduler interval multiplier, share of voice), `schedulerSignals.ts` and `schedulerDiagnostics.ts` (signal classification and its bound-calibration view), `boardStats.ts` (the `/api/board-stats` and `/api/competitor-stats` summaries), `competitors.ts` (competitor EDA payload). `boardStats.ts` takes `ourAuthorSubstring` as an argument — routes pass `ENV.OUR_AUTHOR_SUBSTRING`, never a literal. |
 | `lib/logging/` | `logger` (pino) and `LOG_EVENT`. Always imported together. `lib/logCache.ts` is *not* part of this module — it caches `activity_log.json`, and folding it in would make logging and `resourceMonitor` mutually importing. |
 | `lib/browser/` | Chromium lifecycle: shared browser and contexts, page debug handlers, `evaluate()` name polyfill. Absorbed the former `lib/playwright/`. |
 | `lib/kakao/` | KakaoTalk skill: payload types and validator, Postgres message log (`db`, a namespace export), auto-reply. |

@@ -14,3 +14,4 @@ involved a non-obvious root cause, or produced misleading symptoms that led an a
 |----|-------|----------|--------|------------|
 | [KE-001](KE-001-scheduler-gap-recheck.md) | Scheduler reverts to 60-min interval after successful publish | critical | fixed | `lib/scheduler.ts`, `bot.ts` |
 | [KE-002](KE-002-nvme-ssd-wear-and-docker-oom.md) | System unresponsiveness and rapid NVMe SSD wear from Docker/Playwright | critical | fixed | `docker-compose.yml`, `lib/sharedBrowser.ts` |
+| [KE-003](KE-003-activity-log-order-assumptions.md) | Three readers of `activity_log.json` disagree about which end is newest | low | latent | `lib/observer/observerRun.ts`, `lib/logCache.ts`, `lib/resourceMonitor.ts`, `routes/api/logs.ts` |
