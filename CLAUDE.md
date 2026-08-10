@@ -30,9 +30,11 @@
 |------|------|
 | `src/App.tsx` | Shell and routing only (156 lines). State lives in `src/hooks/`, views in `src/pages/`. |
 | `src/hooks/useAppData.ts` | Dashboard data orchestration: fetching, polling, refresh. The former App.tsx god-object's state layer. |
-| `src/pages/` | One file per route: Overview, Operations, Controls, PublisherRuns, CompetitorIntel, KakaoDashboard. |
+| `src/pages/` | One file per route: Overview, Operations, Controls, PublisherRuns, CompetitorIntel, KakaoDashboard, Analytics. |
 | `src/PipelineCanvas.tsx` | ReactFlow canvas. Prop `currentStep: PipelineStepId`. Six stages: `navigate → login-page → login → write-post → restore-draft → publish`. |
-| `src/AnalyticsPage.tsx` | Competitor EDA charts. Standalone route `/analytics`. Largest frontend file (799 lines) — decomposition candidate. |
+| `src/pages/AnalyticsPage.tsx` | Competitor EDA shell for `/analytics`: filter sidebar, KPI row, tab bar. Lazy-loaded in `src/main.tsx` so recharts stays out of the main chunk. |
+| `src/hooks/useCompetitorAnalytics.ts` | Filter state + fetch for `/api/analytics/competitors`. The page owns view state only. |
+| `src/components/analytics/` | One file per tab (`MarketTab`, `RankingsTab`, `BotIntelTab`) plus the pieces two of them share: `Heatmap`, `AuthorDrawer`, `BotBadge`, `KpiCard`. |
 
 ## Non-Obvious Architecture Facts
 
