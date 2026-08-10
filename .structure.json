@@ -142,7 +142,6 @@
     "exemptions": {
       "tests/integration/api.integration.test.ts": "973 - one case per endpoint; splitting by route group is tracked in structure-roadmap-2026-08-08.md",
       "src/pages/CompetitorIntelPage.tsx": "575 - chart-heavy page, same decomposition pass as AnalyticsPage",
-      "routes/api/logs.ts": "569 - analytics work that likely belongs in lib/, item 5",
       "src/hooks/useAppData.ts": "541 - dashboard data orchestration; split per-domain when it grows again",
       "lib/analytics/competitors.ts": "520 - moved into lib/analytics/ by item 5.2; splitting the EDA payload builder from the event extractor is still open"
     }
