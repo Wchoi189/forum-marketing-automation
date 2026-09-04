@@ -13,7 +13,8 @@ import type { ActivityLog, PublisherRunDecision } from '../../contracts/models.j
 import { ENV } from '../../config/env.js';
 import { logger, LOG_EVENT } from '../logging/index.js';
 import { extractErrorCode } from '../utils.js';
-import { appendPublisherHistoryEntry, getLastSuccessfulPublish } from './history.js';
+import { appendPublisherHistoryEntry } from './history.js';
+import { evaluatePublishCooldown } from './cooldownGate.js';
 import { BOT_MAX_WAIT_MS } from './flow/runPublisherFlow.js';
 import {
   publisherArtifactDirForRun,
@@ -27,7 +28,7 @@ import { createBrowserContext, saveStorageState, BROWSER_EVAL_NAME_POLYFILL_SCRI
 import { sendSlackNotification } from '../notifications.js';
 import { getBoardDiagnostics, attemptPpomppuLoginFromBoard } from '../observer/boardDiagnostics.js';
 import { loadObserverPolicy } from '../observer/policyLoader.js';
-import { getPublisherControls, setPublisherControls, persistPublishBlockedUntil, persistMaintenanceBlockedUntil } from '../state/index.js';
+import { getPublisherControls, setPublisherControls, persistMaintenanceBlockedUntil } from '../state/index.js';
 import { runObserver } from '../observer/observerRun.js';
 
 // ---------------------------------------------------------------------------
@@ -51,6 +52,15 @@ export type PublisherRunResult = {
   cooldownRemainingMinutes?: number;
   /** Remaining minutes in maintenance pause when decision is system_maintenance */
   maintenanceRemainingMinutes?: number;
+};
+
+/**
+ * Seams injected for tests. Production callers pass nothing and get the real
+ * implementations. `runObserver` is injectable so a regression test can assert
+ * that the rate-limit gates short-circuit *before* the browser is launched.
+ */
+export type PublisherRunOverrides = {
+  runObserver?: typeof runObserver;
 };
 
 // ---------------------------------------------------------------------------
@@ -100,7 +110,11 @@ async function recordPublisherRun(entry: {
 // Core publisher execution
 // ---------------------------------------------------------------------------
 
-async function _executePublisherRun(force: boolean): Promise<PublisherRunResult> {
+async function _executePublisherRun(
+  force: boolean,
+  overrides: PublisherRunOverrides = {}
+): Promise<PublisherRunResult> {
+  const observe = overrides.runObserver ?? runObserver;
   const runId = randomUUID();
   const publisherStartedAt = Date.now();
   let log: ActivityLog | undefined;
@@ -181,8 +195,22 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
       }
     }
 
+    // RTG-001: the rate-limit gate is purely local (in-memory controls + the
+    // publisher history file) and must run BEFORE runObserver(), which launches
+    // Chromium. Gating after the observer rediscovered the platform's
+    // 1-post/hour ceiling by browsing the board. There is no observer log at
+    // this point, so the gate reports no gapInfo — no caller consumes it for
+    // the `rate_limited` decision.
+    if (!force) {
+      const cooldown = await evaluatePublishCooldown(runId);
+      if (cooldown) {
+        const rateLimitedResult = await finish(false, cooldown.message, 'rate_limited');
+        return { ...rateLimitedResult, cooldownRemainingMinutes: cooldown.remainingMinutes };
+      }
+    }
+
     const policy = await loadObserverPolicy();
-    log = await runObserver();
+    log = await observe();
 
     if (log.status === 'error') {
       if (log.error?.includes('PLATFORM_MAINTENANCE')) {
@@ -232,73 +260,6 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
         ...result,
         gapInfo: { currentGap: gap, requiredGap: need }
       };
-    }
-
-    // Check rate limit backoff
-    const publisherControls = getPublisherControls();
-    if (!force && publisherControls.publishBlockedUntil) {
-      const blockedUntil = new Date(publisherControls.publishBlockedUntil);
-      if (blockedUntil > new Date()) {
-        const remainingMs = blockedUntil.getTime() - Date.now();
-        const remainingMin = Math.ceil(remainingMs / 60000);
-        logger.info(
-          { event: LOG_EVENT.publisherRunSkipped, runId, decision: 'rate_limited', blockedUntil: publisherControls.publishBlockedUntil, remainingMin },
-          '[Publisher] rate_limited skip — backoff active'
-        );
-        const rateLimitedResult = await finish(
-          false,
-          `[Publisher] Rate limited — ${remainingMin} minutes remaining until ${publisherControls.publishBlockedUntil}`,
-          'rate_limited',
-          log
-        );
-        return {
-          ...rateLimitedResult,
-          cooldownRemainingMinutes: remainingMin,
-          gapInfo: log ? { currentGap: log.current_gap_count, requiredGap: policy.gapThresholdMin } : undefined,
-        };
-      }
-    }
-
-    // STAB-001: Proactive 60-minute cooldown pre-flight gatekeeper from publisherHistory
-    if (!force) {
-      const lastPublish = await getLastSuccessfulPublish(50).catch(() => null);
-      if (lastPublish?.at) {
-        const lastPublishMs = new Date(lastPublish.at).getTime();
-        const elapsedMs = Date.now() - lastPublishMs;
-        const COOLDOWN_WINDOW_MS = 60 * 60 * 1000;
-        if (!isNaN(lastPublishMs) && elapsedMs >= 0 && elapsedMs < COOLDOWN_WINDOW_MS) {
-          const remainingMs = COOLDOWN_WINDOW_MS - elapsedMs;
-          const remainingMin = Math.ceil(remainingMs / 60000);
-          const blockedUntil = new Date(Date.now() + remainingMs).toISOString();
-          setPublisherControls({ publishBlockedUntil: blockedUntil });
-          await persistPublishBlockedUntil(blockedUntil).catch(() => null);
-
-          logger.info(
-            {
-              event: LOG_EVENT.publisherRunSkipped,
-              runId,
-              decision: 'rate_limited',
-              lastPublishAt: lastPublish.at,
-              elapsedMs,
-              remainingMin,
-              publishBlockedUntil: blockedUntil,
-            },
-            '[Publisher] rate_limited skip — 60-minute cooldown active from last publish'
-          );
-
-          const rateLimitedResult = await finish(
-            false,
-            `[Publisher] Rate limited — 60-minute cooldown active (${remainingMin} minutes remaining from last publish at ${lastPublish.at})`,
-            'rate_limited',
-            log
-          );
-          return {
-            ...rateLimitedResult,
-            cooldownRemainingMinutes: remainingMin,
-            gapInfo: log ? { currentGap: log.current_gap_count, requiredGap: policy.gapThresholdMin } : undefined,
-          };
-        }
-      }
     }
 
 
@@ -469,7 +430,10 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
  * session may execute at a time. The scheduler's own `running` flag prevents its
  * own re-entry; this guard covers the HTTP endpoint vs scheduler overlap.
  */
-export function runPublisher(force: boolean = false): Promise<PublisherRunResult> {
+export function runPublisher(
+  force: boolean = false,
+  overrides: PublisherRunOverrides = {}
+): Promise<PublisherRunResult> {
   if (activePublisherRun !== null) {
     const runId = randomUUID();
     logger.warn(
@@ -485,7 +449,7 @@ export function runPublisher(force: boolean = false): Promise<PublisherRunResult
     });
   }
 
-  const runPromise = _executePublisherRun(force);
+  const runPromise = _executePublisherRun(force, overrides);
   activePublisherRun = runPromise;
   runPromise.then(
     () => { activePublisherRun = null; },

@@ -9,7 +9,7 @@ export { PLAYBOOK_STEP_IDS, PUBLISHER_DECISIONS } from './constants.js';
 export type { PlaybookStepId, PublisherDecision } from './constants.js';
 
 // Core types
-export type { PublisherRunResult } from './publisherRun.js';
+export type { PublisherRunResult, PublisherRunOverrides } from './publisherRun.js';
 export { runPublisher } from './publisherRun.js';
 
 // Flow orchestration & consolidated flow helpers

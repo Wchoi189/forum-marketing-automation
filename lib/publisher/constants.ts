@@ -34,3 +34,14 @@ export const PUBLISHER_DECISIONS = {
 } as const;
 
 export type PublisherDecision = typeof PUBLISHER_DECISIONS[keyof typeof PUBLISHER_DECISIONS];
+
+/**
+ * The platform allows one post per hour. Both the publisher's pre-flight gate
+ * (lib/publisher/cooldownGate.ts) and the scheduler's post-publish scheduling
+ * branch (lib/scheduler/run.ts) derive their timing from this single value so
+ * the two cannot drift apart.
+ */
+export const PUBLISH_COOLDOWN_WINDOW_MS = 60 * 60 * 1000;
+
+/** PUBLISH_COOLDOWN_WINDOW_MS expressed in whole minutes. */
+export const PUBLISH_COOLDOWN_WINDOW_MINUTES = PUBLISH_COOLDOWN_WINDOW_MS / 60_000;

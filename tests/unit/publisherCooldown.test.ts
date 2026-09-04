@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import fs from "fs/promises";
 import path from "path";
 import { ENV } from "../../config/env.js";
-import { appendPublisherHistoryEntry, getLastSuccessfulPublish } from "../../lib/publisher/index.js";
+import { appendPublisherHistoryEntry, getLastSuccessfulPublish, runPublisher } from "../../lib/publisher/index.js";
+import { setPublisherControls } from "../../lib/state/index.js";
 
 test("getLastSuccessfulPublish retrieves newest verified publish and skips errors", async () => {
   const testDir = path.join(ENV.ARTIFACTS_DIR, "publisher-history");
@@ -48,23 +49,34 @@ test("getLastSuccessfulPublish retrieves newest verified publish and skips error
   assert.strictEqual(lastPublish.success, true);
 });
 
-test("cooldown calculation: elapsed < 60m yields remaining minutes", () => {
-  const now = Date.now();
-  const publishTime = now - 22 * 60 * 1000; // 22 minutes ago
-  const elapsedMs = now - publishTime;
-  const COOLDOWN_WINDOW_MS = 60 * 60 * 1000;
-  const remainingMs = COOLDOWN_WINDOW_MS - elapsedMs;
-  const remainingMin = Math.ceil(remainingMs / 60000);
+/**
+ * RTG-001 regression guard.
+ *
+ * The rate-limit gates must short-circuit before runObserver() launches
+ * Chromium. Asserted with an injected spy, not by log inspection: if the gates
+ * ever drift back below the observer call, observerCalls becomes 1.
+ */
+test("publisher run during an active cooldown never invokes the observer", async () => {
+  const blockedUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  setPublisherControls({ publishBlockedUntil: blockedUntil });
 
-  assert.strictEqual(remainingMin, 38);
-});
+  let observerCalls = 0;
+  try {
+    const result = await runPublisher(false, {
+      runObserver: async () => {
+        observerCalls += 1;
+        throw new Error("observer must not run while a cooldown is active");
+      },
+    });
 
-test("cooldown calculation: elapsed >= 60m yields cooldown expired", () => {
-  const now = Date.now();
-  const publishTime = now - 65 * 60 * 1000; // 65 minutes ago
-  const elapsedMs = now - publishTime;
-  const COOLDOWN_WINDOW_MS = 60 * 60 * 1000;
-  const isCooldownActive = elapsedMs < COOLDOWN_WINDOW_MS;
-
-  assert.strictEqual(isCooldownActive, false);
+    assert.strictEqual(observerCalls, 0, "Observer (and therefore Chromium) must not be launched");
+    assert.strictEqual(result.decision, "rate_limited");
+    assert.strictEqual(result.artifactDir, null, "No browser artifacts should be created");
+    assert.ok(
+      (result.cooldownRemainingMinutes ?? 0) >= 29,
+      `Expected ~30 minutes remaining, got ${result.cooldownRemainingMinutes}`
+    );
+  } finally {
+    setPublisherControls({ publishBlockedUntil: null });
+  }
 });
