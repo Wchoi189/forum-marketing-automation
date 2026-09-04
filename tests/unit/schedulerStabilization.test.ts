@@ -183,3 +183,59 @@ test("scheduler preserves zero consecutiveFailures on repeated system_maintenanc
   }
 });
 
+
+/**
+ * RTG-002 regression guard.
+ *
+ * A verified publish used to share gap_skip's 3-minute recheck branch, so every
+ * success scheduled a tick that could only come back rate_limited.
+ */
+test("scheduler waits out the platform cooldown after a verified publish", async () => {
+  const deps = createMockDeps(async () => ({
+    success: true,
+    message: "Published",
+    runId: "run-published",
+    decision: "published_verified",
+    artifactDir: null,
+  }));
+
+  const scheduler = startScheduler(deps, 10);
+  try {
+    await scheduler.runNow();
+    const state = await scheduler.getState();
+
+    assert.strictEqual(state.consecutiveFailures, 0);
+    assert.ok(state.nextTickEta, "Expected nextTickEta to be set");
+    const nextInMinutes = (new Date(state.nextTickEta).getTime() - Date.now()) / 60000;
+    assert.ok(
+      nextInMinutes > 60 && nextInMinutes <= 61,
+      `Expected ~61 minutes (60m cooldown + 1m buffer), got ${nextInMinutes.toFixed(2)}m`
+    );
+  } finally {
+    scheduler.stop();
+  }
+});
+
+test("scheduler keeps the gap-recheck pace after a dry run", async () => {
+  const deps = createMockDeps(async () => ({
+    success: true,
+    message: "Dry run",
+    runId: "run-dry",
+    decision: "dry_run",
+    artifactDir: null,
+  }));
+
+  const scheduler = startScheduler(deps, 10, { gapRecheckIntervalMinutes: 3 });
+  try {
+    await scheduler.runNow();
+    const state = await scheduler.getState();
+
+    const nextInMinutes = (new Date(state.nextTickEta!).getTime() - Date.now()) / 60000;
+    assert.ok(
+      nextInMinutes > 2 && nextInMinutes <= 3,
+      `Dry run submits nothing, so it must not wait out a cooldown; got ${nextInMinutes.toFixed(2)}m`
+    );
+  } finally {
+    scheduler.stop();
+  }
+});

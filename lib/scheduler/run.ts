@@ -11,6 +11,8 @@ import { computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoic
 import { logger, LOG_EVENT } from '../logging/index.js';
 import { ENV } from '../../config/env.js';
 
+import { PUBLISH_COOLDOWN_WINDOW_MINUTES } from '../publisher/index.js';
+
 import { PRESET_CONFIG, isHourInRange, normalizeAutoPublisherControls } from './presets.js';
 import type { AutoPublisherControls, ControlPanelPreset, BotDeps } from './types.js';
 
@@ -145,7 +147,7 @@ export function startScheduler(
     | { type: 'rate_limited'; remainingMinutes: number }
     | { type: 'system_maintenance'; remainingMinutes: number }
     | { type: 'gap_skip'; gapInfo?: { currentGap: number; requiredGap: number } }
-    | { type: 'success'; gapInfo?: { currentGap: number; requiredGap: number } }
+    | { type: 'success'; cooldownApplies: boolean; gapInfo?: { currentGap: number; requiredGap: number } }
     | { type: 'unexpected_error'; consecutiveFailures: number }
     | { type: 'normal' };
 
@@ -173,7 +175,13 @@ export function startScheduler(
         outcome = { type: 'gap_skip', gapInfo: result.gapInfo };
       } else if (result.decision === 'published_verified' || result.decision === 'dry_run') {
         consecutiveFailures = 0;
-        outcome = { type: 'success', gapInfo: result.gapInfo ?? { currentGap: 0, requiredGap: 4 } };
+        // Only a verified publish starts the platform's one-post-per-hour
+        // cooldown. A dry run submits nothing, so it keeps the gap-recheck pace.
+        outcome = {
+          type: 'success',
+          cooldownApplies: result.decision === 'published_verified',
+          gapInfo: result.gapInfo ?? { currentGap: 0, requiredGap: 4 },
+        };
       } else if (result.decision === 'rate_limited') {
         // Expected rate-limit cooldown — do NOT increment consecutiveFailures
         const remaining =
@@ -250,6 +258,12 @@ export function startScheduler(
         baseMinutes = ERROR_BACKOFF_MINUTES[Math.max(0, idx)] ?? 60;
         nextMinutes = baseMinutes;
         reason = 'error_backoff';
+      } else if (outcome.type === 'success' && outcome.cooldownApplies) {
+        // RTG-002: a verified publish means the next hour is known to be blocked.
+        // Sharing gap_skip's 3-minute recheck guaranteed a wasted browser run.
+        baseMinutes = PUBLISH_COOLDOWN_WINDOW_MINUTES + 1; // 1-minute buffer past the window
+        nextMinutes = baseMinutes;
+        reason = 'post_publish_cooldown';
       } else if (outcome.type === 'gap_skip' || outcome.type === 'success') {
         baseMinutes = controls.gapRecheckIntervalMinutes;
         nextMinutes = controls.gapRecheckIntervalMinutes;
@@ -300,6 +314,8 @@ export function startScheduler(
         ? `[Scheduler] Platform maintenance active — next tick scheduled in ${nextMinutes} minute(s) at ${nextTickEta}`
         : reason === 'error_backoff'
         ? `[Scheduler] Error backoff active (failure count=${consecutiveFailures}) — next tick scheduled in ${nextMinutes} minute(s)`
+        : reason === 'post_publish_cooldown'
+        ? `[Scheduler] Publish verified — next tick scheduled in ${nextMinutes} minute(s) (${PUBLISH_COOLDOWN_WINDOW_MINUTES}m platform cooldown + 1m buffer)`
         : reason === 'gap_recheck'
         ? `[Scheduler] Gap monitoring — re-checking in ${nextMinutes} minute(s)`
         : '[Scheduler] Next tick scheduled'
