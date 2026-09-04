@@ -6,8 +6,6 @@
   "scripts": {
     "dev": "tsx --tsconfig tsconfig.server.json server.ts",
     "mcp:parser": "tsx mcp/parser-server.ts",
-    "playbook:from-recorder": "node scripts/convert-recorder-to-playbook.mjs",
-    "workflow:template": "node scripts/create-workflow-template.mjs",
     "scheduler:fixtures": "tsx scripts/generate_scheduler_signal_fixtures.ts",
     "scheduler:replay": "tsx scripts/scheduler_signal_replay.ts",
     "scheduler:replay:recent": "tsx scripts/scheduler_signal_replay.ts --window-days 14 --window-size 8 --history-limit 240 --output-dir artifacts/scheduler-replay/latest-recent",

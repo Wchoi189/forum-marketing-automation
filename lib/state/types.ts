@@ -38,6 +38,8 @@ export type PublisherControls = {
   draftItemIndex: number;
   /** ISO timestamp when publishing is allowed again after rate limit. */
   publishBlockedUntil: string | null;
+  /** ISO timestamp when publishing is allowed again after platform maintenance. */
+  maintenanceBlockedUntil: string | null;
 };
 
 /**

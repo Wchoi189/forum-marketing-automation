@@ -47,7 +47,8 @@ interface Manifest {
   placement_rules: PlacementRule[];
   module_entry_points: Record<string, string>;
   spec_lifecycle: {
-    root: string;
+    initiatives_root: string;
+    spec_kit_root: string;
     statuses: string[];
     status_dir: Record<string, string>;
     stateless_dirs: Record<string, string>;
@@ -266,16 +267,30 @@ function declaredStatus(file: string): string | null {
  */
 function checkSpecLifecycle(files: string[], manifest: Manifest): void {
   const severity = manifest.enforcement.spec_lifecycle;
-  const { root, statuses, status_dir, stateless_dirs, ignore } = manifest.spec_lifecycle;
-  const specsRoot = `${root}/specs/`;
-  const validDirs = [...new Set(Object.values(status_dir))];
+  const { initiatives_root, spec_kit_root, statuses, status_dir, stateless_dirs, ignore } = manifest.spec_lifecycle;
+  const validBuckets = [...new Set(Object.values(status_dir))];
 
+  // Check no loose files directly at .planning/ root except README.md
   for (const file of files) {
-    if (!file.startsWith(`${root}/`)) continue;
+    if (file.startsWith('.planning/') && !file.slice('.planning/'.length).includes('/')) {
+      if (file !== '.planning/README.md') {
+        report(
+          severity,
+          `${file} is at .planning/ root. Loose files in .planning/ must be organized into an initiative or system directory.`,
+        );
+      }
+    }
+  }
+
+  // Check spec-kit stateless directories
+  for (const file of files) {
+    if (!file.startsWith(`${spec_kit_root}/`)) continue;
     if (ignore.includes(path.basename(file))) continue;
 
-    const relative = file.slice(root.length + 1);
-    const topDir = relative.slice(0, relative.indexOf('/'));
+    const relative = file.slice(spec_kit_root.length + 1);
+    const slashIdx = relative.indexOf('/');
+    if (slashIdx === -1) continue;
+    const topDir = relative.slice(0, slashIdx);
 
     if (topDir in stateless_dirs) {
       if (declaredStatus(file) !== null) {
@@ -283,46 +298,71 @@ function checkSpecLifecycle(files: string[], manifest: Manifest): void {
           severity,
           `${file} is under ${topDir}/ but declares a status.\n` +
             `    ${stateless_dirs[topDir]}\n` +
-            `    Drop the status field, or move the file under ${root}/specs/ if it really is a work item.`,
+            `    Drop the status field, or move the file under an initiative specs directory if it really is a work item.`,
         );
       }
-      continue;
+    }
+  }
+
+  // Check initiatives and initiative specs
+  const initiativeDirs = new Set<string>();
+  for (const file of files) {
+    if (!file.startsWith(`${initiatives_root}/`)) continue;
+    if (ignore.includes(path.basename(file))) continue;
+
+    const relative = file.slice(initiatives_root.length + 1);
+    const parts = relative.split('/');
+    if (parts.length >= 1 && parts[0]) {
+      initiativeDirs.add(parts[0]);
     }
 
-    if (!file.startsWith(specsRoot)) continue;
+    // Check specs inside initiatives: .planning/initiatives/<initiative>/specs/<bucket>/<file>
+    const specsIndex = parts.indexOf('specs');
+    if (specsIndex === 1 && parts.length >= 4) {
+      const bucket = `${parts[specsIndex]}/${parts[specsIndex + 1]}`;
+      if (!validBuckets.includes(bucket)) {
+        report(
+          severity,
+          `${file} sits in invalid spec directory "${bucket}".\n` +
+            `    Every initiative spec belongs to a lifecycle bucket: ${validBuckets.join(', ')}.`,
+        );
+        continue;
+      }
 
-    const bucket = path.dirname(file).slice(root.length + 1);
-    if (!validDirs.includes(bucket)) {
-      report(
-        severity,
-        `${file} sits directly in ${root}/specs/.\n` +
-          `    Every spec belongs to a lifecycle bucket: ${validDirs.join(', ')}.`,
-      );
-      continue;
+      const status = declaredStatus(file);
+      if (status === null) {
+        report(
+          severity,
+          `${file} declares no status.\n` +
+            `    Add one of: ${statuses.join(', ')} (JSON: top-level "status"; markdown: --- status: x --- frontmatter).`,
+        );
+        continue;
+      }
+      if (!statuses.includes(status)) {
+        report(
+          severity,
+          `${file} has status "${status}", outside the closed vocabulary.\n` +
+            `    Allowed: ${statuses.join(', ')}.`,
+        );
+        continue;
+      }
+      if (status_dir[status] !== bucket) {
+        report(
+          severity,
+          `${file} has status "${status}" but lives in ${bucket}/.\n` +
+            `    "${status}" belongs in ${status_dir[status]}/. Move the file, or correct the status.`,
+        );
+      }
     }
+  }
 
-    const status = declaredStatus(file);
-    if (status === null) {
+  // Ensure every initiative has a README.md
+  for (const initDir of initiativeDirs) {
+    const readme = `${initiatives_root}/${initDir}/README.md`;
+    if (!files.includes(readme)) {
       report(
         severity,
-        `${file} declares no status.\n` +
-          `    Add one of: ${statuses.join(', ')} (JSON: top-level "status"; markdown: --- status: x --- frontmatter).`,
-      );
-      continue;
-    }
-    if (!statuses.includes(status)) {
-      report(
-        severity,
-        `${file} has status "${status}", outside the closed vocabulary.\n` +
-          `    Allowed: ${statuses.join(', ')}.`,
-      );
-      continue;
-    }
-    if (status_dir[status] !== bucket) {
-      report(
-        severity,
-        `${file} has status "${status}" but lives in ${bucket}/.\n` +
-          `    "${status}" belongs in ${status_dir[status]}/. Move the file, or correct the status.`,
+        `Initiative "${initDir}" is missing a README.md entry point at ${readme}.`,
       );
     }
   }

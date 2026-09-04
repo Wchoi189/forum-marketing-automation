@@ -1,0 +1,60 @@
+{
+  "spec_id": "phase1-bloat-pruning-v1",
+  "status": "shipped",
+  "purpose": "Prune orphaned scripts, remove dead package.json script entries, and clean up workspace bloat without altering runtime behavior.",
+  "design_intent": "Eliminate dead weight (~55KB unreferenced code) before refactoring core architecture, reducing cognitive load and simplifying workspace structure.",
+  "model_execution_guidance": {
+    "recommended_model": "Gemini Flash (Low / Med)",
+    "execution_mode": "automated_batch_with_hitl",
+    "note": "Fast models (Gemini Flash Low/Med) are ideal for deterministic file deletions and reference scrubbing. Work must be processed in small batches using an automated batching script, followed by Human-In-The-Loop (HITL) review of git diffs before committing."
+  },
+  "work_items": [
+    {
+      "id": "PRUNE-001",
+      "title": "Remove dead package.json script references",
+      "target_files": ["package.json"],
+      "action": "Delete dead script references to missing files: 'scripts/convert-recorder-to-playbook.mjs' and 'scripts/create-workflow-template.mjs'.",
+      "risk": "low"
+    },
+    {
+      "id": "PRUNE-002",
+      "title": "Delete orphaned scripts in scripts/",
+      "target_files": [
+        "scripts/apply_editorial_theme.py",
+        "scripts/update_colors.py",
+        "scripts/test-all-vendors.ts",
+        "scripts/analyze-problems.ts",
+        "scripts/generate-demo-report.ts",
+        "scripts/audit-price-matrix.ts",
+        "scripts/discover-catalog-gaps.ts",
+        "scripts/reimport-live-data.ts",
+        "scripts/test-full-pipeline.ts",
+        "scripts/extract-products-with-ollama.ts"
+      ],
+      "action": "Remove 10 verified orphaned scripts with zero callers, imports, or npm script targets.",
+      "risk": "low"
+    },
+    {
+      "id": "PRUNE-003",
+      "title": "Verify structure policy and test suite",
+      "target_files": [".structure.json"],
+      "action": "Ensure .structure.json remains valid and run npm run lint:structure and npm run test:unit.",
+      "risk": "low"
+    }
+  ],
+  "session_boundary": {
+    "auto_stop": true,
+    "gate_criteria": [
+      "All 10 orphaned scripts deleted",
+      "Dead package.json references removed",
+      "npm run lint:structure passes with 0 errors",
+      "npm run test:unit passes all tests"
+    ],
+    "handover_instructions": {
+      "generate_file": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+      "use_template": ".agent/session-handovers/template.json",
+      "required_fields": ["handover_id", "timestamp_utc", "completed_items", "artifacts_touched", "next_actions"],
+      "continuation_prompt": "Phase 1 (Bloat Pruning) is complete. Proceed to Phase 2 per .planning/spec-kit/specs/active/phase2-publisher-scheduler-stabilization-v1.json to implement the proactive 60-minute cooldown gatekeeper and eliminate the hardcoded 5-minute scheduler loop in lib/scheduler/run.ts."
+    }
+  }
+}

@@ -17,6 +17,7 @@ import { persistState, readPersistedState } from './persistence.js';
 const defaultPublisherControls: PublisherControls = {
   draftItemIndex: ENV.PUBLISHER_DRAFT_ITEM_INDEX,
   publishBlockedUntil: null,
+  maintenanceBlockedUntil: null,
 };
 
 let publisherControls: PublisherControls = { ...defaultPublisherControls };
@@ -47,6 +48,9 @@ export function setPublisherControls(next: Partial<PublisherControls>): Publishe
   if (typeof next.publishBlockedUntil === 'string' || next.publishBlockedUntil === null) {
     publisherControls.publishBlockedUntil = next.publishBlockedUntil;
   }
+  if (typeof next.maintenanceBlockedUntil === 'string' || next.maintenanceBlockedUntil === null) {
+    publisherControls.maintenanceBlockedUntil = next.maintenanceBlockedUntil;
+  }
   return getPublisherControls();
 }
 
@@ -73,6 +77,16 @@ export async function loadPersistedPublisherControls(): Promise<void> {
       publisherControls.publishBlockedUntil = null;
     }
   }
+  if (persisted.maintenanceBlockedUntil !== undefined) {
+    if (typeof persisted.maintenanceBlockedUntil === 'string') {
+      const t = Date.parse(persisted.maintenanceBlockedUntil);
+      if (Number.isFinite(t)) {
+        publisherControls.maintenanceBlockedUntil = persisted.maintenanceBlockedUntil;
+      }
+    } else if (persisted.maintenanceBlockedUntil === null) {
+      publisherControls.maintenanceBlockedUntil = null;
+    }
+  }
 }
 
 /**
@@ -86,6 +100,9 @@ export async function readPersistedPublisherControls(): Promise<Partial<Publishe
   if (typeof data.publishBlockedUntil === 'string' || data.publishBlockedUntil === null) {
     result.publishBlockedUntil = data.publishBlockedUntil;
   }
+  if (typeof data.maintenanceBlockedUntil === 'string' || data.maintenanceBlockedUntil === null) {
+    result.maintenanceBlockedUntil = data.maintenanceBlockedUntil;
+  }
   return result;
 }
 
@@ -96,6 +113,7 @@ export async function persistPublisherControls(expectedVersion?: number): Promis
   return persistState({
     publisherDraftItemIndex: publisherControls.draftItemIndex,
     publishBlockedUntil: publisherControls.publishBlockedUntil,
+    maintenanceBlockedUntil: publisherControls.maintenanceBlockedUntil,
   }, expectedVersion);
 }
 
@@ -104,6 +122,13 @@ export async function persistPublisherControls(expectedVersion?: number): Promis
  */
 export async function persistPublishBlockedUntil(value: string | null, expectedVersion?: number): Promise<StateMeta> {
   return persistState({ publishBlockedUntil: value }, expectedVersion);
+}
+
+/**
+ * Persist platform maintenance blocked timestamp.
+ */
+export async function persistMaintenanceBlockedUntil(value: string | null, expectedVersion?: number): Promise<StateMeta> {
+  return persistState({ maintenanceBlockedUntil: value }, expectedVersion);
 }
 
 // Re-export type for convenience

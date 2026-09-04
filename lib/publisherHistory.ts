@@ -98,3 +98,9 @@ export async function readPublisherHistory(limit: number): Promise<PublisherHist
   if (fromJsonl.length > 0) return fromJsonl.slice(0, cap);
   return (await readHistoryFromLegacyArray(cap)).slice(0, cap);
 }
+
+export async function getLastSuccessfulPublish(limit: number = 50): Promise<PublisherHistoryEntry | null> {
+  const entries = await readPublisherHistory(limit);
+  return entries.find((entry) => entry.success && (entry.decision === "published_verified" || (!entry.decision && entry.success))) ?? null;
+}
+

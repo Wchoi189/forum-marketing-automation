@@ -59,6 +59,7 @@ export type PersistedStateFile = {
   // Publisher
   publisherDraftItemIndex?: number;
   publishBlockedUntil?: string | null;
+  maintenanceBlockedUntil?: string | null;
 
   // Additional config
   customParserEnabled?: boolean;

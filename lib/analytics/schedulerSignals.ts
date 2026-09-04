@@ -167,7 +167,12 @@ export function classifySchedulerSignal(
     };
   }
 
-  if (decision === "observer_error" || decision === "manual_override_disabled") {
+  if (
+    decision === "observer_error" ||
+    decision === "manual_override_disabled" ||
+    decision === "rate_limited" ||
+    decision === "system_maintenance"
+  ) {
     return {
       ...base,
       primaryClass: "non_adaptive",

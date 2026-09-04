@@ -39,6 +39,7 @@ export {
   readPersistedPublisherControls,
   persistPublisherControls,
   persistPublishBlockedUntil,
+  persistMaintenanceBlockedUntil,
 } from './publisher.js';
 
 // NL webhook state

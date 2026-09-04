@@ -13,7 +13,7 @@ import type { ActivityLog, PublisherRunDecision } from '../../contracts/models.j
 import { ENV } from '../../config/env.js';
 import { logger, LOG_EVENT } from '../logging/index.js';
 import { extractErrorCode } from '../utils.js';
-import { appendPublisherHistoryEntry } from '../publisherHistory.js';
+import { appendPublisherHistoryEntry, getLastSuccessfulPublish } from '../publisherHistory.js';
 import { BOT_MAX_WAIT_MS } from './core/timeouts.js';
 import {
   publisherArtifactDirForRun,
@@ -27,7 +27,7 @@ import { createBrowserContext, saveStorageState, BROWSER_EVAL_NAME_POLYFILL_SCRI
 import { sendSlackNotification } from '../notifications.js';
 import { getBoardDiagnostics, attemptPpomppuLoginFromBoard } from '../observer/boardDiagnostics.js';
 import { loadObserverPolicy } from '../observer/policyLoader.js';
-import { getPublisherControls } from '../state/index.js';
+import { getPublisherControls, setPublisherControls, persistPublishBlockedUntil, persistMaintenanceBlockedUntil } from '../state/index.js';
 import { runObserver } from '../observer/observerRun.js';
 
 // ---------------------------------------------------------------------------
@@ -47,6 +47,10 @@ export type PublisherRunResult = {
     currentGap: number;
     requiredGap: number;
   };
+  /** Remaining minutes in cooldown when decision is rate_limited */
+  cooldownRemainingMinutes?: number;
+  /** Remaining minutes in maintenance pause when decision is system_maintenance */
+  maintenanceRemainingMinutes?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -55,6 +59,11 @@ export type PublisherRunResult = {
 
 /** Prevents two concurrent publisher browser sessions from launching simultaneously. */
 let activePublisherRun: Promise<PublisherRunResult> | null = null;
+/** Tracks the last publishBlockedUntil value that was notified to Slack to prevent repetitive spam. */
+let lastRateLimitNotifiedUntil: string | null = null;
+/** Tracks the last maintenanceBlockedUntil value that was notified to Slack to prevent repetitive spam. */
+let lastMaintenanceNotifiedUntil: string | null = null;
+
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -79,25 +88,11 @@ function appendDraftRowSelection(message: string, selection?: DraftRowSelectionD
 }
 
 async function recordPublisherRun(entry: {
-  force: boolean;
-  success: boolean;
-  message: string;
-  runId: string;
-  artifactDir: string | null;
-  decision: PublisherRunDecision;
+  force: boolean; success: boolean; message: string; runId: string; artifactDir: string | null; decision: PublisherRunDecision;
 }): Promise<void> {
-  const rel =
-    entry.artifactDir === null || entry.artifactDir === undefined
-      ? null
-      : path.relative(ENV.PROJECT_ROOT, entry.artifactDir).replace(/\\/g, '/');
+  const rel = entry.artifactDir ? path.relative(ENV.PROJECT_ROOT, entry.artifactDir).replace(/\\/g, '/') : null;
   await appendPublisherHistoryEntry({
-    at: new Date().toISOString(),
-    success: entry.success,
-    force: entry.force,
-    message: entry.message.slice(0, 500),
-    runId: entry.runId,
-    artifactDir: rel,
-    decision: entry.decision
+    at: new Date().toISOString(), success: entry.success, force: entry.force, message: entry.message.slice(0, 500), runId: entry.runId, artifactDir: rel, decision: entry.decision
   }).catch(() => null);
 }
 
@@ -114,27 +109,14 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
   setPublisherRunning(true);
 
   const finish = async (
-    success: boolean,
-    message: string,
-    decision: PublisherRunDecision,
-    outLog?: ActivityLog
+    success: boolean, message: string, decision: PublisherRunDecision, outLog?: ActivityLog
   ) => {
     setPublisherRunning(false);
     const artifactAbs = debugDir;
     if (decision !== 'gap_policy') {
-      await recordPublisherRun({
-        force,
-        success,
-        message,
-        runId,
-        artifactDir: artifactAbs,
-        decision
-      });
+      await recordPublisherRun({ force, success, message, runId, artifactDir: artifactAbs, decision });
     }
-    const artifactRel =
-      artifactAbs === null || artifactAbs === undefined
-        ? null
-        : path.relative(ENV.PROJECT_ROOT, artifactAbs).replace(/\\/g, '/');
+    const artifactRel = artifactAbs ? path.relative(ENV.PROJECT_ROOT, artifactAbs).replace(/\\/g, '/') : null;
     const durationMs = Date.now() - publisherStartedAt;
     logger.info(
       { event: LOG_EVENT.publisherRunFinished, runId, decision, status: success ? 'success' : 'error', durationMs, force, artifactDir: artifactRel },
@@ -145,19 +127,82 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
     if (success) {
       const emoji = decision === 'dry_run' ? '🚧' : '✅';
       const label = decision === 'dry_run' ? 'Dry Run' : 'Success';
-      await sendSlackNotification(`${emoji} *Publisher ${label}* [${decision}]\n> ${message}${force ? ' (Force)' : ''}`);
+      await sendSlackNotification(`${emoji} *Publisher ${label}* [${decision}]\n> ${message}${force ? ' (Force)' : ''}`, 'info');
+    } else if (decision === 'rate_limited') {
+      logger.info({ event: LOG_EVENT.publisherRateLimited, runId, message }, '[Publisher] Rate limit cooldown in progress');
+      const controls = getPublisherControls();
+      const currentBlockedUntil = controls.publishBlockedUntil ?? null;
+      if (currentBlockedUntil && currentBlockedUntil !== lastRateLimitNotifiedUntil) {
+        lastRateLimitNotifiedUntil = currentBlockedUntil;
+        await sendSlackNotification(`⏳ *Publisher Cooldown Active* [${decision}]\n> ${message}${force ? ' (Force)' : ''}`, 'info');
+      }
+    } else if (decision === 'system_maintenance') {
+      logger.info({ event: 'publisher_system_maintenance', runId, message }, '[Publisher] Platform maintenance in progress');
+      const controls = getPublisherControls();
+      const currentBlockedUntil = controls.maintenanceBlockedUntil ?? null;
+      if (currentBlockedUntil && currentBlockedUntil !== lastMaintenanceNotifiedUntil) {
+        lastMaintenanceNotifiedUntil = currentBlockedUntil;
+        await sendSlackNotification(`🚧 *Platform Maintenance Detected* [${decision}]\n> ${message}${force ? ' (Force)' : ''}`, 'info');
+      }
     } else if (decision !== 'gap_policy') {
-      await sendSlackNotification(`❌ *Publisher Failed* [${decision}]\n> ${message}${force ? ' (Force)' : ''}`);
+      await sendSlackNotification(`❌ *Publisher Failed* [${decision}]\n> ${message}${force ? ' (Force)' : ''}`, 'error');
     }
 
     return { success, message, log: outLog, runId, decision, artifactDir: artifactRel };
   };
 
   try {
+    // Pre-flight check for platform maintenance window
+    const initialControls = getPublisherControls();
+    if (!force && initialControls.maintenanceBlockedUntil) {
+      const blockedUntil = new Date(initialControls.maintenanceBlockedUntil);
+      if (blockedUntil.getTime() > Date.now()) {
+        const remainingMs = blockedUntil.getTime() - Date.now();
+        const remainingMin = Math.ceil(remainingMs / 60000);
+        logger.info(
+          {
+            event: LOG_EVENT.publisherRunSkipped,
+            runId,
+            decision: 'system_maintenance',
+            blockedUntil: initialControls.maintenanceBlockedUntil,
+            remainingMin,
+          },
+          '[Publisher] system_maintenance skip — maintenance window active'
+        );
+        const maintResult = await finish(
+          false,
+          `[Publisher] Platform maintenance active — ${remainingMin} minutes remaining until ${initialControls.maintenanceBlockedUntil}`,
+          'system_maintenance'
+        );
+        return {
+          ...maintResult,
+          maintenanceRemainingMinutes: remainingMin,
+        };
+      }
+    }
+
     const policy = await loadObserverPolicy();
     log = await runObserver();
 
     if (log.status === 'error') {
+      if (log.error?.includes('PLATFORM_MAINTENANCE')) {
+        const controls = getPublisherControls();
+        let remainingMin = 30;
+        if (controls.maintenanceBlockedUntil) {
+          const ms = new Date(controls.maintenanceBlockedUntil).getTime() - Date.now();
+          if (ms > 0) remainingMin = Math.ceil(ms / 60000);
+        }
+        const maintResult = await finish(
+          false,
+          log.error,
+          'system_maintenance',
+          log
+        );
+        return {
+          ...maintResult,
+          maintenanceRemainingMinutes: remainingMin,
+        };
+      }
       return await finish(false, log.error || '[Observer] Observer failed', 'observer_error', log);
     }
 
@@ -200,14 +245,62 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
           { event: LOG_EVENT.publisherRunSkipped, runId, decision: 'rate_limited', blockedUntil: publisherControls.publishBlockedUntil, remainingMin },
           '[Publisher] rate_limited skip — backoff active'
         );
-        return await finish(
+        const rateLimitedResult = await finish(
           false,
           `[Publisher] Rate limited — ${remainingMin} minutes remaining until ${publisherControls.publishBlockedUntil}`,
           'rate_limited',
           log
         );
+        return {
+          ...rateLimitedResult,
+          cooldownRemainingMinutes: remainingMin,
+          gapInfo: log ? { currentGap: log.current_gap_count, requiredGap: policy.gapThresholdMin } : undefined,
+        };
       }
     }
+
+    // STAB-001: Proactive 60-minute cooldown pre-flight gatekeeper from publisherHistory
+    if (!force) {
+      const lastPublish = await getLastSuccessfulPublish(50).catch(() => null);
+      if (lastPublish?.at) {
+        const lastPublishMs = new Date(lastPublish.at).getTime();
+        const elapsedMs = Date.now() - lastPublishMs;
+        const COOLDOWN_WINDOW_MS = 60 * 60 * 1000;
+        if (!isNaN(lastPublishMs) && elapsedMs >= 0 && elapsedMs < COOLDOWN_WINDOW_MS) {
+          const remainingMs = COOLDOWN_WINDOW_MS - elapsedMs;
+          const remainingMin = Math.ceil(remainingMs / 60000);
+          const blockedUntil = new Date(Date.now() + remainingMs).toISOString();
+          setPublisherControls({ publishBlockedUntil: blockedUntil });
+          await persistPublishBlockedUntil(blockedUntil).catch(() => null);
+
+          logger.info(
+            {
+              event: LOG_EVENT.publisherRunSkipped,
+              runId,
+              decision: 'rate_limited',
+              lastPublishAt: lastPublish.at,
+              elapsedMs,
+              remainingMin,
+              publishBlockedUntil: blockedUntil,
+            },
+            '[Publisher] rate_limited skip — 60-minute cooldown active from last publish'
+          );
+
+          const rateLimitedResult = await finish(
+            false,
+            `[Publisher] Rate limited — 60-minute cooldown active (${remainingMin} minutes remaining from last publish at ${lastPublish.at})`,
+            'rate_limited',
+            log
+          );
+          return {
+            ...rateLimitedResult,
+            cooldownRemainingMinutes: remainingMin,
+            gapInfo: log ? { currentGap: log.current_gap_count, requiredGap: policy.gapThresholdMin } : undefined,
+          };
+        }
+      }
+    }
+
 
     debugDir = publisherArtifactDirForRun();
     let traceStarted = false;
@@ -240,7 +333,22 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
       // Navigate to the page
       const response = await page.goto(policy.boardUrl, { waitUntil: 'domcontentloaded', timeout: ENV.BOT_NAV_TIMEOUT_MS });
       const statusCode = response?.status() ?? 0;
-      const diagnostics = await getBoardDiagnostics(page);
+      const diagnostics = await getBoardDiagnostics(page, statusCode);
+      if (diagnostics.isMaintenance) {
+        if (diagnostics.maintenanceUntil) {
+          setPublisherControls({ maintenanceBlockedUntil: diagnostics.maintenanceUntil });
+          await persistMaintenanceBlockedUntil(diagnostics.maintenanceUntil).catch(() => null);
+        }
+        const remainingMs = diagnostics.maintenanceUntil ? new Date(diagnostics.maintenanceUntil).getTime() - Date.now() : 30 * 60 * 1000;
+        const remainingMin = Math.max(1, Math.ceil(remainingMs / 60000));
+        const maintResult = await finish(
+          false,
+          `[Publisher] Platform maintenance detected: ${diagnostics.maintenanceNotice || diagnostics.title} (until ${diagnostics.maintenanceUntil})`,
+          'system_maintenance',
+          log
+        );
+        return { ...maintResult, maintenanceRemainingMinutes: remainingMin };
+      }
       if (statusCode >= 400 || diagnostics.isForbidden) {
         throw new Error(
           `PUBLISHER_BOARD_BLOCKED: status=${statusCode} title="${diagnostics.title}" url="${diagnostics.url}"` +
@@ -291,7 +399,11 @@ async function _executePublisherRun(force: boolean): Promise<PublisherRunResult>
       });
       if (flow.decision === 'rate_limited') {
         const rateLimitedResult = await finish(false, flow.message, 'rate_limited', log);
-        return { ...rateLimitedResult, gapInfo: { currentGap: log.current_gap_count, requiredGap: policy.gapThresholdMin } };
+        return {
+          ...rateLimitedResult,
+          cooldownRemainingMinutes: flow.rateLimitInfo?.remainingMinutes,
+          gapInfo: { currentGap: log.current_gap_count, requiredGap: policy.gapThresholdMin }
+        };
       }
       if (flow.decision === 'dry_run') {
         logger.info({ event: LOG_EVENT.publisherSubmitSkipped, runId, decision: flow.decision, status: 'success' }, 'Dry-run mode enabled. Submit click intentionally skipped.');

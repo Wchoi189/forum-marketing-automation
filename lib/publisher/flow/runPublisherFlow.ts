@@ -59,11 +59,23 @@ export async function runPublisherFlow(input: RunPublisherFlowInput): Promise<Pu
   const preClickWriteSteps = clickWriteIndex >= 0 ? nonSubmitSteps.slice(0, clickWriteIndex + 1) : nonSubmitSteps;
   const postClickWriteSteps = clickWriteIndex >= 0 ? nonSubmitSteps.slice(clickWriteIndex + 1) : [];
 
-  // Run steps up to and including click-write
-  await runPublisherPlaybook(page, { ...playbook, steps: preClickWriteSteps }, runtime, onStepStart, onStepEnd);
+  // STAB-003: Hook dialog event before clicking write button to capture alert text
+  let capturedDialogText: string | null = null;
+  const dialogListener = (dialog: import('playwright').Dialog) => {
+    capturedDialogText = dialog.message();
+    void dialog.accept().catch(() => null);
+  };
+  page.once('dialog', dialogListener);
+
+  try {
+    // Run steps up to and including click-write
+    await runPublisherPlaybook(page, { ...playbook, steps: preClickWriteSteps }, runtime, onStepStart, onStepEnd);
+  } finally {
+    page.off('dialog', dialogListener);
+  }
 
   // Check for rate limit after clicking write button
-  const rateLimitStatus = await detectRateLimit(page);
+  const rateLimitStatus = await detectRateLimit(page, capturedDialogText);
   if (rateLimitStatus.blocked) {
     // Set backoff time with a small buffer
     const blockedUntil = new Date(Date.now() + (rateLimitStatus.remainingMinutes + 1) * 60 * 1000).toISOString();

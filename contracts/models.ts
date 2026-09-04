@@ -46,7 +46,8 @@ export type PublisherRunDecision =
   | "published_verified"
   | "dry_run"
   | "publisher_error"
-  | "rate_limited";
+  | "rate_limited"
+  | "system_maintenance";
 
 /** Append-only log of auto/manual publisher runs (see artifacts/publisher-history/*.jsonl). */
 export interface PublisherHistoryEntry {

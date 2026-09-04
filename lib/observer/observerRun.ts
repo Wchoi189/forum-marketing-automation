@@ -16,7 +16,7 @@ import { parseBoardRows } from './boardParser.js';
 import { getBoardDiagnostics } from './boardDiagnostics.js';
 import { collectParserSignal, captureBoardRowRegionArtifact, combinedConfidence, createManualReviewMessage } from './parserSignal.js';
 import { loadObserverPolicy } from './policyLoader.js';
-import { getObserverControls } from '../state/index.js';
+import { getObserverControls, setPublisherControls, persistMaintenanceBlockedUntil } from '../state/index.js';
 import { getSharedLogCache } from '../logCache.js';
 import fs from 'fs/promises';
 
@@ -129,7 +129,16 @@ async function _executeObserverRun(): Promise<ActivityLog> {
       timeout: ENV.BOT_NAV_TIMEOUT_MS
     });
     const statusCode = response?.status() ?? 0;
-    const diagnostics = await getBoardDiagnostics(page);
+    const diagnostics = await getBoardDiagnostics(page, statusCode);
+    if (diagnostics.isMaintenance) {
+      if (diagnostics.maintenanceUntil) {
+        setPublisherControls({ maintenanceBlockedUntil: diagnostics.maintenanceUntil });
+        await persistMaintenanceBlockedUntil(diagnostics.maintenanceUntil).catch(() => null);
+      }
+      throw new Error(
+        `PLATFORM_MAINTENANCE: until=${diagnostics.maintenanceUntil} notice="${diagnostics.maintenanceNotice}"`
+      );
+    }
     if (statusCode >= 400 || diagnostics.isForbidden) {
       throw new Error(
         `BOARD_ACCESS_DENIED: status=${statusCode} title="${diagnostics.title}" url="${diagnostics.url}" rows=${diagnostics.rowCount}` +
