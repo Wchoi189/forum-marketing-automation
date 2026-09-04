@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { startScheduler } from "../../lib/scheduler/index.js";
 import type { BotDeps } from "../../lib/scheduler/index.js";
 import type { PublisherRunResult } from "../../lib/publisher/index.js";
+import { setPublisherControls } from "../../lib/state/index.js";
 
 function createMockDeps(publisherImpl: () => Promise<PublisherRunResult>): BotDeps {
   return {
@@ -237,5 +238,49 @@ test("scheduler keeps the gap-recheck pace after a dry run", async () => {
     );
   } finally {
     scheduler.stop();
+  }
+});
+
+/**
+ * RTG-003 regression guard.
+ *
+ * setControls ends in `void scheduleNext(false)`, and routes/api/control.ts
+ * calls it on every POST /api/control-panel. Without the clamp in scheduleNext
+ * that turned an active cooldown into the normal adaptive interval.
+ */
+test("saving controls during an active cooldown does not move nextTickEta earlier", async () => {
+  const blockedUntil = new Date(Date.now() + 45 * 60 * 1000).toISOString();
+  setPublisherControls({ publishBlockedUntil: blockedUntil });
+
+  const deps = createMockDeps(async () => ({
+    success: false,
+    message: "Rate limited",
+    runId: "run-clamp",
+    decision: "rate_limited",
+    artifactDir: null,
+    cooldownRemainingMinutes: 45,
+  }));
+
+  const scheduler = startScheduler(deps, 10);
+  try {
+    await scheduler.runNow();
+    const before = new Date((await scheduler.getState()).nextTickEta!).getTime();
+
+    scheduler.setControls({ baseIntervalMinutes: 5 });
+    // scheduleNext is fired without await from the setter.
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const after = new Date((await scheduler.getState()).nextTickEta!).getTime();
+    assert.ok(
+      after >= new Date(blockedUntil).getTime(),
+      `nextTickEta must not precede the active block deadline; got ${new Date(after).toISOString()}`
+    );
+    assert.ok(
+      after >= before - 5000,
+      `nextTickEta moved earlier: ${new Date(before).toISOString()} -> ${new Date(after).toISOString()}`
+    );
+  } finally {
+    scheduler.stop();
+    setPublisherControls({ publishBlockedUntil: null });
   }
 });

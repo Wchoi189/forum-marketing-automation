@@ -10,6 +10,7 @@ import { applyScheduleJitter } from '../scheduleJitter.js';
 import { computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoice, shareOfVoiceMultiplierFromSoV, COMBINED_MULTIPLIER_MIN, COMBINED_MULTIPLIER_MAX, summarizeSchedulerSignals } from '../analytics/index.js';
 import { logger, LOG_EVENT } from '../logging/index.js';
 import { ENV } from '../../config/env.js';
+import { getPublisherControls } from '../state/index.js';
 
 import { PUBLISH_COOLDOWN_WINDOW_MINUTES } from '../publisher/index.js';
 
@@ -297,7 +298,45 @@ export function startScheduler(
       reason = 'normal';
     }
 
-    nextTickEta = new Date(Date.now() + nextMinutes * 60 * 1000).toISOString();
+    // RTG-003: a pending block deadline is state, not a side effect of a setter.
+    // setControls / setIntervalMinutes / applyPreset each end in
+    // `void scheduleNext(false)`, which clears the pending timer and reschedules
+    // at the normal adaptive interval — so any control-panel POST during a
+    // cooldown or maintenance pause silently shortened the wait. Clamp here, at
+    // the single scheduling site, rather than policing three setters.
+    let deadlineMs = Date.now() + nextMinutes * 60 * 1000;
+    const blockControls = getPublisherControls();
+    const activeBlocks: Array<{ field: string; deadlineMs: number; untilMs: number }> = [];
+    for (const field of ['publishBlockedUntil', 'maintenanceBlockedUntil'] as const) {
+      const raw = blockControls[field];
+      if (!raw) continue;
+      const untilMs = new Date(raw).getTime();
+      // Same 1-minute buffer the rate_limited branch applies, so a clamped tick
+      // does not land on the exact boundary and bounce straight back.
+      const blockDeadlineMs = untilMs + 60 * 1000;
+      if (Number.isFinite(untilMs) && blockDeadlineMs > deadlineMs) {
+        activeBlocks.push({ field, deadlineMs: blockDeadlineMs, untilMs });
+      }
+    }
+    if (activeBlocks.length > 0) {
+      const winner = activeBlocks.reduce((a, b) => (b.deadlineMs > a.deadlineMs ? b : a));
+      logger.info(
+        {
+          event: LOG_EVENT.schedulerNextScheduled,
+          status: 'clamped',
+          clampedBy: winner.field,
+          blockedUntil: new Date(winner.untilMs).toISOString(),
+          discardedReason: reason,
+          discardedMinutes: nextMinutes,
+        },
+        `[Scheduler] Schedule clamped — ${reason} wanted ${nextMinutes} minute(s) but ${winner.field} is active until ${new Date(winner.untilMs).toISOString()}`
+      );
+      deadlineMs = winner.deadlineMs;
+      nextMinutes = Math.max(1, Math.ceil((deadlineMs - Date.now()) / 60000));
+      reason = 'block_deadline_clamp';
+    }
+
+    nextTickEta = new Date(deadlineMs).toISOString();
     const isSpecialSchedule = reason !== 'normal';
     logger.info(
       {
@@ -318,6 +357,8 @@ export function startScheduler(
         ? `[Scheduler] Publish verified — next tick scheduled in ${nextMinutes} minute(s) (${PUBLISH_COOLDOWN_WINDOW_MINUTES}m platform cooldown + 1m buffer)`
         : reason === 'gap_recheck'
         ? `[Scheduler] Gap monitoring — re-checking in ${nextMinutes} minute(s)`
+        : reason === 'block_deadline_clamp'
+        ? `[Scheduler] Block deadline active — next tick scheduled at ${nextTickEta}`
         : '[Scheduler] Next tick scheduled'
     );
     timer = setTimeout(() => {
@@ -326,7 +367,7 @@ export function startScheduler(
         const tickOutcome = await tick();
         await scheduleNext(tickOutcome);
       })();
-    }, nextMinutes * 60 * 1000);
+    }, Math.max(0, deadlineMs - Date.now()));
   };
 
   // Fire an initial tick shortly after startup so the publisher doesn't sit idle for
