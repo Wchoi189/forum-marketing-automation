@@ -149,6 +149,7 @@ export function startScheduler(
     | { type: 'system_maintenance'; remainingMinutes: number }
     | { type: 'gap_skip'; gapInfo?: { currentGap: number; requiredGap: number } }
     | { type: 'success'; cooldownApplies: boolean; gapInfo?: { currentGap: number; requiredGap: number } }
+    | { type: 'already_running' }
     | { type: 'unexpected_error'; consecutiveFailures: number }
     | { type: 'normal' };
 
@@ -197,6 +198,10 @@ export function startScheduler(
             ? result.maintenanceRemainingMinutes
             : 30;
         outcome = { type: 'system_maintenance', remainingMinutes: remaining };
+      } else if (result.decision === 'already_running') {
+        // Benign overlap with a manual run — leave consecutiveFailures alone and
+        // come back in a minute rather than entering the error backoff.
+        outcome = { type: 'already_running' };
       } else if (result.decision === 'publisher_error' || result.decision === 'observer_error') {
         consecutiveFailures += 1;
         outcome = { type: 'unexpected_error', consecutiveFailures };
@@ -254,6 +259,10 @@ export function startScheduler(
         baseMinutes = remaining; // Buffer already included in maintenance parser
         nextMinutes = baseMinutes;
         reason = 'system_maintenance';
+      } else if (outcome.type === 'already_running') {
+        baseMinutes = 1;
+        nextMinutes = 1;
+        reason = 'already_running';
       } else if (outcome.type === 'unexpected_error') {
         const idx = Math.min(outcome.consecutiveFailures - 1, ERROR_BACKOFF_MINUTES.length - 1);
         baseMinutes = ERROR_BACKOFF_MINUTES[Math.max(0, idx)] ?? 60;
@@ -357,6 +366,8 @@ export function startScheduler(
         ? `[Scheduler] Publish verified — next tick scheduled in ${nextMinutes} minute(s) (${PUBLISH_COOLDOWN_WINDOW_MINUTES}m platform cooldown + 1m buffer)`
         : reason === 'gap_recheck'
         ? `[Scheduler] Gap monitoring — re-checking in ${nextMinutes} minute(s)`
+        : reason === 'already_running'
+        ? `[Scheduler] A publisher run is already active — retrying in ${nextMinutes} minute(s)`
         : reason === 'block_deadline_clamp'
         ? `[Scheduler] Block deadline active — next tick scheduled at ${nextTickEta}`
         : '[Scheduler] Next tick scheduled'

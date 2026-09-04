@@ -171,7 +171,8 @@ export function classifySchedulerSignal(
     decision === "observer_error" ||
     decision === "manual_override_disabled" ||
     decision === "rate_limited" ||
-    decision === "system_maintenance"
+    decision === "system_maintenance" ||
+    decision === "already_running"
   ) {
     return {
       ...base,

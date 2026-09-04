@@ -284,3 +284,34 @@ test("saving controls during an active cooldown does not move nextTickEta earlie
     setPublisherControls({ publishBlockedUntil: null });
   }
 });
+
+/**
+ * RTG-004 regression guard (scheduler half).
+ *
+ * An overlapping manual publish must not push the scheduler into the
+ * 15/30/60-minute error backoff.
+ */
+test("scheduler does not count an already_running skip as a failure", async () => {
+  const deps = createMockDeps(async () => ({
+    success: false,
+    message: "A publisher run is already in progress",
+    runId: "run-overlap",
+    decision: "already_running",
+    artifactDir: null,
+  }));
+
+  const scheduler = startScheduler(deps, 10);
+  try {
+    await scheduler.runNow();
+    const state = await scheduler.getState();
+
+    assert.strictEqual(state.consecutiveFailures, 0, "A benign overlap is not a failure");
+    const nextInMinutes = (new Date(state.nextTickEta!).getTime() - Date.now()) / 60000;
+    assert.ok(
+      nextInMinutes > 0 && nextInMinutes <= 1,
+      `Expected a ~1 minute retry, not the error backoff; got ${nextInMinutes.toFixed(2)}m`
+    );
+  } finally {
+    scheduler.stop();
+  }
+});

@@ -444,7 +444,10 @@ export function runPublisher(
       success: false,
       message: '[Publisher] A publisher run is already in progress — try again shortly',
       runId,
-      decision: 'publisher_error' as PublisherRunDecision,
+      // RTG-004: a benign overlap, not a failure. `publisher_error` here made the
+      // scheduler increment consecutiveFailures and enter the 15/30/60m backoff
+      // whenever a manual POST /api/run-publisher raced a scheduler tick.
+      decision: 'already_running' as PublisherRunDecision,
       artifactDir: null
     });
   }

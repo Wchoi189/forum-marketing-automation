@@ -31,6 +31,8 @@ export const PUBLISHER_DECISIONS = {
   DRY_RUN: 'dry_run',
   PUBLISHER_ERROR: 'publisher_error',
   RATE_LIMITED: 'rate_limited',
+  SYSTEM_MAINTENANCE: 'system_maintenance',
+  ALREADY_RUNNING: 'already_running',
 } as const;
 
 export type PublisherDecision = typeof PUBLISHER_DECISIONS[keyof typeof PUBLISHER_DECISIONS];

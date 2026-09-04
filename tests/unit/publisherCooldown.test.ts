@@ -80,3 +80,35 @@ test("publisher run during an active cooldown never invokes the observer", async
     setPublisherControls({ publishBlockedUntil: null });
   }
 });
+
+/**
+ * RTG-004 regression guard (publisher half).
+ *
+ * The concurrency guard used to report `publisher_error`, which the scheduler
+ * counts as a failure. It is a benign overlap and gets its own decision.
+ */
+test("an overlapping publisher run is reported as already_running, not publisher_error", async () => {
+  let releaseObserver: (() => void) | null = null;
+  const observerReached = new Promise<void>((resolve) => {
+    releaseObserver = resolve;
+  });
+
+  const first = runPublisher(true, {
+    runObserver: async () => {
+      releaseObserver?.();
+      // Fail the in-flight run rather than proceeding into the browser flow.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      throw new Error("observer stub");
+    },
+  });
+
+  await observerReached;
+  const overlapping = await runPublisher(false);
+
+  assert.strictEqual(overlapping.decision, "already_running");
+  assert.strictEqual(overlapping.success, false);
+  assert.strictEqual(overlapping.artifactDir, null);
+
+  const firstResult = await first;
+  assert.strictEqual(firstResult.decision, "publisher_error");
+});
