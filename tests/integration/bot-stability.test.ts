@@ -13,7 +13,7 @@ import {
 } from "../../lib/resourceMonitor.js";
 import {
   setPublisherRunning,
-} from "../../lib/publisherStepStore.js";
+} from "../../lib/publisher/index.js";
 import { createApp } from "../../server.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

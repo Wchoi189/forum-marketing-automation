@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
-import { ENV } from "../config/env.js";
-import type { PublisherHistoryEntry } from "../contracts/models.js";
+import { ENV } from "../../config/env.js";
+import type { PublisherHistoryEntry } from "../../contracts/models.js";
 
 export type { PublisherHistoryEntry };
 
@@ -103,4 +103,3 @@ export async function getLastSuccessfulPublish(limit: number = 50): Promise<Publ
   const entries = await readPublisherHistory(limit);
   return entries.find((entry) => entry.success && (entry.decision === "published_verified" || (!entry.decision && entry.success))) ?? null;
 }
-

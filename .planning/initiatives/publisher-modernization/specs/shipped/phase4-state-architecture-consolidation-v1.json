@@ -1,6 +1,6 @@
 {
   "spec_id": "phase4-state-architecture-consolidation-v1",
-  "status": "active",
+  "status": "shipped",
   "purpose": "Consolidate micro-files in lib/publisher/, unify state authority into a reactive store to eliminate concurrency clobbering, and retire the legacy bot.ts adapter.",
   "design_intent": "Complete the architectural modernization by retiring technical debt, resolving multi-file state drift, and establishing a clean, unified module hierarchy.",
   "model_execution_guidance": {

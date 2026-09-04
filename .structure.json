@@ -14,7 +14,7 @@
     "root_allowlist": "error",
     "placement_rules": "error",
     "module_entry_points": "warn",
-    "module_boundary_baseline": 50,
+    "module_boundary_baseline": 42,
     "size_budgets": "error",
     "spec_lifecycle": "error"
   },
@@ -34,7 +34,6 @@
       "Dockerfile",
       "Makefile",
       "README.md",
-      "bot.ts",
       "docker-compose.yml",
       "docker-entrypoint.sh",
       "index.html",

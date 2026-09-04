@@ -16,6 +16,14 @@ export type {
 
 export { StateVersionConflictError } from './types.js';
 
+// Reactive state store
+export {
+  RuntimeStateStore,
+  getRuntimeStateStore,
+  initRuntimeStateStore,
+} from './store.js';
+export type { RuntimeState, StateListener } from './store.js';
+
 // Observer state
 export {
   getObserverControls,
@@ -64,5 +72,6 @@ export {
   readPersistedState,
   readStateMeta,
   persistState,
+  writeFileAtomic,
 } from './persistence.js';
 export type { PersistedStateFile } from './persistence.js';

@@ -1,6 +1,6 @@
 /**
  * Shared in-memory store for real-time publisher step tracking.
- * Updated by bot.ts as the publisher progresses through its phases.
+ * Updated as the publisher progresses through its phases.
  * Read by the /api/publisher-status endpoint for the UI to poll.
  */
 

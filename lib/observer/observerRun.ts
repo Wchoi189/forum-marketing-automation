@@ -11,7 +11,7 @@ import { ENV } from '../../config/env.js';
 import { logger, LOG_EVENT } from '../logging/index.js';
 import { extractErrorCode } from '../utils.js';
 import { createBrowserContext, BROWSER_EVAL_NAME_POLYFILL_SCRIPT, registerBrowserDebugHandlers } from '../browser/index.js';
-import { BOT_MAX_WAIT_MS } from '../publisher/core/timeouts.js';
+import { BOT_MAX_WAIT_MS } from '../publisher/index.js';
 import { parseBoardRows } from './boardParser.js';
 import { getBoardDiagnostics } from './boardDiagnostics.js';
 import { collectParserSignal, captureBoardRowRegionArtifact, combinedConfidence, createManualReviewMessage } from './parserSignal.js';

@@ -28,7 +28,7 @@ import {
 } from '../../lib/analytics/index.js';
 import { logger, LOG_EVENT } from '../../lib/logging/index.js';
 import { extractErrorCode } from '../../lib/utils.js';
-import { readPublisherHistory } from '../../lib/publisherHistory.js';
+import { readPublisherHistory } from '../../lib/publisher/index.js';
 import { getOverview, getVendorSummaries, listRecords, getRecord, getProductPrices, getActivityTimeline, openDatabase } from '../../lib/competitor-store/index.js';
 import { ENV } from '../../config/env.js';
 import type { SchedulerSignalDiagnostics, PublisherHistoryEntry } from '../../contracts/models.js';

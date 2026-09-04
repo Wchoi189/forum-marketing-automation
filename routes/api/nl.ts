@@ -13,7 +13,7 @@ import { classifyIntent, buildStatusSummary, extractIntervalMinutes, extractGapT
 import { getAdvisorCache, markAdvisorCacheApplied } from '../../lib/aiAdvisor.js';
 import { persistState, persistGapOverride } from '../../lib/state/index.js';
 import { buildTrendInsightsPayload } from '../../lib/analytics/index.js';
-import { readPublisherHistory } from '../../lib/publisherHistory.js';
+import { readPublisherHistory } from '../../lib/publisher/index.js';
 import type { BotDeps } from '../../lib/scheduler/index.js';
 import type { LogCache } from '../../lib/logCache.js';
 import type { SchedulerController } from '../routerTypes.js';

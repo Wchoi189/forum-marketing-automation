@@ -12,7 +12,7 @@ All active engineering initiatives, refactorings, and feature epics are organize
 
 | Initiative | Status | Purpose / Scope | Primary Entry Point |
 | :--- | :--- | :--- | :--- |
-| **[publisher-modernization](initiatives/publisher-modernization/README.md)** | `active` | 503 maintenance auto-pause, 1-post/hr rate limit retry trap, script bloat pruning, DOM hardening | [README.md](initiatives/publisher-modernization/README.md) |
+| **[publisher-modernization](initiatives/publisher-modernization/README.md)** | `shipped` | 503 maintenance auto-pause, 1-post/hr rate limit retry trap, script bloat pruning, DOM hardening | [README.md](initiatives/publisher-modernization/README.md) |
 | **[cloud-deployment-optimization](initiatives/cloud-deployment-optimization/README.md)** | `shipped` | 512MB RAM cloud deploy, Docker multi-stage builds, systemd supervision, SQLite tuning, NL webhook router | [README.md](initiatives/cloud-deployment-optimization/README.md) |
 | **[competitor-intel](initiatives/competitor-intel/README.md)** | `shipped` | Crawlee-based competitor ad extraction, Cheerio noise reduction, Ollama structured extraction | [README.md](initiatives/competitor-intel/README.md) |
 | **[state-authority](initiatives/state-authority/README.md)** | `active` | Runtime single source of truth, scheduler signal isolation, SOV dynamic intervals, atomic state | [README.md](initiatives/state-authority/README.md) |

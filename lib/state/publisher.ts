@@ -2,32 +2,30 @@
  * lib/state/publisher.ts
  *
  * Unified publisher state management.
- * Combines in-memory controls with persistence layer.
+ * Delegates to the authoritative reactive RuntimeStateStore.
  */
 
 import { ENV } from '../../config/env.js';
-import { clampInt } from '../utils.js';
 import type { PublisherControls, StateMeta } from './types.js';
 import { persistState, readPersistedState } from './persistence.js';
+import { getRuntimeStateStore } from './store.js';
 
 // ---------------------------------------------------------------------------
-// In-memory state
+// Defaults
 // ---------------------------------------------------------------------------
 
 const defaultPublisherControls: PublisherControls = {
-  draftItemIndex: ENV.PUBLISHER_DRAFT_ITEM_INDEX,
+  draftItemIndex: Math.max(1, Math.min(50, Math.floor(ENV.PUBLISHER_DRAFT_ITEM_INDEX ?? 1))),
   publishBlockedUntil: null,
   maintenanceBlockedUntil: null,
 };
-
-let publisherControls: PublisherControls = { ...defaultPublisherControls };
 
 // ---------------------------------------------------------------------------
 // Getters
 // ---------------------------------------------------------------------------
 
 export function getPublisherControls(): PublisherControls {
-  return { ...publisherControls };
+  return getRuntimeStateStore().getPublisherControls();
 }
 
 export function getDefaultPublisherControls(): PublisherControls {
@@ -39,19 +37,7 @@ export function getDefaultPublisherControls(): PublisherControls {
 // ---------------------------------------------------------------------------
 
 export function setPublisherControls(next: Partial<PublisherControls>): PublisherControls {
-  publisherControls.draftItemIndex = clampInt(
-    next.draftItemIndex,
-    publisherControls.draftItemIndex,
-    1,
-    50
-  );
-  if (typeof next.publishBlockedUntil === 'string' || next.publishBlockedUntil === null) {
-    publisherControls.publishBlockedUntil = next.publishBlockedUntil;
-  }
-  if (typeof next.maintenanceBlockedUntil === 'string' || next.maintenanceBlockedUntil === null) {
-    publisherControls.maintenanceBlockedUntil = next.maintenanceBlockedUntil;
-  }
-  return getPublisherControls();
+  return getRuntimeStateStore().setPublisherControlsInMemory(next);
 }
 
 // ---------------------------------------------------------------------------
@@ -63,30 +49,7 @@ export function setPublisherControls(next: Partial<PublisherControls>): Publishe
  * Call at server startup to restore previous session state.
  */
 export async function loadPersistedPublisherControls(): Promise<void> {
-  const persisted = await readPersistedState();
-  if (persisted.publisherDraftItemIndex !== undefined) {
-    publisherControls.draftItemIndex = clampInt(persisted.publisherDraftItemIndex, 1, 1, 50);
-  }
-  if (persisted.publishBlockedUntil !== undefined) {
-    if (typeof persisted.publishBlockedUntil === 'string') {
-      const t = Date.parse(persisted.publishBlockedUntil);
-      if (Number.isFinite(t)) {
-        publisherControls.publishBlockedUntil = persisted.publishBlockedUntil;
-      }
-    } else if (persisted.publishBlockedUntil === null) {
-      publisherControls.publishBlockedUntil = null;
-    }
-  }
-  if (persisted.maintenanceBlockedUntil !== undefined) {
-    if (typeof persisted.maintenanceBlockedUntil === 'string') {
-      const t = Date.parse(persisted.maintenanceBlockedUntil);
-      if (Number.isFinite(t)) {
-        publisherControls.maintenanceBlockedUntil = persisted.maintenanceBlockedUntil;
-      }
-    } else if (persisted.maintenanceBlockedUntil === null) {
-      publisherControls.maintenanceBlockedUntil = null;
-    }
-  }
+  await getRuntimeStateStore().init();
 }
 
 /**
@@ -110,10 +73,11 @@ export async function readPersistedPublisherControls(): Promise<Partial<Publishe
  * Persist current publisher controls to disk.
  */
 export async function persistPublisherControls(expectedVersion?: number): Promise<StateMeta> {
+  const current = getPublisherControls();
   return persistState({
-    publisherDraftItemIndex: publisherControls.draftItemIndex,
-    publishBlockedUntil: publisherControls.publishBlockedUntil,
-    maintenanceBlockedUntil: publisherControls.maintenanceBlockedUntil,
+    publisherDraftItemIndex: current.draftItemIndex,
+    publishBlockedUntil: current.publishBlockedUntil,
+    maintenanceBlockedUntil: current.maintenanceBlockedUntil,
   }, expectedVersion);
 }
 

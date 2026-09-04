@@ -1,6 +1,6 @@
 ---
 title: Publisher Architecture Modernization
-status: active
+status: shipped
 initiative_id: publisher-modernization
 created: 2026-09-04
 tags:
@@ -45,7 +45,7 @@ The automated publisher component currently experiences repeated failure cascade
 | **Phase 1** | [specs/shipped/phase1-bloat-pruning-v1.json](specs/shipped/phase1-bloat-pruning-v1.json) | `shipped` | Prune 10 orphaned scripts (~55KB dead code), clean dead package.json scripts, ratchet structure boundary |
 | **Phase 2** | [specs/shipped/phase2-publisher-scheduler-stabilization-v1.json](specs/shipped/phase2-publisher-scheduler-stabilization-v1.json) | `shipped` | Fix 1-post/hr rate limit retry trap; enforce mandatory cooldown in scheduler & pre-flight gatekeeper |
 | **Phase 3** | [specs/shipped/phase3-maintenance-engine-v1.json](specs/shipped/phase3-maintenance-engine-v1.json) | `shipped` | Platform maintenance window detection ("점검 중 입니다"); auto-pause & auto-resume engine |
-| **Phase 4** | [specs/active/phase4-state-architecture-consolidation-v1.json](specs/active/phase4-state-architecture-consolidation-v1.json) | `active` | State authority consolidation, persistent pause state, atomic lock release, regression verification |
+| **Phase 4** | [specs/shipped/phase4-state-architecture-consolidation-v1.json](specs/shipped/phase4-state-architecture-consolidation-v1.json) | `shipped` | State authority consolidation, reactive store, micro-file inlining, bot.ts retirement |
 
 ---
 

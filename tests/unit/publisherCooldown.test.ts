@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs/promises";
 import path from "path";
 import { ENV } from "../../config/env.js";
-import { appendPublisherHistoryEntry, getLastSuccessfulPublish } from "../../lib/publisherHistory.js";
+import { appendPublisherHistoryEntry, getLastSuccessfulPublish } from "../../lib/publisher/index.js";
 
 test("getLastSuccessfulPublish retrieves newest verified publish and skips errors", async () => {
   const testDir = path.join(ENV.ARTIFACTS_DIR, "publisher-history");
