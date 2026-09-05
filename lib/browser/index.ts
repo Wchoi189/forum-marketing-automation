@@ -17,6 +17,8 @@ export {
   createBrowserContext,
   closeSharedBrowser,
   saveStorageState,
+  shutdownBrowser,
+  registerSignalHandlers,
 } from './shared.js';
 
 export { registerBrowserDebugHandlers } from './debug.js';

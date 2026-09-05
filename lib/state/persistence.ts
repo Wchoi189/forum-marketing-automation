@@ -9,6 +9,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { ENV } from '../../config/env.js';
 import { StateVersionConflictError } from './types.js';
+import { getRuntimeStateStore } from './store.js';
 
 const REL_PATH = 'runtime-controls.json';
 let writeQueue: Promise<void> = Promise.resolve();
@@ -59,6 +60,7 @@ export type PersistedStateFile = {
   // Publisher
   publisherDraftItemIndex?: number;
   publishBlockedUntil?: string | null;
+  maintenanceBlockedUntil?: string | null;
 
   // Additional config
   customParserEnabled?: boolean;
@@ -81,26 +83,28 @@ function enqueueWrite<T>(operation: () => Promise<T>): Promise<T> {
   return run;
 }
 
-async function writeFileAtomic(next: PersistedStateFile): Promise<void> {
-  const fp = filePath();
-  await fs.mkdir(path.dirname(fp), { recursive: true });
-  const tmp = `${fp}.${process.pid}.${Date.now()}.tmp`;
-  const serialized = JSON.stringify(next, null, 2);
-  try {
-    await fs.writeFile(tmp, serialized, 'utf-8');
-    const handle = await fs.open(tmp, 'r');
+export async function writeFileAtomic(next: PersistedStateFile): Promise<void> {
+  return enqueueWrite(async () => {
+    const fp = filePath();
+    await fs.mkdir(path.dirname(fp), { recursive: true });
+    const tmp = `${fp}.${process.pid}.${Date.now()}.tmp`;
+    const serialized = JSON.stringify(next, null, 2);
     try {
-      await handle.sync();
-    } finally {
-      await handle.close();
+      await fs.writeFile(tmp, serialized, 'utf-8');
+      const handle = await fs.open(tmp, 'r');
+      try {
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      await fs.rename(tmp, fp);
+    } catch (err) {
+      // Never leave the temp file behind — a failed write used to leak one per
+      // attempt, and nothing cleaned them up.
+      await fs.rm(tmp, { force: true }).catch(() => undefined);
+      throw err;
     }
-    await fs.rename(tmp, fp);
-  } catch (err) {
-    // Never leave the temp file behind — a failed write used to leak one per
-    // attempt, and nothing cleaned them up.
-    await fs.rm(tmp, { force: true }).catch(() => undefined);
-    throw err;
-  }
+  });
 }
 
 function normalizeStateVersion(value: unknown): number {
@@ -135,51 +139,26 @@ export async function readPersistedState(): Promise<PersistedStateFile> {
 }
 
 /**
- * Read state version metadata.
+ * Read state version metadata from store authority.
  */
 export async function readStateMeta(): Promise<{ stateVersion: number; persistedAt: string | null }> {
-  const data = await readPersistedState();
-  return {
-    stateVersion: normalizeStateVersion(data.stateVersion),
-    persistedAt: normalizePersistedAt(data.persistedAt),
-  };
+  const store = getRuntimeStateStore();
+  await store.ensureInitialized();
+  return store.getStateMeta();
 }
 
 /**
- * Persist state patch atomically with optimistic concurrency.
+ * Persist state patch atomically with optimistic concurrency via the authoritative store.
  */
-export async function persistState(patch: Partial<PersistedStateFile>, expectedVersion?: number): Promise<{ stateVersion: number; persistedAt: string | null }> {
-  return enqueueWrite(async () => {
-    const existing = await readPersistedState();
-    const currentVersion = normalizeStateVersion(existing.stateVersion);
-
-    if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
-      throw new StateVersionConflictError(expectedVersion, currentVersion);
-    }
-
-    const nextVersion = currentVersion + 1;
-    const nextPersistedAt = new Date().toISOString();
-
-    // Merge: clear null values, set defined values
-    const next: PersistedStateFile = { ...existing };
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === null) {
-        delete (next as Record<string, unknown>)[key];
-      } else if (value !== undefined) {
-        (next as Record<string, unknown>)[key] = value;
-      }
-    }
-
-    next.stateVersion = nextVersion;
-    next.persistedAt = nextPersistedAt;
-
-    await writeFileAtomic(next);
-
-    return {
-      stateVersion: nextVersion,
-      persistedAt: nextPersistedAt,
-    };
-  });
+export async function persistState(
+  patch: Partial<PersistedStateFile>,
+  expectedVersion?: number
+): Promise<{ stateVersion: number; persistedAt: string | null }> {
+  const store = getRuntimeStateStore();
+  await store.ensureInitialized();
+  const meta = store.patch(patch, expectedVersion);
+  await store.flush();
+  return meta;
 }
 
 // Re-export for convenience

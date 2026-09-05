@@ -10,6 +10,9 @@ import { applyScheduleJitter } from '../scheduleJitter.js';
 import { computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoice, shareOfVoiceMultiplierFromSoV, COMBINED_MULTIPLIER_MIN, COMBINED_MULTIPLIER_MAX, summarizeSchedulerSignals } from '../analytics/index.js';
 import { logger, LOG_EVENT } from '../logging/index.js';
 import { ENV } from '../../config/env.js';
+import { getPublisherControls } from '../state/index.js';
+
+import { PUBLISH_COOLDOWN_WINDOW_MINUTES } from '../publisher/index.js';
 
 import { PRESET_CONFIG, isHourInRange, normalizeAutoPublisherControls } from './presets.js';
 import type { AutoPublisherControls, ControlPanelPreset, BotDeps } from './types.js';
@@ -138,10 +141,19 @@ export function startScheduler(
     return effective;
   };
 
-  // Dynamic gap recheck intervals based on how close the gap is to becoming safe
-  const PUBLISHER_FAIL_RECHECK_INTERVAL = 5; // 5 minutes after a failed publish attempt when gap was safe
+  let consecutiveFailures = 0;
+  const ERROR_BACKOFF_MINUTES = [15, 30, 60] as const;
 
-  const tick = async (): Promise<{ currentGap: number; requiredGap: number } | false | undefined> => {
+  type SchedulerTickOutcome =
+    | { type: 'rate_limited'; remainingMinutes: number }
+    | { type: 'system_maintenance'; remainingMinutes: number }
+    | { type: 'gap_skip'; gapInfo?: { currentGap: number; requiredGap: number } }
+    | { type: 'success'; cooldownApplies: boolean; gapInfo?: { currentGap: number; requiredGap: number } }
+    | { type: 'already_running' }
+    | { type: 'unexpected_error'; consecutiveFailures: number }
+    | { type: 'normal' };
+
+  const tick = async (): Promise<SchedulerTickOutcome | false> => {
     if (!enabled) {
       return false;
     }
@@ -155,35 +167,61 @@ export function startScheduler(
 
     running = true;
     const tickStartedAt = Date.now();
-    let wasGapSkip = false;
-    let wasSuccessPublish = false;
-    let wasPublisherFailGapSafe = false;
-    let gapInfo: { currentGap: number; requiredGap: number } | undefined = undefined;
+    let outcome: SchedulerTickOutcome = { type: 'normal' };
     try {
       logger.info({ event: LOG_EVENT.schedulerTickStarted }, '[Scheduler] Tick started');
       const result = await deps.runPublisher(false);
-      wasGapSkip = result.decision === 'gap_policy';
-      if (wasGapSkip) {
-        gapInfo = result.gapInfo;
+
+      if (result.decision === 'gap_policy') {
+        consecutiveFailures = 0;
+        outcome = { type: 'gap_skip', gapInfo: result.gapInfo };
       } else if (result.decision === 'published_verified' || result.decision === 'dry_run') {
-        wasSuccessPublish = true;
-        gapInfo = result.gapInfo; // { currentGap: 0, requiredGap: N }
-      } else if (result.gapInfo) {
-        // Publisher failed but the gap was already safe — retry sooner than the full interval
-        wasPublisherFailGapSafe = true;
-        gapInfo = result.gapInfo;
+        consecutiveFailures = 0;
+        // Only a verified publish starts the platform's one-post-per-hour
+        // cooldown. A dry run submits nothing, so it keeps the gap-recheck pace.
+        outcome = {
+          type: 'success',
+          cooldownApplies: result.decision === 'published_verified',
+          gapInfo: result.gapInfo ?? { currentGap: 0, requiredGap: 4 },
+        };
+      } else if (result.decision === 'rate_limited') {
+        // Expected rate-limit cooldown — do NOT increment consecutiveFailures
+        const remaining =
+          result.cooldownRemainingMinutes && result.cooldownRemainingMinutes > 0
+            ? result.cooldownRemainingMinutes
+            : 60;
+        outcome = { type: 'rate_limited', remainingMinutes: remaining };
+      } else if (result.decision === 'system_maintenance') {
+        // Expected platform maintenance pause — do NOT increment consecutiveFailures
+        const remaining =
+          result.maintenanceRemainingMinutes && result.maintenanceRemainingMinutes > 0
+            ? result.maintenanceRemainingMinutes
+            : 30;
+        outcome = { type: 'system_maintenance', remainingMinutes: remaining };
+      } else if (result.decision === 'already_running') {
+        // Benign overlap with a manual run — leave consecutiveFailures alone and
+        // come back in a minute rather than entering the error backoff.
+        outcome = { type: 'already_running' };
+      } else if (result.decision === 'publisher_error' || result.decision === 'observer_error') {
+        consecutiveFailures += 1;
+        outcome = { type: 'unexpected_error', consecutiveFailures };
+      } else {
+        outcome = { type: 'normal' };
       }
+
       if (result.log) {
         lastObserverResult = {
           status: result.log.status,
           currentGap: result.log.current_gap_count,
-          requiredGap: result.log.gap_threshold_min ?? gapInfo?.requiredGap ?? 0,
+          requiredGap: result.log.gap_threshold_min ?? result.gapInfo?.requiredGap ?? 0,
           checkedAt: result.log.timestamp,
         };
       }
     } catch (error: any) {
+      consecutiveFailures += 1;
+      outcome = { type: 'unexpected_error', consecutiveFailures };
       logger.error(
-        { event: LOG_EVENT.schedulerTickFailed, status: 'error', error: String(error?.message ?? error) },
+        { event: LOG_EVENT.schedulerTickFailed, status: 'error', consecutiveFailures, error: String(error?.message ?? error) },
         '[Scheduler] Tick failed'
       );
     } finally {
@@ -194,36 +232,70 @@ export function startScheduler(
       running = false;
     }
 
-    // After a successful publish, enter gap-recheck mode immediately so the gap
-    // never grows unchecked for a full interval before the next post.
-    if (wasGapSkip || wasSuccessPublish || wasPublisherFailGapSafe) {
-      return gapInfo;
-    }
-    return false;
+    return outcome;
   };
 
-  const scheduleNext = async (fromGapSkip: boolean | { currentGap: number; requiredGap: number } = false) => {
+  const scheduleNext = async (
+    outcome:
+      | SchedulerTickOutcome
+      | boolean
+      | { currentGap: number; requiredGap: number } = false
+  ) => {
     if (timer) {
       clearTimeout(timer);
     }
     let nextMinutes: number;
     let baseMinutes: number;
+    let reason: string = 'normal';
 
-    if (fromGapSkip && typeof fromGapSkip === 'object') {
-      // Gap is not yet safe but we have gap information - use dynamic interval based on how close we are
-      const gapDiff = fromGapSkip.requiredGap - fromGapSkip.currentGap;
-      if (gapDiff <= 0) {
-        // Gap was already safe but publish failed — retry in 5 minutes to avoid hammering on persistent errors
-        baseMinutes = PUBLISHER_FAIL_RECHECK_INTERVAL;
-        nextMinutes = PUBLISHER_FAIL_RECHECK_INTERVAL;
-      } else {
+    if (outcome && typeof outcome === 'object' && 'type' in outcome) {
+      if (outcome.type === 'rate_limited') {
+        const remaining = Math.max(1, outcome.remainingMinutes);
+        baseMinutes = remaining + 1; // 1-minute buffer after cooldown
+        nextMinutes = baseMinutes;
+        reason = 'rate_limited_cooldown';
+      } else if (outcome.type === 'system_maintenance') {
+        const remaining = Math.max(1, outcome.remainingMinutes);
+        baseMinutes = remaining; // Buffer already included in maintenance parser
+        nextMinutes = baseMinutes;
+        reason = 'system_maintenance';
+      } else if (outcome.type === 'already_running') {
+        baseMinutes = 1;
+        nextMinutes = 1;
+        reason = 'already_running';
+      } else if (outcome.type === 'unexpected_error') {
+        const idx = Math.min(outcome.consecutiveFailures - 1, ERROR_BACKOFF_MINUTES.length - 1);
+        baseMinutes = ERROR_BACKOFF_MINUTES[Math.max(0, idx)] ?? 60;
+        nextMinutes = baseMinutes;
+        reason = 'error_backoff';
+      } else if (outcome.type === 'success' && outcome.cooldownApplies) {
+        // RTG-002: a verified publish means the next hour is known to be blocked.
+        // Sharing gap_skip's 3-minute recheck guaranteed a wasted browser run.
+        baseMinutes = PUBLISH_COOLDOWN_WINDOW_MINUTES + 1; // 1-minute buffer past the window
+        nextMinutes = baseMinutes;
+        reason = 'post_publish_cooldown';
+      } else if (outcome.type === 'gap_skip' || outcome.type === 'success') {
         baseMinutes = controls.gapRecheckIntervalMinutes;
         nextMinutes = controls.gapRecheckIntervalMinutes;
+        reason = 'gap_recheck';
+      } else {
+        baseMinutes = await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes);
+        nextMinutes = applyScheduleJitter(
+          baseMinutes,
+          controls.scheduleJitterPercent,
+          controls.scheduleJitterMode,
+          Math.random
+        );
+        reason = 'normal';
       }
-    } else if (fromGapSkip) {
-      // Gap is not yet safe — re-check soon rather than waiting the full interval.
+    } else if (outcome && typeof outcome === 'object' && 'currentGap' in outcome) {
       baseMinutes = controls.gapRecheckIntervalMinutes;
       nextMinutes = controls.gapRecheckIntervalMinutes;
+      reason = 'gap_recheck';
+    } else if (outcome === true) {
+      baseMinutes = controls.gapRecheckIntervalMinutes;
+      nextMinutes = controls.gapRecheckIntervalMinutes;
+      reason = 'gap_recheck';
     } else {
       baseMinutes = await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes);
       nextMinutes = applyScheduleJitter(
@@ -232,28 +304,81 @@ export function startScheduler(
         controls.scheduleJitterMode,
         Math.random
       );
+      reason = 'normal';
     }
-    nextTickEta = new Date(Date.now() + nextMinutes * 60 * 1000).toISOString();
+
+    // RTG-003: a pending block deadline is state, not a side effect of a setter.
+    // setControls / setIntervalMinutes / applyPreset each end in
+    // `void scheduleNext(false)`, which clears the pending timer and reschedules
+    // at the normal adaptive interval — so any control-panel POST during a
+    // cooldown or maintenance pause silently shortened the wait. Clamp here, at
+    // the single scheduling site, rather than policing three setters.
+    let deadlineMs = Date.now() + nextMinutes * 60 * 1000;
+    const blockControls = getPublisherControls();
+    const activeBlocks: Array<{ field: string; deadlineMs: number; untilMs: number }> = [];
+    for (const field of ['publishBlockedUntil', 'maintenanceBlockedUntil'] as const) {
+      const raw = blockControls[field];
+      if (!raw) continue;
+      const untilMs = new Date(raw).getTime();
+      // Same 1-minute buffer the rate_limited branch applies, so a clamped tick
+      // does not land on the exact boundary and bounce straight back.
+      const blockDeadlineMs = untilMs + 60 * 1000;
+      if (Number.isFinite(untilMs) && blockDeadlineMs > deadlineMs) {
+        activeBlocks.push({ field, deadlineMs: blockDeadlineMs, untilMs });
+      }
+    }
+    if (activeBlocks.length > 0) {
+      const winner = activeBlocks.reduce((a, b) => (b.deadlineMs > a.deadlineMs ? b : a));
+      logger.info(
+        {
+          event: LOG_EVENT.schedulerNextScheduled,
+          status: 'clamped',
+          clampedBy: winner.field,
+          blockedUntil: new Date(winner.untilMs).toISOString(),
+          discardedReason: reason,
+          discardedMinutes: nextMinutes,
+        },
+        `[Scheduler] Schedule clamped — ${reason} wanted ${nextMinutes} minute(s) but ${winner.field} is active until ${new Date(winner.untilMs).toISOString()}`
+      );
+      deadlineMs = winner.deadlineMs;
+      nextMinutes = Math.max(1, Math.ceil((deadlineMs - Date.now()) / 60000));
+      reason = 'block_deadline_clamp';
+    }
+
+    nextTickEta = new Date(deadlineMs).toISOString();
+    const isSpecialSchedule = reason !== 'normal';
     logger.info(
       {
         event: LOG_EVENT.schedulerNextScheduled,
         nextMinutes,
         baseMinutes,
-        jitterPercent: fromGapSkip ? 0 : controls.scheduleJitterPercent,
-        jitterMode: fromGapSkip ? 'none' : controls.scheduleJitterMode,
-        reason: fromGapSkip ? 'gap_recheck' : 'normal',
+        jitterPercent: isSpecialSchedule ? 0 : controls.scheduleJitterPercent,
+        jitterMode: isSpecialSchedule ? 'none' : controls.scheduleJitterMode,
+        reason,
       },
-      fromGapSkip
-        ? `[Scheduler] Gap not safe — re-checking in ${nextMinutes} minute(s) (current=${typeof fromGapSkip === 'object' ? fromGapSkip.currentGap : 'unknown'}, required=${typeof fromGapSkip === 'object' ? fromGapSkip.requiredGap : 'unknown'})`
+      reason === 'rate_limited_cooldown'
+        ? `[Scheduler] Cooldown active — next tick scheduled in ${nextMinutes} minute(s) (${baseMinutes - 1}m cooldown + 1m buffer)`
+        : reason === 'system_maintenance'
+        ? `[Scheduler] Platform maintenance active — next tick scheduled in ${nextMinutes} minute(s) at ${nextTickEta}`
+        : reason === 'error_backoff'
+        ? `[Scheduler] Error backoff active (failure count=${consecutiveFailures}) — next tick scheduled in ${nextMinutes} minute(s)`
+        : reason === 'post_publish_cooldown'
+        ? `[Scheduler] Publish verified — next tick scheduled in ${nextMinutes} minute(s) (${PUBLISH_COOLDOWN_WINDOW_MINUTES}m platform cooldown + 1m buffer)`
+        : reason === 'gap_recheck'
+        ? `[Scheduler] Gap monitoring — re-checking in ${nextMinutes} minute(s)`
+        : reason === 'already_running'
+        ? `[Scheduler] A publisher run is already active — retrying in ${nextMinutes} minute(s)`
+        : reason === 'block_deadline_clamp'
+        ? `[Scheduler] Block deadline active — next tick scheduled at ${nextTickEta}`
         : '[Scheduler] Next tick scheduled'
     );
     timer = setTimeout(() => {
       void (async () => {
         nextTickEta = null;
-        const gapSkip = await tick();
-        await scheduleNext(gapSkip);
+        const tickOutcome = await tick();
+        await scheduleNext(tickOutcome);
       })();
-    }, nextMinutes * 60 * 1000);
+    }, Math.max(0, deadlineMs - Date.now()));
   };
 
   // Fire an initial tick shortly after startup so the publisher doesn't sit idle for
@@ -264,10 +389,11 @@ export function startScheduler(
   timer = setTimeout(() => {
     void (async () => {
       nextTickEta = null;
-      const gapSkip = await tick();
-      await scheduleNext(gapSkip ?? false);
+      const tickOutcome = await tick();
+      await scheduleNext(tickOutcome);
     })();
   }, STARTUP_TICK_DELAY_MS);
+
 
   logger.info(
     {
@@ -285,7 +411,13 @@ export function startScheduler(
         timer = null;
       }
     },
-    runNow: tick,
+    runNow: async () => {
+      const tickOutcome = await tick();
+      if (tickOutcome !== false) {
+        await scheduleNext(tickOutcome);
+      }
+      return tickOutcome;
+    },
     setEnabled: (nextEnabled: boolean) => {
       enabled = nextEnabled;
     },
@@ -314,6 +446,7 @@ export function startScheduler(
       enabled,
       effectiveIntervalMinutes: await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes),
       running,
+      consecutiveFailures,
       nextTickEta: enabled ? nextTickEta : null,
       lastObserverResult,
     }),

@@ -64,7 +64,6 @@ COPY --from=frontend-build --chown=app:app /build/dist ./dist
 # Copy application source
 COPY --chown=app:app tsconfig.json ./
 COPY --chown=app:app server.ts ./
-COPY --chown=app:app bot.ts ./
 COPY --chown=app:app mcp/ ./mcp/
 COPY --chown=app:app config/ ./config/
 COPY --chown=app:app contracts/ ./contracts/

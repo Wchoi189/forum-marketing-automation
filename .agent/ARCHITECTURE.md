@@ -34,7 +34,8 @@ lib/
 ├── observer/             # Board observation and parsing
 ├── browser/              # Chromium lifecycle: shared browser, debug handlers, eval polyfill
 ├── logging/              # pino instance + LOG_EVENT vocabulary
-├── analytics/            # Derived numbers from history: trends, scheduler signals, competitor EDA
+├── analytics/            # Derived numbers from history: trends, scheduler signals + calibration,
+│                         #   board/competitor summaries, competitor EDA
 ├── kakao/                # KakaoTalk skill: webhook types, Postgres log, auto-reply
 ├── competitor-intel/     # Competitor ad extraction pipeline (crawls and writes)
 ├── competitor-store/     # SQLite corpus of extracted ads + dashboard read model
@@ -42,9 +43,19 @@ lib/
 └── parser/               # DOM projection and diff utilities
 
 src/                      # React UI (control panel)
+├── pages/                # One file per route, shells only — App.tsx and AnalyticsPage.tsx
+├── hooks/                # Data orchestration: fetching, polling, filter state
+├── components/           # Views, grouped by the page or domain that owns them
+└── lib/                  # Browser-side pure helpers (formatting, CSV)
 contracts/                # Shared type definitions
 config/                   # Environment and validation
 ```
+
+A route file holds view state and layout. Anything that fetches belongs in
+`src/hooks/`, anything that derives or formats belongs in `src/lib/`, and a
+section large enough to name belongs in `src/components/`. `src/App.tsx`
+(1800 → 156 lines) and `src/pages/AnalyticsPage.tsx` (799 → 227) were both
+decomposed along exactly those three seams.
 
 **When a `lib/` entry becomes a directory:** it is a directory with an
 `index.ts` when it owns a domain concept with more than one file's worth of

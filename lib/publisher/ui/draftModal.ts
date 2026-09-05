@@ -1,6 +1,6 @@
 import type { Locator, Page } from "playwright";
 
-import { PLAYBOOK_LOCATOR_TIMEOUT_MS } from "../core/timeouts.js";
+import { PLAYBOOK_LOCATOR_TIMEOUT_MS } from "../flow/runPublisherFlow.js";
 import type { PlaybookRuntimeContext } from "../../playbookRunner.js";
 import { logger, LOG_EVENT } from "../../logging/index.js";
 

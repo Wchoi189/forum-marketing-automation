@@ -6,26 +6,21 @@ import cors from "cors";
 import { rateLimit } from "express-rate-limit";
 import { pathToFileURL } from "url";
 import { createServer as createViteServer } from "vite";
-import {
-  getLogs,
-  runObserver,
-  runPublisher,
-  initBotControls,
-  registerSignalHandlers,
-} from "./bot.js";
-import { getSharedLogCache } from "./lib/logCache.js";
-import { initSharedBrowser } from "./lib/browser/index.js";
+import { runObserver } from "./lib/observer/index.js";
+import { runPublisher, readPublisherHistory } from "./lib/publisher/index.js";
+import { getSharedLogCache, initSharedLogCache } from "./lib/logCache.js";
+import { initSharedBrowser, registerSignalHandlers } from "./lib/browser/index.js";
 import { ENV } from "./config/env.js";
 import { WATCH_IGNORED } from "./config/watch.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
 import { logger, LOG_EVENT } from "./lib/logging/index.js";
-import { readPublisherHistory } from "./lib/publisherHistory.js";
 import {
   startScheduler,
   type BotDeps,
   type ControlPanelPreset,
 } from "./lib/scheduler/index.js";
 import {
+  initRuntimeStateStore,
   readPersistedSchedulerControls,
   readPersistedNlWebhookEnabled,
 } from "./lib/state/index.js";
@@ -41,7 +36,13 @@ import { createAiRouter } from "./routes/api/ai.js";
 import { createNlRouter } from "./routes/api/nl.js";
 import { createKakaoRouter } from "./routes/api/kakao.js";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Shared Log Cache & Helpers ───────────────────────────────────────────────
+
+initSharedLogCache(ENV.ACTIVITY_LOG_PATH, 15_000);
+
+export async function getLogs() {
+  return getSharedLogCache().get();
+}
 
 function getDefaultDeps(): BotDeps {
   if (ENV.DEV_SKIP_BOT) {
@@ -170,7 +171,7 @@ export async function startServer() {
   const [persistedScheduler, persistedNlWebhookEnabled] = await Promise.all([
     readPersistedSchedulerControls(),
     readPersistedNlWebhookEnabled(),
-    skipBot ? Promise.resolve() : initBotControls(),
+    skipBot ? Promise.resolve() : initRuntimeStateStore(),
   ]);
   const scheduler = skipBot ? undefined : startScheduler(getDefaultDeps(), ENV.RUN_INTERVAL_MINUTES, persistedScheduler);
   if (!skipBot && Object.keys(persistedScheduler).length > 0) {

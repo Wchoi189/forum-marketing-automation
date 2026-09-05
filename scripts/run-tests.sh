@@ -46,4 +46,4 @@ for arg in "$@"; do
 done
 shopt -u nullglob
 
-exec npx tsx --test "${files[@]}"
+exec npx tsx --test --test-concurrency=1 "${files[@]}"

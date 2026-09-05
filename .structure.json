@@ -14,7 +14,7 @@
     "root_allowlist": "error",
     "placement_rules": "error",
     "module_entry_points": "warn",
-    "module_boundary_baseline": 76,
+    "module_boundary_baseline": 42,
     "size_budgets": "error",
     "spec_lifecycle": "error"
   },
@@ -34,7 +34,6 @@
       "Dockerfile",
       "Makefile",
       "README.md",
-      "bot.ts",
       "docker-compose.yml",
       "docker-entrypoint.sh",
       "index.html",
@@ -113,13 +112,13 @@
 
   "spec_lifecycle": {
     "$comment": [
-      "Step 6 of structure-roadmap-2026-08-08.md. The spec-kit corpus is three kinds of document, not one:",
-      "  contracts/ and reference/ are CURRENT TRUTH - they are correct or superseded, never 'done'. They carry no status.",
-      "  specs/ are WORK ITEMS with a lifecycle, and each one declares where it is via a closed vocabulary.",
-      "Seven vocabularies (done, implemented, active, ACTIVE, IN_PROGRESS, proposed, draft) collapsed into the four below.",
+      "The planning corpus is two categories:",
+      "  contracts/ and reference/ are CURRENT TRUTH under .planning/spec-kit - stateless, carrying no status.",
+      "  initiatives/*/specs/ are WORK ITEMS with a lifecycle, declaring where they are via closed vocabulary.",
       "Directory and status must agree, so neither can drift without the other being wrong."
     ],
-    "root": ".planning/spec-kit",
+    "initiatives_root": ".planning/initiatives",
+    "spec_kit_root": ".planning/spec-kit",
     "statuses": ["proposed", "active", "shipped", "superseded"],
     "status_dir": {
       "proposed": "specs/active",
@@ -141,9 +140,7 @@
     "extensions": [".ts", ".tsx"],
     "exemptions": {
       "tests/integration/api.integration.test.ts": "973 - one case per endpoint; splitting by route group is tracked in structure-roadmap-2026-08-08.md",
-      "src/AnalyticsPage.tsx": "799 - decomposition tracked in structure-roadmap-2026-08-08.md item 4",
       "src/pages/CompetitorIntelPage.tsx": "575 - chart-heavy page, same decomposition pass as AnalyticsPage",
-      "routes/api/logs.ts": "569 - analytics work that likely belongs in lib/, item 5",
       "src/hooks/useAppData.ts": "541 - dashboard data orchestration; split per-domain when it grows again",
       "lib/analytics/competitors.ts": "520 - moved into lib/analytics/ by item 5.2; splitting the EDA payload builder from the event extractor is still open"
     }

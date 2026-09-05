@@ -1,0 +1,100 @@
+{
+  "handover_id": "handover-20260904-1800",
+  "timestamp_utc": "2026-09-04T08:55:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "completed",
+  "objective": "Execute Phase 2 (Publisher & Scheduler Stabilization) of publisher-architecture-modernization-v1 per phase2-publisher-scheduler-stabilization-v1.json.",
+  "non_goals": [
+    "Executing Phase 3 platform maintenance window parser and dynamic scheduler pause before operator review",
+    "Consolidating micro-files or state store (scheduled for Phase 4)"
+  ],
+  "current_state": {
+    "completed": [
+      "STAB-001: Added proactive 60-minute cooldown pre-flight gatekeeper in lib/publisher/publisherRun.ts and getLastSuccessfulPublish helper in lib/publisherHistory.ts to abort immediately without launching Chromium context when cooldown is active.",
+      "STAB-002: Eliminated hardcoded 5-minute scheduler loop (PUBLISHER_FAIL_RECHECK_INTERVAL = 5) in lib/scheduler/run.ts. Implemented cooldown alignment (remainingMinutes + 1m buffer) on rate_limited and progressive exponential backoff (15m -> 30m -> 60m) on unexpected errors.",
+      "STAB-003: Implemented browser alert dialog interception via page.once('dialog') in lib/publisher/flow/runPublisherFlow.ts before clicking write button, and expanded rate-limit pattern regex in lib/publisher/ui/rateLimit.ts to support dialog text and variant Korean phrasing.",
+      "STAB-004: Rationalized Slack notifications for rate_limited in lib/publisher/publisherRun.ts, demoting from critical failure alerts (❌) to informational status notices (⏳) with window-based deduplication.",
+      "Added unit test suites tests/unit/publisherCooldown.test.ts, tests/unit/schedulerStabilization.test.ts, and updated tests/unit/rateLimit.test.ts (78/78 passing unit tests).",
+      "Configured scripts/run-tests.sh to execute with --test-concurrency=1 to prevent concurrent temp state corruption during test runs (62/62 passing integration tests).",
+      "Moved phase2-publisher-scheduler-stabilization-v1.json to specs/shipped/ with status 'shipped' and updated .planning/initiatives/publisher-modernization/README.md.",
+      "Verified workspace integrity: npm run lint:structure, npm run lint, and full npm test all green with 0 errors."
+    ],
+    "gaps": [
+      "Phase 3 (Platform Maintenance Window & Dynamic Scheduler Pause Engine) ready for implementation per .planning/initiatives/publisher-modernization/specs/active/phase3-maintenance-engine-v1.json."
+    ]
+  },
+  "status": "success",
+  "decisions_locked": [
+    {
+      "decision": "Pre-flight Cooldown Gatekeeper",
+      "rationale": "Checking publisherHistory for last successful publish before creating Playwright BrowserContext completely eliminates unnecessary Chromium spawns during the 60-minute forum cooldown window."
+    },
+    {
+      "decision": "Cooldown Alignment & Exponential Error Backoff",
+      "rationale": "Replacing the 5-minute spin loop with now + remainingMinutes + 1m for rate limits and 15m -> 30m -> 60m for unexpected errors protects the forum account from spam bans and stops CPU/memory churn."
+    },
+    {
+      "decision": "Playwright Dialog Interception",
+      "rationale": "Hooking page.once('dialog') before clicking write button prevents unhandled alert auto-dismissal from causing misleading downstream draft modal selector errors."
+    },
+    {
+      "decision": "Sequential Test Runner Execution",
+      "rationale": "Adding --test-concurrency=1 in scripts/run-tests.sh ensures integration tests sharing the temporary hermetic state files do not suffer file-write race conditions."
+    }
+  ],
+  "acceptance_criteria": [
+    "Unit tests for cooldown calculation pass",
+    "Scheduler schedules next tick after cooldown period, not 5 minutes",
+    "npm run lint passes with 0 errors",
+    "npm run test:unit passes all tests (78 pass)",
+    "npm run test:integration passes all tests (62 pass)"
+  ],
+  "implementation_plan": [
+    ".planning/initiatives/publisher-modernization/plans/publisher-architecture-modernization.plan.json"
+  ],
+  "practical_recommendations": [
+    "Phase 3 requires handling unstructured Korean text for platform maintenance notices ('점검 중 입니다', '02:00 ~ 06:00') and configuring dynamic scheduler sleeping.",
+    "Fast models should execute Phase 3 in small discrete batches (regex extraction first, scheduler pause second) with automated test validation after each step."
+  ],
+  "completed_items": [
+    "STAB-001: Cooldown pre-flight gatekeeper in lib/publisher/publisherRun.ts & lib/publisherHistory.ts",
+    "STAB-002: Elimination of 5m scheduler loop in lib/scheduler/run.ts with cooldown alignment and exponential backoff",
+    "STAB-003: Dialog interception and expanded regex in lib/publisher/flow/runPublisherFlow.ts & lib/publisher/ui/rateLimit.ts",
+    "STAB-004: Slack alert rationalization in lib/publisher/publisherRun.ts & lib/notifications.ts",
+    "Shipped Phase 2 spec and updated initiative documentation"
+  ],
+  "pending_items": [
+    "Phase 3: Platform Maintenance Engine (phase3-maintenance-engine-v1.json)"
+  ],
+  "decisions": [
+    "Completed Phase 2 with strict adherence to session boundary and mandatory auto-stop rule."
+  ],
+  "constraints": [
+    "Do not proceed to Phase 3 in the same turn without operator review."
+  ],
+  "env_requirements": [],
+  "next_actions": [
+    "Read .planning/initiatives/publisher-modernization/specs/active/phase3-maintenance-engine-v1.json",
+    "Implement platform maintenance notice parser in lib/observer/boardDiagnostics.ts",
+    "Implement scheduler dynamic pause engine (maintenanceBlockedUntil) in lib/scheduler/run.ts"
+  ],
+  "artifacts_touched": [
+    "lib/publisherHistory.ts",
+    "lib/publisher/publisherRun.ts",
+    "lib/scheduler/run.ts",
+    "lib/publisher/ui/rateLimit.ts",
+    "lib/publisher/flow/runPublisherFlow.ts",
+    "lib/notifications.ts",
+    "scripts/run-tests.sh",
+    "tests/unit/rateLimit.test.ts",
+    "tests/unit/publisherCooldown.test.ts",
+    "tests/unit/schedulerStabilization.test.ts",
+    ".planning/initiatives/publisher-modernization/specs/shipped/phase2-publisher-scheduler-stabilization-v1.json",
+    ".planning/initiatives/publisher-modernization/README.md"
+  ],
+  "continuation_prompt": "Phase 2 (Publisher & Scheduler Stabilization) is complete and verified. Proceed to Phase 3 per .planning/initiatives/publisher-modernization/specs/active/phase3-maintenance-engine-v1.json to implement platform maintenance window parsing ('점검 중 입니다') and the scheduler dynamic pause engine."
+}

@@ -16,8 +16,8 @@ export type { ObserverPolicy, ObserverPolicyBase } from './policyLoader.js';
 export { loadObserverPolicyBase, loadObserverPolicy, resolveEffectiveGapThresholdMin, getObserverControlsWithGap } from './policyLoader.js';
 
 // Diagnostics
-export type { BoardDiagnostics } from './boardDiagnostics.js';
-export { getBoardDiagnostics, attemptPpomppuLoginFromBoard } from './boardDiagnostics.js';
+export type { BoardDiagnostics, MaintenanceNoticeResult } from './boardDiagnostics.js';
+export { getBoardDiagnostics, attemptPpomppuLoginFromBoard, parseMaintenanceNotice } from './boardDiagnostics.js';
 
 // Parser signal
 export type { ParserSignal, ParserBundle } from './parserSignal.js';

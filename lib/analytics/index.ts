@@ -1,11 +1,13 @@
 /**
  * lib/analytics/index.ts
  *
- * Barrel export for derived numbers: board turnover and share of voice
- * (trends), publisher run signal classification (schedulerSignals), and the
- * competitor EDA payload behind /api/analytics (competitors).
+ * Barrel export for derived numbers: the hourly post-rate profile and
+ * scheduler multiplier (trends), publisher run signal classification
+ * (schedulerSignals) and its calibration view (schedulerDiagnostics), the
+ * dashboard header summaries (boardStats), and the competitor EDA payload
+ * behind /api/analytics (competitors).
  *
- * All three read history — ActivityLog[] or PublisherHistoryEntry[] — and
+ * All of them read history — ActivityLog[] or PublisherHistoryEntry[] — and
  * return a payload. None of them touch the browser or write state.
  */
 
@@ -49,6 +51,25 @@ export type {
   SchedulerSignalSummaryOptions,
   SchedulerAdaptationWindowSummary,
 } from './schedulerSignals.js';
+
+export {
+  COMPETITOR_STATS_ROW_LIMIT,
+  buildBoardStats,
+  buildCompetitorStats,
+} from './boardStats.js';
+
+export type {
+  BoardStatsOptions,
+  CompetitorStatsOptions,
+} from './boardStats.js';
+
+export {
+  buildSchedulerSignalDiagnostics,
+} from './schedulerDiagnostics.js';
+
+export type {
+  SchedulerDiagnosticsOptions,
+} from './schedulerDiagnostics.js';
 
 export {
   parsePostBoardDate,

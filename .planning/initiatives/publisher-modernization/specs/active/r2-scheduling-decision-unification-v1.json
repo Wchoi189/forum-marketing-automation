@@ -1,0 +1,89 @@
+{
+  "spec_id": "r2-scheduling-decision-unification-v1",
+  "status": "proposed",
+  "purpose": "Make one pure function the only code in the system that decides when the publisher next runs, and collapse the four divergent default-value sets into one.",
+  "design_intent": "The operator cannot answer 'it is 14:00, when does the publisher next attempt a post, and why?' without reading seven files. That is the core architectural defect of this initiative: each phase added a correct local decision point and retired none. The target is one function - nextAttemptAt(now, state) -> { at, reason, inputsUsed } - that every other module either supplies input to or reads output from. inputsUsed is the answer to 'not easy to track': log it on every schedule and the run log states which settings produced the decision.",
+  "review_source": ".planning/initiatives/publisher-modernization/review-20260905/02-config-authority-audit.md",
+  "addresses_findings": ["F-03", "F-06"],
+  "prerequisite": "r1-publisher-gate-ordering-v1 shipped AND observed in production for at least one full day.",
+  "model_execution_guidance": {
+    "recommended_model": "Deep reasoning model (Opus-class)",
+    "execution_mode": "design_first_then_implement",
+    "note": "This is the one item in the remediation plan where a fast model should not lead. The extraction is mechanically easy and the decision table is not - getting the outcome x block-state x controls matrix wrong reintroduces the failure class R1 just fixed. Write the table as tests before writing the function."
+  },
+  "work_items": [
+    {
+      "id": "SDU-001",
+      "title": "Extract a pure nextAttemptAt module",
+      "target_files": ["lib/scheduler/nextAttempt.ts", "lib/scheduler/index.ts"],
+      "action": "Create lib/scheduler/nextAttempt.ts exporting `nextAttemptAt(input: { now: number; lastOutcome: SchedulerTickOutcome; blocks: { publishBlockedUntil: string | null; maintenanceBlockedUntil: string | null }; controls: AutoPublisherControls; multipliers: { trend: number; sov: number; opportunity: number } }): { at: number; reason: AttemptReason; inputsUsed: string[] }`. AttemptReason = 'cooldown' | 'maintenance' | 'error_backoff' | 'gap_recheck' | 'adaptive' | 'already_running'. The function must be pure and total: no clock reads, no I/O, no closure state, defined for every combination of its inputs. inputsUsed lists the setting names that actually influenced the returned value.",
+      "risk": "medium"
+    },
+    {
+      "id": "SDU-002",
+      "title": "Write the decision table as tests before the implementation",
+      "target_files": ["tests/unit/nextAttempt.test.ts"],
+      "action": "Enumerate outcome type x block state x relevant controls as an explicit table of expected { at, reason }. Must include: the R1 invariants (success schedules the cooldown window, an active block is never shortened), each error-backoff step, gap_recheck, and the adaptive path with each multiplier combination. This table is the specification; the function is its implementation.",
+      "risk": "low"
+    },
+    {
+      "id": "SDU-003",
+      "title": "Reduce scheduleNext to call, clamp, setTimeout, log",
+      "target_files": ["lib/scheduler/run.ts"],
+      "action": "Replace the branch cascade in scheduleNext (L230-290) with a single nextAttemptAt call. Log event schedulerNextScheduled with reason and inputsUsed on every schedule. The adaptive multipliers (trend, SoV, opportunity) become inputs to the function rather than a branch that steady-state operation never reaches - this is how F-06 resolves without discarding the lib/analytics work.",
+      "rationale": "computeEffectiveIntervalMinutes is currently only reachable from the 'normal' branch, which a healthy system essentially never hits. Roughly 200 lines of analytics and every quiet-hours / jitter / trend dial on the control panel are inert today.",
+      "risk": "medium"
+    },
+    {
+      "id": "SDU-004",
+      "title": "Collapse four default sets into one",
+      "target_files": ["lib/scheduler/defaults.ts", "lib/state/scheduler.ts", "lib/scheduler/run.ts", "lib/scheduler/presets.ts", "routes/api/control.ts"],
+      "action": "Create one exported DEFAULT_SCHEDULER_CONTROLS under lib/scheduler/. Import it from lib/state/scheduler.ts (currently declares its own at L16), lib/scheduler/run.ts (baseDefaults at L28), lib/scheduler/presets.ts, and routes/api/control.ts (hardcoded fallback literal at L316). Delete the other three. Note the values genuinely conflict today - quietHoursStart 0 vs 3, activeHoursMultiplier 1.0 vs 0.8, trendRecalibrationDays 3 vs 7, and targetPublishIntervalMinutes 120 vs 0 - so reconciling them is a behaviour decision, not a mechanical merge. Record the chosen value and its reason for each conflicting field in the spec's resolution log before editing.",
+      "risk": "high"
+    },
+    {
+      "id": "SDU-005",
+      "title": "Make presets total and sparse",
+      "target_files": ["lib/scheduler/presets.ts", "lib/scheduler/types.ts"],
+      "action": "PRESET_CONFIG currently omits gapRecheckIntervalMinutes and enabled, so switching presets inherits whatever the previous preset left behind. Redefine presets as explicit deltas over the single default, and type them so a preset must declare every field it intends to control. Also remove the inline clamp reimplementation at presets.ts:101 - lib/utils.js already exports clamp and run.ts:8 already imports it.",
+      "risk": "low"
+    },
+    {
+      "id": "SDU-006",
+      "title": "Prevent default-set duplication from regressing",
+      "target_files": ["scripts/check-structure.ts", "tests/unit/schedulerDefaults.test.ts"],
+      "action": "Add an enforcement that fails when a second literal default set for scheduler controls appears. Either a structure rule or a unit test asserting each consumer's defaults are reference-identical to the single source. Without this, the next feature reintroduces the divergence.",
+      "risk": "low"
+    }
+  ],
+  "acceptance_criteria": [
+    "Exactly one DEFAULT_SCHEDULER_CONTROLS literal exists in the repository, enforced by a check that fails on a second.",
+    "Every scheduler timer is armed from a nextAttemptAt return value; scheduleNext contains no scheduling arithmetic of its own.",
+    "Every schedulerNextScheduled log line carries reason and inputsUsed.",
+    "nextAttemptAt is pure - its test file constructs no clock, no store, and no scheduler.",
+    "Given a run log line, the operator can name which settings produced that interval without opening source."
+  ],
+  "resolution_log_required": "For each field where the three default sets disagree, record the chosen value and why. This log is part of the deliverable, not a side note - it is the only place the behaviour change is visible to review.",
+  "out_of_scope": [
+    "Moving scheduler control ownership into RuntimeStateStore - that is R3, and doing both at once makes the diff unreviewable.",
+    "Maintenance detection - that is R4."
+  ],
+  "session_boundary": {
+    "auto_stop": true,
+    "gate_criteria": [
+      "npm run lint:structure passes with 0 errors",
+      "npm run lint passes with 0 errors",
+      "npm run test:unit passes, including the full nextAttempt decision table",
+      "The R1 regression guards still pass unchanged",
+      "npm run build passes"
+    ],
+    "handover_instructions": {
+      "generate_file": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+      "use_template": ".agent/session-handovers/template.json",
+      "required_fields": ["handover_id", "timestamp_utc", "completed_items", "artifacts_touched", "next_actions", "continuation_prompt", "constraints", "resolution_log"],
+      "honesty_requirement": "Name only files that exist and claims verified by a command whose output you read.",
+      "constraints_to_forward_verbatim": "# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated.",
+      "continuation_prompt": "R2 (scheduling decision unification) is complete. Proceed per .planning/initiatives/publisher-modernization/specs/active/r3-state-authority-resolution-v1.json, which settles whether RuntimeStateStore or the scheduler closure owns scheduler controls. Read the resolution_log from the R2 handover first - R3 must not silently re-diverge the defaults R2 reconciled.\n\n# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated."
+    }
+  }
+}

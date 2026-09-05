@@ -31,7 +31,8 @@ the repo root fails the build; put it in `.agent/` (how the system works now) or
 | Operations & Debugging | [.agent/OPERATIONS.md](.agent/OPERATIONS.md) |
 | Known Issues (KEDB) | [.agent/KNOWN_ISSUES.md](.agent/KNOWN_ISSUES.md) |
 | Test Framework | [tests/README.md](tests/README.md) |
-| Competitor Intel | [.planning/competitor-intel-playbook.md](.planning/competitor-intel-playbook.md) |
+| Competitor Intel | [.planning/initiatives/competitor-intel/playbook.md](.planning/initiatives/competitor-intel/playbook.md) |
+| Initiatives Portfolio | [.planning/README.md](.planning/README.md) |
 
 ## Core Principles
 
@@ -42,12 +43,13 @@ the repo root fails the build; put it in `.agent/` (how the system works now) or
 ## Key Files
 
 ```
-config/env.ts                    # Environment parsing (canonical)
-.agent/contracts/                # Data and API contracts
-.planning/spec-kit/contracts/    # Behavior contracts and policies (current truth)
-.planning/spec-kit/reference/    # Reviewer pack: catalogs, inventories, guidelines
-.planning/spec-kit/specs/active/ # In-flight work — read this when orienting
-.planning/known-issues/          # KEDB entries
+config/env.ts                                # Environment parsing (canonical)
+.agent/contracts/                            # Data and API contracts
+.planning/spec-kit/contracts/                # Behavior contracts and policies (current truth)
+.planning/spec-kit/reference/                # Reviewer pack: catalogs, inventories, guidelines
+.planning/initiatives/                       # Vertical initiative packages
+.planning/initiatives/*/specs/active/        # In-flight work — read this when orienting
+.planning/known-issues/                      # KEDB entries
 ```
 
 Specs carry a `status` of `proposed | active | shipped | superseded`, and the

@@ -5,7 +5,7 @@
  */
 
 import type { ActivityLog, PublisherHistoryEntry } from '../../contracts/models.js';
-import type { PublisherRunResult } from '../../bot.js';
+import type { PublisherRunResult } from '../publisher/index.js';
 import type { ScheduleJitterMode } from '../scheduleJitter.js';
 
 /**

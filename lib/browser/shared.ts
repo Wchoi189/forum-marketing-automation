@@ -158,3 +158,27 @@ export async function saveStorageState(context: BrowserContext): Promise<void> {
     logger.warn({ event: 'shared_browser.save_error', err }, '[SharedBrowser] Failed to save storage state');
   }
 }
+
+export async function shutdownBrowser(): Promise<void> {
+  if (activeContexts.size > 0 || isSharedBrowserReady()) {
+    logger.info(
+      { event: 'browser.shutdown', activeContexts: activeContexts.size },
+      'Shutting down shared browser'
+    );
+  }
+  await closeSharedBrowser();
+}
+
+export function registerSignalHandlers(): void {
+  let handled = false;
+  const onSignal = (sig: string) => {
+    if (handled) return;
+    handled = true;
+    logger.info({ event: 'signal.received', signal: sig }, `Received ${sig} — shutting down browser`);
+    shutdownBrowser()
+      .catch(() => null)
+      .finally(() => process.exit(0));
+  };
+  process.on('SIGINT', onSignal);
+  process.on('SIGTERM', onSignal);
+}

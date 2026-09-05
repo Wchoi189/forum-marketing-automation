@@ -2,16 +2,15 @@
  * lib/state/observer.ts
  *
  * Unified observer state management.
- * Combines in-memory controls with persistence layer.
+ * Delegates to the authoritative reactive RuntimeStateStore.
  */
 
-import { ENV } from '../../config/env.js';
-import { clampInt } from '../utils.js';
 import type { ObserverControls, ObserverControlsWithGap, StateMeta } from './types.js';
 import { persistState, readPersistedState } from './persistence.js';
+import { getRuntimeStateStore } from './store.js';
 
 // ---------------------------------------------------------------------------
-// In-memory state
+// Defaults
 // ---------------------------------------------------------------------------
 
 const defaultObserverControls: ObserverControls = {
@@ -21,14 +20,12 @@ const defaultObserverControls: ObserverControls = {
   minIntervalBetweenRunsMs: 0,
 };
 
-let observerControls: ObserverControls = { ...defaultObserverControls };
-
 // ---------------------------------------------------------------------------
 // Getters
 // ---------------------------------------------------------------------------
 
 export function getObserverControls(): ObserverControls {
-  return { ...observerControls };
+  return getRuntimeStateStore().getObserverControls();
 }
 
 export function getDefaultObserverControls(): ObserverControls {
@@ -40,22 +37,7 @@ export function getDefaultObserverControls(): ObserverControls {
 // ---------------------------------------------------------------------------
 
 export function setObserverControls(next: Partial<ObserverControls>): ObserverControls {
-  if (typeof next.enabled === 'boolean') {
-    observerControls.enabled = next.enabled;
-  }
-
-  const minDelay = clampInt(next.minPreVisitDelayMs, observerControls.minPreVisitDelayMs, 0, 120000);
-  const maxDelay = clampInt(next.maxPreVisitDelayMs, observerControls.maxPreVisitDelayMs, 0, 120000);
-  observerControls.minPreVisitDelayMs = Math.min(minDelay, maxDelay);
-  observerControls.maxPreVisitDelayMs = Math.max(minDelay, maxDelay);
-  observerControls.minIntervalBetweenRunsMs = clampInt(
-    next.minIntervalBetweenRunsMs,
-    observerControls.minIntervalBetweenRunsMs,
-    0,
-    3600000
-  );
-
-  return getObserverControls();
+  return getRuntimeStateStore().setObserverControlsInMemory(next);
 }
 
 // ---------------------------------------------------------------------------
@@ -67,25 +49,12 @@ export function setObserverControls(next: Partial<ObserverControls>): ObserverCo
  * Call at server startup to restore previous session state.
  */
 export async function loadPersistedObserverControls(): Promise<void> {
-  const persisted = await readPersistedState();
-  if (persisted.observerEnabled !== undefined) {
-    observerControls.enabled = persisted.observerEnabled;
-  }
-  if (persisted.observerMinPreVisitDelayMs !== undefined) {
-    observerControls.minPreVisitDelayMs = clampInt(persisted.observerMinPreVisitDelayMs, 1500, 0, 120000);
-  }
-  if (persisted.observerMaxPreVisitDelayMs !== undefined) {
-    observerControls.maxPreVisitDelayMs = clampInt(persisted.observerMaxPreVisitDelayMs, 4000, 0, 120000);
-  }
-  if (persisted.observerMinIntervalBetweenRunsMs !== undefined) {
-    observerControls.minIntervalBetweenRunsMs = clampInt(persisted.observerMinIntervalBetweenRunsMs, 0, 0, 3600000);
-  }
+  await getRuntimeStateStore().init();
 }
 
 /**
  * Read persisted observer controls without touching in-memory state.
- * Returns only the keys actually present on disk, so callers can distinguish
- * "never persisted" from "persisted as default".
+ * Returns only the keys actually present on disk.
  */
 export async function readPersistedObserverControls(): Promise<Partial<ObserverControls>> {
   const data = await readPersistedState();
@@ -101,11 +70,12 @@ export async function readPersistedObserverControls(): Promise<Partial<ObserverC
  * Persist current observer controls to disk.
  */
 export async function persistObserverControls(expectedVersion?: number): Promise<StateMeta> {
+  const current = getObserverControls();
   return persistState({
-    observerEnabled: observerControls.enabled,
-    observerMinPreVisitDelayMs: observerControls.minPreVisitDelayMs,
-    observerMaxPreVisitDelayMs: observerControls.maxPreVisitDelayMs,
-    observerMinIntervalBetweenRunsMs: observerControls.minIntervalBetweenRunsMs,
+    observerEnabled: current.enabled,
+    observerMinPreVisitDelayMs: current.minPreVisitDelayMs,
+    observerMaxPreVisitDelayMs: current.maxPreVisitDelayMs,
+    observerMinIntervalBetweenRunsMs: current.minIntervalBetweenRunsMs,
   }, expectedVersion);
 }
 
@@ -114,14 +84,12 @@ export async function persistObserverControls(expectedVersion?: number): Promise
 // ---------------------------------------------------------------------------
 
 /**
- * Read persisted gap override from disk.
+ * Read persisted gap override from store authority.
  */
 export async function readGapPersistedOverride(): Promise<number | null> {
-  const data = await readPersistedState();
-  const v = data.observerGapThresholdMin;
-  if (v === null || v === undefined) return null;
-  if (typeof v !== 'number' || !Number.isInteger(v)) return null;
-  return Math.max(1, Math.min(50, Math.round(v)));
+  const store = getRuntimeStateStore();
+  await store.ensureInitialized();
+  return store.getGapPersistedOverride();
 }
 
 /**
@@ -132,19 +100,19 @@ export async function persistGapOverride(value: number | null, expectedVersion?:
 }
 
 /**
- * Read persisted gap source pin.
+ * Read persisted gap source pin from store authority.
  */
 export async function readGapSourcePin(): Promise<'env' | 'spec' | null> {
-  const data = await readPersistedState();
-  if (data.gapSourcePin === 'env' || data.gapSourcePin === 'spec') return data.gapSourcePin;
-  return null;
+  const store = getRuntimeStateStore();
+  await store.ensureInitialized();
+  return store.getGapSourcePin();
 }
 
 /**
  * Persist gap source pin.
  */
 export async function persistGapSourcePin(value: 'env' | 'spec' | null, expectedVersion?: number): Promise<StateMeta> {
-  return persistState({ gapSourcePin: value }, expectedVersion);
+  return persistState({ gapSourcePin: value ?? undefined }, expectedVersion);
 }
 
 // Re-export type for convenience

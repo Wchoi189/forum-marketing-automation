@@ -1,0 +1,92 @@
+{
+  "handover_id": "handover-20260904-1355",
+  "timestamp_utc": "2026-09-04T04:55:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "completed",
+  "objective": "Diagnose publisher failure loops and overhaul .planning directory into unified initiative-centric vertical architecture.",
+  "non_goals": [
+    "Modifying runtime publisher code before Phase 1 spec execution approval",
+    "Changing runtime contract schemas in .planning/spec-kit/manifest/ or contracts/"
+  ],
+  "current_state": {
+    "completed": [
+      "Diagnosed root causes for auto-publisher failures: 503 maintenance window loops ('점검 중 입니다') and 1-post/hr rate limit retry overrides.",
+      "Assessed publisher configurability, state drift, 5-minute override traps, and Playwright script bloat.",
+      "Evaluated Obscura browser alternative (Rust-based headless): viable for observer/scraping, hazardous for publisher.",
+      "Assessed planning documentation navigability: diagnosed horizontal fragmentation between docs/, spec-kit/plans, and specs/active.",
+      "Scaffolded 4-phase publisher modernization roadmap with spec-kit plans, active specs, and guidelines.",
+      "Overhauled entire .planning/ directory into vertical initiative packages under .planning/initiatives/.",
+      "Migrated all legacy planning docs, loose markdown files, and previous standalone initiatives into 9 vertical packages with README.md entry points.",
+      "Updated .structure.json and scripts/check-structure.ts to enforce initiative README presence and lifecycle spec agreement.",
+      "Updated scripts/mempalace-loop.sh and AGENTS.md to point to .planning/initiatives/.",
+      "Verified all test suites (npm run lint, npm run lint:structure, npm run test:unit, npm run test:integration) pass 100%."
+    ],
+    "gaps": [
+      "Phase 1 of publisher-modernization (bloat pruning) is drafted in .planning/initiatives/publisher-modernization/specs/active/phase1-bloat-pruning-v1.json ready for implementation."
+    ]
+  },
+  "status": "success",
+  "decisions_locked": [
+    {
+      "decision": "Vertical Initiative Packages",
+      "rationale": "Prevents split-brain by grouping all problem statements, research, master plans, guidelines, specs, and handovers in dedicated packages under .planning/initiatives/."
+    },
+    {
+      "decision": "Runtime Contract Immutability",
+      "rationale": ".planning/spec-kit/manifest/ and contracts/ remain at their exact paths because runtime services, tests, and Dockerfile load them directly."
+    }
+  ],
+  "acceptance_criteria": [
+    "No loose documents sit at .planning/ root except README.md.",
+    "Every initiative under .planning/initiatives/ has a README.md single entry point.",
+    "Specs strictly adhere to closed lifecycle vocabulary and match directory buckets (specs/active, specs/shipped, specs/archive).",
+    "npm run lint and npm run lint:structure pass with zero errors.",
+    "Unit and integration test suites pass with zero regressions."
+  ],
+  "implementation_plan": [
+    ".planning/initiatives/publisher-modernization/plans/publisher-architecture-modernization.plan.json"
+  ],
+  "practical_recommendations": [
+    "When implementing publisher modernization Phase 1, use fast models (Gemini Flash Low/Med) with small batch sizes and human-in-the-loop validation per guidelines.md.",
+    "Always start incoming agent sessions with npm run mempalace:wake-up to populate working memory from .planning/initiatives."
+  ],
+  "completed_items": [
+    "Incident analysis & bug report generation",
+    "Publisher architecture deep dive assessment",
+    "Obscura browser alternative evaluation",
+    "Planning documentation architecture assessment",
+    "Publisher modernization multi-phase scaffold",
+    "Overhaul of .planning/ into .planning/initiatives/ (9 initiatives)",
+    "Validator updates in .structure.json and scripts/check-structure.ts",
+    "Agent instructions & mempalace loop synchronization",
+    "Full suite verification (lint, structure, unit, integration)"
+  ],
+  "pending_items": [
+    "Execution of Phase 1 Bloat Pruning in .planning/initiatives/publisher-modernization/"
+  ],
+  "next_actions": [
+    "Review .planning/initiatives/publisher-modernization/specs/active/phase1-bloat-pruning-v1.json",
+    "Begin Phase 1 implementation to prune dead branches in lib/publisher/ and lib/playbookRunner.ts",
+    "Proceed through Phase 2 to resolve the 1-post-per-hour rate limit backoff"
+  ],
+  "artifacts_touched": [
+    ".structure.json",
+    "scripts/check-structure.ts",
+    "scripts/mempalace-loop.sh",
+    "AGENTS.md",
+    ".planning/README.md",
+    ".planning/initiatives/publisher-modernization/README.md",
+    ".planning/initiatives/cloud-deployment-optimization/README.md",
+    ".planning/initiatives/competitor-intel/README.md",
+    ".planning/initiatives/state-authority/README.md",
+    ".planning/initiatives/analytics-eda/README.md",
+    ".planning/initiatives/ai-advisor-bot/README.md",
+    ".planning/initiatives/kakao-chatbot/README.md",
+    ".planning/initiatives/agent-infra/README.md",
+    ".planning/initiatives/architecture-modernization-202608/README.md"
+  ]
+}

@@ -36,7 +36,7 @@ import type { ObserverControlsWithGap } from '../../lib/state/index.js';
 import {
   getObserverControlsWithGap,
 } from '../../lib/observer/policyLoader.js';
-import { getPublisherStatus } from '../../lib/publisherStepStore.js';
+import { getPublisherStatus } from '../../lib/publisher/index.js';
 import { PARSER_OPTIONS } from '../../lib/observer/parserSignal.js';
 import {
   PRESET_CONFIG,
