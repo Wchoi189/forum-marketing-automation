@@ -5,17 +5,50 @@
  * Import through lib/scheduler/index.ts, not directly.
  */
 
-import { clamp } from '../utils.js';
-import { applyScheduleJitter } from '../scheduleJitter.js';
-import { computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoice, shareOfVoiceMultiplierFromSoV, COMBINED_MULTIPLIER_MIN, COMBINED_MULTIPLIER_MAX, summarizeSchedulerSignals } from '../analytics/index.js';
+import { computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoice, shareOfVoiceMultiplierFromSoV, summarizeSchedulerSignals } from '../analytics/index.js';
 import { logger, LOG_EVENT } from '../logging/index.js';
 import { ENV } from '../../config/env.js';
 import { getPublisherControls } from '../state/index.js';
 
+import { defaultAutoPublisherControls } from './defaults.js';
 import { PUBLISH_COOLDOWN_WINDOW_MINUTES } from '../publisher/index.js';
 
-import { PRESET_CONFIG, isHourInRange, normalizeAutoPublisherControls } from './presets.js';
-import type { AutoPublisherControls, ControlPanelPreset, BotDeps } from './types.js';
+import { nextAttemptAt, BLOCK_FIELDS } from './nextAttempt.js';
+import type { AttemptReason } from './nextAttempt.js';
+import { PRESET_CONFIG, normalizeAutoPublisherControls } from './presets.js';
+import type { AutoPublisherControls, ControlPanelPreset, BotDeps, SchedulerTickOutcome } from './types.js';
+
+/** Multipliers feeding the adaptive branch of `nextAttemptAt`. */
+type AdaptiveMultipliers = { trend: number; sov: number; opportunity: number };
+const NEUTRAL_MULTIPLIERS: AdaptiveMultipliers = { trend: 1, sov: 1, opportunity: 1 };
+
+/** Operator-facing sentence for one scheduling decision. */
+function describeSchedule(
+  reason: AttemptReason,
+  nextMinutes: number,
+  baseMinutes: number,
+  nextTickEta: string,
+  consecutiveFailures: number
+): string {
+  switch (reason) {
+    case 'rate_limited_cooldown':
+      return `[Scheduler] Cooldown active — next tick scheduled in ${nextMinutes} minute(s) (${baseMinutes - 1}m cooldown + 1m buffer)`;
+    case 'system_maintenance':
+      return `[Scheduler] Platform maintenance active — next tick scheduled in ${nextMinutes} minute(s) at ${nextTickEta}`;
+    case 'error_backoff':
+      return `[Scheduler] Error backoff active (failure count=${consecutiveFailures}) — next tick scheduled in ${nextMinutes} minute(s)`;
+    case 'post_publish_cooldown':
+      return `[Scheduler] Publish verified — next tick scheduled in ${nextMinutes} minute(s) (${PUBLISH_COOLDOWN_WINDOW_MINUTES}m platform cooldown + 1m buffer)`;
+    case 'gap_recheck':
+      return `[Scheduler] Gap monitoring — re-checking in ${nextMinutes} minute(s)`;
+    case 'already_running':
+      return `[Scheduler] A publisher run is already active — retrying in ${nextMinutes} minute(s)`;
+    case 'block_deadline_clamp':
+      return `[Scheduler] Block deadline active — next tick scheduled at ${nextTickEta}`;
+    case 'adaptive':
+      return `[Scheduler] Next tick scheduled in ${nextMinutes} minute(s) at ${nextTickEta}`;
+  }
+}
 
 export function startScheduler(
   deps: BotDeps,
@@ -27,22 +60,26 @@ export function startScheduler(
       ? (persistedState.preset as ControlPanelPreset)
       : 'balanced';
   let preset: ControlPanelPreset = resolvedPreset;
+  // Defaults come from the single source in ./defaults.ts. Persisted state wins for
+  // every field it supplies; `intervalMinutes` is the caller's override for the base.
+  const fallback = defaultAutoPublisherControls();
   const baseDefaults: AutoPublisherControls = {
-    enabled: persistedState?.enabled ?? true,
+    ...fallback,
+    enabled: persistedState?.enabled ?? fallback.enabled,
     baseIntervalMinutes: Math.max(1, persistedState?.baseIntervalMinutes ?? intervalMinutes),
-    quietHoursStart: persistedState?.quietHoursStart ?? 3,
-    quietHoursEnd: persistedState?.quietHoursEnd ?? 5,
-    quietHoursMultiplier: persistedState?.quietHoursMultiplier ?? 1.8,
-    activeHoursStart: persistedState?.activeHoursStart ?? 8,
-    activeHoursEnd: persistedState?.activeHoursEnd ?? 23,
-    activeHoursMultiplier: persistedState?.activeHoursMultiplier ?? 0.8,
-    trendAdaptiveEnabled: persistedState?.trendAdaptiveEnabled ?? true,
-    trendWindowDays: persistedState?.trendWindowDays ?? 7,
-    trendRecalibrationDays: persistedState?.trendRecalibrationDays ?? 7,
-    scheduleJitterPercent: persistedState?.scheduleJitterPercent ?? ENV.SCHEDULER_JITTER_PERCENT,
-    scheduleJitterMode: persistedState?.scheduleJitterMode ?? ENV.SCHEDULER_JITTER_MODE,
-    targetPublishIntervalMinutes: persistedState?.targetPublishIntervalMinutes ?? 0,
-    gapRecheckIntervalMinutes: persistedState?.gapRecheckIntervalMinutes ?? 3,
+    quietHoursStart: persistedState?.quietHoursStart ?? fallback.quietHoursStart,
+    quietHoursEnd: persistedState?.quietHoursEnd ?? fallback.quietHoursEnd,
+    quietHoursMultiplier: persistedState?.quietHoursMultiplier ?? fallback.quietHoursMultiplier,
+    activeHoursStart: persistedState?.activeHoursStart ?? fallback.activeHoursStart,
+    activeHoursEnd: persistedState?.activeHoursEnd ?? fallback.activeHoursEnd,
+    activeHoursMultiplier: persistedState?.activeHoursMultiplier ?? fallback.activeHoursMultiplier,
+    trendAdaptiveEnabled: persistedState?.trendAdaptiveEnabled ?? fallback.trendAdaptiveEnabled,
+    trendWindowDays: persistedState?.trendWindowDays ?? fallback.trendWindowDays,
+    trendRecalibrationDays: persistedState?.trendRecalibrationDays ?? fallback.trendRecalibrationDays,
+    scheduleJitterPercent: persistedState?.scheduleJitterPercent ?? fallback.scheduleJitterPercent,
+    scheduleJitterMode: persistedState?.scheduleJitterMode ?? fallback.scheduleJitterMode,
+    targetPublishIntervalMinutes: persistedState?.targetPublishIntervalMinutes ?? fallback.targetPublishIntervalMinutes,
+    gapRecheckIntervalMinutes: persistedState?.gapRecheckIntervalMinutes ?? fallback.gapRecheckIntervalMinutes,
   };
   let controls = normalizeAutoPublisherControls(baseDefaults);
   let timer: NodeJS.Timeout | null = null;
@@ -50,40 +87,46 @@ export function startScheduler(
   let running = false;
   let nextTickEta: string | null = null;
   let lastTrendRecalculatedAt = 0;
-  let trendFactor = 1;
+  let multipliers: AdaptiveMultipliers = { ...NEUTRAL_MULTIPLIERS };
   let lastObserverResult: { status: string; currentGap: number; requiredGap: number; checkedAt: string } | null = null;
 
-  const recalcTrendFactor = async (): Promise<number> => {
+  /**
+   * Recompute the adaptive multipliers, honouring the recalibration interval.
+   *
+   * Returns the three factors separately rather than a single product so
+   * `nextAttemptAt` can name each one in `inputsUsed`.
+   */
+  const recalcMultipliers = async (): Promise<AdaptiveMultipliers> => {
     if (!controls.trendAdaptiveEnabled) {
-      trendFactor = 1;
-      return 1;
+      multipliers = { ...NEUTRAL_MULTIPLIERS };
+      return multipliers;
     }
     const now = Date.now();
     const minAgeMs = controls.trendRecalibrationDays * 24 * 60 * 60 * 1000;
     if (lastTrendRecalculatedAt > 0 && now - lastTrendRecalculatedAt < minAgeMs) {
-      return trendFactor;
+      return multipliers;
     }
 
     const logs = await deps.getLogs();
     const analysis = computeTurnoverAnalysis(logs, controls.trendWindowDays);
 
     if (analysis.recentSnapshotCount < 3 || analysis.pairSampleCount < 3) {
-      trendFactor = 1;
+      multipliers = { ...NEUTRAL_MULTIPLIERS };
       lastTrendRecalculatedAt = now;
-      return trendFactor;
+      return multipliers;
     }
 
-    trendFactor = trendMultiplierFromAvgRate(analysis.avgNewPostsPerHour);
+    const trend = trendMultiplierFromAvgRate(analysis.avgNewPostsPerHour);
 
-    let sovFactor = 1;
+    let sov = 1;
     try {
       const sovPercent = computeShareOfVoice(logs, controls.trendWindowDays, ENV.OUR_AUTHOR_SUBSTRING);
-      sovFactor = shareOfVoiceMultiplierFromSoV(sovPercent);
+      sov = shareOfVoiceMultiplierFromSoV(sovPercent);
     } catch (err) {
       logger.warn({ event: 'scheduler_sov_fallback', err }, '[Scheduler] SoV computation failed; using sovFactor=1');
     }
-    trendFactor = Math.max(COMBINED_MULTIPLIER_MIN, Math.min(COMBINED_MULTIPLIER_MAX, trendFactor * sovFactor));
 
+    let opportunity = 1;
     if (deps.getPublisherHistory) {
       try {
         const historyLimit = Math.max(40, Math.min(200, controls.trendWindowDays * 24));
@@ -92,10 +135,7 @@ export function startScheduler(
           windowDays: controls.trendWindowDays,
           nowMs: now,
         });
-        trendFactor = Math.max(
-          COMBINED_MULTIPLIER_MIN,
-          Math.min(COMBINED_MULTIPLIER_MAX, trendFactor * signalSummary.isolatedMultiplier)
-        );
+        opportunity = signalSummary.isolatedMultiplier;
         logger.info(
           {
             event: 'scheduler_signal_isolation_applied',
@@ -119,39 +159,37 @@ export function startScheduler(
       }
     }
 
+    multipliers = { trend, sov, opportunity };
     lastTrendRecalculatedAt = now;
-    return trendFactor;
+    return multipliers;
   };
 
+  /** Read the two block deadlines that can push a schedule later. */
+  const readBlocks = (): Record<(typeof BLOCK_FIELDS)[number], string | null> => {
+    const blockControls = getPublisherControls();
+    return {
+      publishBlockedUntil: blockControls.publishBlockedUntil ?? null,
+      maintenanceBlockedUntil: blockControls.maintenanceBlockedUntil ?? null,
+    };
+  };
+
+  /**
+   * The interval a `normal` outcome would produce right now. Reported on the control
+   * panel; it goes through `nextAttemptAt` so the number the operator sees and the
+   * number the timer uses cannot drift.
+   */
   const computeEffectiveIntervalMinutes = async (): Promise<number> => {
-    const hour = new Date().getHours();
-    let multiplier = 1;
-    if (isHourInRange(hour, controls.quietHoursStart, controls.quietHoursEnd)) {
-      multiplier *= controls.quietHoursMultiplier;
-    }
-    if (isHourInRange(hour, controls.activeHoursStart, controls.activeHoursEnd)) {
-      multiplier *= controls.activeHoursMultiplier;
-    }
-    multiplier *= await recalcTrendFactor();
-    let effective = clamp(controls.baseIntervalMinutes * multiplier, 1, 1440);
-    if (controls.targetPublishIntervalMinutes > 0) {
-      const t = controls.targetPublishIntervalMinutes;
-      effective = clamp(Math.round(effective * 0.5 + t * 0.5), 1, 1440);
-    }
-    return effective;
+    const current = await recalcMultipliers();
+    return nextAttemptAt({
+      now: Date.now(),
+      lastOutcome: { type: 'normal' },
+      blocks: { publishBlockedUntil: null, maintenanceBlockedUntil: null },
+      controls,
+      multipliers: current,
+    }).nextMinutes;
   };
 
   let consecutiveFailures = 0;
-  const ERROR_BACKOFF_MINUTES = [15, 30, 60] as const;
-
-  type SchedulerTickOutcome =
-    | { type: 'rate_limited'; remainingMinutes: number }
-    | { type: 'system_maintenance'; remainingMinutes: number }
-    | { type: 'gap_skip'; gapInfo?: { currentGap: number; requiredGap: number } }
-    | { type: 'success'; cooldownApplies: boolean; gapInfo?: { currentGap: number; requiredGap: number } }
-    | { type: 'already_running' }
-    | { type: 'unexpected_error'; consecutiveFailures: number }
-    | { type: 'normal' };
 
   const tick = async (): Promise<SchedulerTickOutcome | false> => {
     if (!enabled) {
@@ -235,150 +273,68 @@ export function startScheduler(
     return outcome;
   };
 
-  const scheduleNext = async (
-    outcome:
-      | SchedulerTickOutcome
-      | boolean
-      | { currentGap: number; requiredGap: number } = false
-  ) => {
+  /**
+   * Arm the next timer. Call, clamp, setTimeout, log - and nothing else.
+   *
+   * Every scheduling decision, including the block clamp and the adaptive interval,
+   * belongs to `nextAttemptAt`. Keeping arithmetic out of here is what makes the
+   * decision table in tests/unit/nextAttempt.test.ts authoritative.
+   */
+  const scheduleNext = async (outcome: SchedulerTickOutcome | false = false) => {
     if (timer) {
       clearTimeout(timer);
     }
-    let nextMinutes: number;
-    let baseMinutes: number;
-    let reason: string = 'normal';
 
-    if (outcome && typeof outcome === 'object' && 'type' in outcome) {
-      if (outcome.type === 'rate_limited') {
-        const remaining = Math.max(1, outcome.remainingMinutes);
-        baseMinutes = remaining + 1; // 1-minute buffer after cooldown
-        nextMinutes = baseMinutes;
-        reason = 'rate_limited_cooldown';
-      } else if (outcome.type === 'system_maintenance') {
-        const remaining = Math.max(1, outcome.remainingMinutes);
-        baseMinutes = remaining; // Buffer already included in maintenance parser
-        nextMinutes = baseMinutes;
-        reason = 'system_maintenance';
-      } else if (outcome.type === 'already_running') {
-        baseMinutes = 1;
-        nextMinutes = 1;
-        reason = 'already_running';
-      } else if (outcome.type === 'unexpected_error') {
-        const idx = Math.min(outcome.consecutiveFailures - 1, ERROR_BACKOFF_MINUTES.length - 1);
-        baseMinutes = ERROR_BACKOFF_MINUTES[Math.max(0, idx)] ?? 60;
-        nextMinutes = baseMinutes;
-        reason = 'error_backoff';
-      } else if (outcome.type === 'success' && outcome.cooldownApplies) {
-        // RTG-002: a verified publish means the next hour is known to be blocked.
-        // Sharing gap_skip's 3-minute recheck guaranteed a wasted browser run.
-        baseMinutes = PUBLISH_COOLDOWN_WINDOW_MINUTES + 1; // 1-minute buffer past the window
-        nextMinutes = baseMinutes;
-        reason = 'post_publish_cooldown';
-      } else if (outcome.type === 'gap_skip' || outcome.type === 'success') {
-        baseMinutes = controls.gapRecheckIntervalMinutes;
-        nextMinutes = controls.gapRecheckIntervalMinutes;
-        reason = 'gap_recheck';
-      } else {
-        baseMinutes = await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes);
-        nextMinutes = applyScheduleJitter(
-          baseMinutes,
-          controls.scheduleJitterPercent,
-          controls.scheduleJitterMode,
-          Math.random
-        );
-        reason = 'normal';
-      }
-    } else if (outcome && typeof outcome === 'object' && 'currentGap' in outcome) {
-      baseMinutes = controls.gapRecheckIntervalMinutes;
-      nextMinutes = controls.gapRecheckIntervalMinutes;
-      reason = 'gap_recheck';
-    } else if (outcome === true) {
-      baseMinutes = controls.gapRecheckIntervalMinutes;
-      nextMinutes = controls.gapRecheckIntervalMinutes;
-      reason = 'gap_recheck';
-    } else {
-      baseMinutes = await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes);
-      nextMinutes = applyScheduleJitter(
-        baseMinutes,
-        controls.scheduleJitterPercent,
-        controls.scheduleJitterMode,
-        Math.random
-      );
-      reason = 'normal';
-    }
+    const lastOutcome: SchedulerTickOutcome = outcome === false ? { type: 'normal' } : outcome;
+    const current = lastOutcome.type === 'normal'
+      ? await recalcMultipliers().catch(() => multipliers)
+      : multipliers;
 
-    // RTG-003: a pending block deadline is state, not a side effect of a setter.
-    // setControls / setIntervalMinutes / applyPreset each end in
-    // `void scheduleNext(false)`, which clears the pending timer and reschedules
-    // at the normal adaptive interval — so any control-panel POST during a
-    // cooldown or maintenance pause silently shortened the wait. Clamp here, at
-    // the single scheduling site, rather than policing three setters.
-    let deadlineMs = Date.now() + nextMinutes * 60 * 1000;
-    const blockControls = getPublisherControls();
-    const activeBlocks: Array<{ field: string; deadlineMs: number; untilMs: number }> = [];
-    for (const field of ['publishBlockedUntil', 'maintenanceBlockedUntil'] as const) {
-      const raw = blockControls[field];
-      if (!raw) continue;
-      const untilMs = new Date(raw).getTime();
-      // Same 1-minute buffer the rate_limited branch applies, so a clamped tick
-      // does not land on the exact boundary and bounce straight back.
-      const blockDeadlineMs = untilMs + 60 * 1000;
-      if (Number.isFinite(untilMs) && blockDeadlineMs > deadlineMs) {
-        activeBlocks.push({ field, deadlineMs: blockDeadlineMs, untilMs });
-      }
-    }
-    if (activeBlocks.length > 0) {
-      const winner = activeBlocks.reduce((a, b) => (b.deadlineMs > a.deadlineMs ? b : a));
+    const attempt = nextAttemptAt({
+      now: Date.now(),
+      lastOutcome,
+      blocks: readBlocks(),
+      controls,
+      multipliers: current,
+      random: Math.random,
+    });
+
+    if (attempt.clamp) {
+      const blockedUntil = new Date(attempt.clamp.blockedUntilMs).toISOString();
       logger.info(
         {
           event: LOG_EVENT.schedulerNextScheduled,
           status: 'clamped',
-          clampedBy: winner.field,
-          blockedUntil: new Date(winner.untilMs).toISOString(),
-          discardedReason: reason,
-          discardedMinutes: nextMinutes,
+          clampedBy: attempt.clamp.field,
+          blockedUntil,
+          discardedReason: attempt.clamp.discardedReason,
+          discardedMinutes: attempt.clamp.discardedMinutes,
         },
-        `[Scheduler] Schedule clamped — ${reason} wanted ${nextMinutes} minute(s) but ${winner.field} is active until ${new Date(winner.untilMs).toISOString()}`
+        `[Scheduler] Schedule clamped — ${attempt.clamp.discardedReason} wanted ${attempt.clamp.discardedMinutes} minute(s) but ${attempt.clamp.field} is active until ${blockedUntil}`
       );
-      deadlineMs = winner.deadlineMs;
-      nextMinutes = Math.max(1, Math.ceil((deadlineMs - Date.now()) / 60000));
-      reason = 'block_deadline_clamp';
     }
 
-    nextTickEta = new Date(deadlineMs).toISOString();
-    const isSpecialSchedule = reason !== 'normal';
+    nextTickEta = new Date(attempt.at).toISOString();
     logger.info(
       {
         event: LOG_EVENT.schedulerNextScheduled,
-        nextMinutes,
-        baseMinutes,
-        jitterPercent: isSpecialSchedule ? 0 : controls.scheduleJitterPercent,
-        jitterMode: isSpecialSchedule ? 'none' : controls.scheduleJitterMode,
-        reason,
+        nextMinutes: attempt.nextMinutes,
+        baseMinutes: attempt.baseMinutes,
+        jitterPercent: attempt.jitterPercent,
+        jitterMode: attempt.jitterMode,
+        reason: attempt.reason,
+        inputsUsed: attempt.inputsUsed,
       },
-      reason === 'rate_limited_cooldown'
-        ? `[Scheduler] Cooldown active — next tick scheduled in ${nextMinutes} minute(s) (${baseMinutes - 1}m cooldown + 1m buffer)`
-        : reason === 'system_maintenance'
-        ? `[Scheduler] Platform maintenance active — next tick scheduled in ${nextMinutes} minute(s) at ${nextTickEta}`
-        : reason === 'error_backoff'
-        ? `[Scheduler] Error backoff active (failure count=${consecutiveFailures}) — next tick scheduled in ${nextMinutes} minute(s)`
-        : reason === 'post_publish_cooldown'
-        ? `[Scheduler] Publish verified — next tick scheduled in ${nextMinutes} minute(s) (${PUBLISH_COOLDOWN_WINDOW_MINUTES}m platform cooldown + 1m buffer)`
-        : reason === 'gap_recheck'
-        ? `[Scheduler] Gap monitoring — re-checking in ${nextMinutes} minute(s)`
-        : reason === 'already_running'
-        ? `[Scheduler] A publisher run is already active — retrying in ${nextMinutes} minute(s)`
-        : reason === 'block_deadline_clamp'
-        ? `[Scheduler] Block deadline active — next tick scheduled at ${nextTickEta}`
-        : '[Scheduler] Next tick scheduled'
+      describeSchedule(attempt.reason, attempt.nextMinutes, attempt.baseMinutes, nextTickEta, consecutiveFailures)
     );
+
     timer = setTimeout(() => {
       void (async () => {
         nextTickEta = null;
         const tickOutcome = await tick();
         await scheduleNext(tickOutcome);
       })();
-    }, Math.max(0, deadlineMs - Date.now()));
+    }, Math.max(0, attempt.at - Date.now()));
   };
 
   // Fire an initial tick shortly after startup so the publisher doesn't sit idle for
@@ -428,7 +384,7 @@ export function startScheduler(
     setControls: (patch: Partial<AutoPublisherControls>) => {
       controls = normalizeAutoPublisherControls(controls, patch);
       if (controls.trendAdaptiveEnabled === false) {
-        trendFactor = 1;
+        multipliers = { ...NEUTRAL_MULTIPLIERS };
       }
       void scheduleNext(false);
     },

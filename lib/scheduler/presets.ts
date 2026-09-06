@@ -2,15 +2,34 @@
  * lib/scheduler/presets.ts
  *
  * Preset configurations for scheduler behavior.
+ *
+ * Each preset is written as an explicit delta over DEFAULT_SCHEDULER_CONTROLS, and
+ * typed total (see PresetAutoPublisherControls) so applying one sets every pacing
+ * field rather than inheriting leftovers from the preset before it.
  */
 
 import { ENV } from '../../config/env.js';
-import type { ControlPanelPreset, PresetConfig, AutoPublisherControls } from './types.js';
+import { clamp } from '../utils.js';
+
+import { defaultAutoPublisherControls } from './defaults.js';
+import type {
+  ControlPanelPreset,
+  PresetConfig,
+  PresetAutoPublisherControls,
+  AutoPublisherControls,
+} from './types.js';
+
+/** Build a preset's pacing block as an override of the single default. */
+function preset(overrides: Partial<PresetAutoPublisherControls>): PresetAutoPublisherControls {
+  const { enabled: _enabled, ...base } = defaultAutoPublisherControls();
+  return { ...base, ...overrides };
+}
 
 /**
  * Preset configurations for different operating modes.
  */
 export const PRESET_CONFIG: Record<ControlPanelPreset, PresetConfig> = {
+  // The default profile: identical to DEFAULT_SCHEDULER_CONTROLS by construction.
   balanced: {
     observer: {
       enabled: true,
@@ -18,21 +37,7 @@ export const PRESET_CONFIG: Record<ControlPanelPreset, PresetConfig> = {
       maxPreVisitDelayMs: 7000,
       minIntervalBetweenRunsMs: 30000,
     },
-    autoPublisher: {
-      baseIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
-      quietHoursStart: 3,
-      quietHoursEnd: 5,
-      quietHoursMultiplier: 1.8,
-      activeHoursStart: 8,
-      activeHoursEnd: 23,
-      activeHoursMultiplier: 0.8,
-      trendAdaptiveEnabled: true,
-      trendWindowDays: 7,
-      trendRecalibrationDays: 7,
-      scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
-      scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
-      targetPublishIntervalMinutes: 0,
-    },
+    autoPublisher: preset({}),
   },
   'night-safe': {
     observer: {
@@ -41,7 +46,7 @@ export const PRESET_CONFIG: Record<ControlPanelPreset, PresetConfig> = {
       maxPreVisitDelayMs: 12000,
       minIntervalBetweenRunsMs: 60000,
     },
-    autoPublisher: {
+    autoPublisher: preset({
       baseIntervalMinutes: Math.max(45, ENV.RUN_INTERVAL_MINUTES),
       quietHoursStart: 2,
       quietHoursEnd: 6,
@@ -49,13 +54,9 @@ export const PRESET_CONFIG: Record<ControlPanelPreset, PresetConfig> = {
       activeHoursStart: 9,
       activeHoursEnd: 22,
       activeHoursMultiplier: 0.9,
-      trendAdaptiveEnabled: true,
       trendWindowDays: 14,
       trendRecalibrationDays: 14,
-      scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
-      scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
-      targetPublishIntervalMinutes: 0,
-    },
+    }),
   },
   'day-aggressive': {
     observer: {
@@ -64,21 +65,12 @@ export const PRESET_CONFIG: Record<ControlPanelPreset, PresetConfig> = {
       maxPreVisitDelayMs: 4000,
       minIntervalBetweenRunsMs: 15000,
     },
-    autoPublisher: {
+    autoPublisher: preset({
       baseIntervalMinutes: Math.max(20, Math.round(ENV.RUN_INTERVAL_MINUTES * 0.7)),
-      quietHoursStart: 3,
-      quietHoursEnd: 5,
       quietHoursMultiplier: 1.6,
       activeHoursStart: 9,
-      activeHoursEnd: 23,
       activeHoursMultiplier: 0.6,
-      trendAdaptiveEnabled: true,
-      trendWindowDays: 7,
-      trendRecalibrationDays: 7,
-      scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
-      scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
-      targetPublishIntervalMinutes: 0,
-    },
+    }),
   },
 };
 
@@ -106,7 +98,6 @@ export function normalizeAutoPublisherControls(
   base: AutoPublisherControls,
   patch?: Partial<AutoPublisherControls>
 ): AutoPublisherControls {
-  const { clamp } = { clamp: (n: number, min: number, max: number) => Math.max(min, Math.min(max, n)) };
   const merged = { ...base, ...(patch ?? {}) };
   return {
     enabled: Boolean(merged.enabled),

@@ -13,24 +13,13 @@ import { getRuntimeStateStore } from './store.js';
 // Defaults
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_SCHEDULER_CONTROLS: SchedulerControls = {
-  enabled: true,
-  baseIntervalMinutes: 60,
-  quietHoursStart: 0,
-  quietHoursEnd: 6,
-  quietHoursMultiplier: 2.0,
-  activeHoursStart: 9,
-  activeHoursEnd: 22,
-  activeHoursMultiplier: 1.0,
-  trendAdaptiveEnabled: true,
-  trendWindowDays: 7,
-  trendRecalibrationDays: 3,
-  scheduleJitterPercent: 10,
-  scheduleJitterMode: 'uniform',
-  targetPublishIntervalMinutes: 120,
-  gapRecheckIntervalMinutes: 3,
-  preset: 'balanced',
-};
+/**
+ * Re-exported from the single source in lib/scheduler so the store seeds a first
+ * boot with exactly the values a running scheduler falls back to. Declaring a
+ * second literal here is what let the two drift; tests/unit/schedulerDefaults.test.ts
+ * fails if one reappears.
+ */
+export { DEFAULT_SCHEDULER_CONTROLS } from '../scheduler/index.js';
 
 // ---------------------------------------------------------------------------
 // Persistence
