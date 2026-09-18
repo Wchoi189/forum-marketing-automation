@@ -65,7 +65,8 @@
       "src",
       "storage",
       "templates",
-      "tests"
+      "tests",
+      "tools"
     ],
     "dir_purpose": {
       ".agent": "Current truth: how the system works now (architecture, operations, known issues).",
@@ -75,7 +76,8 @@
       "ops": "Deployment and systemd units.",
       "scripts": "Developer-invoked entry points, reachable from an npm script.",
       "storage": "Crawlee key-value and dataset stores.",
-      "templates": "Ad design assets."
+      "templates": "Ad design assets.",
+      "tools": "Isolated developer toolkits (@tools/*)."
     }
   },
 

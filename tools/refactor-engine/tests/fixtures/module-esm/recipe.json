@@ -1,0 +1,15 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "module-esm",
+  "strategy": "split-module",
+  "source": "src/reports.js",
+  "targetDirectory": "parts",
+  "parts": [
+    { "name": "palette", "declarations": ["BG", "colIndexToLetter"] },
+    { "name": "builders", "declarations": ["buildTextRule"] },
+    { "name": "formatting", "declarations": ["formatAll", "formatRow"] },
+    { "name": "reports", "declarations": ["createReport"] }
+  ],
+  "keep": ["render"],
+  "verify": { "loadModule": true }
+}

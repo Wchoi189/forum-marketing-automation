@@ -1,0 +1,8 @@
+{
+  "$schema": "refactor-engine/codemod/1",
+  "id": "no-negative",
+  "engine": "grit",
+  "pattern": "rename.grit",
+  "why": "fixture: a codemod with no negative fixture",
+  "include": ["src/**/*.js"]
+}

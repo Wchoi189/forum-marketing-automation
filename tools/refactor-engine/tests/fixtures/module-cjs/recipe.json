@@ -1,0 +1,15 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "module-cjs",
+  "strategy": "split-module",
+  "source": "src/reports.js",
+  "targetDirectory": "parts",
+  "parts": [
+    { "name": "auth", "directory": ".", "declarations": ["tokenPath", "getAuthClient", "getSheetsClient", "getDriveClient"] },
+    { "name": "palette", "declarations": ["BG", "FG", "colIndexToLetter"] },
+    { "name": "builders", "declarations": ["buildTextRule", "buildRangeRule"] },
+    { "name": "formatting", "declarations": ["formatAll", "formatRow", "applyBanding"] },
+    { "name": "reports", "declarations": ["createReport", "createColored", "exportArchive"] }
+  ],
+  "verify": { "loadModule": true }
+}

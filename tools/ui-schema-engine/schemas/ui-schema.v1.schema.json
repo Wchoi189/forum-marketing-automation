@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tools/ui-schema-engine/schemas/ui-schema.v1.schema.json",
+  "title": "UI Schema Contract v1.0",
+  "description": "Canonical contract format for a rendered UI view: fields, actions, tables, tabs, and governance metadata.",
+  "type": "object",
+  "required": ["schemaVersion", "view", "fields"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "enum": ["1.0"],
+      "description": "Schema format version. Must be '1.0'."
+    },
+    "view": {
+      "type": "object",
+      "required": ["id", "name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id":            { "type": "string", "description": "Kebab-case unique identifier for this view." },
+        "name":          { "type": "string", "description": "PascalCase component or view name." },
+        "type":          { "type": "string", "enum": ["page", "dialog", "sheet", "card", "form", "modal", "unknown"] },
+        "title":         { "type": "string" },
+        "route":         { "type": "string", "description": "App route path e.g. /refunds." },
+        "contextEntity": { "type": "string", "description": "Primary DB entity/table this view operates on." }
+      }
+    },
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "component"],
+        "additionalProperties": false,
+        "properties": {
+          "id":            { "type": "string" },
+          "label":         { "type": "string" },
+          "component":     { "type": "string", "description": "UI component type: input, select, textarea, checkbox, radio-group, switch, currency-input, slider, etc." },
+          "required":      { "type": "boolean" },
+          "disabled":      { "type": "boolean" },
+          "readOnly":      { "type": "boolean" },
+          "currency":      { "type": "string" },
+          "optionsSource": { "type": "string", "description": "API endpoint or static list providing options, e.g. api:/api/vendors." },
+          "sampleOptions": { "type": "array", "items": { "type": "string" } },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["value", "label"],
+              "properties": {
+                "value": { "type": "string" },
+                "label": { "type": "string" }
+              }
+            }
+          },
+          "validation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "notEmpty":  { "type": "boolean" },
+              "min":       { "type": "number" },
+              "max":       { "type": "number" },
+              "minLength": { "type": "number" },
+              "maxLength": { "type": "number" },
+              "pattern":   { "type": "string" }
+            }
+          },
+          "tab":           { "type": "string", "description": "Tab panel name this field belongs to." },
+          "placeholder":   { "type": "string" }
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "id":       { "type": "string" },
+          "label":    { "type": "string" },
+          "variant":  { "type": "string", "enum": ["primary", "secondary", "destructive", "outline", "ghost", "link"] },
+          "type":     { "type": "string", "enum": ["submit", "button", "reset"] },
+          "endpoint": { "type": "string", "description": "e.g. POST /api/refunds" },
+          "disabled": { "type": "boolean" }
+        }
+      }
+    },
+    "tables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["columns"],
+        "additionalProperties": false,
+        "properties": {
+          "columns":  { "type": "array", "items": { "type": "string" } },
+          "rowCount": { "type": "number" }
+        }
+      }
+    },
+    "tabs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "items":  { "type": "array", "items": { "type": "string" } },
+        "active": { "type": "string" }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sapFieldStatusGroup": { "type": "string", "description": "SAP Field Status Group code, e.g. G004." },
+        "auditedAt":           { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

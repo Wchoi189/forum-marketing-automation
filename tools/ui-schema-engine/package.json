@@ -1,0 +1,19 @@
+{
+  "name": "@tools/ui-schema-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Repository-agnostic UI-schema contract engine: extract, validate, audit field contracts against DB schema.",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "ui-schema": "bin/ui-schema.js"
+  },
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "yaml": "2.8.0"
+  }
+}

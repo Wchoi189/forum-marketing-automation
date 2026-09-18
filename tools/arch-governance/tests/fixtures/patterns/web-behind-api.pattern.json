@@ -1,0 +1,61 @@
+{
+  "$schema": "https://calm.finos.org/release/1.0/meta/calm.json",
+  "$id": "https://example.org/patterns/web-behind-api.pattern.json",
+  "title": "Web client behind its API",
+  "type": "object",
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "allOf": [
+        {
+          "contains": {
+            "$ref": "https://calm.finos.org/release/1.0/meta/core.json#/defs/node",
+            "type": "object",
+            "properties": {
+              "unique-id": { "const": "web" },
+              "node-type": { "const": "webclient" }
+            }
+          }
+        },
+        {
+          "contains": {
+            "$ref": "https://calm.finos.org/release/1.0/meta/core.json#/defs/node",
+            "type": "object",
+            "properties": {
+              "unique-id": { "const": "api" },
+              "node-type": { "const": "service" }
+            }
+          }
+        }
+      ]
+    },
+    "relationships": {
+      "type": "array",
+      "allOf": [
+        {
+          "contains": {
+            "$ref": "https://calm.finos.org/release/1.0/meta/core.json#/defs/relationship",
+            "type": "object",
+            "properties": {
+              "protocol": { "enum": ["HTTP", "HTTPS"] },
+              "relationship-type": {
+                "type": "object",
+                "allOf": [{ "required": ["connects"] }],
+                "properties": {
+                  "connects": {
+                    "type": "object",
+                    "properties": {
+                      "source": { "type": "object", "properties": { "node": { "const": "web" } } },
+                      "destination": { "type": "object", "properties": { "node": { "const": "api" } } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": ["nodes", "relationships"]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@tools/refactor-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Repository-agnostic refactoring kernel: size and pattern ratchet, byte-for-byte class and module splits behind generated facades.",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "refactor-engine": "bin/refactor-engine.js"
+  },
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "@ast-grep/napi": "0.45.3",
+    "@getgrit/gritql": "0.0.3",
+    "picomatch": "4.0.7",
+    "typescript": "5.7.3"
+  }
+}

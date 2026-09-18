@@ -1,0 +1,15 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "module-ts",
+  "strategy": "split-module",
+  "source": "src/report.ts",
+  "targetDirectory": "parts",
+  "parts": [
+    { "name": "types", "declarations": ["Row", "Level"] },
+    { "name": "palette", "declarations": ["BG", "colIndexToLetter"] },
+    { "name": "builders", "declarations": ["buildTextRule"] },
+    { "name": "formatting", "declarations": ["formatAll", "formatRow"] }
+  ],
+  "keep": ["createReport"],
+  "verify": { "loadModule": false }
+}

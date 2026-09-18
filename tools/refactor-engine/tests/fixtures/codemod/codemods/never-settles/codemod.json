@@ -1,0 +1,9 @@
+{
+  "$schema": "refactor-engine/codemod/1",
+  "id": "never-settles",
+  "engine": "grit",
+  "pattern": "never-settles.grit",
+  "why": "fixture: a rewrite that always matches its own output",
+  "include": ["src/**/*.js"],
+  "maxPasses": 2
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@tools/arch-governance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Repository-agnostic FINOS CALM architecture governance: validate, docify, diff.",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "arch-governance": "bin/arch-governance.js"
+  },
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "@finos/calm-cli": "1.59.0",
+    "fast-glob": "3.3.3"
+  }
+}

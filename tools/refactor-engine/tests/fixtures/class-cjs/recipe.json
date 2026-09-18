@@ -1,0 +1,16 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "class-cjs",
+  "strategy": "split-class",
+  "source": "src/ledger.js",
+  "host": "Ledger",
+  "targetDirectory": "parts",
+  "parts": [
+    { "name": "Posting", "members": ["_put", "addEntry", "describe"], "declarations": ["normalizeNote"] },
+    { "name": "Reporting", "members": ["total", "summary", "label", "fromRows", "average"] }
+  ],
+  "keep": ["constructor"],
+  "raises": [],
+  "accept": [],
+  "verify": { "loadModule": true }
+}

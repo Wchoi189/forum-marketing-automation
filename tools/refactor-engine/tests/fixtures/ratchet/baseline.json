@@ -1,0 +1,45 @@
+{
+  "$schema": "refactor-engine/baseline/1",
+  "files": {
+    "src/big.js": {
+      "lines": 60,
+      "maxFunction": null,
+      "patterns": {},
+      "reason": "baseline 2026-09-15"
+    },
+    "src/fn.js": {
+      "lines": 19,
+      "maxFunction": {
+        "line": 3,
+        "lines": 15,
+        "name": "fifteen"
+      },
+      "patterns": {},
+      "reason": "baseline 2026-09-15"
+    },
+    "src/loop.js": {
+      "lines": 24,
+      "maxFunction": {
+        "line": 13,
+        "lines": 6,
+        "name": "insertAll"
+      },
+      "patterns": {
+        "prepare-in-loop": 1
+      },
+      "reason": "baseline 2026-09-15"
+    },
+    "src/sql.js": {
+      "lines": 6,
+      "maxFunction": null,
+      "patterns": {
+        "coalesce-param": 2
+      },
+      "reason": "baseline 2026-09-15"
+    }
+  },
+  "limits": {
+    "fileLines": 40,
+    "functionLines": 10
+  }
+}

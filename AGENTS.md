@@ -33,6 +33,10 @@ the repo root fails the build; put it in `.agent/` (how the system works now) or
 | Test Framework | [tests/README.md](tests/README.md) |
 | Competitor Intel | [.planning/initiatives/competitor-intel/playbook.md](.planning/initiatives/competitor-intel/playbook.md) |
 | Initiatives Portfolio | [.planning/README.md](.planning/README.md) |
+| Agent Skills Registry | [.agent/skills/registry.json](.agent/skills/registry.json) |
+| UI Schema Governance | [.agent/skills/ui-schema-governance.md](.agent/skills/ui-schema-governance.md) |
+| Refactor Engine | [.agent/skills/refactor-engine.md](.agent/skills/refactor-engine.md) |
+| Architecture Governance | [.agent/skills/arch-governance.md](.agent/skills/arch-governance.md) |
 
 ## Core Principles
 
@@ -44,7 +48,9 @@ the repo root fails the build; put it in `.agent/` (how the system works now) or
 
 ```
 config/env.ts                                # Environment parsing (canonical)
+tools/                                       # Isolated developer toolkits (@tools/*)
 .agent/contracts/                            # Data and API contracts
+.agent/skills/                               # Executable agent skills
 .planning/spec-kit/contracts/                # Behavior contracts and policies (current truth)
 .planning/spec-kit/reference/                # Reviewer pack: catalogs, inventories, guidelines
 .planning/initiatives/                       # Vertical initiative packages

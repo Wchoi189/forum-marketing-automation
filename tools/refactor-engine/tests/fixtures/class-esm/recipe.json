@@ -1,0 +1,14 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "class-esm",
+  "strategy": "split-class",
+  "source": "src/ledger.js",
+  "host": "Ledger",
+  "targetDirectory": "parts",
+  "parts": [
+    { "name": "Posting", "members": ["_put", "addEntry", "describe"], "declarations": ["normalizeNote"] },
+    { "name": "Reporting", "members": ["total", "summary", "label"] }
+  ],
+  "keep": ["constructor", "fromRows"],
+  "verify": { "loadModule": true }
+}

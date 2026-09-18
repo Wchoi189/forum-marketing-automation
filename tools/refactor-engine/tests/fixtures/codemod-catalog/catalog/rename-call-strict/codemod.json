@@ -1,0 +1,12 @@
+{
+  "$schema": "refactor-engine/codemod/1",
+  "id": "rename-call-strict",
+  "engine": "grit",
+  "pattern": "rename-call-strict.grit",
+  "why": "fixture: oldCall becomes newCall, and no oldCall may survive",
+  "include": ["src/**/*.js"],
+  "exclude": ["src/legacy/**"],
+  "postconditions": [
+    { "absent": "\\boldCall\\b", "include": ["src/**/*.js"], "exclude": ["src/legacy/**"], "why": "fixture: every oldCall is renamed" }
+  ]
+}

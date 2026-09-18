@@ -1,0 +1,9 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "constructor-assigned",
+  "strategy": "split-class",
+  "source": "src/host.js",
+  "host": "Host",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "Part", "members": ["constructor"] }]
+}

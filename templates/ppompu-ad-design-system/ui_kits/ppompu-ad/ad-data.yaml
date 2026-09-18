@@ -1,0 +1,344 @@
+schemaVersion: ad-1.0
+header:
+  logoSrc: https://img.ppomppu.co.kr/zboard/data3/2026/0427/20260427160721_m6lZMxHH8R.png
+  logoAlt: SharePlan Logo
+  title: 회원 모집 안내
+  subtitle: 정식 사업자 등록을 마친 구독 관리 서비스로, 합리적인 비용으로 다양한 온라인 서비스를 안전하게 이용하실 수 있습니다.
+navLinks:
+  - id: "#section-youtube"
+    label: 유튜브
+  - id: "#google-ai"
+    label: 구글AI
+  - id: "#picsart"
+    label: 캔바
+  - id: "#section-adobe"
+    label: 어도비
+  - id: "#section-notion"
+    label: 노션
+  - id: "#section-github"
+    label: Copilot
+  - id: "#section-lovable"
+    label: Lovable
+  - id: "#section-n8n"
+    label: n8n
+  - id: "#section-surfshark"
+    label: NordVPN
+  - id: "#section-coursera"
+    label: 온라인 강의
+  - id: "#section-extra"
+    label: 추가 특가
+  - id: "#section-start"
+    label: 신청 안내
+sections:
+  - id: section-youtube
+    title: YouTube Premium (Music 포함)
+    subsections:
+      - label: 개인 단독
+        desc: 독립적인 개인 구독 방식
+        cards:
+          - title: 👥 개인 단독 (1개월)
+            badge: 인기
+            duration: 1개월 이용권
+            price: 8,000원
+            priceDesc: (월 평균 8,00원)
+            style: normal
+          - title: 👑 개인 단독 (12개월)
+            badge: BEST
+            duration: 12개월
+            price: 70,000원
+            priceDesc: (월 평균 5,833원)
+            style: best
+      - label: 가족 플랜
+        desc: YouTube 가족 초대 방식 (가성비 추천)
+        cards:
+          - title: 👥 가족 플랜 (6개월)
+            badge: 추천
+            duration: 6개월 가족 초대
+            price: 품절
+            priceDesc: (월 평균 4,666원)
+            style: normal
+          - title: 👑 가족 플랜 (12개월)
+            badge: BEST
+            duration: 12개월 가족 초대
+            price: 품절
+            priceDesc: (월 평균 4,583원)
+            style: best
+    notices:
+      - type: details
+        title: ⚠️ YouTube 이용 조건 (필독)
+        content: |-
+          • 신규 구글 계정 또는 기존 멤버십 가입 이력이 전혀 없는 계정 만 가능합니다.
+          • 참고: 기존 음악 플레이 리스트는 새로운 계정으로 이동 가능하며 문의하시면 안내해 드리겠습니다.
+      - type: details
+        title: 🚨 YouTube 가입 전 필수 안내 (필독)
+        content: >-
+          📢  구독 해지 예방 권장 체크리스트 
+
+          1️⃣  가족 그룹 탈퇴 (가입된 경우만 - 개인/가족 모두 해당)
+          https://myaccount.google.com/family/details?pli=1 
+
+          2️⃣  결제 프로필 삭제 (페이지 맨 아래 '결제 프로필 삭제' 클릭)
+          https://payments.google.com/gp/w/u/0/home/settings 
+
+          💡  계정 선택 팁: 1. 12개월 장기 구독 시, 안정적인 이용을 위해 프리미엄 전용 신규 계정 사용을 권장합니다.2.
+          사용 이력이 많은 기존 계정을 이용할 경우 구독 안정성이 크게 떨어질 수 있으며, 이는 가격 인상의 원인이 되기도 합니다.
+          3. 구글 정책상 한 번 해지된 계정으로 재가입하면 다시 해지될 가능성이 매우 높으므로 권장하지 않습니다.
+      - type: box
+        title: ℹ️ 개인 구독 vs 가족 초대 비교
+        content: |-
+          • 개인 구독: 그룹 변경 제한 걱정 없이 상시 연장이 가능합니다.
+          • 가족 초대 : 계정 프로필 설정이 복잡하면 가입할 때 오류가 발생할 수 있습니다. (그룹 변경 제한, 동일 국가, 등).
+  - id: google-ai
+    title: 구글 AI 프로
+    subsections:
+      - cards:
+          - title: 👥 패밀리 구성원 (12개월)
+            badge: AS 보장
+            duration: 12개월 이용권
+            price: 20,000원
+            priceDesc: (월 평균 1,667원)
+            style: pro
+          - title: 👑 패밀리 매니저 (18개월)
+            badge: 복구 x +2번
+            duration: 18개월 이용권
+            price: 30,000원
+            priceDesc: (월 평균 1,667원)
+            style: pro
+    notices:
+      - type: box
+        title: ✨ 구글 AI Pro 플랜별 상세 안내
+        content: >-
+          • 패밀리 구성원 (12개월): 본인 계정에 활성화되는 정식 구독 방식. 크레딧 공유 방식이나 일반 채팅 시 쾌적합니다. (전
+          기간 품질 보증)
+
+          • 패밀리 매니저 (18개월): 최대 5인까지 패밀리원을 직접 초9대/관리할 수 있는 마스터 권한.
+
+          🛡️ AS 안내: 최소 1회 복구 제공 + 가족 구성원 백업 플랜. (복구 시 새로운 계정 필수)
+
+          💡 안전한 계정 선택 팁: AI Pro 혜택 전용으로 신규 계정을 생성하시거나, 전혀 사용하지 않는 보조 계정으로 가입하시는
+          것을 권장합니다.
+  - id: picsart
+    title: Canva Pro
+    subsections:
+      - cards:
+          - title: 🎨 Canva Pro Edu (12개월)
+            badge: 88% 절감
+            originalPrice: 공식 정가 169,000원
+            price: 19,800원
+            priceDesc: (월 평균 1,650원)
+            style: pro
+    notices:
+      - type: box
+        title: 🎨 Canva Pro Edu 상세 안내
+        content: >-
+          • 본인 계정으로 직접 활성화하는 구독 방식입니다. (비밀번호나 인증코드 노출 불필요)
+
+          • Edu Pro 기능 대부분 지원 (무제한 템플릿 다운로드, AI 디자인 도구 활용, 로고 제거 및 투명 배경 저장 등) +
+          PC/모바일 전 기기 지원.
+
+          🛡️ AS 안내: 이용 중 문제 발생 시 복구 또는 잔여 기간 환불 해드립니다.
+  - id: section-adobe
+    title: Adobe Creative Cloud
+    subsections:
+      - cards:
+          - title: 🎨 월간 요금제 (1개월)
+            badge: 체험형
+            duration: 1개월 이용권
+            price: 품절
+            priceDesc: (월 13,900원 상당)
+            style: pro
+          - title: 👑 연간 요금제 (4개월)
+            badge: 추천
+            duration: 4개월 이용권
+            price: 60,000원
+            priceDesc: (월 평균 10,000원)
+            style: best
+    notices:
+      - type: box
+        title: 🎈 Adobe Creative Cloud 상세 안내
+        content: >-
+          • 본인 계정으로 직접 활성화하는 정식 개인 구독 방식입니다.
+
+          • 데스크탑, iOS, Android 등 전 기기를 완벽 지원하며 Photoshop, Illustrator, Premiere
+          등 Creative Cloud 전체 제품 라인업 이용이 가능합니다.
+
+          • 이용 중 문제 발생 시 복구 또는 환불해 드립니다. 상시 연장 역시 가능합니다.
+  - id: section-lovable
+    title: Lovable (AI 풀스택 웹앱 빌더)
+    subsections:
+      - cards:
+          - title: 👥 라이트 플랜 (12개월)
+            badge: 63% 절감
+            originalPrice: 공식 정가 80,000원
+            price: 품절
+            priceDesc: (월 평균 2,500원)
+            style: pro
+          - title: ⚡ 프로 플랜 (12개월)
+            badge: 58% 절감
+            originalPrice: 공식 정가 380,094원
+            price: 140,000원
+            priceDesc: (월 평균 11,667원)
+            style: pro
+    notices:
+      - type: box
+        title: 👥 라이트 플랜 상세 안내
+        content: >-
+          • 본인 계정으로 직접 업그레이드하는 정식 개인 구독 방식입니다. (별도 설치 불필요)
+
+          • 제공 혜택: 일일 5 크레딧 제공 (월 최대 150 크레딧), 사용자 역할/권한 설정, 커스텀 도메인 연결, Lovable
+          배지 제거 포함.
+
+          💡 AI가 코드를 생성하는 최첨단 풀스택 웹앱 빌더 플랫폼!
+      - type: box
+        title: ⚡ 프로 플랜 상세 안내
+        content: |-
+          • 제한 없는 풀스택 웹앱 개발 및 무제한 비공개 프로젝트 + 커스텀 도메인 설정 기능 제공.
+          • 제공 혜택: 라이트 플랜 대비 월 100 크레딧 추가 제공 (일일 5 크레딧 + 매월 100 프로 크레딧).
+          🛡️ AS 안내: 이용 중 문제 발생 시 복구 또는 잔여 기간 환불 해드립니다.
+  - id: section-notion
+    title: Notion (Business)
+    subsections:
+      - cards:
+          - title: 📓 Notion Plus (12 개월)
+            duration: 3개월 이용권
+            price: 품절
+            priceDesc: (월 평균 5,000원)
+            style: normal
+          - title: 👑 Notion Business (12개월)
+            badge: 추천
+            duration: 12개월 이용권
+            price: 50,000원
+            priceDesc: (월 평균 5,000원)
+            style: pro
+    notices:
+      - type: box
+        title: 🏢 비즈니스(Business) 플랜 상세 안내
+        content: >-
+          • 플러스(Plus) 기능 전면 포함: 무제한 블록 및 파일 업로드, 외부 게스트 초대 기능.
+
+          • 비즈니스 전용 기능: SAML SSO (싱글 사인온), 고급 분석/권한 제어, 90일 페이지 기록 보관 (Plus는
+          30일).
+
+          • 비공개 팀 스페이스: 부서/프로젝트별 열람 권한을 철저히 분리 가능.
+
+          🛡️ 보증 및 안내: 전 기간 품질 보증(AS) 및 잔여 기간 환불. 개인 계정에 바로 적용 가능한 공식 리딤 코드를
+          발급합니다.
+  - id: section-n8n
+    title: n8n (Cloud Starter)
+    subsections:
+      - cards:
+          - title: ⚙️ n8n Cloud Starter (12개월)
+            badge: 81% 절감
+            originalPrice: 공식 정가 376,000원
+            price: 64,900원
+            priceDesc: (월 평균 5,408원)
+            style: pro
+    notices:
+      - type: box
+        title: 🔗 n8n Cloud Starter 상세 안내
+        content: >-
+          • 본인 계정으로 직접 안전하게 활성화 및 관리하는 정식 개인 구독 방식입니다.
+
+          • 제공 스펙: 월 최대 2,500 태스크 자동 실행, 액티브 워크플로우 5개 상시 활성화 가능, 테스트 워크플로우 무제한
+          실행.
+
+          • 다른 공동 작업이나 자동화를 위한 팀 멤버 무제한 초대 지원 (공유 워크스페이스 포함).
+
+          🛡️ AS 안내: 이용 중 문제 발생 시 복구 또는 잔여 기간 환불 해드립니다.
+  - id: section-surfshark
+    title: NordVPN Basic
+    subsections:
+      - cards:
+          - title: 🦈 개인 단독
+            badge: 실속형
+            duration: 3개월 이용권
+            price: 15,000원
+            priceDesc: (월 5,000원 상당)
+            style: pro
+          - title: 👑 개인 단독
+            badge: 인기
+            duration: 12개월 이용권
+            price: 45,000원
+            priceDesc: (월 3,750원 상당)
+            style: best
+    notices:
+      - type: box
+        title: ✨ NordVPN 프리미엄 주요 기능
+        content: |-
+          • 압도적인 속도와 연결: 전 세계 111개국 서버망(NordLynx 프로토콜) 및 최대 10대 동시 연결 지원.
+          • 철저한 노로그(No-Logs) 정책으로 개인정보 보호 및 해외 OTT 우회 최적화 (넷플릭스 등 완벽 시청 가능).
+          • 파격적인 요금비교: 월 4,000원으로 최고급 VPN 혜택을 누리세요! (타인 공유 없는 개인 전용 독립 계정)
+  - id: section-coursera
+    title: Online Courses (Coursera / Udemy)
+    subsections:
+      - cards:
+          - title: 📚 Coursera Plus (12개월)
+            badge: 93% 절감
+            originalPrice: 공식 정가 601,376원
+            price: 40,000원
+            priceDesc: (월 평균 3,333원)
+            style: pro
+          - title: 🎓 Udemy 개인 (1개월)
+            badge: 인기
+            duration: 1개월 이용권
+            price: 10,000원
+            priceDesc: (월 10,000원 상당)
+            style: best
+    notices:
+      - type: box
+        title: 👥 온라인 강의 (Coursera / Udemy) 상세 안내
+        content: >-
+          • Coursera Plus (12개월): 본인 이메일로 직접 연동 및 활성화하는 정식 개인 구독 권한 부여 방식. 글로벌
+          명문 대학교 인기 코스 무제한 수강 및 글로벌 공식 수료증 발급 보장 (연 US$399 대비 연 40,000원 파격 특가).
+
+          • Udemy 개인 (1개월): 개발, 프로그래밍, 비즈니스, 디자인 등 다양한 최신 실무 베스트셀러 강의를 자유롭게 무제한
+          수강할 수 있는 정식 개인 구독 플랜 (월 10,000원).
+
+          🛡️ AS 안내: 이용 중 문제 발생 시 복구 또는 잔여 기간 환불 해드립니다.
+extraSection:
+  id: section-extra
+  title: 추가 소프트웨어 특가 (글로벌 인기 앱 모음)
+  items:
+    - name: Supabase Pro Plan
+      duration: 12개월
+      price: 82,000원
+    - name: LinkedIn Premium All-in-One 바우처 (공식 구독 75% 할인)
+      duration: 12개월
+      price: 38,000원
+    - name: Linear Business (5인 좌석 포함)
+      duration: 12개월
+      price: 42,200원
+    - name: Framer Pro
+      duration: 12개월
+      price: 63,300원
+    - name: TradingView Premium (공급 계정)
+      duration: 1개월
+      price: 20,000원
+    - name: Microsoft 365 Personal
+      duration: 12개월
+      price: 12,800원
+    - name: Figma Education
+      duration: 12개월
+      price: 29,800원
+    - name: MagicPattern
+      duration: 12개월
+      price: 52,700원
+    - name: Intercom Essential
+      duration: 12개월
+      price: 63,300원
+    - name: Asana
+      duration: 12개월
+      price: 63,300원
+    - name: Railway Pro
+      duration: 12개월
+      price: 82,400원
+  deliveryNote: "※ 발급 및 세팅 소요 시간: 24시간 이내 (Delivery time is 24 hours)"
+footer:
+  termsNotice: "-서비스 보장: 자동 취소 등 문제가 발생해도 재설정·대체 제공·환불 등 가능한 방법을 안내드리며, 최대한불이익이없도록 처리합니다."
+  kakaoLink: https://pf.kakao.com/_xnCFRn/chat
+  phone: 010-2364-8676
+  bankAccount: 108-179305-04-017
+  bankDetails: |-
+    은행명: IBK기업은행 
+    예금주: 최웅비 쉐어플랜(shareplan)
+  copyright: © 2024-2026 SharePlan. 모든 권리 보유.

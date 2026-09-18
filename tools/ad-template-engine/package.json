@@ -1,0 +1,19 @@
+{
+  "name": "@tools/ad-template-engine",
+  "version": "1.0.0",
+  "description": "Compiler engine for building ad template HTML from YAML schema",
+  "main": "dist/generator.js",
+  "scripts": {
+    "build": "tsc",
+    "generate": "ts-node generator.ts",
+    "extract": "ts-node extractor.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.3.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
+  }
+}

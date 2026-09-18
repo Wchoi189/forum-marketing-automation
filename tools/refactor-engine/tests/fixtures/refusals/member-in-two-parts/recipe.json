@@ -1,0 +1,9 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "member-in-two-parts",
+  "strategy": "split-class",
+  "source": "src/host.js",
+  "host": "Host",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "A", "members": ["one"] }, { "name": "B", "members": ["one"] }]
+}

@@ -1,0 +1,43 @@
+{
+  "architecture": "valid.calm.json",
+  "patternsDir": "patterns",
+  "outputDir": "dist/architecture",
+  "docsBaseUrl": "/docs/architecture/",
+  "sizeBudgetBytes": 4000,
+  "rules": {
+    "forbiddenConnections": [
+      {
+        "id": "client-to-store",
+        "fromZone": "client",
+        "toNodeType": "database",
+        "message": "A browser client must reach data only through the API."
+      }
+    ],
+    "egressOrigins": {
+      "toZone": "external",
+      "allowedFromZones": [
+        "container"
+      ]
+    },
+    "egressCoverage": {
+      "roots": [
+        "src"
+      ],
+      "include": [
+        "**/*.js"
+      ],
+      "exclude": [
+        "**/node_modules/**"
+      ],
+      "ignoreHosts": [
+        {
+          "host": "docs.example.org",
+          "reason": "link in a comment"
+        },
+        {
+          "host": "cdn.example.org"
+        }
+      ]
+    }
+  }
+}

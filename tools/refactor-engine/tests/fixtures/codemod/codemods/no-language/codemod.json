@@ -1,0 +1,8 @@
+{
+  "$schema": "refactor-engine/codemod/1",
+  "id": "no-language",
+  "engine": "grit",
+  "pattern": "rename.grit",
+  "why": "fixture: a pattern with no language line",
+  "include": ["src/**/*.js"]
+}

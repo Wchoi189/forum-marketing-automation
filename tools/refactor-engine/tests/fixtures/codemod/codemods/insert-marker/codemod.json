@@ -1,0 +1,8 @@
+{
+  "$schema": "refactor-engine/codemod/1",
+  "id": "insert-marker",
+  "engine": "grit",
+  "pattern": "insert-marker.grit",
+  "why": "fixture: a rewrite that inserts a line before a carried statement",
+  "include": ["src/**/*.js"]
+}

@@ -1,0 +1,10 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "orders",
+  "strategy": "split-class",
+  "source": "src/orders.js",
+  "host": "Orders",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "OrdersQueries", "members": ["list"] }],
+  "raises": [{ "part": "OrdersQueries", "reason": "" }]
+}

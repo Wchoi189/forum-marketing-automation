@@ -1,0 +1,12 @@
+{
+  "$schema": "refactor-engine/baseline/1",
+  "files": {
+    "src/big.js": {
+      "lines": 13,
+      "maxFunction": { "line": 1, "lines": 11, "name": "big" },
+      "patterns": {},
+      "reason": "fixture"
+    }
+  },
+  "limits": { "fileLines": 12, "functionLines": 50 }
+}

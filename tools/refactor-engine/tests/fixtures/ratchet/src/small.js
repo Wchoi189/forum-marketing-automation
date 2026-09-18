@@ -1,0 +1,20 @@
+'use strict';
+
+const small1 = 1;
+const small2 = 2;
+const small3 = 3;
+const small4 = 4;
+const small5 = 5;
+const small6 = 6;
+const small7 = 7;
+const small8 = 8;
+const small9 = 9;
+const small10 = 10;
+const small11 = 11;
+const small12 = 12;
+const small13 = 13;
+const small14 = 14;
+const small15 = 15;
+const small16 = 16;
+const small17 = 17;
+module.exports = { small1 };

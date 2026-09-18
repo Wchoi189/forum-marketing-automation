@@ -1,0 +1,1 @@
+{ "code": "RF-SOURCE-CHANGED", "member": "src/host.js", "exit": 2, "steps": "plan, append a byte to the source, apply --plan" }
