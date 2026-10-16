@@ -1,0 +1,100 @@
+{
+  "handover_id": "handover-20261017-0100",
+  "timestamp_utc": "2026-10-16T16:00:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "claude-code",
+  "target_agent": "next_agent",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "incident-recovery",
+  "objective": "Restore hourly publishing after the 2026-10-16 ppomppu session loss and harden session detection and recovery (KE-004).",
+  "non_goals": [
+    "Automating past Cloudflare Turnstile (captcha solvers, stealth tricks) — rejected: account-flag risk",
+    "Fixing gap_policy skips logged with status=error (cosmetic, pre-existing)"
+  ],
+  "current_state": {
+    "completed": [
+      "Root cause confirmed: ppomppu session (PHPSESSID + pmn, session cookies) expired server-side; login form now has Cloudflare Turnstile + sec_nonce, so scripted login is rejected with alert '보안 확인이 필요합니다'",
+      "Prod session restored 2026-10-16 15:12 UTC from a human cookie export merged into /app/data/browser-profile/browser-storage-state.json (backup: browser-storage-state.json.bak-20261016)",
+      "Prod verified: 15:43 UTC run published_verified; scheduler back on post_publish_cooldown",
+      "Code fix committed da49bdb on branch fix/ppomppu-session-recovery (sessionState detection, single guarded login attempt, PUBLISHER_LOGIN_REQUIRED, no cookie save on dead session, draft-row click timeout fix, npm run session:import, .gitignore for cookie exports)",
+      "npm run lint clean; 168 unit+integration tests pass; live check: guest -> logged_out -> turnstile_unsolved with zero requests to login_check.php; imported cookies -> logged_in",
+      "Docs: KE-004, KNOWN_ISSUES indexes, OPERATIONS.md 'Restoring the ppomppu session' runbook, CLAUDE.md login gotchas"
+    ],
+    "gaps": [
+      "Prod container still runs the pre-fix code; the fix is not deployed",
+      "Fix branch not pushed, no PR",
+      "Credentials not rotated (deferred by user)"
+    ]
+  },
+  "status": "in_progress",
+  "decisions_locked": [
+    "The bot never posts credentials when a Turnstile widget is present without a token. Recovery from an expired session is human-in-the-loop via npm run session:import.",
+    "The write button is not a session signal (guests see 글쓰기). Gate on isSessionUsable(): 로그아웃 link = logged in, a.gnb-btn-login = logged out, neither = fall back to the write button.",
+    "Session import keeps the server's own cf_clearance (bound to the server IP/UA) over an imported one.",
+    "Fix branch is cut from chore/analytics-page HEAD (deployed R1 line, 15 commits ahead of main), not from main."
+  ],
+  "acceptance_criteria": [
+    "After deploy, a logged-out run fails fast with PUBLISHER_LOGIN_REQUIRED: reason=turnstile_unsolved and logs publisher.login.failed",
+    "After deploy, no run with a dead session rewrites browser-storage-state.json (publisher.storage-state.skipped logged)",
+    "Draft-row 'locator.click: Timeout 1000ms' errors stop appearing in publisher history"
+  ],
+  "implementation_plan": [],
+  "practical_recommendations": [
+    "Watch for PUBLISHER_LOGIN_REQUIRED in publisher.run.failed. It means the session expired again and needs the OPERATIONS.md runbook; retries will not fix it.",
+    "Session lifetime is unknown. Record when the next expiry happens to learn the cadence, and consider an alert (Slack/Kakao) on PUBLISHER_LOGIN_REQUIRED.",
+    "Korean fonts are missing in the container (tofu in failure screenshots). Install fonts-noto-cjk if screenshots need to be readable."
+  ],
+  "completed_items": [
+    "lib/observer/boardDiagnostics.ts",
+    "lib/publisher/publisherRun.ts",
+    "lib/publisher/ui/draftModal.ts",
+    "lib/browser/sessionImport.ts",
+    "scripts/import-session-cookies.ts",
+    "tests/unit/sessionImport.test.ts",
+    "tests/integration/playbook-runner.integration.test.ts",
+    ".planning/known-issues/KE-004-ppomppu-login-turnstile.md"
+  ],
+  "pending_items": [
+    "Deploy fix/ppomppu-session-recovery to prod (ops/deploy/deploy-release.sh) — needs user go-ahead",
+    "Push branch and open PR (base: chore/analytics-page or main per user)",
+    "Rotate PPOMPPU_USER_PW and KAKAO_LOGIN_CLIENT_SECRET — both were printed in the 2026-10-16 session output (deferred by user)",
+    "Delete storage/cookies-www.ppomppu.co.kr-2026-10-16.json (live session; now gitignored but still on disk)",
+    "Delete prod backup /app/data/browser-profile/browser-storage-state.json.bak-20261016 once the restored session is confirmed stable"
+  ],
+  "decisions": [],
+  "constraints": [
+    "Do not trigger POST /api/run-publisher without the user's OK. It publishes a real post.",
+    "Before replacing browser-storage-state.json, confirm GET /api/publisher-status running=false. A finishing run saves its own cookies."
+  ],
+  "env_requirements": [
+    "Prod container: marketing-automation-app-1; state volume marketing-automation-bot-profile at /app/data/browser-profile",
+    "Diagnostics inside the container need docker exec -u root to remove temp files from /app"
+  ],
+  "next_actions": [
+    "Get user approval, then deploy da49bdb and confirm the first post-deploy run is published_verified",
+    "Push branch and open PR",
+    "Rotate credentials when the user un-defers it"
+  ],
+  "artifacts_touched": [
+    ".agent/KNOWN_ISSUES.md",
+    ".agent/OPERATIONS.md",
+    ".gitignore",
+    ".planning/known-issues/INDEX.md",
+    ".planning/known-issues/KE-004-ppomppu-login-turnstile.md",
+    "CLAUDE.md",
+    "lib/browser/index.ts",
+    "lib/browser/shared.ts",
+    "lib/browser/sessionImport.ts",
+    "lib/logging/events.ts",
+    "lib/observer/boardDiagnostics.ts",
+    "lib/observer/index.ts",
+    "lib/publisher/publisherRun.ts",
+    "lib/publisher/ui/draftModal.ts",
+    "package.json",
+    "scripts/import-session-cookies.ts",
+    "tests/integration/playbook-runner.integration.test.ts",
+    "tests/unit/sessionImport.test.ts",
+    "prod: /app/data/browser-profile/browser-storage-state.json"
+  ]
+}
