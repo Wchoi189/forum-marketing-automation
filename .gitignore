@@ -15,6 +15,9 @@ dist/
 # source of truth for anything in the repo.
 activity_log.json
 ppomppu_profile/
+# Browser cookie exports and storage states are live login sessions.
+cookies-*.json
+*storage-state*.json
 
 # ── Generated artifacts ─────────────────────────────────────────────────────
 # artifacts/ holds publisher screenshots and traces, the competitor-intel

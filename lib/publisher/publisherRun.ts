@@ -26,7 +26,7 @@ import type { DraftRowSelectionDiagnostics, PlaybookRuntimeContext } from '../pl
 import { setPublisherStep, setPublisherRunning, playbookStepToCanvasStep } from './stepStore.js';
 import { createBrowserContext, saveStorageState, BROWSER_EVAL_NAME_POLYFILL_SCRIPT, registerBrowserDebugHandlers } from '../browser/index.js';
 import { sendSlackNotification } from '../notifications.js';
-import { getBoardDiagnostics, attemptPpomppuLoginFromBoard } from '../observer/boardDiagnostics.js';
+import { getBoardDiagnostics, attemptPpomppuLoginFromBoard, isSessionUsable } from '../observer/boardDiagnostics.js';
 import { loadObserverPolicy } from '../observer/policyLoader.js';
 import { getPublisherControls, setPublisherControls, persistMaintenanceBlockedUntil } from '../state/index.js';
 import { runObserver } from '../observer/observerRun.js';
@@ -282,6 +282,8 @@ async function _executePublisherRun(
 
     let page: import('playwright').Page | null = null;
     let playbookRuntime: PlaybookRuntimeContext | null = null;
+    /** Set when the board showed a dead session that login could not revive. */
+    let sessionLost = false;
     try {
       page = await context.newPage();
       registerBrowserDebugHandlers(page, 'Publisher');
@@ -318,18 +320,30 @@ async function _executePublisherRun(
             : '')
         );
       }
-      if (diagnostics.writeButtonCount === 0) {
+      // Guests also see the 글쓰기 link, so a missing write button is not the only
+      // sign of a lost session. Check the header first; fall back to the write
+      // button when the header markers are absent.
+      const loggedIn = isSessionUsable(diagnostics);
+      if (!loggedIn) {
         setPublisherStep('login-page');
-        const loginRecovered = await attemptPpomppuLoginFromBoard(page, policy.boardUrl).catch(() => false);
-        if (!loginRecovered) {
-          const latest = await getBoardDiagnostics(page);
-          const reason = latest.loginPromptVisible
-            ? 'login_required_or_session_missing'
-            : 'write_button_not_visible';
+        const loginFailure = await attemptPpomppuLoginFromBoard(page, policy.boardUrl);
+        if (loginFailure) {
+          sessionLost = true;
           throw new Error(
-            `PUBLISHER_WRITE_ENTRY_UNAVAILABLE: reason=${reason} title="${latest.title}" url="${latest.url}" rows=${latest.rowCount}`
+            `PUBLISHER_LOGIN_REQUIRED: reason=${loginFailure.reason}` +
+              (loginFailure.detail ? ` detail="${loginFailure.detail}"` : '') +
+              ` url="${page.url()}"` +
+              (loginFailure.reason === 'turnstile_unsolved' || loginFailure.reason === 'login_rejected'
+                ? ' | hint=login form is behind Cloudflare Turnstile; import a browser session (npm run session:import)'
+                : '')
           );
         }
+      }
+      const entry = loggedIn ? diagnostics : await getBoardDiagnostics(page);
+      if (entry.writeButtonCount === 0) {
+        throw new Error(
+          `PUBLISHER_WRITE_ENTRY_UNAVAILABLE: reason=write_button_not_visible session=${entry.sessionState} title="${entry.title}" url="${entry.url}" rows=${entry.rowCount}`
+        );
       }
 
       await publisherDebugScreenshot(page, debugDir, '01-board');
@@ -405,7 +419,13 @@ async function _executePublisherRun(
           );
         }
       }
-      await saveStorageState(context!).catch(() => null);
+      // A dead session's cookies are worthless, and writing them would clobber a
+      // session an operator imported while this run was in flight.
+      if (sessionLost) {
+        logger.warn({ event: LOG_EVENT.publisherStorageStateSkipped, runId }, '[Publisher] storage state not saved — session lost');
+      } else {
+        await saveStorageState(context!).catch(() => null);
+      }
       await context!.close().catch(() => null);
     }
   } catch (error: any) {

@@ -4,10 +4,29 @@
  * Board access diagnostics and login recovery utilities.
  */
 
+import type { Dialog, Page } from 'playwright';
+
 import { ENV } from '../../config/env.js';
+import { logger, LOG_EVENT } from '../logging/index.js';
 
 const BOARD_ROW_SELECTOR = 'tr.list0, tr.list1, tr.common-list0, tr.common-list1, tr.list_notice';
 const PPOMPPU_LOGIN_URL = 'https://www.ppomppu.co.kr/zboard/login.php';
+
+// Header markers. A logged-in page has a 로그아웃 link; a guest page has the
+// gnb login button instead. The 글쓰기 link is NOT a session signal: guests see
+// it too and get an alert page on click.
+const LOGOUT_LINK_SELECTOR = 'a:has-text("로그아웃")';
+const LOGIN_BUTTON_SELECTOR = 'a.gnb-btn-login';
+
+// Since 2026-10 the login form carries a Cloudflare Turnstile widget plus a
+// sec_nonce. Posting it without a solved token is rejected with
+// "보안 확인이 필요합니다" — see KE-004.
+const TURNSTILE_WIDGET_SELECTOR = '.sec-turnstile, input[name="cf-turnstile-response"]';
+const TURNSTILE_WIDGET_WAIT_MS = 3000;
+const TURNSTILE_TOKEN_WAIT_MS = 15000;
+const LOGIN_REDIRECT_TIMEOUT_MS = 10000;
+
+export type SessionState = 'logged_in' | 'logged_out' | 'unknown';
 
 export type MaintenanceNoticeResult = {
   isMaintenance: boolean;
@@ -20,6 +39,7 @@ export type BoardDiagnostics = {
   title: string;
   rowCount: number;
   writeButtonCount: number;
+  sessionState: SessionState;
   isForbidden: boolean;
   loginPromptVisible: boolean;
   isMaintenance: boolean;
@@ -187,14 +207,27 @@ export function parseMaintenanceNotice(
   };
 }
 
+/**
+ * Classify the session from header markers. A logout link is the only positive
+ * signal; a login button without one is a definite logout. Neither means the
+ * header changed shape, so callers fall back to the write-button check.
+ */
+export function classifySessionState(logoutLinkCount: number, loginButtonCount: number): SessionState {
+  if (logoutLinkCount > 0) return 'logged_in';
+  if (loginButtonCount > 0) return 'logged_out';
+  return 'unknown';
+}
+
 export async function getBoardDiagnostics(
-  page: import('playwright').Page,
+  page: Page,
   statusCode: number = 0
 ): Promise<BoardDiagnostics> {
-  const [title, rowCount, writeButtonCount, bodyText] = await Promise.all([
+  const [title, rowCount, writeButtonCount, logoutLinkCount, loginButtonCount, bodyText] = await Promise.all([
     page.title().catch(() => ''),
     page.locator(BOARD_ROW_SELECTOR).count().catch(() => 0),
     page.locator('a:has-text("글쓰기")').count().catch(() => 0),
+    page.locator(LOGOUT_LINK_SELECTOR).count().catch(() => 0),
+    page.locator(LOGIN_BUTTON_SELECTOR).count().catch(() => 0),
     page.locator('body').innerText().catch(() => '')
   ]);
 
@@ -209,6 +242,7 @@ export async function getBoardDiagnostics(
     title,
     rowCount,
     writeButtonCount,
+    sessionState: classifySessionState(logoutLinkCount, loginButtonCount),
     isForbidden,
     loginPromptVisible,
     isMaintenance: maintenanceInfo.isMaintenance,
@@ -217,12 +251,66 @@ export async function getBoardDiagnostics(
   };
 }
 
-async function fillAndSubmitLoginForm(page: import('playwright').Page): Promise<boolean> {
-  // Fill credentials — works on both overlay and standalone login page
+export type LoginFailureReason =
+  | 'form_not_found'
+  | 'turnstile_unsolved'
+  | 'login_rejected'
+  | 'still_logged_out'
+  | 'navigation_failed';
+
+/** Why a login attempt failed. Login functions return `null` on success. */
+export type LoginFailure = { reason: LoginFailureReason; detail: string | null };
+
+/**
+ * Whether the page is usable for posting: the header says logged in, or the
+ * header markers are missing and the write button is there (pre-change layout).
+ */
+export function isSessionUsable(diagnostics: Pick<BoardDiagnostics, 'sessionState' | 'writeButtonCount'>): boolean {
+  return (
+    diagnostics.sessionState === 'logged_in' ||
+    (diagnostics.sessionState === 'unknown' && diagnostics.writeButtonCount > 0)
+  );
+}
+
+/**
+ * Wait for the Turnstile widget to produce a token. Headless Chromium almost
+ * never passes the challenge, but a headed or warmed-up browser sometimes
+ * solves it invisibly, so give it a bounded chance before giving up.
+ */
+async function waitForTurnstileToken(page: Page): Promise<boolean> {
+  return page
+    .waitForFunction(
+      () => Boolean((document.querySelector('input[name="cf-turnstile-response"]') as HTMLInputElement | null)?.value),
+      undefined,
+      { timeout: TURNSTILE_TOKEN_WAIT_MS }
+    )
+    .then(() => true)
+    .catch(() => false);
+}
+
+async function submitLoginForm(page: Page, boardUrl: string): Promise<LoginFailure | null> {
+  // r_url makes ppomppu redirect back to the board after a successful login.
+  await page.goto(`${PPOMPPU_LOGIN_URL}?r_url=${encodeURIComponent(boardUrl)}`, {
+    waitUntil: 'domcontentloaded',
+    timeout: ENV.BOT_NAV_TIMEOUT_MS
+  });
+
   const userIdInput = page.locator('input[name="user_id"]').first();
   const passwordInput = page.locator('input[name="password"]').first();
   if ((await userIdInput.count()) === 0 || (await passwordInput.count()) === 0) {
-    return false;
+    return { reason: 'form_not_found', detail: page.url() };
+  }
+
+  // Never post credentials without a token: the server rejects the attempt, and
+  // repeated rejected logins from one IP are what gets an account flagged.
+  const hasTurnstile = await page
+    .locator(TURNSTILE_WIDGET_SELECTOR)
+    .first()
+    .waitFor({ state: 'attached', timeout: TURNSTILE_WIDGET_WAIT_MS })
+    .then(() => true)
+    .catch(() => false);
+  if (hasTurnstile && !(await waitForTurnstileToken(page))) {
+    return { reason: 'turnstile_unsolved', detail: null };
   }
 
   await userIdInput.fill(ENV.PPOMPPU_USER_ID);
@@ -234,66 +322,56 @@ async function fillAndSubmitLoginForm(page: import('playwright').Page): Promise<
     if (cb && !cb.checked) { cb.checked = true; }
   });
 
-  // Submit the form via JS — the submit button is input[type="image"] with no text label
-  await page.evaluate(() => {
-    const form = document.querySelector('form[name="zb_login"]') as HTMLFormElement
-      || document.querySelector('form#zb_login') as HTMLFormElement;
-    if (form) form.submit();
-  });
-
-  // Wait for the redirect to complete after login
+  // ppomppu reports a rejected login (bad password, failed security check) as
+  // an alert() on login.php. Capture it — it is the only explanation we get.
+  let dialogMessage: string | null = null;
+  const onDialog = (dialog: Dialog) => {
+    dialogMessage = dialog.message();
+    dialog.dismiss().catch(() => null);
+  };
+  page.on('dialog', onDialog);
   try {
-    await page.waitForURL('**/zboard.php**', { timeout: 10000 });
-  } catch {
-    // If URL didn't change, give it a moment more
-    await page.waitForTimeout(3000);
+    // Submit the form via JS — the visible 로그인 control is a span with an onclick handler
+    await page.evaluate(() => {
+      const form = document.querySelector('form[name="zb_login"]') as HTMLFormElement
+        || document.querySelector('form#zb_login') as HTMLFormElement;
+      if (form) form.submit();
+    });
+    await page
+      .waitForURL((url) => !url.pathname.endsWith('/login.php'), { timeout: LOGIN_REDIRECT_TIMEOUT_MS })
+      .catch(() => null);
+  } finally {
+    page.off('dialog', onDialog);
   }
 
-  return true;
+  // The session decides, not the dialog: an informational alert after a
+  // successful login must not be read as a rejection.
+  await page.goto(boardUrl, { waitUntil: 'domcontentloaded', timeout: ENV.BOT_NAV_TIMEOUT_MS });
+  if (isSessionUsable(await getBoardDiagnostics(page))) return null;
+  return dialogMessage
+    ? { reason: 'login_rejected', detail: dialogMessage }
+    : { reason: 'still_logged_out', detail: null };
 }
 
-export async function attemptPpomppuLoginFromBoard(page: import('playwright').Page, boardUrl: string): Promise<boolean> {
-  // Strategy 1: Try the login overlay on the board page
-  const loginLink = page.locator('a.loginsmbtn, a:has-text("로그인")').first();
-  const hasLoginLink = (await loginLink.count()) > 0;
+/**
+ * Log in from the board and land back on it. Makes at most one credential
+ * submission per call, and logs the outcome either way.
+ */
+export async function attemptPpomppuLoginFromBoard(page: Page, boardUrl: string): Promise<LoginFailure | null> {
+  const failure = await submitLoginForm(page, boardUrl).catch(
+    (err: unknown): LoginFailure => ({
+      reason: 'navigation_failed',
+      detail: String((err as { message?: unknown })?.message ?? err)
+    })
+  );
 
-  if (hasLoginLink) {
-    try {
-      await loginLink.click({ timeout: 5000 });
-      await page.waitForTimeout(500);
-
-      const submitted = await fillAndSubmitLoginForm(page);
-      if (submitted) {
-        // Check if we're now logged in
-        if (!page.url().includes('zboard.php?id=gonggu')) {
-          await page.goto(boardUrl, { waitUntil: 'domcontentloaded', timeout: ENV.BOT_NAV_TIMEOUT_MS });
-          await page.waitForTimeout(2000);
-        }
-        const after = await getBoardDiagnostics(page);
-        if (after.writeButtonCount > 0) return true;
-      }
-    } catch {
-      // Overlay failed, fall through to Strategy 2
-    }
+  if (failure) {
+    logger.warn(
+      { event: LOG_EVENT.publisherLoginFailed, reason: failure.reason, detail: failure.detail, url: page.url() },
+      `[Login] Login failed: ${failure.reason}`
+    );
+  } else {
+    logger.info({ event: LOG_EVENT.publisherLoginRecovered, url: page.url() }, '[Login] Session recovered');
   }
-
-  // Strategy 2: Navigate directly to login.php
-  try {
-    await page.goto(PPOMPPU_LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: ENV.BOT_NAV_TIMEOUT_MS });
-    await page.waitForTimeout(500);
-
-    const submitted = await fillAndSubmitLoginForm(page);
-    if (submitted) {
-      if (!page.url().includes('zboard.php?id=gonggu')) {
-        await page.goto(boardUrl, { waitUntil: 'domcontentloaded', timeout: ENV.BOT_NAV_TIMEOUT_MS });
-        await page.waitForTimeout(2000);
-      }
-      const after = await getBoardDiagnostics(page);
-      if (after.writeButtonCount > 0) return true;
-    }
-  } catch {
-    // Direct login also failed
-  }
-
-  return false;
+  return failure;
 }

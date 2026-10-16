@@ -17,9 +17,12 @@ export {
   createBrowserContext,
   closeSharedBrowser,
   saveStorageState,
+  STORAGE_STATE_PATH,
   shutdownBrowser,
   registerSignalHandlers,
 } from './shared.js';
+
+export { convertExportedCookies, mergeCookies } from './sessionImport.js';
 
 export { registerBrowserDebugHandlers } from './debug.js';
 

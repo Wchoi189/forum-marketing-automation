@@ -8,7 +8,7 @@ import { logger } from '../logging/index.js';
  * Storage state (login cookies) is persisted to the shared volume so it survives
  * redeploys. BOT_PROFILE_DIR already lives on the persistent volume, so co-locate here.
  */
-const STORAGE_STATE_PATH = path.join(ENV.BOT_PROFILE_DIR, 'browser-storage-state.json');
+export const STORAGE_STATE_PATH = path.join(ENV.BOT_PROFILE_DIR, 'browser-storage-state.json');
 
 /** Reduces trivial AutomationControlled / headless flags and caps per-process memory. */
 export const CHROMIUM_LAUNCH_ARGS = [

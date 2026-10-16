@@ -66,6 +66,32 @@ inside git.
 `npm run clean:all` prunes regenerable files on demand; `-- --dry-run` lists
 what it would remove without deleting.
 
+## Restoring the ppomppu session
+
+Symptom: `PUBLISHER_LOGIN_REQUIRED: reason=turnstile_unsolved` (or `login_rejected`)
+in `publisher.run.failed`. The bot cannot log in by itself (KE-004); a person must.
+
+1. Log in to ppomppu in a normal browser as the bot account and tick 자동로그인.
+2. Export the `ppomppu.co.kr` cookies as JSON (Cookie-Editor's export works).
+   Save it as `cookies-*.json` so `.gitignore` covers it — it is a live session.
+3. Wait until `GET /api/publisher-status` reports `running: false`.
+4. Merge into the deployed state. The bot's own `cf_clearance` is kept, because
+   Cloudflare binds it to the server's IP:
+
+   ```bash
+   C=marketing-automation-app-1
+   docker cp $C:/app/data/browser-profile/browser-storage-state.json ./state.json
+   npm run session:import -- cookies-export.json --state ./state.json
+   docker cp ./state.json $C:/app/data/browser-profile/browser-storage-state.json
+   docker exec -u root $C chown app:app /app/data/browser-profile/browser-storage-state.json
+   rm ./state.json ./state.json.bak-* cookies-export.json
+   ```
+
+   Add `--verify` on a machine whose IP Cloudflare accepts to open the board
+   with the merged cookies and report `session=logged_in`.
+5. Trigger `POST /api/run-publisher` or wait for the next tick, and check for
+   `published_verified`.
+
 ## Selector Strategy
 
 - Prefer stable class/text combinations and scoped locators over absolute XPath.

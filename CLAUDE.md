@@ -47,7 +47,9 @@
 **Scheduler:** Calls `runPublisher(false)` on each tick. Skips tick if `running=true`. Gap-policy skip is logged as non-success but is normal operation, not an error.
 
 **ppomppu login recovery gotchas:**
-- The `loginPromptVisible` diagnostic is **unreliable on the redirect hop**. When ppomppu redirects unauthenticated requests to `login.php?r_url=...`, the intermediate page shows "403 Forbidden" (nginx) or "Loading..." as its title — no "로그인" text exists in the body. The code now attempts login unconditionally whenever the write button is missing.
+- The `loginPromptVisible` diagnostic is **unreliable on the redirect hop**. When ppomppu redirects unauthenticated requests to `login.php?r_url=...`, the intermediate page shows "403 Forbidden" (nginx) or "Loading..." as its title — no "로그인" text exists in the body.
+- **The write button is not a session signal** — guests see 글쓰기 too. `getBoardDiagnostics().sessionState` reads the header (`로그아웃` link vs `a.gnb-btn-login`); gate on `isSessionUsable()`.
+- **The bot cannot log itself in.** Since 2026-10 the login form carries Cloudflare Turnstile; an expired session surfaces as `PUBLISHER_LOGIN_REQUIRED: reason=turnstile_unsolved` and needs a human-exported session (`npm run session:import`, runbook in `.agent/OPERATIONS.md`). Never add retries that post credentials without a Turnstile token (KE-004).
 - ppomppu WAF returns 403 on Playwright's default headless user agent. `DEFAULT_BROWSER_USER_AGENT` in `config/env.ts` is required, not optional.
 
 **Pipeline step tracking:** `publisherStepStore.ts` → `GET /api/publisher-status` (non-blocking). `src/hooks/useAppData.ts` runs a single adaptive interval: 5s base, dropping to 1.5s step polling while the publisher is running. Mapping: `playbookStepToCanvasStep()` in `publisherStepStore.ts`.

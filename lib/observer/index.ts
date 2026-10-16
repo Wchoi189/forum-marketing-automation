@@ -17,7 +17,8 @@ export { loadObserverPolicyBase, loadObserverPolicy, resolveEffectiveGapThreshol
 
 // Diagnostics
 export type { BoardDiagnostics, MaintenanceNoticeResult } from './boardDiagnostics.js';
-export { getBoardDiagnostics, attemptPpomppuLoginFromBoard, parseMaintenanceNotice } from './boardDiagnostics.js';
+export { getBoardDiagnostics, attemptPpomppuLoginFromBoard, classifySessionState, isSessionUsable, parseMaintenanceNotice } from './boardDiagnostics.js';
+export type { SessionState, LoginFailure, LoginFailureReason } from './boardDiagnostics.js';
 
 // Parser signal
 export type { ParserSignal, ParserBundle } from './parserSignal.js';

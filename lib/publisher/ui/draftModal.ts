@@ -6,6 +6,9 @@ import { logger, LOG_EVENT } from "../../logging/index.js";
 
 const DRAFT_MODAL_FALLBACK_VISIBLE_TIMEOUT_MS = 500;
 const DRAFT_MODAL_ACTION_TIMEOUT_MS = 1000;
+// The row click renders a full draft preview, which can keep the page's main
+// thread busy past 1s. The click lands but Playwright's action never returns.
+const DRAFT_ROW_CLICK_TIMEOUT_MS = 5000;
 
 import { ENV } from "../../../config/env.js";
 
@@ -93,7 +96,13 @@ async function resolveDraftRow(modalRoot: Locator, page: Page, draftIndex: numbe
   const selected = selectableRows[draftIndex - 1];
   const rowTarget = selected.row.locator("a:visible, button:visible, td:not([colspan]):visible").first();
   const clickedLabel = (await selected.row.innerText().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 140) || null;
-  await rowTarget.click({ timeout: DRAFT_MODAL_ACTION_TIMEOUT_MS });
+  await rowTarget.click({ timeout: DRAFT_ROW_CLICK_TIMEOUT_MS }).catch(async (err: unknown) => {
+    // On a timeout, a visible preview means the click took effect and only the
+    // action failed to return. Any other click error is real.
+    const timedOut = (err as Error)?.name === "TimeoutError";
+    if (timedOut && (await page.locator("div.tempas-preview").last().isVisible().catch(() => false))) return;
+    throw err;
+  });
 
   return {
     selection: {
