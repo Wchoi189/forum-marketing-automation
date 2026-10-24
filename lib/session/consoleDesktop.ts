@@ -165,7 +165,9 @@ export class ConsoleDesktop {
       opts.url,
     ], {
       stdio: 'ignore',
-      env: { ...process.env, DISPLAY: `:${display}`, TZ: 'Asia/Seoul', LANGUAGE: 'ko' },
+      // HOME: the container's /app is not writable, and Chromium's crash
+      // handler and NSS database exit or fail without a writable home.
+      env: { ...process.env, HOME: this.dir, DISPLAY: `:${display}`, TZ: 'Asia/Seoul', LANGUAGE: 'ko' },
     });
     this.browser.once('exit', () => this.exited('browser'));
 
