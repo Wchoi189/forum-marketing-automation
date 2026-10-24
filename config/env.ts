@@ -80,8 +80,10 @@ type EnvConfig = {
   NL_WEBHOOK_SECRET: string | null;
   /** Slack Webhook URL for outgoing notifications. Null when absent. */
   SLACK_WEBHOOK_URL: string | null;
-  /** Bearer secret for POST /api/session/import. The endpoint returns 503 when absent. */
+  /** Bearer secret for POST /api/session/import and /api/session/console. Both return 503 when absent. */
   SESSION_IMPORT_SECRET: string | null;
+  /** Base URL operators reach the server at (login console links in Slack). */
+  PUBLIC_BASE_URL: string;
   /** Kill-switch for /kakao-webhook endpoint. Returns 503 when false. */
   KAKAO_WEBHOOK_ENABLED: boolean;
   /** Kakao Open Builder bot ID. Used to validate incoming skill payloads. Null = no validation. */
@@ -267,6 +269,7 @@ function buildEnv(): EnvConfig {
     NL_WEBHOOK_SECRET: optionalStringOrNull("NL_WEBHOOK_SECRET"),
     SLACK_WEBHOOK_URL: optionalStringOrNull("SLACK_WEBHOOK_URL"),
     SESSION_IMPORT_SECRET: optionalStringOrNull("SESSION_IMPORT_SECRET"),
+    PUBLIC_BASE_URL: optionalString("PUBLIC_BASE_URL", "http://localhost:3000"),
     KAKAO_WEBHOOK_ENABLED: optionalBool("KAKAO_WEBHOOK_ENABLED", false),
     KAKAO_OPENBUILDER_BOT_ID: optionalStringOrNull("KAKAO_OPENBUILDER_BOT_ID"),
     KAKAO_ADMIN_KEY: optionalStringOrNull("KAKAO_ADMIN_KEY"),

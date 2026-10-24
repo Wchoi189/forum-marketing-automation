@@ -25,13 +25,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM node:20-slim AS runtime
 
 # Install dumb-init, curl (HEALTHCHECK), openssh-server, and minimal Playwright Chromium runtime deps
-# Only shared libraries needed for headless Chromium (no fonts, X11, or build tools)
+# Only shared libraries needed for headless Chromium (no X11 or build tools).
+# fonts-nanum: Korean glyphs, so the login console and failure screenshots are readable.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     dumb-init curl openssh-server sudo \
     libglib2.0-0 libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
     libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
     libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libx11-xcb1 libxfixes3 \
-    fonts-freefont-ttf && \
+    fonts-freefont-ttf fonts-nanum && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -r app && useradd -r -g app -d /app -s /bin/bash app && \
     # Generate SSH host keys, configure sshd, set app user password

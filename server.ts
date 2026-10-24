@@ -64,7 +64,11 @@ type SchedulerController = ReturnType<typeof startScheduler>;
 export function createApp(
   deps: BotDeps = getDefaultDeps(),
   scheduler?: SchedulerController,
-  opts: { initialNlWebhookEnabled?: boolean; probeSession?: SessionRouterDeps['probe'] } = {}
+  opts: {
+    initialNlWebhookEnabled?: boolean;
+    probeSession?: SessionRouterDeps['probe'];
+    openLoginConsole?: SessionRouterDeps['openConsole'];
+  } = {}
 ) {
   const app = express();
   let nlWebhookEnabledRuntime: boolean = opts.initialNlWebhookEnabled ?? ENV.NL_WEBHOOK_ENABLED;
@@ -86,7 +90,8 @@ export function createApp(
   const observerLimiter = shouldSkipRateLimit ? NOOP : rateLimit({ windowMs: 60_000, limit: 5, standardHeaders: true, legacyHeaders: false });
 
   const SKIP_RATE_PATHS = ["/kakao-webhook", "/api/publisher-status", "/api/health/resources", "/api/health"];
-  const SKIP_RATE_PATTERNS = [/\.js(\?|$)/, /\.css(\?|$)/, /\.svg(\?|$)/, /\.(png|jpg|jpeg|gif|ico|woff2?)(\?|$)/];
+  // Login console viewer traffic (taps, keystrokes, SSE) is token-gated and bursty.
+  const SKIP_RATE_PATTERNS = [/\.js(\?|$)/, /\.css(\?|$)/, /\.svg(\?|$)/, /\.(png|jpg|jpeg|gif|ico|woff2?)(\?|$)/, /^\/api\/session\/console\/[^/]+\/(input|events)$/];
 
   app.use((req, res, next) => {
     if (SKIP_RATE_PATTERNS.some(p => p.test(req.path))) return next();
@@ -144,7 +149,7 @@ export function createApp(
 
   app.use(createKakaoRouter());
 
-  app.use(createSessionRouter({ probe: opts.probeSession }));
+  app.use(createSessionRouter({ probe: opts.probeSession, openConsole: opts.openLoginConsole }));
 
   // ── Global error handler ──────────────────────────────────────────────────
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

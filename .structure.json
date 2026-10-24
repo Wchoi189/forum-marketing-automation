@@ -109,6 +109,7 @@
     "lib/parser": "lib/parser/index.ts",
     "lib/publisher": "lib/publisher/index.ts",
     "lib/scheduler": "lib/scheduler/index.ts",
+    "lib/session": "lib/session/index.ts",
     "lib/state": "lib/state/index.ts"
   },
 

@@ -71,9 +71,29 @@ what it would remove without deleting.
 Symptom: `PUBLISHER_LOGIN_REQUIRED: reason=turnstile_unsolved` (or `login_rejected`)
 in `publisher.run.failed`. The bot cannot log in by itself (KE-004); a person must.
 
-### Automatic: browser session sync (default)
+### Default: login console (any device, no desktop needed)
 
-The operator's Chrome on the bot host pushes its ppomppu cookies to
+The server's own Chromium opens login.php with the ID, password and 자동로그인
+already filled, and streams it to a token-protected page. A person taps the
+Turnstile check and 로그인; the bot detects the logged-in header and saves the
+session itself. Cookies come from the server's IP, so nothing is copied.
+
+- **Automatic:** when a run fails with `PUBLISHER_LOGIN_REQUIRED`, Slack gets a
+  "ppomppu login needed" link (at most every 3 h; each link lives 15 min).
+- **On demand:** open `PUBLIC_BASE_URL/session/console` (tailnet:
+  `http://100.124.62.44:3000/session/console`) and press "Send login link to
+  Slack". The link goes to Slack only, never back to the page.
+- **From a shell:** `curl -X POST localhost:3000/api/session/console -H
+  "Authorization: Bearer $SESSION_IMPORT_SECRET"` returns the URL directly.
+
+Needs `SESSION_IMPORT_SECRET` and `PUBLIC_BASE_URL` in `.env.docker`. The
+`session.imported` log line lists which login cookies have a real expiry date
+(names only): that shows whether 자동로그인 lets the session outlive ~7 days.
+
+### Optional: browser session sync extension
+
+Only useful while a desktop Chrome that is logged in to ppomppu can reach the
+bot; it is not a dependency. That Chrome pushes its ppomppu cookies to
 `POST /api/session/import` whenever `PHPSESSID` or `pmn` change, and every 30
 minutes. The bot probes the board with them and saves only a logged-in session,
 keeping its own `cf_clearance`. Slack reports each refresh or rejection.

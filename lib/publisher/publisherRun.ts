@@ -427,6 +427,13 @@ async function _executePublisherRun(
         await saveStorageState(context!).catch(() => null);
       }
       await context!.close().catch(() => null);
+      if (sessionLost) {
+        // Offer a person the login console (link to Slack). Lazy import: lib/session
+        // reaches lib/observer, which already imports this module.
+        void import('../session/index.js')
+          .then(({ openLoginConsole }) => openLoginConsole('session_lost', { auto: true }))
+          .catch((err) => logger.warn({ event: LOG_EVENT.sessionImportRejected, runId, reason: 'console_failed', err }, '[Publisher] login console failed to open'));
+      }
     }
   } catch (error: any) {
     logger.error(

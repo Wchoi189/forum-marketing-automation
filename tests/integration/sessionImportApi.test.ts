@@ -103,6 +103,52 @@ test("session import: verified cookies are merged, trackers dropped, server cf_c
   assert.ok(fs.existsSync(`${STORAGE_STATE_PATH}.bak`));
 });
 
+async function withConsoleServer(
+  openConsole: NonNullable<Parameters<typeof createApp>[2]>["openLoginConsole"],
+  fn: (base: string) => Promise<void>,
+) {
+  const server = createApp(deps, undefined, { probeSession: loggedIn, openLoginConsole: openConsole }).listen(0);
+  try {
+    await fn(`http://127.0.0.1:${(server.address() as AddressInfo).port}`);
+  } finally {
+    server.close();
+  }
+}
+
+const fakeConsole = { token: "t".repeat(32), url: "http://x/session/console/tttt", expiresAt: "2026-10-25T00:15:00.000Z", reason: "manual" };
+
+test("login console: opening one with the secret returns its link; without, 401", async () => {
+  const reasons: string[] = [];
+  await withConsoleServer(async (reason) => { reasons.push(reason); return fakeConsole; }, async (base) => {
+    assert.equal((await post(`${base}/api/session/console`, {}, "Bearer wrong")).status, 401);
+    const res = await post(`${base}/api/session/console`, {});
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).url, fakeConsole.url);
+  });
+  assert.deepEqual(reasons, ["manual"]);
+});
+
+test("login console: the unauthenticated request never returns the token", async () => {
+  let opts: unknown;
+  await withConsoleServer(async (_reason, o) => { opts = o; return fakeConsole; }, async (base) => {
+    const res = await fetch(`${base}/api/session/console/request`, { method: "POST" });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.deepEqual(body, { status: "link_sent_to_slack", expiresAt: fakeConsole.expiresAt });
+    assert.ok(!JSON.stringify(body).includes(fakeConsole.token));
+  });
+  assert.deepEqual(opts, { renotify: true });
+});
+
+test("login console: unknown tokens get 404 on page, events and input", async () => {
+  await withConsoleServer(async () => fakeConsole, async (base) => {
+    assert.equal((await fetch(`${base}/session/console/nope`)).status, 404);
+    assert.equal((await fetch(`${base}/api/session/console/nope/events`)).status, 404);
+    assert.equal((await post(`${base}/api/session/console/nope/input`, { type: "click", x: 1, y: 1 })).status, 404);
+    assert.equal((await fetch(`${base}/session/console`)).status, 200);
+  });
+});
+
 test("session import: an unchanged session skips the probe", async () => {
   writeState([cookie("PHPSESSID", "same"), cookie("pmn", "p")]);
   let probeCalls = 0;

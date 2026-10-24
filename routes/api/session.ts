@@ -1,8 +1,14 @@
 /**
  * routes/api/session.ts
  *
- * ppomppu session import:
- *   POST /api/session/import
+ * ppomppu session recovery:
+ *   POST /api/session/import                      cookie push from a logged-in browser
+ *   POST /api/session/console                     open a login console (lib/session); returns its URL
+ *   GET  /session/console                         entry page: "send login link to Slack"
+ *   POST /api/session/console/request             open a console, link to Slack only
+ *   GET  /session/console/:token                  console viewer page
+ *   GET  /api/session/console/:token/events       screencast + state (SSE)
+ *   POST /api/session/console/:token/input        tap / text / key from the viewer
  *
  * The bot cannot log itself in (KE-004), so a logged-in browser pushes its
  * ppomppu cookies here: tools/session-sync-extension does it on every login
@@ -32,6 +38,14 @@ import {
 } from '../../lib/browser/index.js';
 import { probeSession, type SessionProbeResult } from '../../lib/observer/index.js';
 import { getPublisherStatus } from '../../lib/publisher/index.js';
+import {
+  findLoginConsole,
+  openLoginConsole,
+  renderConsolePage,
+  renderConsoleRequestPage,
+  type ConsoleEvent,
+  type ConsoleInput,
+} from '../../lib/session/index.js';
 
 const NOOP = (_req: unknown, _res: unknown, next: () => void) => next();
 const isProduction = process.env.NODE_ENV === 'production';
@@ -40,7 +54,32 @@ const importLimiter = isProduction ? rateLimit({ windowMs: 60_000, limit: 10, st
 export type SessionRouterDeps = {
   /** Replaced in tests; the default loads the board in the shared browser. */
   probe?: (cookies: Cookie[]) => Promise<SessionProbeResult>;
+  /** Replaced in tests; the default launches a login console in the shared browser. */
+  openConsole?: typeof openLoginConsole;
 };
+
+const CONSOLE_KEYS = new Set(['Enter', 'Backspace', 'Tab']);
+const SSE_HEARTBEAT_MS = 20_000;
+
+/** Validate a viewer input. Returns null for anything the console should not forward. */
+function parseConsoleInput(body: unknown): ConsoleInput | null {
+  const input = (body ?? {}) as Record<string, unknown>;
+  switch (input.type) {
+    case 'click':
+      return Number.isFinite(input.x) && Number.isFinite(input.y)
+        && (input.x as number) >= 0 && (input.y as number) >= 0 && (input.x as number) <= 2000 && (input.y as number) <= 4000
+        ? { type: 'click', x: input.x as number, y: input.y as number }
+        : null;
+    case 'text':
+      return typeof input.text === 'string' && input.text.length > 0 && input.text.length <= 200 ? { type: 'text', text: input.text } : null;
+    case 'key':
+      return typeof input.key === 'string' && CONSOLE_KEYS.has(input.key) ? { type: 'key', key: input.key as 'Enter' | 'Backspace' | 'Tab' } : null;
+    case 'reload':
+      return { type: 'reload' };
+    default:
+      return null;
+  }
+}
 
 const digest = (value: string) => createHash('sha256').update(value).digest();
 
@@ -50,6 +89,7 @@ function isAuthorized(header: string | undefined, secret: string): boolean {
 
 export function createSessionRouter(deps: SessionRouterDeps = {}): Router {
   const probe = deps.probe ?? probeSession;
+  const openConsole = deps.openConsole ?? openLoginConsole;
   const router = Router();
   let importInFlight = false;
 
@@ -122,6 +162,66 @@ export function createSessionRouter(deps: SessionRouterDeps = {}): Router {
       res.json({ status: 'imported', sessionState: result.sessionState, cookieCount: merged.length });
     } finally {
       importInFlight = false;
+    }
+  });
+
+  // ── Login console ─────────────────────────────────────────────────────────
+  // Opening one needs the secret. The console's own pages are authorized by its
+  // unguessable, short-lived token, which is what the Slack link carries.
+
+  router.post('/api/session/console', importLimiter, async (req, res) => {
+    const secret = ENV.SESSION_IMPORT_SECRET;
+    if (!secret) { res.status(503).json({ error: 'session_import_disabled' }); return; }
+    if (!isAuthorized(req.headers['authorization'], secret)) { res.status(401).json({ error: 'unauthorized' }); return; }
+    try {
+      res.json(await openConsole('manual'));
+    } catch (err) {
+      res.status(502).json({ error: 'console_failed', detail: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  router.get('/session/console', (_req, res) => {
+    res.set('Cache-Control', 'no-store').type('html').send(renderConsoleRequestPage());
+  });
+
+  // No auth: the response never carries the token; the link goes to Slack only.
+  router.post('/api/session/console/request', importLimiter, async (_req, res) => {
+    try {
+      const info = await openConsole('requested', { renotify: true });
+      res.json({ status: 'link_sent_to_slack', expiresAt: info?.expiresAt ?? null });
+    } catch (err) {
+      res.status(502).json({ error: 'console_failed', detail: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  router.get('/session/console/:token', (req, res) => {
+    if (!findLoginConsole(req.params.token)) { res.status(404).type('text/plain').send('This login link has expired. A new one is posted to Slack when the session is needed.'); return; }
+    res.set('Cache-Control', 'no-store').type('html').send(renderConsolePage(req.params.token));
+  });
+
+  router.get('/api/session/console/:token/events', (req, res) => {
+    const loginConsole = findLoginConsole(req.params.token);
+    if (!loginConsole) { res.status(404).end(); return; }
+    res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+    res.flushHeaders();
+    const unsubscribe = loginConsole.subscribe((event: ConsoleEvent) => {
+      if (event.type === 'frame') res.write(`event: frame\ndata: ${event.data}\n\n`);
+      else res.write(`event: state\ndata: ${JSON.stringify({ state: event.state, detail: event.detail })}\n\n`);
+    });
+    const heartbeat = setInterval(() => res.write(': keep-alive\n\n'), SSE_HEARTBEAT_MS);
+    req.on('close', () => { clearInterval(heartbeat); unsubscribe(); });
+  });
+
+  router.post('/api/session/console/:token/input', async (req, res) => {
+    const loginConsole = findLoginConsole(req.params.token);
+    if (!loginConsole?.open) { res.status(404).json({ error: 'console_closed' }); return; }
+    const input = parseConsoleInput(req.body);
+    if (!input) { res.status(400).json({ error: 'invalid_input' }); return; }
+    try {
+      await loginConsole.input(input);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(409).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
 
