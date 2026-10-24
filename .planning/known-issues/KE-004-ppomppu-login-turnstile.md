@@ -9,7 +9,7 @@ components:
   - lib/publisher/publisherRun.ts
   - lib/browser/sessionImport.ts
   - scripts/import-session-cookies.ts
-fix_commit: none yet — working tree on chore/analytics-page, 2026-10-16
+fix_commit: da49bdb (fix/ppomppu-session-recovery) — deployed 2026-10-24
 ---
 
 ## Symptoms
@@ -66,6 +66,22 @@ The draft-row flake (about 1–2 per day since 2026-09) is fixed in the same cha
 The row click opens a heavy preview, and the click lands, but Playwright's
 action does not return within 1s. The timeout is now 5s, and a timeout counts
 as success when `div.tempas-preview` is visible.
+
+## Recurrence 2026-10-23
+
+The imported session died at 17:27 UTC, about 7 days after its import, and
+publishing failed hourly until the scheduler was disabled. Production was
+still on the 2026-09-06 image, so the old code path ran: the old
+`login_required_or_session_missing` message, two blind login attempts per
+run, and cookies saved after every dead-session run. Follow-up work is the
+[publisher-resilience](../initiatives/publisher-resilience/README.md)
+initiative.
+
+Since 2026-10-25 (`854c835`) recovery is automatic once set up: the operator's
+Chrome pushes its ppomppu cookies to `POST /api/session/import` through
+`tools/session-sync-extension`, and the bot saves them only after a probe sees
+the board logged in. A person still solves Turnstile, by logging in to ppomppu
+in that browser.
 
 ## Lessons
 

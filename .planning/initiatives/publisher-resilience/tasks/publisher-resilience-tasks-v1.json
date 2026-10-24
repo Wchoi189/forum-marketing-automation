@@ -1,0 +1,99 @@
+{
+  "task_set_id": "publisher-resilience-tasks-v1",
+  "feature": "Publisher Resilience",
+  "created": "2026-10-24",
+  "status_vocabulary": {
+    "pending": "Not started",
+    "in_progress": "Being worked in the current session",
+    "blocked": "Waiting on blocked_on; nothing to do until it clears",
+    "done": "Acceptance met; evidence filled in",
+    "dropped": "Will not be done; evidence says why"
+  },
+  "rules": [
+    "Work item definitions live in the specs. This file tracks state only: status, owner, blocked_on, evidence, updated.",
+    "A task moves to done only with evidence: a commit hash, a log excerpt, a metric, or a link to a research note.",
+    "Every status change appends one line to progress_log."
+  ],
+  "phases": [
+    { "phase": 0, "title": "Restore publishing", "spec": null },
+    { "phase": 1, "title": "Session lifecycle", "spec": "specs/active/s1-session-lifecycle-v1.json" },
+    { "phase": 2, "title": "Browser efficiency", "spec": "specs/active/s2-browser-efficiency-v1.json" },
+    { "phase": 3, "title": "Draft path resilience", "spec": "specs/active/s3-draft-path-resilience-v1.json" }
+  ],
+  "tasks": [
+    {
+      "id": "PR-001",
+      "phase": 0,
+      "title": "Deploy fix/ppomppu-session-recovery (da49bdb) to the production container",
+      "detail": "Delta over the running image is 259e687, da49bdb, 43d9c9f. schedulerEnabled is false in persisted state, so the redeploy does not resume posting. Acceptance: container source contains PUBLISHER_LOGIN_REQUIRED; a manual DRY_RUN run reports session=logged_out until PR-002.",
+      "owner": "agent",
+      "status": "done",
+      "blocked_on": null,
+      "evidence": "Built from working tree at 43d9c9f (runtime paths verified clean; uncommitted changes only in tools/, templates/, .agent/, package.json scripts). test:unit 162/162, server tsc clean. Container recreated 2026-10-24T09:57:46Z, healthy; /app/lib/publisher/publisherRun.ts contains PUBLISHER_LOGIN_REQUIRED; schedulerEnabled=false, no tick ran. Rollback image: marketing-automation-app:rollback-20260906 (0f803e45a90c). Pre-existing, unrelated warning at boot: kakao_db_connect_failed (ENOTFOUND ocr-postgres). Session verification moved to PR-002 (session:import --verify) to avoid a publish-capable run.",
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "PR-002",
+      "phase": 0,
+      "title": "Restore the session through SL-009 (load the extension, log in to ppomppu in Chrome with 자동로그인 ticked)",
+      "detail": "Replaces the manual export (operator, 2026-10-25: manual cookie curation breaks automation). Runbook: .agent/OPERATIONS.md, 'Automatic: browser session sync'. Setup already ran (secret generated, container restarted, config.local.json written). Remaining: Load unpacked, then log in. Afterwards, list the stored cookie names and expiry (never values) to record whether 자동로그인 yields a login cookie with a real expiry date.",
+      "owner": "human",
+      "status": "pending",
+      "blocked_on": null,
+      "evidence": null,
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "PR-003",
+      "phase": 0,
+      "title": "Re-enable the scheduler and confirm published_verified",
+      "detail": "After PR-002: enable the scheduler in the control panel, confirm one published_verified, and record the import time as session lifetime data point 2 (SL-007).",
+      "owner": "human",
+      "status": "blocked",
+      "blocked_on": "PR-002",
+      "evidence": null,
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "PR-004",
+      "phase": 0,
+      "title": "Expose the running commit and make main the deploy source",
+      "detail": "Bake GIT_SHA into the image and return it from GET /api/health/resources; show it on the Operations page. Merge the 17 commits on fix/ppomppu-session-recovery into main through a PR so a deploy from main is never stale again. Addresses F-01.",
+      "owner": "agent",
+      "status": "pending",
+      "blocked_on": null,
+      "evidence": null,
+      "updated": "2026-10-24"
+    },
+    { "id": "SL-001", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" },
+    { "id": "SL-002", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": "SL-001", "evidence": null, "updated": "2026-10-24" },
+    { "id": "SL-003", "phase": 1, "owner": "agent", "status": "done", "blocked_on": null, "evidence": "854c835. routes/api/session.ts; 6 integration cases in tests/integration/sessionImportApi.test.ts (auth, no login cookie, 409, logged-out leaves state untouched, merge keeps server cf_clearance, unchanged skips probe). Deployed 2026-10-25: unauthenticated POST 401, authenticated junk 400. Scheduler un-park waits on SL-001/SL-002.", "updated": "2026-10-25" },
+    { "id": "SL-004", "phase": 1, "owner": "agent", "status": "in_progress", "blocked_on": null, "evidence": "854c835: probeSession() in lib/observer/sessionProbe.ts, used by SL-003. Periodic probe from the scheduler still open.", "updated": "2026-10-25" },
+    { "id": "SL-005", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": "SL-001", "evidence": null, "updated": "2026-10-24" },
+    { "id": "SL-006", "phase": 1, "owner": "agent", "status": "done", "blocked_on": null, "evidence": "854c835: keepSessionCookies() applied in saveStorageState and the import endpoint; unit test in tests/unit/sessionImport.test.ts. Cookie count drop to be confirmed after the first saved run.", "updated": "2026-10-25" },
+    { "id": "SL-007", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": "Data point 1: imported 2026-10-16T15:43Z, died 2026-10-23T17:27Z (~7 d 2 h, hourly use).", "updated": "2026-10-24" },
+    { "id": "SL-008", "phase": 1, "owner": "agent", "status": "dropped", "blocked_on": null, "evidence": "Superseded by SL-009: the operator's Chrome runs on the bot host.", "updated": "2026-10-25" },
+    { "id": "SL-009", "phase": 1, "owner": "agent", "status": "in_progress", "blocked_on": "PR-002 (extension loaded + one login in Chrome) to observe a real 'imported' push", "evidence": "854c835: tools/session-sync-extension, npm run session:sync-setup. Setup ran 2026-10-25: secret in .env.docker, container restarted healthy, config.local.json written (gitignored, 0600).", "updated": "2026-10-25" },
+    { "id": "EF-006", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": "PR-003 (needs scheduler-enabled operation)", "evidence": "Pre-initiative snapshot in research/01 F-04 (40 h, includes outage).", "updated": "2026-10-24" },
+    { "id": "EF-001", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": "EF-006", "evidence": null, "updated": "2026-10-24" },
+    { "id": "EF-002", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": "PR-002", "evidence": null, "updated": "2026-10-24" },
+    { "id": "EF-003", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": "EF-002 verdict", "evidence": null, "updated": "2026-10-24" },
+    { "id": "EF-004", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" },
+    { "id": "EF-005", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" },
+    { "id": "DP-001", "phase": 3, "owner": "agent", "status": "pending", "blocked_on": "PR-003 + 7 days", "evidence": "Baseline 2026-10-10..24: 10 draft-row timeouts, 3 selector misses, 1 Timeout, 2 observer_error.", "updated": "2026-10-24" },
+    { "id": "DP-002", "phase": 3, "owner": "agent", "status": "pending", "blocked_on": "DP-001", "evidence": null, "updated": "2026-10-24" },
+    { "id": "DP-003", "phase": 3, "owner": "agent", "status": "pending", "blocked_on": "SL-002", "evidence": null, "updated": "2026-10-24" },
+    { "id": "DP-004", "phase": 3, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" },
+    { "id": "DP-005", "phase": 3, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" }
+  ],
+  "open_questions": [
+    { "id": "Q-01", "question": "Which channel receives session expiring/dead alerts: dashboard only, email, KakaoTalk, or a phone push?", "status": "resolved", "answer": "Dashboard + existing Slack webhook (lib/notifications.ts). Recorded in SL-005." },
+    { "id": "Q-02", "question": "Approve PR-001 (rebuild and restart the production container from fix/ppomppu-session-recovery)?", "status": "resolved", "answer": "Approved 2026-10-24." },
+    { "id": "Q-03", "question": "Where does the draft mirror land: a git-tracked templates/ file (reviewable history) or a durable artifacts/ directory (no commits)?", "status": "resolved", "answer": "templates/. Recorded in DP-004 (container captures, workspace script writes templates/.../online-drafts/)." }
+  ],
+  "progress_log": [
+    "2026-10-24 Initiative created from research/01. Phase 0 blocked on Q-02. Workspace-template content source rejected: online drafts are current (operator).",
+    "2026-10-24 Q-01, Q-02, Q-03 resolved. PR-001 done (deployed 43d9c9f, healthy, scheduler still disabled). PR-002 unblocked; waiting on operator session import.",
+    "2026-10-25 Operator: manual cookie curation breaks automation. Added SL-009 (browser session sync), SL-008 dropped. SL-003 and SL-006 done, SL-004 partly, all in 854c835 and deployed. PR-002 now means: load the extension and log in once in Chrome."
+  ]
+}
