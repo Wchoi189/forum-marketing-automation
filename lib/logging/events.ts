@@ -24,6 +24,8 @@ export const LOG_EVENT = {
   schedulerTickFinished: 'scheduler.tick.finished',
   schedulerNextScheduled: 'scheduler.next.scheduled',
   serverStarted: 'server.started',
+  sessionImported: 'session.imported',
+  sessionImportRejected: 'session.import.rejected',
   apiTrendInsightsFailed: 'api.trend-insights.failed',
   apiRunObserverFailed: 'api.run-observer.failed',
   apiRunPublisherFailed: 'api.run-publisher.failed',

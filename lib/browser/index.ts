@@ -17,12 +17,20 @@ export {
   createBrowserContext,
   closeSharedBrowser,
   saveStorageState,
+  readSavedCookies,
+  writeSavedCookies,
   STORAGE_STATE_PATH,
   shutdownBrowser,
   registerSignalHandlers,
 } from './shared.js';
 
-export { convertExportedCookies, mergeCookies } from './sessionImport.js';
+export {
+  convertExportedCookies,
+  mergeCookies,
+  keepSessionCookies,
+  sessionFingerprint,
+  SESSION_COOKIE_NAMES,
+} from './sessionImport.js';
 
 export { registerBrowserDebugHandlers } from './debug.js';
 

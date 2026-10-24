@@ -1,8 +1,9 @@
-import { chromium, type Browser, type BrowserContext, type BrowserContextOptions } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type BrowserContextOptions, type Cookie } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ENV } from '../../config/env.js';
 import { logger } from '../logging/index.js';
+import { keepSessionCookies } from './sessionImport.js';
 
 /**
  * Storage state (login cookies) is persisted to the shared volume so it survives
@@ -144,15 +145,35 @@ export async function closeSharedBrowser(): Promise<void> {
   sharedBrowser = null;
 }
 
+/** Cookies in the saved storage state, or an empty list when there is none yet. */
+export function readSavedCookies(): Cookie[] {
+  try {
+    const state = JSON.parse(fs.readFileSync(STORAGE_STATE_PATH, 'utf-8')) as { cookies?: Cookie[] };
+    return Array.isArray(state.cookies) ? state.cookies : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Replace the saved storage state. Written to a temp file and renamed, so a
+ * context created mid-write never reads half a file. Mode 0600: it is a live login.
+ */
+export function writeSavedCookies(cookies: Cookie[]): void {
+  const tmpPath = `${STORAGE_STATE_PATH}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify({ cookies }, null, 2), { encoding: 'utf-8', mode: 0o600 });
+  fs.renameSync(tmpPath, STORAGE_STATE_PATH);
+}
+
 /**
  * Save cookies from a context for reuse by the next context.
  * Called after a publisher run so login session survives context recreation.
+ * Third-party and tracking cookies are dropped (keepSessionCookies).
  */
 export async function saveStorageState(context: BrowserContext): Promise<void> {
   try {
-    const cookies = await context.cookies();
-    const state = JSON.stringify({ cookies }, null, 2);
-    fs.writeFileSync(STORAGE_STATE_PATH, state, 'utf-8');
+    const cookies = keepSessionCookies(await context.cookies());
+    writeSavedCookies(cookies);
     logger.debug({ event: 'shared_browser.storage_saved', cookieCount: cookies.length }, '[SharedBrowser] Storage state saved');
   } catch (err) {
     logger.warn({ event: 'shared_browser.save_error', err }, '[SharedBrowser] Failed to save storage state');

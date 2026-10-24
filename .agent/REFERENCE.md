@@ -23,6 +23,7 @@ For env vars, `config/env.ts` is canonical.
 | GET | `/api/ai-recommendation` | `{ recommendation: AiAdvisorOutput\|null, contextBuiltAt, source }`. Returns `null` if `XAI_API_KEY` absent or advisor disabled. |
 | GET | `/api/health/resources` | RSS, heap, artifacts size, activity log count, browser profile stats, Chromium process count, threshold warnings. |
 | POST | `/api/resource/gc` | Triggers artifact rotation (deletes dirs >7 days old) and activity log pruning. Returns summary. |
+| POST | `/api/session/import` | Bearer `SESSION_IMPORT_SECRET`. Body `{ cookies, source? }` (browser cookie export). Probes the board with the merged cookies and saves only when `logged_in`. `200 imported\|unchanged`, `422` not logged in, `409` publisher running, `503` secret unset. |
 
 ## Key Env Vars
 
@@ -41,6 +42,7 @@ For env vars, `config/env.ts` is canonical.
 | `AI_ADVISOR_TIMEOUT_MS` | `8000` | Per-call timeout in ms (1000–30000). Advisor skips on timeout |
 | `NL_WEBHOOK_ENABLED` | `true` | Kill-switch for `/api/nl-command`. Returns 503 when false |
 | `NL_WEBHOOK_SECRET` | _(absent)_ | If set, requests must include `Authorization: Bearer <secret>` |
+| `SESSION_IMPORT_SECRET` | _(absent)_ | Bearer secret for `/api/session/import`; endpoint returns 503 when absent. Generated into `.env.docker` by `npm run session:sync-setup` |
 
 Full parsing in `config/env.ts`. Schema in `.planning/spec-kit/manifest/schemas/env.schema.json`.
 

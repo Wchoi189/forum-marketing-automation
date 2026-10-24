@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { convertExportedCookies, mergeCookies } from "../../lib/browser/index.js";
+import { convertExportedCookies, keepSessionCookies, mergeCookies, sessionFingerprint } from "../../lib/browser/index.js";
 import { classifySessionState } from "../../lib/observer/index.js";
 
 test("convertExportedCookies: maps Cookie-Editor fields to Playwright cookies", () => {
@@ -55,6 +55,35 @@ test("mergeCookies: the bot's own cf_clearance beats an imported one", () => {
   const incoming = convertExportedCookies([{ name: "cf_clearance", value: "laptop-ip", domain: ".ppomppu.co.kr", session: true }]);
   assert.equal(mergeCookies(base, incoming)[0].value, "server-ip");
   assert.equal(mergeCookies([], incoming)[0].value, "laptop-ip");
+});
+
+test("keepSessionCookies: keeps first-party ppomppu cookies, drops trackers and other domains", () => {
+  const cookies = convertExportedCookies([
+    { name: "PHPSESSID", value: "s", domain: ".ppomppu.co.kr", session: true },
+    { name: "pmn", value: "p", domain: ".ppomppu.co.kr", session: true },
+    { name: "cf_clearance", value: "c", domain: ".ppomppu.co.kr", session: true },
+    { name: "main_login_tab", value: "1", domain: "www.ppomppu.co.kr", session: true },
+    { name: "m_gad_pos_12", value: "x", domain: "www.ppomppu.co.kr", session: true },
+    { name: "_ga_641CFJ8BV0", value: "x", domain: ".ppomppu.co.kr", session: true },
+    { name: "cto_bundle", value: "x", domain: ".ppomppu.co.kr", session: true },
+    { name: "IDE", value: "x", domain: ".doubleclick.net", session: true },
+    { name: "PHPSESSID", value: "x", domain: "notppomppu.co.kr", session: true }
+  ]);
+  assert.deepEqual(
+    keepSessionCookies(cookies).map((c) => c.name),
+    ["PHPSESSID", "pmn", "cf_clearance", "main_login_tab"]
+  );
+});
+
+test("sessionFingerprint: follows the login cookie values and ignores everything else", () => {
+  const login = (phpsessid: string, extra = "a") => convertExportedCookies([
+    { name: "PHPSESSID", value: phpsessid, domain: ".ppomppu.co.kr", session: true },
+    { name: "pmn", value: "p", domain: ".ppomppu.co.kr", session: true },
+    { name: "main_login_tab", value: extra, domain: "www.ppomppu.co.kr", session: true }
+  ]);
+  assert.equal(sessionFingerprint(login("one")), sessionFingerprint(login("one", "b")));
+  assert.notEqual(sessionFingerprint(login("one")), sessionFingerprint(login("two")));
+  assert.equal(sessionFingerprint(convertExportedCookies([{ name: "_ga", value: "x", domain: ".ppomppu.co.kr" }])), null);
 });
 
 test("classifySessionState: logout link means logged in, login button alone means logged out", () => {

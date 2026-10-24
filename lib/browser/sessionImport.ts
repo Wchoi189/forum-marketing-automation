@@ -6,9 +6,11 @@
  * when the ppomppu session expires: the login form sits behind Cloudflare
  * Turnstile, so the bot cannot log itself back in (KE-004).
  *
- * Pure functions only; scripts/import-session-cookies.ts does the file I/O.
+ * Pure functions only; scripts/import-session-cookies.ts and
+ * POST /api/session/import (routes/api/session.ts) do the I/O.
  */
 
+import { createHash } from 'node:crypto';
 import type { Cookie } from 'playwright';
 
 type SameSite = Cookie['sameSite'];
@@ -82,4 +84,43 @@ export function mergeCookies(base: Cookie[], incoming: Cookie[], nowSeconds = Da
     merged.set(key, cookie);
   }
   return [...merged.values()].filter((c) => c.expires <= 0 || c.expires > nowSeconds);
+}
+
+/** The cookies that carry the ppomppu login. A changed value means a new session. */
+export const SESSION_COOKIE_NAMES = ['PHPSESSID', 'pmn'] as const;
+
+/**
+ * Ad and analytics cookies ppomppu's pages set on its own domain. They make up
+ * most of the saved state (444 cookies on 2026-10-24, 71 of them first-party)
+ * and play no part in the login. Unknown names are kept.
+ */
+const TRACKING_COOKIE_PATTERNS = [
+  /^m_gad_pos/, /^__gads$/, /^__gpi$/, /^__eoi$/, /^__qca$/, /^cto_/, /^_ga/,
+  /^_pubcid/, /^_sharedID/, /^_cc_id$/, /^adfit_sdk_id$/, /^FCCDCF$/, /^FCNEC$/,
+];
+
+const isPpomppuDomain = (domain: string) => {
+  const host = domain.replace(/^\./, '');
+  return host === 'ppomppu.co.kr' || host.endsWith('.ppomppu.co.kr');
+};
+
+/** First-party ppomppu cookies minus known trackers: everything a logged-in page load needs. */
+export function keepSessionCookies(cookies: Cookie[]): Cookie[] {
+  return cookies.filter(
+    (c) => isPpomppuDomain(c.domain) && !TRACKING_COOKIE_PATTERNS.some((pattern) => pattern.test(c.name)),
+  );
+}
+
+/**
+ * A hash of the session cookie values, or null when no session cookie is
+ * present. Two cookie sets with the same fingerprint carry the same login, so
+ * a repeated import of an unchanged session can be skipped without a probe.
+ */
+export function sessionFingerprint(cookies: Cookie[]): string | null {
+  const parts = SESSION_COOKIE_NAMES.map((name) => {
+    const cookie = cookies.find((c) => c.name === name && isPpomppuDomain(c.domain));
+    return cookie ? `${name}=${cookie.value}` : null;
+  });
+  if (parts.every((part) => part === null)) return null;
+  return createHash('sha256').update(parts.join('\n')).digest('hex');
 }

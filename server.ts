@@ -35,6 +35,7 @@ import { createControlRouter, buildControlPanelResponse } from "./routes/api/con
 import { createAiRouter } from "./routes/api/ai.js";
 import { createNlRouter } from "./routes/api/nl.js";
 import { createKakaoRouter } from "./routes/api/kakao.js";
+import { createSessionRouter, type SessionRouterDeps } from "./routes/api/session.js";
 
 // ── Shared Log Cache & Helpers ───────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ type SchedulerController = ReturnType<typeof startScheduler>;
 export function createApp(
   deps: BotDeps = getDefaultDeps(),
   scheduler?: SchedulerController,
-  opts: { initialNlWebhookEnabled?: boolean } = {}
+  opts: { initialNlWebhookEnabled?: boolean; probeSession?: SessionRouterDeps['probe'] } = {}
 ) {
   const app = express();
   let nlWebhookEnabledRuntime: boolean = opts.initialNlWebhookEnabled ?? ENV.NL_WEBHOOK_ENABLED;
@@ -142,6 +143,8 @@ export function createApp(
   }));
 
   app.use(createKakaoRouter());
+
+  app.use(createSessionRouter({ probe: opts.probeSession }));
 
   // ── Global error handler ──────────────────────────────────────────────────
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

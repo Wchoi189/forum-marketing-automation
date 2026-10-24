@@ -71,6 +71,30 @@ what it would remove without deleting.
 Symptom: `PUBLISHER_LOGIN_REQUIRED: reason=turnstile_unsolved` (or `login_rejected`)
 in `publisher.run.failed`. The bot cannot log in by itself (KE-004); a person must.
 
+### Automatic: browser session sync (default)
+
+The operator's Chrome on the bot host pushes its ppomppu cookies to
+`POST /api/session/import` whenever `PHPSESSID` or `pmn` change, and every 30
+minutes. The bot probes the board with them and saves only a logged-in session,
+keeping its own `cf_clearance`. Slack reports each refresh or rejection.
+
+One-time setup:
+
+1. `npm run session:sync-setup` — generates `SESSION_IMPORT_SECRET` in
+   `.env.docker` if absent and writes the gitignored
+   `tools/session-sync-extension/config.local.json`.
+2. `docker compose up -d app` if a secret was generated.
+3. chrome://extensions → Developer mode → Load unpacked →
+   `tools/session-sync-extension`.
+
+After that, recovering an expired session is: log in to ppomppu in that Chrome
+(tick 자동로그인; you solve Turnstile as any visitor does). The badge on the
+extension icon is blank when synced; hover it for the last result.
+
+### Manual fallback: cookie export
+
+Use when the extension cannot reach the bot (remote host) or Chrome is not available.
+
 1. Log in to ppomppu in a normal browser as the bot account and tick 자동로그인.
 2. Export the `ppomppu.co.kr` cookies as JSON (Cookie-Editor's export works).
    Save it as `cookies-*.json` so `.gitignore` covers it — it is a live session.
@@ -89,6 +113,10 @@ in `publisher.run.failed`. The bot cannot log in by itself (KE-004); a person mu
 
    Add `--verify` on a machine whose IP Cloudflare accepts to open the board
    with the merged cookies and report `session=logged_in`.
+
+   Or skip the copies: `curl -X POST localhost:3000/api/session/import -H
+   "Authorization: Bearer $SESSION_IMPORT_SECRET" -H 'Content-Type: application/json'
+   -d "{\"cookies\": $(cat cookies-export.json)}"` verifies and saves in one step.
 5. Trigger `POST /api/run-publisher` or wait for the next tick, and check for
    `published_verified`.
 

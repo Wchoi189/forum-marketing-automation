@@ -24,6 +24,7 @@ export PPOMPPU_USER_ID="test-user"
 export PPOMPPU_USER_PW="test-pass"
 export XAI_API_KEY="test-xai-key"
 export NL_WEBHOOK_SECRET="test-secret"
+export SESSION_IMPORT_SECRET="test-session-secret"
 
 mkdir -p "$ARTIFACTS_DIR" "$BOT_PROFILE_DIR"
 
