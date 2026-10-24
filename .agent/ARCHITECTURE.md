@@ -102,20 +102,12 @@ suite. Absolute host paths in source are blocked by
 
 ## Agent OS Integration
 
-Standards documents live in `archive/agent-os/standards/` (archived 2026-08-08 —
-they were not being maintained). The slash commands that consume them still
-resolve from `.claude/commands/agent-os/`:
-
-| Command | Purpose |
-|---------|---------|
-| `/discover-standards` | Extract patterns and conventions from the codebase |
-| `/index-standards` | Update the standards index with new descriptions |
-| `/inject-standards` | Inject relevant standards into AI context |
-| `/plan-product` | Create structured plans for new features |
-| `/shape-spec` | Develop specifications for implementations |
-
-If the commands do not appear, confirm `.claude/commands/agent-os/` exists and
-restart the session to reload them.
+Retired from this project on 2026-10-24. The standards documents
+(`archive/agent-os/`) and the slash commands (`archive/agent-os-commands/`) are
+frozen. Every command ran an ask, draft, confirm loop that conflicts with the
+default-to-execution rules in `CLAUDE.md`. The same names still exist as
+user-level plugin skills (`agent-os:*`), which run only when invoked by name.
+To restore the project copies: `git mv archive/agent-os-commands .claude/commands/agent-os`.
 
 ### Principles the standards encoded
 

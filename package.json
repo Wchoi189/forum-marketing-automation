@@ -31,7 +31,8 @@
     "test:mcp:parser": "bash scripts/run-tests.sh tests/integration/parser-mcp.integration.test.ts",
     "test:integration": "bash scripts/run-tests.sh tests/integration/api.integration.test.ts tests/integration/playbook-runner.integration.test.ts tests/integration/nlWebhook.test.ts tests/integration/bot-stability.test.ts",
     "test:competitor-intel": "bash scripts/run-tests.sh 'tests/unit/competitor-intel/*.test.ts' 'tests/integration/competitor-intel.integration.test.ts'",
-    "clean:all": "bash scripts/clean-workspace.sh"
+    "clean:all": "bash scripts/clean-workspace.sh",
+    "agent:friction": "tsx scripts/session-friction.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

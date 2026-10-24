@@ -4,7 +4,7 @@
 
 **Invocation:** Run as an agent skill when the user requests `/mempalace-management wake-up`, `/mempalace-management checkpoint`, or `/mempalace-management handover`.
 
-**CLI Wrapper:** Use `scripts/mempalace-loop.sh` for a consistent local command flow (global palace: `/parent/project-artifacts/mempalace/palace`, wing: `marketing_automation`), or npm aliases:
+**CLI Wrapper:** Use `scripts/mempalace-loop.sh` for a consistent local command flow (global palace: `~/.mempalace/palace`, wing: `marketing_automation`), or npm aliases:
 - `npm run mempalace:seed`
 - `npm run mempalace:wake-up`
 - `npm run mempalace:checkpoint`

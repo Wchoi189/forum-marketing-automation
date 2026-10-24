@@ -43,6 +43,23 @@ weakening a fail-closed publisher check, and retrying a login without a
 Turnstile token (KE-004). If a task seems to need either, the task is wrong;
 solve the underlying problem.
 
+## Mechanical guards
+
+Two hooks in `.claude/settings.json` back the prose with checks:
+
+- `.claude/hooks/guard-bash.mjs` (PreToolUse, Bash) blocks blanket staging
+  (`git add -A`, `.`, `-u`), `commit -a`, `--no-verify`, commits on `main`,
+  force pushes, `reset --hard`, `git clean -f`, whole-tree `checkout`/`restore`,
+  `branch -D`, and `rm -r` on `artifacts/`. A block names the safe alternative;
+  take it, do not ask.
+- `.claude/hooks/no-closing-question.mjs` (Stop) sends a reply that ends in a
+  question back once. It does not fire again on the retry, so a real escalation
+  still goes through.
+
+`npm run agent:friction` reports question closings, `AskUserQuestion` calls and
+hook blocks per session from the transcripts. Compare sessions before and after
+a change to these rules.
+
 ## Commits
 
 - Commit finished work in the same turn, on the current branch. If the branch
@@ -99,6 +116,20 @@ headings, each short. Omit one that is empty.
 There is deliberately no "decisions needed" section. If the analysis can answer
 a question, it was not a question. If it truly cannot and the answer is at the
 escalation boundary above, put it under STATUS as the blocker.
+
+## Where memory lives
+
+One home per kind of fact; do not duplicate across them.
+
+| Kind | Home |
+|------|------|
+| Operator preferences, feedback, standing lessons | Claude auto-memory (`~/.claude/projects/.../memory/`) |
+| State of unfinished work | Handover JSON + `state.index.json` (above) |
+| Design, specs, history | `.planning/` |
+| How the system works now | `.agent/` |
+
+MemPalace is an optional search index over handovers and `.agent/` files. It is
+never a source of truth; if it disagrees with the files, the files win.
 
 ## Model and effort
 
