@@ -57,6 +57,8 @@ export {
   DEFAULT_SESSION_RECORD,
   normalizeSessionRecord,
   deriveSessionStatus,
+  sessionView,
+  isSessionProbeDue,
   getSessionRecord,
   isSessionParked,
   markSessionVerified,

@@ -28,7 +28,7 @@ import { createBrowserContext, saveStorageState, BROWSER_EVAL_NAME_POLYFILL_SCRI
 import { sendSlackNotification } from '../notifications.js';
 import { getBoardDiagnostics, attemptPpomppuLoginFromBoard, isSessionUsable } from '../observer/boardDiagnostics.js';
 import { loadObserverPolicy } from '../observer/policyLoader.js';
-import { getPublisherControls, setPublisherControls, persistMaintenanceBlockedUntil, markSessionLost, markSessionVerified } from '../state/index.js';
+import { getPublisherControls, setPublisherControls, persistMaintenanceBlockedUntil, markSessionLost, markSessionVerified, isSessionParked } from '../state/index.js';
 import { runObserver } from '../observer/observerRun.js';
 
 // ---------------------------------------------------------------------------
@@ -158,7 +158,8 @@ async function _executePublisherRun(
         lastMaintenanceNotifiedUntil = currentBlockedUntil;
         await sendSlackNotification(`🚧 *Platform Maintenance Detected* [${decision}]\n> ${message}${force ? ' (Force)' : ''}`, 'info');
       }
-    } else if (decision !== 'gap_policy') {
+    } else if (decision !== 'gap_policy' && !isSessionParked()) {
+      // While parked the session alert (lib/session/health.ts) is the only message.
       await sendSlackNotification(`❌ *Publisher Failed* [${decision}]\n> ${message}${force ? ' (Force)' : ''}`, 'error');
     }
 
@@ -282,8 +283,8 @@ async function _executePublisherRun(
 
     let page: import('playwright').Page | null = null;
     let playbookRuntime: PlaybookRuntimeContext | null = null;
-    /** Set when the board showed a dead session that login could not revive. */
-    let sessionLost = false;
+    /** Set when the board showed a dead session that login could not revive; `transitioned` when this run found it first. */
+    let sessionLost: { reason: string; transitioned: boolean } | null = null;
     try {
       page = await context.newPage();
       registerBrowserDebugHandlers(page, 'Publisher');
@@ -328,8 +329,8 @@ async function _executePublisherRun(
         setPublisherStep('login-page');
         const loginFailure = await attemptPpomppuLoginFromBoard(page, policy.boardUrl);
         if (loginFailure) {
-          sessionLost = true;
-          await markSessionLost(loginFailure.reason).catch(() => null); // parks the scheduler (SL-002)
+          const transitioned = (await markSessionLost(loginFailure.reason).catch(() => null)) !== null; // parks the scheduler (SL-002)
+          sessionLost = { reason: loginFailure.reason, transitioned };
           throw new Error(
             `PUBLISHER_LOGIN_REQUIRED: reason=${loginFailure.reason}` +
               (loginFailure.detail ? ` detail="${loginFailure.detail}"` : '') +
@@ -430,11 +431,12 @@ async function _executePublisherRun(
       }
       await context!.close().catch(() => null);
       if (sessionLost) {
-        // Offer a person the login console (link to Slack). Lazy import: lib/session
-        // reaches lib/observer, which already imports this module.
+        // Alert once and offer a person the login console (link to Slack). Lazy
+        // import: lib/session reaches lib/observer, which already imports this module.
+        const { reason, transitioned } = sessionLost;
         void import('../session/index.js')
-          .then(({ openLoginConsole }) => openLoginConsole('session_lost', { auto: true }))
-          .catch((err) => logger.warn({ event: LOG_EVENT.sessionImportRejected, runId, reason: 'console_failed', err }, '[Publisher] login console failed to open'));
+          .then(({ announceSessionLost }) => announceSessionLost(reason, transitioned))
+          .catch((err) => logger.warn({ event: LOG_EVENT.sessionImportRejected, runId, reason: 'console_failed', err }, '[Publisher] session alert failed'));
       }
     }
   } catch (error: any) {

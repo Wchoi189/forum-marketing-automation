@@ -19,3 +19,4 @@ export { attachConsoleVncBridge } from './vncBridge.js';
 export { loadNovncBundle } from './novncBundle.js';
 export { importSession, type ImportOutcome } from './importSession.js';
 export { readProfileCookies } from './consoleCookies.js';
+export { checkSessionExpiry, announceSessionLost, probeSavedSession } from './health.js';

@@ -86,6 +86,8 @@ type EnvConfig = {
   SESSION_EXPECTED_LIFETIME_HOURS: number;
   /** Hours before the expected death at which a healthy session is reported as 'expiring'. */
   SESSION_EXPIRY_WARNING_HOURS: number;
+  /** A gap-skip tick probes the saved session when no run has verified it for this long (SL-004). */
+  SESSION_PROBE_INTERVAL_HOURS: number;
   /** Base URL operators reach the server at (login console links in Slack). */
   PUBLIC_BASE_URL: string;
   /** Kill-switch for /kakao-webhook endpoint. Returns 503 when false. */
@@ -275,6 +277,7 @@ function buildEnv(): EnvConfig {
     SESSION_IMPORT_SECRET: optionalStringOrNull("SESSION_IMPORT_SECRET"),
     SESSION_EXPECTED_LIFETIME_HOURS: optionalInt("SESSION_EXPECTED_LIFETIME_HOURS", 168, 1, 24 * 90),
     SESSION_EXPIRY_WARNING_HOURS: optionalInt("SESSION_EXPIRY_WARNING_HOURS", 24, 0, 24 * 30),
+    SESSION_PROBE_INTERVAL_HOURS: optionalInt("SESSION_PROBE_INTERVAL_HOURS", 6, 1, 24 * 7),
     PUBLIC_BASE_URL: optionalString("PUBLIC_BASE_URL", "http://localhost:3000"),
     KAKAO_WEBHOOK_ENABLED: optionalBool("KAKAO_WEBHOOK_ENABLED", false),
     KAKAO_OPENBUILDER_BOT_ID: optionalStringOrNull("KAKAO_OPENBUILDER_BOT_ID"),

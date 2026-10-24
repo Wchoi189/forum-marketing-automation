@@ -8,7 +8,7 @@
 import { computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoice, shareOfVoiceMultiplierFromSoV, summarizeSchedulerSignals } from '../analytics/index.js';
 import { logger, LOG_EVENT } from '../logging/index.js';
 import { ENV } from '../../config/env.js';
-import { getPublisherControls, isSessionParked } from '../state/index.js';
+import { getPublisherControls, getSessionRecord, isSessionParked, isSessionProbeDue } from '../state/index.js';
 
 import { defaultAutoPublisherControls } from './defaults.js';
 import { PUBLISH_COOLDOWN_WINDOW_MINUTES } from '../publisher/index.js';
@@ -194,6 +194,10 @@ export function startScheduler(
   let consecutiveFailures = 0;
 
   const tick = async (): Promise<SchedulerTickOutcome | false> => {
+    // SL-005: the timer keeps firing while disabled, so the expiry warning does too.
+    await deps.session?.checkExpiry().catch((err) =>
+      logger.warn({ event: 'scheduler_session_expiry_check_failed', err }, '[Scheduler] Session expiry check failed')
+    );
     if (!enabled) {
       return false;
     }
@@ -256,6 +260,16 @@ export function startScheduler(
         outcome = { type: 'unexpected_error', consecutiveFailures };
       } else {
         outcome = { type: 'normal' };
+      }
+
+      // SL-004: a gap skip never reaches the board, so a session can die unseen
+      // between publishes. Probe it when no run has verified it for a while.
+      if (outcome.type === 'gap_skip' && deps.session && isSessionProbeDue(getSessionRecord(), Date.now())) {
+        const sessionState = await deps.session.probe().catch((err) => {
+          logger.warn({ event: 'scheduler_session_probe_failed', err }, '[Scheduler] Session probe failed');
+          return 'unknown' as const;
+        });
+        if (sessionState === 'logged_out' && isSessionParked()) outcome = { type: 'session_lost' };
       }
 
       if (result.log) {

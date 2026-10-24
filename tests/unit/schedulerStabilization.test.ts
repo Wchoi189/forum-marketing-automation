@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { startScheduler } from "../../lib/scheduler/index.js";
 import type { BotDeps } from "../../lib/scheduler/index.js";
 import type { PublisherRunResult } from "../../lib/publisher/index.js";
-import { setPublisherControls, markSessionLost, markSessionImported } from "../../lib/state/index.js";
+import { setPublisherControls, markSessionLost, markSessionImported, markSessionVerified } from "../../lib/state/index.js";
 
 function createMockDeps(publisherImpl: () => Promise<PublisherRunResult>): BotDeps {
   return {
@@ -359,5 +359,86 @@ test("scheduler parks on a dead session without entering the error backoff, and 
   } finally {
     scheduler.stop();
     await markSessionImported();
+  }
+});
+
+/**
+ * SL-004: a gap skip never reaches the board, so the scheduler probes the saved
+ * session when no run has verified it for SESSION_PROBE_INTERVAL_HOURS.
+ */
+function gapSkipResult(id: string): PublisherRunResult {
+  return {
+    success: false,
+    message: "Gap too small",
+    runId: id,
+    decision: "gap_policy",
+    artifactDir: null,
+    gapInfo: { currentGap: 1, requiredGap: 4 },
+  };
+}
+
+test("scheduler probes the session after a gap skip only when it is due, and parks on logged_out", async () => {
+  let probes = 0;
+  let probeAnswer: "logged_in" | "logged_out" = "logged_in";
+  const deps: BotDeps = {
+    ...createMockDeps(async () => gapSkipResult("run-gap")),
+    session: {
+      checkExpiry: async () => false,
+      probe: async () => {
+        probes += 1;
+        if (probeAnswer === "logged_out") await markSessionLost("probe_logged_out");
+        else await markSessionVerified();
+        return probeAnswer;
+      },
+    },
+  };
+
+  const scheduler = startScheduler(deps, 10);
+  try {
+    // Imported more than the probe interval ago and never verified since: due.
+    await markSessionImported(new Date(Date.now() - 7 * 3_600_000));
+    const first = await scheduler.runNow();
+    assert.ok(first && first.type === "gap_skip");
+    assert.strictEqual(probes, 1);
+
+    // The probe just verified it: not due again.
+    await scheduler.runNow();
+    assert.strictEqual(probes, 1);
+
+    await markSessionImported(new Date(Date.now() - 7 * 3_600_000));
+    probeAnswer = "logged_out";
+    assert.deepStrictEqual(await scheduler.runNow(), { type: "session_lost" });
+    const state = await scheduler.getState();
+    assert.strictEqual(state.consecutiveFailures, 0);
+  } finally {
+    scheduler.stop();
+    await markSessionImported();
+  }
+});
+
+test("scheduler runs the session expiry check on every firing, even while disabled", async () => {
+  let expiryChecks = 0;
+  let publisherCalls = 0;
+  const deps: BotDeps = {
+    ...createMockDeps(async () => {
+      publisherCalls += 1;
+      return gapSkipResult("run-disabled");
+    }),
+    session: {
+      checkExpiry: async () => {
+        expiryChecks += 1;
+        return false;
+      },
+      probe: async () => "logged_in",
+    },
+  };
+
+  const scheduler = startScheduler(deps, 10, { enabled: false });
+  try {
+    assert.strictEqual(await scheduler.runNow(), false);
+    assert.strictEqual(expiryChecks, 1);
+    assert.strictEqual(publisherCalls, 0);
+  } finally {
+    scheduler.stop();
   }
 });

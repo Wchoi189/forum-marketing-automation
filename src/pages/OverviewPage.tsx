@@ -24,6 +24,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import PipelineCanvas, { PipelineStepId } from '../PipelineCanvas';
+import SessionBanner from '../components/SessionBanner';
 import type { UseAppDataReturn } from '../hooks/useAppData';
 
 interface OverviewPageProps {
@@ -59,6 +60,8 @@ export default function OverviewPage({
 
   return (
     <>
+    <SessionBanner session={app.controlPanel.session} />
+
     {/* ── Level 0: Global Status Strip ─────────────────────────────── */}
     <div className="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 flex items-center justify-between text-sm">
       <div className="flex items-center gap-3 flex-wrap">

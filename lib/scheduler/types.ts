@@ -16,6 +16,13 @@ export type BotDeps = {
   runPublisher: (force?: boolean) => Promise<PublisherRunResult>;
   getLogs: () => Promise<ActivityLog[]>;
   getPublisherHistory?: (limit: number) => Promise<PublisherHistoryEntry[]>;
+  /** ppomppu session upkeep (lib/session/health.ts). Absent in tests and DEV_SKIP_BOT. */
+  session?: {
+    /** Browser-free; one Slack warning per imported session entering 'expiring'. */
+    checkExpiry: () => Promise<unknown>;
+    /** Loads the board with the saved cookies; marks the session verified or dead. */
+    probe: () => Promise<'logged_in' | 'logged_out' | 'unknown'>;
+  };
 };
 
 /**

@@ -51,6 +51,20 @@ export type PublisherRunDecision =
   /** A run was already in flight; the caller was turned away without doing work. */
   | "already_running";
 
+/**
+ * The ppomppu login session as GET /api/control-panel reports it (SL-005).
+ * `status` has 'expiring' derived; `expectedEndAt` is importedAt plus
+ * SESSION_EXPECTED_LIFETIME_HOURS, null until a login has been imported.
+ */
+export interface SessionView {
+  status: "unknown" | "healthy" | "expiring" | "dead";
+  importedAt: string | null;
+  lastVerifiedAt: string | null;
+  lostAt: string | null;
+  lostReason: string | null;
+  expectedEndAt: string | null;
+}
+
 /** Append-only log of auto/manual publisher runs (see artifacts/publisher-history/*.jsonl). */
 export interface PublisherHistoryEntry {
   at: string;

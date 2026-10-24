@@ -10,6 +10,7 @@
  */
 
 import { ENV } from '../../config/env.js';
+import type { SessionView } from '../../contracts/models.js';
 import type { SessionRecord, SessionStatus, StateMeta } from './types.js';
 import { persistState } from './persistence.js';
 import { getRuntimeStateStore } from './store.js';
@@ -58,6 +59,35 @@ export function deriveSessionStatus(
   if (record.status !== 'healthy' || !record.importedAt) return record.status;
   const ageMs = now - Date.parse(record.importedAt);
   return ageMs >= (lifetimeHours - warningHours) * 3_600_000 ? 'expiring' : 'healthy';
+}
+
+/** The record as the dashboard reads it: derived status and the expected end of the session. */
+export function sessionView(
+  record: SessionRecord,
+  now: number,
+  lifetimeHours: number = ENV.SESSION_EXPECTED_LIFETIME_HOURS
+): SessionView {
+  return {
+    ...record,
+    status: deriveSessionStatus(record, now, lifetimeHours),
+    expectedEndAt: record.importedAt
+      ? new Date(Date.parse(record.importedAt) + lifetimeHours * 3_600_000).toISOString()
+      : null,
+  };
+}
+
+/**
+ * True when nothing has seen the board logged in for intervalHours, so a tick that
+ * launched no browser should probe (SL-004). Never while dead: the park owns that.
+ */
+export function isSessionProbeDue(
+  record: SessionRecord,
+  now: number,
+  intervalHours: number = ENV.SESSION_PROBE_INTERVAL_HOURS
+): boolean {
+  if (record.status === 'dead') return false;
+  if (!record.lastVerifiedAt) return true;
+  return now - Date.parse(record.lastVerifiedAt) >= intervalHours * 3_600_000;
 }
 
 export function getSessionRecord(): SessionRecord {

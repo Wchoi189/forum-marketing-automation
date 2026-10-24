@@ -14,6 +14,8 @@ import {
   DEFAULT_SESSION_RECORD,
   normalizeSessionRecord,
   deriveSessionStatus,
+  sessionView,
+  isSessionProbeDue,
   getSessionRecord,
   isSessionParked,
   markSessionVerified,
@@ -49,6 +51,21 @@ test('deriveSessionStatus: no import time, dead and unknown pass through unchang
   assert.equal(deriveSessionStatus(healthy(null), T0 + 1000 * HOUR, 168, 24), 'healthy');
   assert.equal(deriveSessionStatus({ ...DEFAULT_SESSION_RECORD, status: 'dead' }, T0, 168, 24), 'dead');
   assert.equal(deriveSessionStatus(DEFAULT_SESSION_RECORD, T0, 168, 24), 'unknown');
+});
+
+test('sessionView: derives the status and the expected end from importedAt', () => {
+  const view = sessionView(healthy(new Date(T0).toISOString()), T0 + 150 * HOUR, 168);
+  assert.equal(view.status, 'expiring');
+  assert.equal(view.expectedEndAt, new Date(T0 + 168 * HOUR).toISOString());
+  assert.equal(sessionView(DEFAULT_SESSION_RECORD, T0, 168).expectedEndAt, null);
+});
+
+test('isSessionProbeDue: never verified or stale is due; fresh or dead is not', () => {
+  const verifiedAt = (ms: number): SessionRecord => ({ ...healthy(null), lastVerifiedAt: new Date(ms).toISOString() });
+  assert.equal(isSessionProbeDue(DEFAULT_SESSION_RECORD, T0, 6), true);
+  assert.equal(isSessionProbeDue(verifiedAt(T0), T0 + 5 * HOUR, 6), false);
+  assert.equal(isSessionProbeDue(verifiedAt(T0), T0 + 6 * HOUR, 6), true);
+  assert.equal(isSessionProbeDue({ ...DEFAULT_SESSION_RECORD, status: 'dead' }, T0, 6), false);
 });
 
 test('RuntimeStateStore: a session patch is normalized and survives as its own copy', () => {

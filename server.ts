@@ -36,7 +36,7 @@ import { createAiRouter } from "./routes/api/ai.js";
 import { createNlRouter } from "./routes/api/nl.js";
 import { createKakaoRouter } from "./routes/api/kakao.js";
 import { createSessionRouter, type SessionRouterDeps } from "./routes/api/session.js";
-import { attachConsoleVncBridge } from "./lib/session/index.js";
+import { attachConsoleVncBridge, checkSessionExpiry, probeSavedSession } from "./lib/session/index.js";
 
 // ── Shared Log Cache & Helpers ───────────────────────────────────────────────
 
@@ -55,7 +55,13 @@ function getDefaultDeps(): BotDeps {
       getPublisherHistory: readPublisherHistory,
     };
   }
-  return { runObserver, runPublisher, getLogs, getPublisherHistory: readPublisherHistory };
+  return {
+    runObserver,
+    runPublisher,
+    getLogs,
+    getPublisherHistory: readPublisherHistory,
+    session: { checkExpiry: () => checkSessionExpiry(), probe: () => probeSavedSession() },
+  };
 }
 
 type SchedulerController = ReturnType<typeof startScheduler>;

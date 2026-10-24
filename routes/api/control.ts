@@ -30,6 +30,8 @@ import {
   readPersistedNlWebhookEnabled,
   readStateMeta,
   persistAllControlPanelSettings,
+  getSessionRecord,
+  sessionView,
   StateVersionConflictError,
 } from '../../lib/state/index.js';
 import type { ObserverControlsWithGap } from '../../lib/state/index.js';
@@ -46,6 +48,7 @@ import {
   type ControlPanelPreset,
 } from '../../lib/scheduler/index.js';
 import type { SchedulerController } from '../routerTypes.js';
+import type { SessionView } from '../../contracts/models.js';
 
 // ── Shared control panel response builder ─────────────────────────────────────
 
@@ -82,6 +85,8 @@ export type ControlPanelResponse = {
     requiredGap: number;
     checkedAt: string;
   } | null;
+  /** ppomppu login session (SL-005); drives the dashboard banner. */
+  session: SessionView;
 };
 
 export async function buildControlPanelResponse(
@@ -113,6 +118,7 @@ export async function buildControlPanelResponse(
     publisher,
     autoPublisher: autoPublisherState,
     lastObserverResult: autoPublisherState.lastObserverResult ?? null,
+    session: sessionView(getSessionRecord(), Date.now()),
   };
 }
 

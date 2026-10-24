@@ -69,7 +69,21 @@ what it would remove without deleting.
 ## Restoring the ppomppu session
 
 Symptom: `PUBLISHER_LOGIN_REQUIRED: reason=turnstile_unsolved` (or `login_rejected`)
-in `publisher.run.failed`. The bot cannot log in by itself (KE-004); a person must.
+in `publisher.run.failed`, or `session.lost reason=probe_logged_out`. The bot
+cannot log in by itself (KE-004); a person must.
+
+Warnings before and at death (SL-004/SL-005):
+
+- **Expiring:** `SESSION_EXPECTED_LIFETIME_HOURS` (168) minus
+  `SESSION_EXPIRY_WARNING_HOURS` (24) after the last import, the Overview page
+  shows an amber banner and Slack gets one "ppomppu session expiring" message.
+  A console login then renews it early.
+- **Dead:** a red banner, and one Slack message per death (the login console
+  link, or a plain "session dead" when no console can be offered). The
+  scheduler parks; "Publisher Failed" messages are suppressed while parked.
+- **Probe:** a gap-skip tick never loads the board, so the scheduler probes the
+  saved session when nothing has verified it for `SESSION_PROBE_INTERVAL_HOURS`
+  (6). Only a `logged_out` header marks it dead; `unknown` changes nothing.
 
 ### Default: login console (any device, no desktop needed)
 
