@@ -63,23 +63,37 @@
     },
     {
       "id": "SL-008",
-      "title": "Assisted login from the server (superseded by SL-009)",
+      "title": "Assisted login from the server (realised as SL-010)",
       "target_files": [],
-      "action": "Superseded 2026-10-25: the operator's Chrome runs on the bot host, so SL-009 syncs its session automatically. Revisit only if the bot moves to a host without the operator's browser: a headed Chromium on the server behind an authenticated noVNC tunnel, where a person logs in and solves Turnstile themselves.",
+      "action": "Built as SL-010 without noVNC or a headed browser: a CDP screencast of the headless server Chromium renders Turnstile, and a person can solve it there.",
       "risk": "high"
     },
     {
+      "id": "SL-010",
+      "title": "Server-side login console (primary recovery)",
+      "target_files": ["lib/session/loginConsole.ts", "lib/session/consolePage.ts", "routes/api/session.ts", "lib/publisher/publisherRun.ts", "Dockerfile"],
+      "action": "Recovery must not depend on a desktop PC that has offline days (operator, 2026-10-25). The server's own Chromium opens login.php, fills ID/password from env and ticks 자동로그인, and streams the page via CDP screencast to a token-protected viewer (SSE frames, taps and text posted back). A person taps Turnstile and 로그인 from any tailnet device; the console polls the header and saves the session (keepSessionCookies) when logged_in, then closes. Cookies originate from the server IP, so no copy and no cf_clearance mismatch. Triggers: PUBLISHER_LOGIN_REQUIRED opens one automatically (at most every 3 h) and posts the link to Slack; /session/console lets anyone on the tailnet ask for a link, which goes to Slack only; the bearer endpoint returns the URL to a shell. One console at a time, 15-minute TTL, unguessable token compared in constant time. fonts-nanum added so the page is readable. Credentials are filled, never submitted, by the bot: the submit is the person's action after passing Turnstile (KE-004 unchanged).",
+      "risk": "medium"
+    },
+    {
+      "id": "SL-011",
+      "title": "Measure whether 자동로그인 outlives the ~7-day session",
+      "target_files": [],
+      "action": "The first console login logs session.imported with persistentCookies (names and expiry dates only). If a login cookie with a long expiry appears and the session survives past day 7 without a console login, renewal is automatic and SL-005's expiry warning can be relaxed. Record the result as lifetime data point 2 in SL-007.",
+      "risk": "low"
+    },
+    {
       "id": "SL-009",
-      "title": "Automatic session sync from the operator's browser",
+      "title": "Optional session sync from a desktop browser",
       "target_files": ["tools/session-sync-extension/manifest.json", "tools/session-sync-extension/background.js", "scripts/session-sync-setup.ts", ".agent/OPERATIONS.md"],
-      "action": "Manual cookie curation breaks automation (operator, 2026-10-25). A Chrome MV3 extension in the operator's everyday browser listens to chrome.cookies.onChanged for PHPSESSID/pmn on ppomppu.co.kr, debounces 3 s, and posts all ppomppu.co.kr cookies to SL-003; a 30-minute alarm re-sends (the server answers 'unchanged' without a probe). It remembers a fingerprint the bot rejected (422) so a dead browser session is not re-probed every 30 minutes, retries 409/network errors after 2 minutes, and reports state on the toolbar badge. npm run session:sync-setup generates the secret into .env.docker and writes the gitignored config.local.json, so setup is one command plus Load unpacked. The person still solves Turnstile, by logging in as any visitor does; nothing automates the challenge (research/01, Rejected).",
+      "action": "Demoted to optional by SL-010: it needs a desktop browser that is online, and the operator's PC has offline days. Kept because it costs nothing when unused. Original design: a Chrome MV3 extension in the operator's everyday browser listens to chrome.cookies.onChanged for PHPSESSID/pmn on ppomppu.co.kr, debounces 3 s, and posts all ppomppu.co.kr cookies to SL-003; a 30-minute alarm re-sends (the server answers 'unchanged' without a probe). It remembers a fingerprint the bot rejected (422) so a dead browser session is not re-probed every 30 minutes, retries 409/network errors after 2 minutes, and reports state on the toolbar badge. npm run session:sync-setup generates the secret into .env.docker and writes the gitignored config.local.json, so setup is one command plus Load unpacked. The person still solves Turnstile, by logging in as any visitor does; nothing automates the challenge (research/01, Rejected).",
       "risk": "medium"
     }
   ],
   "acceptance_criteria": [
     "A session death produces exactly one publisher.run.failed with PUBLISHER_LOGIN_REQUIRED, then zero browser launches until an import is verified.",
     "An import through POST /api/session/import un-parks the scheduler without a container restart or file copy.",
-    "After a login in the operator's Chrome, the bot holds the new session without any further human step (SL-009).",
+    "A dead session is restored from a phone in under a minute, with no desktop PC online and no file copied (SL-010).",
     "The dashboard shows session age and status, and an expiring banner appears before the expected death time.",
     "browser-storage-state.json holds no ad or analytics cookies after the next saved run.",
     "No cookie value appears in any log line, response body, or artifact."

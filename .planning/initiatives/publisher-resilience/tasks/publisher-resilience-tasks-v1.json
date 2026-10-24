@@ -35,8 +35,8 @@
     {
       "id": "PR-002",
       "phase": 0,
-      "title": "Restore the session through SL-009 (load the extension, log in to ppomppu in Chrome with 자동로그인 ticked)",
-      "detail": "Replaces the manual export (operator, 2026-10-25: manual cookie curation breaks automation). Runbook: .agent/OPERATIONS.md, 'Automatic: browser session sync'. Setup already ran (secret generated, container restarted, config.local.json written). Remaining: Load unpacked, then log in. Afterwards, list the stored cookie names and expiry (never values) to record whether 자동로그인 yields a login cookie with a real expiry date.",
+      "title": "Restore the session through the login console (SL-010)",
+      "detail": "Open the Slack 'ppomppu login needed' link (or request one at http://100.124.62.44:3000/session/console) on any tailnet device, tap the security check and 로그인. The session.imported log line then answers SL-011.",
       "owner": "human",
       "status": "pending",
       "blocked_on": null,
@@ -73,7 +73,9 @@
     { "id": "SL-006", "phase": 1, "owner": "agent", "status": "done", "blocked_on": null, "evidence": "854c835: keepSessionCookies() applied in saveStorageState and the import endpoint; unit test in tests/unit/sessionImport.test.ts. Cookie count drop to be confirmed after the first saved run.", "updated": "2026-10-25" },
     { "id": "SL-007", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": "Data point 1: imported 2026-10-16T15:43Z, died 2026-10-23T17:27Z (~7 d 2 h, hourly use).", "updated": "2026-10-24" },
     { "id": "SL-008", "phase": 1, "owner": "agent", "status": "dropped", "blocked_on": null, "evidence": "Superseded by SL-009: the operator's Chrome runs on the bot host.", "updated": "2026-10-25" },
-    { "id": "SL-009", "phase": 1, "owner": "agent", "status": "in_progress", "blocked_on": "PR-002 (extension loaded + one login in Chrome) to observe a real 'imported' push", "evidence": "854c835: tools/session-sync-extension, npm run session:sync-setup. Setup ran 2026-10-25: secret in .env.docker, container restarted healthy, config.local.json written (gitignored, 0600).", "updated": "2026-10-25" },
+    { "id": "SL-009", "phase": 1, "owner": "agent", "status": "done", "blocked_on": null, "evidence": "854c835: tools/session-sync-extension, npm run session:sync-setup. Optional since SL-010 (needs an online desktop browser); never exercised with real cookies.", "updated": "2026-10-25" },
+    { "id": "SL-010", "phase": 1, "owner": "agent", "status": "in_progress", "blocked_on": "PR-002: first real login through the console", "evidence": "2fa66f8, deployed 2026-10-25. 73/73 integration incl. 3 console route cases; live: POST /api/session/console 200, SSE state=ready, frame shows login.php with ID filled, password masked, 자동로그인 ticked, Turnstile verifying, Korean glyphs rendered; viewer page 200. Turnstile renders in headless server Chromium (spike 2026-10-25).", "updated": "2026-10-25" },
+    { "id": "SL-011", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": "PR-002", "evidence": "login form posts auto_login=1 to login_check.php (guest inspection 2026-10-25); effect unknown until a real login.", "updated": "2026-10-25" },
     { "id": "EF-006", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": "PR-003 (needs scheduler-enabled operation)", "evidence": "Pre-initiative snapshot in research/01 F-04 (40 h, includes outage).", "updated": "2026-10-24" },
     { "id": "EF-001", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": "EF-006", "evidence": null, "updated": "2026-10-24" },
     { "id": "EF-002", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": "PR-002", "evidence": null, "updated": "2026-10-24" },
@@ -94,6 +96,7 @@
   "progress_log": [
     "2026-10-24 Initiative created from research/01. Phase 0 blocked on Q-02. Workspace-template content source rejected: online drafts are current (operator).",
     "2026-10-24 Q-01, Q-02, Q-03 resolved. PR-001 done (deployed 43d9c9f, healthy, scheduler still disabled). PR-002 unblocked; waiting on operator session import.",
-    "2026-10-25 Operator: manual cookie curation breaks automation. Added SL-009 (browser session sync), SL-008 dropped. SL-003 and SL-006 done, SL-004 partly, all in 854c835 and deployed. PR-002 now means: load the extension and log in once in Chrome."
+    "2026-10-25 Operator: manual cookie curation breaks automation. Added SL-009 (browser session sync), SL-008 dropped. SL-003 and SL-006 done, SL-004 partly, all in 854c835 and deployed. PR-002 now means: load the extension and log in once in Chrome.",
+    "2026-10-25 Operator: recovery must not depend on a PC with offline days. Added SL-010 (server-side login console, 2fa66f8, deployed) and SL-011 (자동로그인 lifetime). SL-009 demoted to optional. PR-002 now means: one login through the console from any tailnet device."
   ]
 }

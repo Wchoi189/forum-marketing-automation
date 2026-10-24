@@ -77,11 +77,12 @@ run, and cookies saved after every dead-session run. Follow-up work is the
 [publisher-resilience](../initiatives/publisher-resilience/README.md)
 initiative.
 
-Since 2026-10-25 (`854c835`) recovery is automatic once set up: the operator's
-Chrome pushes its ppomppu cookies to `POST /api/session/import` through
-`tools/session-sync-extension`, and the bot saves them only after a probe sees
-the board logged in. A person still solves Turnstile, by logging in to ppomppu
-in that browser.
+Since 2026-10-25 (`2fa66f8`) recovery runs on the server: a session loss posts
+a login-console link to Slack, the server's own Chromium shows login.php with
+the credentials filled, and a person taps Turnstile and 로그인 from any tailnet
+device. The bot saves the session once the header shows it logged in. The
+optional `tools/session-sync-extension` (`854c835`) does the same from a
+desktop Chrome when one is online.
 
 ## Lessons
 
