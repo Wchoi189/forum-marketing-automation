@@ -31,6 +31,7 @@ import { chromium } from 'playwright';
 export const DESKTOP_SIZE = { width: 500, height: 1000 };
 
 const START_TIMEOUT_MS = 15_000;
+const DIR_PREFIX = 'login-console-';
 
 export type DesktopOptions = {
   /** Page Chromium opens first. */
@@ -111,7 +112,7 @@ export class ConsoleDesktop {
   }
 
   async start(opts: DesktopOptions): Promise<void> {
-    this.dir = fs.mkdtempSync(path.join(os.tmpdir(), 'login-console-'));
+    this.dir = fs.mkdtempSync(path.join(os.tmpdir(), DIR_PREFIX));
     fs.chmodSync(this.dir, 0o700);
     writeExtension(path.join(this.dir, 'extension'), opts);
 
@@ -189,9 +190,23 @@ export class ConsoleDesktop {
     const children = [this.browser, this.xvnc].filter((child): child is ChildProcess => child !== null);
     for (const child of children) child.kill('SIGTERM');
     await Promise.all(children.map((child) => waitForExit(child, 5000)));
-    if (this.dir) fs.rmSync(this.dir, { recursive: true, force: true });
+    // Chromium's helper processes can still be flushing the profile after the
+    // main process exits (ENOTEMPTY); the profile holds a live login, so retry.
+    if (this.dir) fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
     this.browser = null;
     this.xvnc = null;
     this.dir = null;
+  }
+}
+
+/**
+ * Remove desktop directories a previous console left behind (a crash, or a
+ * failed cleanup). Call only while no console is open: there is one at a time.
+ */
+export function removeStaleDesktopDirs(): void {
+  for (const name of fs.readdirSync(os.tmpdir())) {
+    if (name.startsWith(DIR_PREFIX)) {
+      fs.rmSync(path.join(os.tmpdir(), name), { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+    }
   }
 }

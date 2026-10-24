@@ -28,7 +28,7 @@ import { sendSlackNotification } from '../notifications.js';
 import { keepSessionCookies, readSavedCookies, sessionFingerprint } from '../browser/index.js';
 import { loadObserverPolicy } from '../observer/index.js';
 import { readProfileCookies } from './consoleCookies.js';
-import { ConsoleDesktop } from './consoleDesktop.js';
+import { ConsoleDesktop, removeStaleDesktopDirs } from './consoleDesktop.js';
 import { importSession } from './importSession.js';
 
 const PPOMPPU_LOGIN_URL = 'https://www.ppomppu.co.kr/zboard/login.php';
@@ -191,6 +191,7 @@ export async function openLoginConsole(
   if (opts.auto && Date.now() - lastAutoConsoleAt < AUTO_CONSOLE_INTERVAL_MS) return null;
   if (opts.auto) lastAutoConsoleAt = Date.now();
 
+  removeStaleDesktopDirs();
   const instance = new LoginConsole(reason);
   current = instance;
   try {

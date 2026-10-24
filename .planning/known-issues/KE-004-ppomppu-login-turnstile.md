@@ -97,6 +97,12 @@ is a plain headed Chromium on Xvnc with nothing attached, driven over noVNC;
 `brunhild.challenges.cloudflare.com` failing with `ERR_NAME_NOT_RESOLVED` is
 Cloudflare's IPv6-only probe on an IPv4-only line, and harmless.
 
+The VNC console passed Turnstile on its first use (2026-10-25 03:41 KST) and
+the session was saved after the probe confirmed it. 자동로그인 issues
+`PPOMSESSIONID` with a 30-day expiry (to 2026-11-23); the old saved state had
+no such cookie. Whether it lets the bot's session outlive the ~7-day
+`PHPSESSID` without another login shows around 2026-11-01.
+
 ## Lessons
 
 - `writeButtonCount` is not a session signal on ppomppu. Check the header.
