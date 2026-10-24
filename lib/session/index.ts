@@ -8,7 +8,6 @@
 export {
   openLoginConsole,
   findLoginConsole,
-  currentLoginConsole,
   CONSOLE_TTL_MS,
   AUTO_CONSOLE_INTERVAL_MS,
   CONSOLE_IMPORT_SOURCE,
@@ -18,3 +17,5 @@ export type { ConsoleEvent, ConsoleState, ConsoleSummary, LoginConsole } from '.
 export { renderConsolePage, renderConsoleRequestPage } from './consolePage.js';
 export { attachConsoleVncBridge } from './vncBridge.js';
 export { loadNovncBundle } from './novncBundle.js';
+export { importSession, type ImportOutcome } from './importSession.js';
+export { readProfileCookies } from './consoleCookies.js';

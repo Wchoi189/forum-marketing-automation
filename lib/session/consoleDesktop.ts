@@ -9,11 +9,9 @@
  * headless browser claimed Windows Chrome 146 while reporting Linux.
  *
  * The person drives it over VNC (X-level pointer and keys, see vncBridge.ts).
- * A generated extension does the two things automation used to:
- *  - a content script fills the ID and password and ticks 자동로그인 on
- *    login.php, the way a password manager would;
- *  - tools/session-sync-extension's worker pushes the login cookies to
- *    POST /api/session/import, which probes and saves them fail-closed.
+ * A generated extension's content script fills the ID and password and ticks
+ * 자동로그인 on login.php, the way a password manager would. The login cookies
+ * are read from the profile on disk (consoleCookies.ts).
  *
  * Each desktop gets a private 0700 temp directory (profile, extension with the
  * credentials, VNC socket) that is removed on close.
@@ -25,7 +23,6 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { ENV } from '../../config/env.js';
 
 /**
  * Phone-shaped, so the viewer is readable on the device most likely to open
@@ -33,17 +30,11 @@ import { ENV } from '../../config/env.js';
  */
 export const DESKTOP_SIZE = { width: 500, height: 1000 };
 
-const SYNC_EXTENSION_DIR = path.join(ENV.PROJECT_ROOT, 'tools', 'session-sync-extension');
 const START_TIMEOUT_MS = 15_000;
 
 export type DesktopOptions = {
   /** Page Chromium opens first. */
   url: string;
-  /** Where the extension pushes cookies; the bot's own import endpoint. */
-  importEndpoint: string;
-  importSecret: string;
-  /** `source` the import endpoint sees, so it can report back to the console. */
-  importSource: string;
   userId: string;
   password: string;
 };
@@ -72,20 +63,12 @@ function readDisplayNumber(child: ChildProcess): Promise<number> {
 
 function writeExtension(dir: string, opts: DesktopOptions): void {
   fs.mkdirSync(dir, { mode: 0o700 });
-  const manifest = JSON.parse(fs.readFileSync(path.join(SYNC_EXTENSION_DIR, 'manifest.json'), 'utf-8'));
-  manifest.name = 'ppomppu login console';
-  manifest.content_scripts = [{
-    matches: ['https://www.ppomppu.co.kr/zboard/login.php*'],
-    js: ['fill.js'],
-    run_at: 'document_idle',
-  }];
-  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
-  fs.copyFileSync(path.join(SYNC_EXTENSION_DIR, 'background.js'), path.join(dir, 'background.js'));
-  fs.writeFileSync(
-    path.join(dir, 'config.local.json'),
-    JSON.stringify({ endpoint: opts.importEndpoint, secret: opts.importSecret, source: opts.importSource }),
-    { mode: 0o600 },
-  );
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({
+    manifest_version: 3,
+    name: 'ppomppu login console',
+    version: '1.0.0',
+    content_scripts: [{ matches: ['https://www.ppomppu.co.kr/zboard/login.php*'], js: ['fill.js'], run_at: 'document_idle' }],
+  }, null, 2));
   // Fill only. Submitting is the person's action, after they pass Turnstile.
   fs.writeFileSync(
     path.join(dir, 'fill.js'),
@@ -118,6 +101,10 @@ export class ConsoleDesktop {
     return this.dir ? path.join(this.dir, 'vnc.sock') : null;
   }
 
+  get profileDir(): string | null {
+    return this.dir ? path.join(this.dir, 'profile') : null;
+  }
+
   /** Called if Xvnc or Chromium dies on its own (e.g. the person closed the window). */
   onExit(listener: (what: string) => void): void {
     this.exitListeners.add(listener);
@@ -146,7 +133,7 @@ export class ConsoleDesktop {
     const display = await readDisplayNumber(this.xvnc);
 
     this.browser = spawn(chromium.executablePath(), [
-      `--user-data-dir=${path.join(this.dir, 'profile')}`,
+      `--user-data-dir=${this.profileDir}`,
       `--load-extension=${path.join(this.dir, 'extension')}`,
       // Chromium 137+ ignores --load-extension unless this is set.
       '--disable-features=DisableLoadExtensionCommandLineSwitch',

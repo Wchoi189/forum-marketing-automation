@@ -76,8 +76,6 @@ COPY --chown=app:app contracts/ ./contracts/
 COPY --chown=app:app lib/ ./lib/
 COPY --chown=app:app routes/ ./routes/
 COPY --chown=app:app ops/ ./ops/
-# The login console loads a copy of this extension (lib/session/consoleDesktop.ts).
-COPY --chown=app:app tools/session-sync-extension/manifest.json tools/session-sync-extension/background.js ./tools/session-sync-extension/
 
 # Copy manifest schemas needed at runtime for validation
 COPY --chown=app:app .planning/spec-kit/manifest/ .planning/spec-kit/manifest/

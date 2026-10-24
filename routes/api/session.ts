@@ -15,34 +15,20 @@
  * ppomppu cookies here: tools/session-sync-extension does it on every login
  * cookie change, and the body is a plain cookie export, so curl works too.
  *
- * Fail-closed throughout: no secret configured means 503, and the merged
- * cookies are written only after a probe sees the board logged in, so a stale
- * or logged-out push can never replace a working session.
+ * Fail-closed throughout: no secret configured means 503, and cookies are
+ * saved only after a probe sees the board logged in (lib/session/importSession.ts).
  */
 
 import { createHash, timingSafeEqual } from 'node:crypto';
-import fs from 'node:fs';
 import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import type { Cookie } from 'playwright';
 import { ENV } from '../../config/env.js';
-import { logger, LOG_EVENT } from '../../lib/logging/index.js';
-import { sendSlackNotification } from '../../lib/notifications.js';
+import { convertExportedCookies } from '../../lib/browser/index.js';
+import type { SessionProbeResult } from '../../lib/observer/index.js';
 import {
-  STORAGE_STATE_PATH,
-  convertExportedCookies,
-  keepSessionCookies,
-  mergeCookies,
-  readSavedCookies,
-  sessionFingerprint,
-  writeSavedCookies,
-} from '../../lib/browser/index.js';
-import { probeSession, type SessionProbeResult } from '../../lib/observer/index.js';
-import { getPublisherStatus } from '../../lib/publisher/index.js';
-import {
-  CONSOLE_IMPORT_SOURCE,
-  currentLoginConsole,
   findLoginConsole,
+  importSession,
   loadNovncBundle,
   openLoginConsole,
   renderConsolePage,
@@ -70,10 +56,8 @@ function isAuthorized(header: string | undefined, secret: string): boolean {
 }
 
 export function createSessionRouter(deps: SessionRouterDeps = {}): Router {
-  const probe = deps.probe ?? probeSession;
   const openConsole = deps.openConsole ?? openLoginConsole;
   const router = Router();
-  let importInFlight = false;
 
   router.post('/api/session/import', importLimiter, async (req, res) => {
     const secret = ENV.SESSION_IMPORT_SECRET;
@@ -85,75 +69,20 @@ export function createSessionRouter(deps: SessionRouterDeps = {}): Router {
 
     let incoming: Cookie[];
     try {
-      incoming = keepSessionCookies(convertExportedCookies(body.cookies));
+      incoming = convertExportedCookies(body.cookies);
     } catch (err) {
       res.status(400).json({ error: 'invalid_cookies', detail: err instanceof Error ? err.message : String(err) });
       return;
     }
-    const incomingFingerprint = sessionFingerprint(incoming);
-    if (!incomingFingerprint) { res.status(400).json({ error: 'no_session_cookie' }); return; }
 
-    // A run that started on the old cookies saves them when it ends, which
-    // would overwrite this import. The sender retries.
-    if (getPublisherStatus().running) { res.status(409).json({ error: 'publisher_running' }); return; }
-    if (importInFlight) { res.status(409).json({ error: 'import_in_progress' }); return; }
-
-    // The login console's own browser pushes here too; it shows the outcome on
-    // its page, and its guest-session pushes are expected rejections, not alerts.
-    const fromConsole = source === CONSOLE_IMPORT_SOURCE ? currentLoginConsole() : null;
-
-    const base = readSavedCookies();
-    if (sessionFingerprint(base) === incomingFingerprint) {
-      fromConsole?.noteImport('unchanged');
-      res.json({ status: 'unchanged' });
-      return;
-    }
-
-    importInFlight = true;
-    try {
-      const merged = keepSessionCookies(mergeCookies(base, incoming));
-
-      let result: SessionProbeResult;
-      try {
-        result = await probe(merged);
-      } catch (err) {
-        logger.warn({ event: LOG_EVENT.sessionImportRejected, source, reason: 'probe_failed', err }, '[Session] Import probe failed');
-        res.status(502).json({ error: 'probe_failed' });
-        return;
-      }
-
-      if (result.sessionState !== 'logged_in') {
-        logger.warn(
-          { event: LOG_EVENT.sessionImportRejected, source, reason: 'not_logged_in', sessionState: result.sessionState },
-          '[Session] Imported cookies do not carry a login; saved state left unchanged',
-        );
-        if (fromConsole) {
-          fromConsole.noteImport('rejected');
-        } else {
-          void sendSlackNotification(
-            `⚠️ *ppomppu session push rejected* (${source})\n> The pushed cookies are not logged in (session=${result.sessionState}). Log in to ppomppu in the browser.`,
-            'warn',
-          );
-        }
-        res.status(422).json({ status: 'rejected', sessionState: result.sessionState });
-        return;
-      }
-
-      if (fs.existsSync(STORAGE_STATE_PATH)) {
-        fs.copyFileSync(STORAGE_STATE_PATH, `${STORAGE_STATE_PATH}.bak`);
-        fs.chmodSync(`${STORAGE_STATE_PATH}.bak`, 0o600);
-      }
-      writeSavedCookies(merged);
-
-      logger.info(
-        { event: LOG_EVENT.sessionImported, source, baseCount: base.length, importedCount: incoming.length, mergedCount: merged.length },
-        '[Session] Session imported and verified',
-      );
-      void sendSlackNotification(`🔑 *ppomppu session refreshed* (${source})\n> Verified logged in; the next publisher run uses it.`, 'info');
-      fromConsole?.noteImport('imported');
-      res.json({ status: 'imported', sessionState: result.sessionState, cookieCount: merged.length });
-    } finally {
-      importInFlight = false;
+    const outcome = await importSession(incoming, source, { probe: deps.probe });
+    switch (outcome.status) {
+      case 'no_session_cookie': res.status(400).json({ error: 'no_session_cookie' }); return;
+      case 'busy': res.status(409).json({ error: outcome.reason }); return;
+      case 'probe_failed': res.status(502).json({ error: 'probe_failed' }); return;
+      case 'rejected': res.status(422).json({ status: 'rejected', sessionState: outcome.sessionState }); return;
+      case 'unchanged': res.json({ status: 'unchanged' }); return;
+      case 'imported': res.json({ status: 'imported', sessionState: outcome.sessionState, cookieCount: outcome.cookieCount }); return;
     }
   });
 

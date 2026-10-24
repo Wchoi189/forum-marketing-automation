@@ -80,7 +80,7 @@ async function sync(trigger) {
     response = await fetch(config.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.secret}` },
-      body: JSON.stringify({ cookies, source: config.source ?? 'chrome-extension' }),
+      body: JSON.stringify({ cookies, source: 'chrome-extension' }),
     });
   } catch {
     setBadge('NET', '#b00020', `Bot unreachable at ${config.endpoint}; retrying in ${RETRY_MINUTES} min.`);
