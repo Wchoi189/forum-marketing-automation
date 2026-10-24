@@ -7,9 +7,12 @@
  */
 
 /**
- * Entry page without a token: one button that asks the server to post a
- * console link to Slack. The link never goes back to whoever pressed it, so
- * the page needs no auth of its own.
+ * Entry page without a token. Two ways in:
+ *  - "Open here": POST /api/session/console with SESSION_IMPORT_SECRET, then go
+ *    to the console in this window. No Slack needed. The secret comes from the
+ *    password field, from this device's storage, or from the URL fragment
+ *    (`#key=…`, never sent to the server), so a bookmark opens it in one tap.
+ *  - "Send to Slack": no auth, because the link goes to Slack only.
  */
 export function renderConsoleRequestPage(): string {
   return `<!doctype html>
@@ -24,19 +27,55 @@ export function renderConsoleRequestPage(): string {
   body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
   main { max-width: 440px; margin: 0 auto; padding: 24px 16px; }
   button { width: 100%; padding: 14px; font-size: 16px; border-radius: 8px; border: 0; background: #e65100; color: #fff; }
+  button.secondary { background: var(--panel); color: var(--fg); border: 1px solid #8886; }
+  input[type=password] { box-sizing: border-box; width: 100%; padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #8886; background: var(--panel); color: var(--fg); margin-bottom: 10px; }
+  label { display: block; margin-bottom: 10px; color: var(--muted); }
   p { color: var(--muted); }
+  hr { border: 0; border-top: 1px solid #8884; margin: 24px 0; }
 </style>
 </head>
 <body>
 <main>
   <h1>ppomppu login</h1>
-  <p>Restores the bot's ppomppu session. The server opens its own browser on the login page and posts a link to Slack; open it on this device and tap the security check, then 로그인.</p>
-  <button id="go">Send login link to Slack</button>
+  <p>Restores the bot's ppomppu session. The server opens its own browser on the login page with the ID and password filled in; tap the security check, then 로그인.</p>
+  <form id="open" autocomplete="on">
+    <input type="text" name="username" value="ppomppu-console" autocomplete="username" hidden>
+    <input id="key" type="password" name="password" autocomplete="current-password" placeholder="Console key (SESSION_IMPORT_SECRET)">
+    <label><input id="remember" type="checkbox" checked> Remember on this device</label>
+    <button type="submit">Open login console here</button>
+  </form>
   <p id="out"></p>
+  <hr>
+  <button id="slack" class="secondary">Send login link to Slack instead</button>
 </main>
 <script>
-  document.getElementById('go').onclick = async () => {
-    const out = document.getElementById('out');
+  const out = document.getElementById('out');
+  const keyInput = document.getElementById('key');
+  const STORE = 'ppomppu-console-key';
+  const stored = () => { try { return localStorage.getItem(STORE); } catch { return null; } };
+  const remember = (key) => { try { key ? localStorage.setItem(STORE, key) : localStorage.removeItem(STORE); } catch {} };
+  const fromHash = new URLSearchParams(location.hash.slice(1)).get('key');
+  keyInput.value = fromHash || stored() || '';
+
+  async function openHere() {
+    const key = keyInput.value.trim();
+    if (!key) { out.textContent = 'Enter the console key first.'; keyInput.focus(); return; }
+    out.textContent = 'Opening the server browser…';
+    const res = await fetch('/api/session/console', { method: 'POST', headers: { Authorization: 'Bearer ' + key } });
+    const body = await res.json().catch(() => ({}));
+    if (res.ok && body.token) {
+      remember(document.getElementById('remember').checked ? key : null);
+      location.assign('/session/console/' + encodeURIComponent(body.token));
+      return;
+    }
+    if (res.status === 401) remember(null);
+    out.textContent = res.status === 401 ? 'Wrong console key.' : res.status === 503 ? 'SESSION_IMPORT_SECRET is not set on the server.' : 'Failed: ' + (body.error || res.status);
+  }
+  document.getElementById('open').onsubmit = (e) => { e.preventDefault(); openHere(); };
+  // A bookmarked #key= link opens the console straight away.
+  if (fromHash) openHere();
+
+  document.getElementById('slack').onclick = async () => {
     out.textContent = 'Opening the server browser…';
     const res = await fetch('/api/session/console/request', { method: 'POST' });
     const body = await res.json().catch(() => ({}));

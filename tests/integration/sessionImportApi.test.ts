@@ -149,6 +149,16 @@ test("login console: unknown tokens get 404 on page, events and input", async ()
   });
 });
 
+test("login console: the entry page opens a console in the same window with the key", async () => {
+  await withConsoleServer(async () => fakeConsole, async (base) => {
+    const html = await (await fetch(`${base}/session/console`)).text();
+    assert.match(html, /fetch\('\/api\/session\/console', \{ method: 'POST', headers: \{ Authorization: 'Bearer ' \+ key \} \}\)/);
+    assert.match(html, /location\.assign\('\/session\/console\/' \+ encodeURIComponent\(body\.token\)\)/);
+    const res = await post(`${base}/api/session/console`, {});
+    assert.equal((await res.json()).token, fakeConsole.token);
+  });
+});
+
 test("session import: an unchanged session skips the probe", async () => {
   writeState([cookie("PHPSESSID", "same"), cookie("pmn", "p")]);
   let probeCalls = 0;

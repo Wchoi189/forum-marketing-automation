@@ -4,7 +4,7 @@
  * ppomppu session recovery:
  *   POST /api/session/import                      cookie push from a logged-in browser
  *   POST /api/session/console                     open a login console (lib/session); returns its URL
- *   GET  /session/console                         entry page: "send login link to Slack"
+ *   GET  /session/console                         entry page: open a console here (secret) or link to Slack
  *   POST /api/session/console/request             open a console, link to Slack only
  *   GET  /session/console/:token                  console viewer page
  *   GET  /api/session/console/:token/events       screencast + state (SSE)
@@ -167,7 +167,8 @@ export function createSessionRouter(deps: SessionRouterDeps = {}): Router {
 
   // ── Login console ─────────────────────────────────────────────────────────
   // Opening one needs the secret. The console's own pages are authorized by its
-  // unguessable, short-lived token, which is what the Slack link carries.
+  // unguessable, short-lived token, which is what the Slack link carries and
+  // what the entry page navigates to after opening one with the secret.
 
   router.post('/api/session/console', importLimiter, async (req, res) => {
     const secret = ENV.SESSION_IMPORT_SECRET;
@@ -195,7 +196,7 @@ export function createSessionRouter(deps: SessionRouterDeps = {}): Router {
   });
 
   router.get('/session/console/:token', (req, res) => {
-    if (!findLoginConsole(req.params.token)) { res.status(404).type('text/plain').send('This login link has expired. A new one is posted to Slack when the session is needed.'); return; }
+    if (!findLoginConsole(req.params.token)) { res.status(404).type('text/plain').send('This login link has expired. Open /session/console for a new one.'); return; }
     res.set('Cache-Control', 'no-store').type('html').send(renderConsolePage(req.params.token));
   });
 

@@ -80,9 +80,16 @@ session itself. Cookies come from the server's IP, so nothing is copied.
 
 - **Automatic:** when a run fails with `PUBLISHER_LOGIN_REQUIRED`, Slack gets a
   "ppomppu login needed" link (at most every 3 h; each link lives 15 min).
-- **On demand:** open `PUBLIC_BASE_URL/session/console` (tailnet:
-  `http://100.124.62.44:3000/session/console`) and press "Send login link to
-  Slack". The link goes to Slack only, never back to the page.
+- **On demand, no Slack:** open `PUBLIC_BASE_URL/session/console` (tailnet:
+  `http://100.124.62.44:3000/session/console`), enter `SESSION_IMPORT_SECRET`
+  as the console key and press "Open login console here"; the console opens in
+  the same window. The key can be remembered on the device, or bookmarked as
+  `…/session/console#key=<secret>`, which opens the console on load. The
+  fragment never reaches the server, but it does sit in browser history and
+  bookmarks, so use it only on the operator's own devices. If a console is
+  already open (e.g. the automatic one), this joins it.
+- **On demand, via Slack:** same page, "Send login link to Slack instead". No
+  key needed; the link goes to Slack only, never back to the page.
 - **From a shell:** `curl -X POST localhost:3000/api/session/console -H
   "Authorization: Bearer $SESSION_IMPORT_SECRET"` returns the URL directly.
 
