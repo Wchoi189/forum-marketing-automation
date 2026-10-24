@@ -8,7 +8,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { ENV } from '../../config/env.js';
-import { StateVersionConflictError } from './types.js';
+import { StateVersionConflictError, type SessionRecord } from './types.js';
 import { getRuntimeStateStore } from './store.js';
 
 const REL_PATH = 'runtime-controls.json';
@@ -61,6 +61,9 @@ export type PersistedStateFile = {
   publisherDraftItemIndex?: number;
   publishBlockedUntil?: string | null;
   maintenanceBlockedUntil?: string | null;
+
+  // ppomppu login session
+  session?: SessionRecord;
 
   // Additional config
   customParserEnabled?: boolean;

@@ -26,6 +26,7 @@ import {
 } from '../browser/index.js';
 import { probeSession, type SessionProbeResult } from '../observer/index.js';
 import { getPublisherStatus } from '../publisher/index.js';
+import { markSessionImported } from '../state/index.js';
 
 export type ImportOutcome =
   | { status: 'imported'; sessionState: string; cookieCount: number }
@@ -89,6 +90,8 @@ export async function importSession(cookies: Cookie[], source: string, opts: Imp
       fs.chmodSync(`${STORAGE_STATE_PATH}.bak`, 0o600);
     }
     writeSavedCookies(merged);
+    // Marks the session healthy, which un-parks the scheduler (SL-002).
+    await markSessionImported().catch((err) => logger.warn({ event: LOG_EVENT.sessionImported, source, err }, '[Session] Session record not updated'));
 
     logger.info(
       { event: LOG_EVENT.sessionImported, source, baseCount: base.length, importedCount: incoming.length, mergedCount: merged.length },

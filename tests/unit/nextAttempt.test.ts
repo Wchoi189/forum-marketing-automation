@@ -12,7 +12,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { nextAttemptAt, ERROR_BACKOFF_MINUTES, ALREADY_RUNNING_RETRY_MINUTES } from "../../lib/scheduler/index.js";
+import { nextAttemptAt, ERROR_BACKOFF_MINUTES, ALREADY_RUNNING_RETRY_MINUTES, SESSION_RECHECK_MINUTES } from "../../lib/scheduler/index.js";
 import type { SchedulerTickOutcome, AutoPublisherControls } from "../../lib/scheduler/index.js";
 import { PUBLISH_COOLDOWN_WINDOW_MINUTES } from "../../lib/publisher/index.js";
 
@@ -79,6 +79,19 @@ const OUTCOME_TABLE: Array<{
     expectedReason: "gap_recheck",
   },
   {
+    name: "SL-002: a dead session parks at the recheck interval instead of entering the error ladder",
+    outcome: { type: "session_lost" },
+    expectedMinutes: SESSION_RECHECK_MINUTES,
+    expectedReason: "session_required",
+  },
+  {
+    name: "SL-002: the park ignores the adaptive dials and gap interval",
+    outcome: { type: "session_lost" },
+    controls: { gapRecheckIntervalMinutes: 7, baseIntervalMinutes: 240, scheduleJitterMode: "uniform", scheduleJitterPercent: 50 },
+    expectedMinutes: SESSION_RECHECK_MINUTES,
+    expectedReason: "session_required",
+  },
+  {
     name: "normal falls through to the adaptive path",
     outcome: { type: "normal" },
     expectedMinutes: 60,
@@ -126,4 +139,33 @@ test("error backoff treats a zero failure count as the first step rather than in
     inputWith({ now, lastOutcome: { type: "unexpected_error", consecutiveFailures: 0 } })
   );
   assert.strictEqual(minutesOut(result, now), ERROR_BACKOFF_MINUTES[0]);
+});
+
+// ---------------------------------------------------------------------------
+// SL-002 — session park
+// ---------------------------------------------------------------------------
+
+test("SL-002: the session park is never jittered, even with a randomness source", () => {
+  const now = atHour(12);
+  const result = nextAttemptAt(
+    inputWith({
+      now,
+      lastOutcome: { type: "session_lost" },
+      controls: controlsWith({ scheduleJitterMode: "uniform", scheduleJitterPercent: 50 }),
+      random: () => 0.99,
+    })
+  );
+  assert.strictEqual(result.reason, "session_required");
+  assert.strictEqual(result.jitterPercent, 0);
+  assert.strictEqual(minutesOut(result, now), SESSION_RECHECK_MINUTES);
+});
+
+test("SL-002: a later block deadline still clamps the session recheck", () => {
+  const now = atHour(12);
+  const blockedUntil = new Date(now + 90 * 60_000).toISOString();
+  const result = nextAttemptAt(
+    inputWith({ now, lastOutcome: { type: "session_lost" }, blocks: { publishBlockedUntil: null, maintenanceBlockedUntil: blockedUntil } })
+  );
+  assert.strictEqual(result.reason, "block_deadline_clamp");
+  assert.strictEqual(result.clamp?.discardedReason, "session_required");
 });

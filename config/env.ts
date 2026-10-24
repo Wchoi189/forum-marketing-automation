@@ -82,6 +82,10 @@ type EnvConfig = {
   SLACK_WEBHOOK_URL: string | null;
   /** Bearer secret for POST /api/session/import and /api/session/console. Both return 503 when absent. */
   SESSION_IMPORT_SECRET: string | null;
+  /** Expected ppomppu session lifetime from import (SL-001). Observed ~7 days without 자동로그인. */
+  SESSION_EXPECTED_LIFETIME_HOURS: number;
+  /** Hours before the expected death at which a healthy session is reported as 'expiring'. */
+  SESSION_EXPIRY_WARNING_HOURS: number;
   /** Base URL operators reach the server at (login console links in Slack). */
   PUBLIC_BASE_URL: string;
   /** Kill-switch for /kakao-webhook endpoint. Returns 503 when false. */
@@ -269,6 +273,8 @@ function buildEnv(): EnvConfig {
     NL_WEBHOOK_SECRET: optionalStringOrNull("NL_WEBHOOK_SECRET"),
     SLACK_WEBHOOK_URL: optionalStringOrNull("SLACK_WEBHOOK_URL"),
     SESSION_IMPORT_SECRET: optionalStringOrNull("SESSION_IMPORT_SECRET"),
+    SESSION_EXPECTED_LIFETIME_HOURS: optionalInt("SESSION_EXPECTED_LIFETIME_HOURS", 168, 1, 24 * 90),
+    SESSION_EXPIRY_WARNING_HOURS: optionalInt("SESSION_EXPIRY_WARNING_HOURS", 24, 0, 24 * 30),
     PUBLIC_BASE_URL: optionalString("PUBLIC_BASE_URL", "http://localhost:3000"),
     KAKAO_WEBHOOK_ENABLED: optionalBool("KAKAO_WEBHOOK_ENABLED", false),
     KAKAO_OPENBUILDER_BOT_ID: optionalStringOrNull("KAKAO_OPENBUILDER_BOT_ID"),

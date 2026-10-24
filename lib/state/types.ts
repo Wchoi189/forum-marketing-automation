@@ -43,6 +43,23 @@ export type PublisherControls = {
 };
 
 /**
+ * ppomppu login session record (SL-001). Persisted; 'expiring' is never stored,
+ * only derived from importedAt by deriveSessionStatus().
+ */
+export type SessionRecord = {
+  status: 'unknown' | 'healthy' | 'dead';
+  /** When a person's login was last verified and saved (import endpoint or login console). */
+  importedAt: string | null;
+  /** Last time a publisher run saw the board logged in. */
+  lastVerifiedAt: string | null;
+  lostAt: string | null;
+  /** PUBLISHER_LOGIN_REQUIRED reason, e.g. turnstile_unsolved. */
+  lostReason: string | null;
+};
+
+export type SessionStatus = SessionRecord['status'] | 'expiring';
+
+/**
  * Scheduler controls for automated publishing.
  * Controls interval timing, quiet hours, and adaptive behavior.
  */

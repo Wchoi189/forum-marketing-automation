@@ -13,6 +13,7 @@ import {
   type ObserverControls,
   type PublisherControls,
   type SchedulerControls,
+  type SessionRecord,
   type StateMeta,
   StateVersionConflictError
 } from './types.js';
@@ -22,6 +23,7 @@ import {
   writeFileAtomic,
 } from './persistence.js';
 import { DEFAULT_SCHEDULER_CONTROLS } from './scheduler.js';
+import { DEFAULT_SESSION_RECORD, normalizeSessionRecord } from './session.js';
 
 export type StateListener = (state: Readonly<RuntimeState>, patch: Partial<PersistedStateFile>) => void;
 
@@ -41,6 +43,9 @@ export type RuntimeState = {
   publisherDraftItemIndex: number;
   publishBlockedUntil: string | null;
   maintenanceBlockedUntil: string | null;
+
+  // ppomppu login session (SL-001)
+  session: SessionRecord;
 
   // Scheduler
   schedulerEnabled: boolean;
@@ -99,6 +104,8 @@ export class RuntimeStateStore {
       publisherDraftItemIndex: Math.max(1, Math.min(50, Math.floor(ENV.PUBLISHER_DRAFT_ITEM_INDEX ?? 1))),
       publishBlockedUntil: null,
       maintenanceBlockedUntil: null,
+
+      session: { ...DEFAULT_SESSION_RECORD },
 
       schedulerEnabled: DEFAULT_SCHEDULER_CONTROLS.enabled,
       schedulerBaseIntervalMinutes: DEFAULT_SCHEDULER_CONTROLS.baseIntervalMinutes,
@@ -200,6 +207,10 @@ export class RuntimeStateStore {
       gapRecheckIntervalMinutes: this.state.schedulerGapRecheckIntervalMinutes,
       preset: this.state.preset,
     };
+  }
+
+  getSessionRecord(): SessionRecord {
+    return { ...this.state.session };
   }
 
   getGapPersistedOverride(): number | null {
@@ -312,6 +323,9 @@ export class RuntimeStateStore {
     }
     if ('maintenanceBlockedUntil' in patch) {
       this.state.maintenanceBlockedUntil = patch.maintenanceBlockedUntil ?? null;
+    }
+    if ('session' in patch) {
+      this.state.session = normalizeSessionRecord(patch.session);
     }
     if (typeof patch.schedulerEnabled === 'boolean') {
       this.state.schedulerEnabled = patch.schedulerEnabled;

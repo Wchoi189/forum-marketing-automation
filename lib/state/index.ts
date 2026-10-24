@@ -11,6 +11,8 @@ export type {
   ObserverControlsWithGap,
   PublisherControls,
   SchedulerControls,
+  SessionRecord,
+  SessionStatus,
   StateMeta,
 } from './types.js';
 
@@ -49,6 +51,18 @@ export {
   persistPublishBlockedUntil,
   persistMaintenanceBlockedUntil,
 } from './publisher.js';
+
+// ppomppu login session (SL-001)
+export {
+  DEFAULT_SESSION_RECORD,
+  normalizeSessionRecord,
+  deriveSessionStatus,
+  getSessionRecord,
+  isSessionParked,
+  markSessionVerified,
+  markSessionImported,
+  markSessionLost,
+} from './session.js';
 
 // NL webhook state
 export {

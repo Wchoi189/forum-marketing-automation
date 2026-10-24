@@ -84,4 +84,6 @@ export type SchedulerTickOutcome =
   | { type: 'success'; cooldownApplies: boolean; gapInfo?: { currentGap: number; requiredGap: number } }
   | { type: 'already_running' }
   | { type: 'unexpected_error'; consecutiveFailures: number }
+  /** SL-002: the ppomppu session is dead; nothing runs until a person's login is imported. */
+  | { type: 'session_lost' }
   | { type: 'normal' };

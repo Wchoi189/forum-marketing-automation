@@ -65,11 +65,11 @@
       "evidence": null,
       "updated": "2026-10-24"
     },
-    { "id": "SL-001", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" },
-    { "id": "SL-002", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": "SL-001", "evidence": null, "updated": "2026-10-24" },
+    { "id": "SL-001", "phase": 1, "owner": "agent", "status": "done", "blocked_on": null, "evidence": "lib/state/session.ts: session record persisted in runtime-controls.json via the store (stateVersion). Publisher marks verified on sessionState=logged_in and dead on PUBLISHER_LOGIN_REQUIRED (first loss wins); importSession marks healthy on a verified import. expiring derived from SESSION_EXPECTED_LIFETIME_HOURS (168) - SESSION_EXPIRY_WARNING_HOURS (24). tests/unit/sessionState.test.ts. Current production session has importedAt=null until the next import (no expiring warning for it).", "updated": "2026-10-25" },
+    { "id": "SL-002", "phase": 1, "owner": "agent", "status": "done", "blocked_on": null, "evidence": "SchedulerTickOutcome session_lost, AttemptReason session_required, SESSION_RECHECK_MINUTES=10. A parked tick calls nothing; the run that hits PUBLISHER_LOGIN_REQUIRED maps to session_lost, not the error ladder. Decision-table rows in tests/unit/nextAttempt.test.ts; end-to-end park and resume in tests/unit/schedulerStabilization.test.ts. Manual /api/run-publisher is not gated (lets a person verify a session by hand).", "updated": "2026-10-25" },
     { "id": "SL-003", "phase": 1, "owner": "agent", "status": "done", "blocked_on": null, "evidence": "854c835. routes/api/session.ts; 6 integration cases in tests/integration/sessionImportApi.test.ts (auth, no login cookie, 409, logged-out leaves state untouched, merge keeps server cf_clearance, unchanged skips probe). Deployed 2026-10-25: unauthenticated POST 401, authenticated junk 400. Scheduler un-park waits on SL-001/SL-002.", "updated": "2026-10-25" },
     { "id": "SL-004", "phase": 1, "owner": "agent", "status": "in_progress", "blocked_on": null, "evidence": "854c835: probeSession() in lib/observer/sessionProbe.ts, used by SL-003. Periodic probe from the scheduler still open.", "updated": "2026-10-25" },
-    { "id": "SL-005", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": "SL-001", "evidence": null, "updated": "2026-10-24" },
+    { "id": "SL-005", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" },
     { "id": "SL-006", "phase": 1, "owner": "agent", "status": "done", "blocked_on": null, "evidence": "854c835: keepSessionCookies() applied in saveStorageState and the import endpoint; unit test in tests/unit/sessionImport.test.ts. Cookie count drop to be confirmed after the first saved run.", "updated": "2026-10-25" },
     { "id": "SL-007", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": "Data point 1: imported 2026-10-16T15:43Z, died 2026-10-23T17:27Z (~7 d 2 h, hourly use).", "updated": "2026-10-24" },
     { "id": "SL-008", "phase": 1, "owner": "agent", "status": "dropped", "blocked_on": null, "evidence": "Superseded by SL-009: the operator's Chrome runs on the bot host.", "updated": "2026-10-25" },
@@ -84,7 +84,7 @@
     { "id": "EF-005", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" },
     { "id": "DP-001", "phase": 3, "owner": "agent", "status": "pending", "blocked_on": "PR-003 + 7 days", "evidence": "Baseline 2026-10-10..24: 10 draft-row timeouts, 3 selector misses, 1 Timeout, 2 observer_error.", "updated": "2026-10-24" },
     { "id": "DP-002", "phase": 3, "owner": "agent", "status": "pending", "blocked_on": "DP-001", "evidence": null, "updated": "2026-10-24" },
-    { "id": "DP-003", "phase": 3, "owner": "agent", "status": "pending", "blocked_on": "SL-002", "evidence": null, "updated": "2026-10-24" },
+    { "id": "DP-003", "phase": 3, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" },
     { "id": "DP-004", "phase": 3, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" },
     { "id": "DP-005", "phase": 3, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" }
   ],

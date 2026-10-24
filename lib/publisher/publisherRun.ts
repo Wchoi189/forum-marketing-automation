@@ -28,7 +28,7 @@ import { createBrowserContext, saveStorageState, BROWSER_EVAL_NAME_POLYFILL_SCRI
 import { sendSlackNotification } from '../notifications.js';
 import { getBoardDiagnostics, attemptPpomppuLoginFromBoard, isSessionUsable } from '../observer/boardDiagnostics.js';
 import { loadObserverPolicy } from '../observer/policyLoader.js';
-import { getPublisherControls, setPublisherControls, persistMaintenanceBlockedUntil } from '../state/index.js';
+import { getPublisherControls, setPublisherControls, persistMaintenanceBlockedUntil, markSessionLost, markSessionVerified } from '../state/index.js';
 import { runObserver } from '../observer/observerRun.js';
 
 // ---------------------------------------------------------------------------
@@ -329,6 +329,7 @@ async function _executePublisherRun(
         const loginFailure = await attemptPpomppuLoginFromBoard(page, policy.boardUrl);
         if (loginFailure) {
           sessionLost = true;
+          await markSessionLost(loginFailure.reason).catch(() => null); // parks the scheduler (SL-002)
           throw new Error(
             `PUBLISHER_LOGIN_REQUIRED: reason=${loginFailure.reason}` +
               (loginFailure.detail ? ` detail="${loginFailure.detail}"` : '') +
@@ -340,6 +341,7 @@ async function _executePublisherRun(
         }
       }
       const entry = loggedIn ? diagnostics : await getBoardDiagnostics(page);
+      if (entry.sessionState === 'logged_in') await markSessionVerified().catch(() => null);
       if (entry.writeButtonCount === 0) {
         throw new Error(
           `PUBLISHER_WRITE_ENTRY_UNAVAILABLE: reason=write_button_not_visible session=${entry.sessionState} title="${entry.title}" url="${entry.url}" rows=${entry.rowCount}`

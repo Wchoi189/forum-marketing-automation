@@ -34,13 +34,20 @@ export type AttemptReason =
   | 'gap_recheck'
   | 'already_running'
   | 'adaptive'
-  | 'block_deadline_clamp';
+  | 'block_deadline_clamp'
+  | 'session_required';
 
 /** Backoff ladder for consecutive unexpected failures. The last step repeats. */
 export const ERROR_BACKOFF_MINUTES = [15, 30, 60] as const;
 
 /** A benign overlap with a manual run is retried almost immediately. */
 export const ALREADY_RUNNING_RETRY_MINUTES = 1;
+
+/**
+ * SL-002: how often a parked scheduler re-reads the session record. The recheck is
+ * in-memory only (no browser, no observer); an import ends the park within one interval.
+ */
+export const SESSION_RECHECK_MINUTES = 10;
 
 /**
  * Slack added past a cooldown or block deadline so a tick does not land on the exact
@@ -170,6 +177,11 @@ function candidateFor(input: NextAttemptInput): Candidate {
       // A manual run is in flight. Come back shortly rather than entering the error
       // backoff - an overlap is not a failure.
       return fixed('already_running', ALREADY_RUNNING_RETRY_MINUTES, ['ALREADY_RUNNING_RETRY_MINUTES']);
+
+    case 'session_lost':
+      // SL-002: the bot cannot log itself in (KE-004), so retrying is pointless and
+      // the error ladder would only stretch the wait after a person fixes it.
+      return fixed('session_required', SESSION_RECHECK_MINUTES, ['SESSION_RECHECK_MINUTES']);
 
     case 'rate_limited':
       return fixed('rate_limited_cooldown', Math.max(1, outcome.remainingMinutes) + BLOCK_BUFFER_MINUTES, [

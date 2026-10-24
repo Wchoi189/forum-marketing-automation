@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { startScheduler } from "../../lib/scheduler/index.js";
 import type { BotDeps } from "../../lib/scheduler/index.js";
 import type { PublisherRunResult } from "../../lib/publisher/index.js";
-import { setPublisherControls } from "../../lib/state/index.js";
+import { setPublisherControls, markSessionLost, markSessionImported } from "../../lib/state/index.js";
 
 function createMockDeps(publisherImpl: () => Promise<PublisherRunResult>): BotDeps {
   return {
@@ -313,5 +313,51 @@ test("scheduler does not count an already_running skip as a failure", async () =
     );
   } finally {
     scheduler.stop();
+  }
+});
+
+/**
+ * SL-002 acceptance: a session death costs one failed run, then zero browser
+ * launches until an import is verified.
+ */
+test("scheduler parks on a dead session without entering the error backoff, and resumes after an import", async () => {
+  let publisherCalls = 0;
+  const deps = createMockDeps(async () => {
+    publisherCalls += 1;
+    // What publisherRun does on PUBLISHER_LOGIN_REQUIRED.
+    await markSessionLost("turnstile_unsolved");
+    return {
+      success: false,
+      message: "[Publisher] PUBLISHER_LOGIN_REQUIRED: reason=turnstile_unsolved",
+      runId: `run-login-${publisherCalls}`,
+      decision: "publisher_error",
+      artifactDir: null,
+    };
+  });
+
+  const scheduler = startScheduler(deps, 10);
+  try {
+    await markSessionImported();
+
+    assert.deepStrictEqual(await scheduler.runNow(), { type: "session_lost" });
+    let state = await scheduler.getState();
+    assert.strictEqual(publisherCalls, 1);
+    assert.strictEqual(state.consecutiveFailures, 0, "A lost session is a park, not a failure");
+    const nextInMinutes = (new Date(state.nextTickEta!).getTime() - Date.now()) / 60000;
+    assert.ok(nextInMinutes > 9 && nextInMinutes <= 10, `Expected the ~10 minute session recheck; got ${nextInMinutes.toFixed(2)}m`);
+
+    // Parked ticks launch nothing.
+    await scheduler.runNow();
+    await scheduler.runNow();
+    assert.strictEqual(publisherCalls, 1, "No publisher run while the session is dead");
+
+    // A verified import ends the park on the next tick.
+    await markSessionImported();
+    await scheduler.runNow();
+    state = await scheduler.getState();
+    assert.strictEqual(publisherCalls, 2);
+  } finally {
+    scheduler.stop();
+    await markSessionImported();
   }
 });

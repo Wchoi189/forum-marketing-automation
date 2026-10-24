@@ -8,7 +8,7 @@
 import { computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoice, shareOfVoiceMultiplierFromSoV, summarizeSchedulerSignals } from '../analytics/index.js';
 import { logger, LOG_EVENT } from '../logging/index.js';
 import { ENV } from '../../config/env.js';
-import { getPublisherControls } from '../state/index.js';
+import { getPublisherControls, isSessionParked } from '../state/index.js';
 
 import { defaultAutoPublisherControls } from './defaults.js';
 import { PUBLISH_COOLDOWN_WINDOW_MINUTES } from '../publisher/index.js';
@@ -43,6 +43,8 @@ function describeSchedule(
       return `[Scheduler] Gap monitoring — re-checking in ${nextMinutes} minute(s)`;
     case 'already_running':
       return `[Scheduler] A publisher run is already active — retrying in ${nextMinutes} minute(s)`;
+    case 'session_required':
+      return `[Scheduler] ppomppu session is dead — parked, no browser launched; re-checking in ${nextMinutes} minute(s). Log in through the session console to resume.`;
     case 'block_deadline_clamp':
       return `[Scheduler] Block deadline active — next tick scheduled at ${nextTickEta}`;
     case 'adaptive':
@@ -203,6 +205,12 @@ export function startScheduler(
       return false;
     }
 
+    // SL-002: a dead session cannot be revived by the bot (KE-004). Launch nothing
+    // and leave consecutiveFailures alone until an import marks it healthy.
+    if (isSessionParked()) {
+      return { type: 'session_lost' };
+    }
+
     running = true;
     const tickStartedAt = Date.now();
     let outcome: SchedulerTickOutcome = { type: 'normal' };
@@ -240,6 +248,9 @@ export function startScheduler(
         // Benign overlap with a manual run — leave consecutiveFailures alone and
         // come back in a minute rather than entering the error backoff.
         outcome = { type: 'already_running' };
+      } else if (result.decision === 'publisher_error' && isSessionParked()) {
+        // This run found the session dead (PUBLISHER_LOGIN_REQUIRED): park, not backoff.
+        outcome = { type: 'session_lost' };
       } else if (result.decision === 'publisher_error' || result.decision === 'observer_error') {
         consecutiveFailures += 1;
         outcome = { type: 'unexpected_error', consecutiveFailures };
