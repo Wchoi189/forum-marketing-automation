@@ -106,7 +106,7 @@ in `publisher.run.failed`. The bot cannot log in by itself (KE-004); a person mu
 | API/publisher changes | `npm run test:integration` |
 | Parser/runtime changes | `npm run test` |
 
-Do not weaken fail-closed checks without explicit approval.
+Never weaken fail-closed checks. If one blocks the task, fix the cause instead.
 
 ## Gap Health Semantics
 
