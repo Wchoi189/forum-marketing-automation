@@ -38,10 +38,10 @@
       "title": "Restore the session through the login console (SL-010)",
       "detail": "Open the Slack 'ppomppu login needed' link (or request one at http://100.124.62.44:3000/session/console) on any tailnet device, tap the security check and 로그인. The session.imported log line then answers SL-011.",
       "owner": "human",
-      "status": "pending",
+      "status": "done",
       "blocked_on": null,
-      "evidence": null,
-      "updated": "2026-10-24"
+      "evidence": "Session restored by a person before 2026-10-24T18:53Z (exact time lost with the recreated container's logs). After the 75d427f deploy the scheduler probe saw logged_in (session.probed 2026-10-24T21:56:51Z); runtime session record healthy, importedAt null because the login predates SL-001.",
+      "updated": "2026-10-25"
     },
     {
       "id": "PR-003",
@@ -49,10 +49,10 @@
       "title": "Re-enable the scheduler and confirm published_verified",
       "detail": "After PR-002: enable the scheduler in the control panel, confirm one published_verified, and record the import time as session lifetime data point 2 (SL-007).",
       "owner": "human",
-      "status": "blocked",
-      "blocked_on": "PR-002",
-      "evidence": null,
-      "updated": "2026-10-24"
+      "status": "done",
+      "blocked_on": null,
+      "evidence": "Scheduler enabled; published_verified 2026-10-24T18:53:52Z (view.php?id=gonggu&no=238485), then rate_limited and gap_recheck every 3 min. Lifetime data point 2 starts at the login, <= 2026-10-24T18:53Z (SL-007).",
+      "updated": "2026-10-25"
     },
     {
       "id": "PR-004",
@@ -75,10 +75,10 @@
     { "id": "SL-008", "phase": 1, "owner": "agent", "status": "dropped", "blocked_on": null, "evidence": "Superseded by SL-009: the operator's Chrome runs on the bot host.", "updated": "2026-10-25" },
     { "id": "SL-009", "phase": 1, "owner": "agent", "status": "done", "blocked_on": null, "evidence": "854c835: tools/session-sync-extension, npm run session:sync-setup. Optional since SL-010 (needs an online desktop browser); never exercised with real cookies.", "updated": "2026-10-25" },
     { "id": "SL-010", "phase": 1, "owner": "agent", "status": "in_progress", "blocked_on": "PR-002: first real login through the console", "evidence": "2fa66f8, deployed 2026-10-25. 73/73 integration incl. 3 console route cases; live: POST /api/session/console 200, SSE state=ready, frame shows login.php with ID filled, password masked, 자동로그인 ticked, Turnstile verifying, Korean glyphs rendered; viewer page 200. Turnstile renders in headless server Chromium (spike 2026-10-25).", "updated": "2026-10-25" },
-    { "id": "SL-011", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": "PR-002", "evidence": "login form posts auto_login=1 to login_check.php (guest inspection 2026-10-25); effect unknown until a real login. Operator 2026-10-25: the login issued PPOMSESSIONID with a 30-day expiry. Check on 2026-11-01 (day 7) whether the bot is still logged in without a console login. The day-6 expiring warning fires regardless; if the session survives, raise SESSION_EXPECTED_LIFETIME_HOURS.", "updated": "2026-10-25" },
+    { "id": "SL-011", "phase": 1, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": "login form posts auto_login=1 to login_check.php (guest inspection 2026-10-25). Saved state after the first publish: PPOMSESSIONID expires 2026-11-23T18:53:50Z, exactly 30 days after that run's save (18:53:50Z), so ppomppu re-issues it on use rather than fixing it at login. If each saved run rolls it forward, the session should outlive day 7. Check on 2026-11-01: session record still healthy with no console login since, and PPOMSESSIONID expiry later than 2026-11-23. Then raise SESSION_EXPECTED_LIFETIME_HOURS. This session has importedAt null, so no expiring warning fires for it.", "updated": "2026-10-25" },
     { "id": "EF-006", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": "PR-003 (needs scheduler-enabled operation)", "evidence": "Pre-initiative snapshot in research/01 F-04 (40 h, includes outage).", "updated": "2026-10-24" },
     { "id": "EF-001", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": "EF-006", "evidence": null, "updated": "2026-10-24" },
-    { "id": "EF-002", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": "PR-002", "evidence": null, "updated": "2026-10-24" },
+    { "id": "EF-002", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-25" },
     { "id": "EF-003", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": "EF-002 verdict", "evidence": null, "updated": "2026-10-24" },
     { "id": "EF-004", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" },
     { "id": "EF-005", "phase": 2, "owner": "agent", "status": "pending", "blocked_on": null, "evidence": null, "updated": "2026-10-24" },
@@ -98,6 +98,7 @@
     "2026-10-24 Q-01, Q-02, Q-03 resolved. PR-001 done (deployed 43d9c9f, healthy, scheduler still disabled). PR-002 unblocked; waiting on operator session import.",
     "2026-10-25 Operator: manual cookie curation breaks automation. Added SL-009 (browser session sync), SL-008 dropped. SL-003 and SL-006 done, SL-004 partly, all in 854c835 and deployed. PR-002 now means: load the extension and log in once in Chrome.",
     "2026-10-25 Operator: recovery must not depend on a PC with offline days. Added SL-010 (server-side login console, 2fa66f8, deployed) and SL-011 (자동로그인 lifetime). SL-009 demoted to optional. PR-002 now means: one login through the console from any tailnet device.",
-    "2026-10-25 SL-004 (scheduler probe) and SL-005 (banner, expiry and death Slack) done. SL-011 check date: 2026-11-01."
+    "2026-10-25 SL-004 (scheduler probe) and SL-005 (banner, expiry and death Slack) done. SL-011 check date: 2026-11-01.",
+    "2026-10-25 75d427f deployed (rollback image marketing-automation-app:rollback-20261025-cb918e6). PR-002 and PR-003 done (operator login, published_verified 18:53Z). EF-002 unblocked. DP-001 window ends 2026-11-01."
   ]
 }
