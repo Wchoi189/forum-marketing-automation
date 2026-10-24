@@ -11,10 +11,20 @@ export type {
   ObserverControlsWithGap,
   PublisherControls,
   SchedulerControls,
+  SessionRecord,
+  SessionStatus,
   StateMeta,
 } from './types.js';
 
 export { StateVersionConflictError } from './types.js';
+
+// Reactive state store
+export {
+  RuntimeStateStore,
+  getRuntimeStateStore,
+  initRuntimeStateStore,
+} from './store.js';
+export type { RuntimeState, StateListener } from './store.js';
 
 // Observer state
 export {
@@ -39,7 +49,22 @@ export {
   readPersistedPublisherControls,
   persistPublisherControls,
   persistPublishBlockedUntil,
+  persistMaintenanceBlockedUntil,
 } from './publisher.js';
+
+// ppomppu login session (SL-001)
+export {
+  DEFAULT_SESSION_RECORD,
+  normalizeSessionRecord,
+  deriveSessionStatus,
+  sessionView,
+  isSessionProbeDue,
+  getSessionRecord,
+  isSessionParked,
+  markSessionVerified,
+  markSessionImported,
+  markSessionLost,
+} from './session.js';
 
 // NL webhook state
 export {
@@ -63,5 +88,6 @@ export {
   readPersistedState,
   readStateMeta,
   persistState,
+  writeFileAtomic,
 } from './persistence.js';
 export type { PersistedStateFile } from './persistence.js';

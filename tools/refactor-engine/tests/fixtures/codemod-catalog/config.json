@@ -1,0 +1,10 @@
+{
+  "scope": { "include": ["src/**/*.js"], "exclude": [] },
+  "limits": { "fileLines": 400, "functionLines": 100 },
+  "patterns": [
+    { "id": "old-call", "kind": "regex", "regex": "\\boldCall\\(", "why": "fixture: oldCall is being renamed" }
+  ],
+  "codemods": ["catalog/*"],
+  "baseline": "baseline.json",
+  "receipts": "receipts"
+}

@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-08
 **Author:** Claude (post-implementation review of the cleanup in `cleanup-requirements-2026-08-08.md`)
-**Status:** Part 6 steps 1–7 shipped (2026-08-09). Steps 8–9 open.
+**Status:** Part 6 steps 1–8 shipped (step 8 on 2026-08-10). Step 9 open.
 
 | Step | State |
 |---|---|
@@ -13,7 +13,8 @@
 | 5 Pre-commit hook | Done — `scripts/hooks/pre-commit`, installed by `npm run hooks:install` |
 | 6 Spec lifecycle | Done — see the amendment to 4.3 below. Hard gate, no ratchet. |
 | 7 `lib/` module extraction | Done — see the amendment to 5.2 below. Baseline 82 → 76. |
-| 8–9 | Open, see Part 6 |
+| 8 `AnalyticsPage` + `routes/api/logs.ts` | Done — see the amendment to items 4–5 below. Two size-budget exemptions dropped. |
+| 9 | Open, see Part 6 |
 
 Step 4 shipped wider than "root allowlist only": placement rules, module entry
 points, and size budgets are all checked. Module entry points run as a **ratchet**
@@ -42,8 +43,8 @@ Companion documents:
 | # | Item | Detail |
 |---|---|---|
 | 3 | **Re-enable CI** | `.github/workflows/deploy-aws.yml.disabled` has been disabled since 2026-05-09 ("Competitor Intelligence feature preview complete. Needs additional testing."). It already contains `npm run lint` + `npm run test:integration`. **Nothing has gated a change for three months.** See Part 3 — this is the root cause of everything else in this document. |
-| 4 | **`src/AnalyticsPage.tsx` (799 lines)** | Largest frontend file, and the only page still outside `src/pages/`. `src/App.tsx` was already decomposed from ~1800 lines down to 156; this file did not get the same treatment. |
-| 5 | **`routes/api/logs.ts` (569 lines)** | Largest route file by a wide margin — the next is `control.ts` at 467. Worth checking whether it is doing analytics work that belongs in `lib/`. |
+| 4 | ~~**`src/AnalyticsPage.tsx` (799 lines)**~~ | **Done 2026-08-10.** Largest frontend file, and the only page still outside `src/pages/`. `src/App.tsx` was already decomposed from ~1800 lines down to 156; this file did not get the same treatment. Now 227 lines in `src/pages/` — see the amendment below. |
+| 5 | ~~**`routes/api/logs.ts` (569 lines)**~~ | **Done 2026-08-10.** Largest route file by a wide margin — the next is `control.ts` at 467. Worth checking whether it is doing analytics work that belongs in `lib/`. It was; now 381 lines — see the amendment below. |
 | 6 | **Spec lifecycle** | 55 files in `.planning/spec-kit/specs/`. **35 have no `status` field at all**; the 20 that do use seven different vocabularies: `done`, `implemented`, `active`, `ACTIVE`, `IN_PROGRESS`, `proposed`, `draft`. Nine are marked complete but still sit beside in-flight specs. |
 | 7 | **`lib/` flat files** | 24 loose `.ts` files against 8 subdirectories. Several are obvious clusters — see Part 5. |
 
@@ -377,6 +378,62 @@ Six files exceed 500 lines. None is catastrophic; the point is that nothing curr
 
 Precedent exists and it worked: `src/App.tsx` went from ~1800 lines to 156 with pages and hooks extracted. That was the right move. Nothing prevents the next `App.tsx` from forming.
 
+**Amendment (step 8, 2026-08-10).** Six exemptions became four.
+
+`src/AnalyticsPage.tsx` split at the same three seams as `App.tsx` — shell in
+`src/pages/`, fetching in `src/hooks/`, views in `src/components/` — plus a
+fourth for pure browser-side helpers in `src/lib/`:
+
+```
+src/pages/AnalyticsPage.tsx                            227
+src/components/analytics/RankingsTab.tsx               192
+src/components/analytics/AuthorDrawer.tsx              130
+src/components/analytics/MarketTab.tsx                  96
+src/hooks/useCompetitorAnalytics.ts                     86
+src/components/analytics/Heatmap.tsx                    73
+src/components/analytics/BotIntelTab.tsx                51
+src/lib/analyticsCsv.ts, analyticsFormat.ts             45
+src/components/analytics/BotBadge.tsx, KpiCard.tsx      24
+```
+
+The component boundary was decided by call count, not by size: `Heatmap` and
+`BotBadge` each already had two callers (a tab and the drawer). One-caller
+sections stayed inside their tab.
+
+`routes/api/logs.ts` was the more interesting half, because the question in
+item 5 — "is it doing analytics work that belongs in `lib/`?" — had a sharper
+answer than expected. Two things moved to `lib/analytics/`:
+
+- `buildSchedulerSignalDiagnostics` and its helpers, ~117 lines, **already
+  exported from the route file**. Anything wanting the calibration numbers had
+  to import a router module. It reads publisher history through an injected
+  loader and names no Express type; it was never route code.
+- The `/api/competitor-stats` and `/api/board-stats` handler bodies. These were
+  written inline against structurally-typed `log.all_posts` parameters instead
+  of `ActivityLog`, and that is how they drifted: both **hardcoded the string
+  `'shareplan'`** while `ENV.OUR_AUTHOR_SUBSTRING` exists and is documented as
+  the knob that identifies our own posts. Extracting them to
+  `lib/analytics/boardStats.ts` made the substring an argument, and the routes
+  now pass the env var. Identical output under the default config; correct
+  output under any other.
+
+The lesson is narrower than "routes should be thin". Inline handler bodies with
+structural parameter types cannot be found by a grep for the type they operate
+on, so they drift away from shared configuration without any single edit
+looking wrong. `tests/unit/boardStats.test.ts` (14 cases) is the first coverage
+either function has had.
+
+Reviewing the route also turned up KE-003: `activity_log.json` is written
+newest-first, and three readers slice it from the other end. Every consequence
+is currently masked by the observer's 200-entry cap being smaller than every
+other limit involved, so nothing is broken — it is recorded rather than fixed
+because the real defect is two constants named `KEEP_ACTIVITY_LOG_ENTRIES` with
+different values in two modules, which is wider than step 8.
+
+Remaining exemptions: `tests/integration/api.integration.test.ts` (973),
+`src/pages/CompetitorIntelPage.tsx` (575), `src/hooks/useAppData.ts` (541),
+`lib/analytics/competitors.ts` (520).
+
 ---
 
 ## Part 6 — Suggested Sequence
@@ -392,7 +449,7 @@ Ordered so each step is verified by the previous one.
 | 5 | Install the pre-commit hook | Local feedback. Optional but cheap once step 4 exists. |
 | 6 | Spec lifecycle directories + closed status vocabulary | Largest remaining navigation win. |
 | 7 | `lib/` module extraction (5.2), one per commit | Now mechanically verified by steps 1–4. |
-| 8 | Decompose `src/AnalyticsPage.tsx`, review `routes/api/logs.ts` | Size budget will have been flagging these. |
+| 8 | Decompose `src/AnalyticsPage.tsx`, review `routes/api/logs.ts` | Size budget will have been flagging these. **Done 2026-08-10** — amendment in 5.3. |
 | 9 | Resolve `templates/`, `storage/`, `.agent/contracts/` naming | Lowest urgency, still worth doing. |
 
 **If only one item ships: step 1.** Steps 4–9 are conventions, and this session demonstrated at length what happens to conventions with nothing enforcing them.

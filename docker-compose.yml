@@ -3,6 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Stamped by scripts/deploy.sh; a bare `docker compose build` reports "unknown".
+        GIT_SHA: ${GIT_SHA:-unknown}
     shm_size: 256mb
     ports:
       - "3000:3000"

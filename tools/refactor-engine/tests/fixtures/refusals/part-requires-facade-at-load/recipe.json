@@ -1,0 +1,9 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "part-requires-facade-at-load",
+  "strategy": "split-module",
+  "source": "src/host.js",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "values", "declarations": ["x"] }],
+  "keep": ["helper"]
+}

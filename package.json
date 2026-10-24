@@ -6,8 +6,6 @@
   "scripts": {
     "dev": "tsx --tsconfig tsconfig.server.json server.ts",
     "mcp:parser": "tsx mcp/parser-server.ts",
-    "playbook:from-recorder": "node scripts/convert-recorder-to-playbook.mjs",
-    "workflow:template": "node scripts/create-workflow-template.mjs",
     "scheduler:fixtures": "tsx scripts/generate_scheduler_signal_fixtures.ts",
     "scheduler:replay": "tsx scripts/scheduler_signal_replay.ts",
     "scheduler:replay:recent": "tsx scripts/scheduler_signal_replay.ts --window-days 14 --window-size 8 --history-limit 240 --output-dir artifacts/scheduler-replay/latest-recent",
@@ -20,6 +18,8 @@
     "mempalace:wake-up": "bash scripts/mempalace-loop.sh wake-up",
     "mempalace:checkpoint": "bash scripts/mempalace-loop.sh checkpoint",
     "mempalace:handover": "bash scripts/mempalace-loop.sh handover",
+    "session:import": "tsx scripts/import-session-cookies.ts",
+    "session:sync-setup": "tsx scripts/session-sync-setup.ts",
     "publisher-history:parquet": "python3 scripts/publisher_history_jsonl_to_parquet.py",
     "build": "vite build",
     "preview": "vite preview",
@@ -30,12 +30,15 @@
     "test": "npm run lint && npm run test:unit && npm run test:integration && npm run test:mcp:parser && npm run test:competitor-intel",
     "test:unit": "bash scripts/run-tests.sh 'tests/unit/*.test.ts'",
     "test:mcp:parser": "bash scripts/run-tests.sh tests/integration/parser-mcp.integration.test.ts",
-    "test:integration": "bash scripts/run-tests.sh tests/integration/api.integration.test.ts tests/integration/playbook-runner.integration.test.ts tests/integration/nlWebhook.test.ts tests/integration/bot-stability.test.ts",
+    "test:integration": "bash scripts/run-tests.sh tests/integration/api.integration.test.ts tests/integration/playbook-runner.integration.test.ts tests/integration/nlWebhook.test.ts tests/integration/sessionImportApi.test.ts tests/integration/bot-stability.test.ts",
     "test:competitor-intel": "bash scripts/run-tests.sh 'tests/unit/competitor-intel/*.test.ts' 'tests/integration/competitor-intel.integration.test.ts'",
-    "clean:all": "bash scripts/clean-workspace.sh"
+    "clean:all": "bash scripts/clean-workspace.sh",
+    "agent:friction": "tsx scripts/session-friction.ts",
+    "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@novnc/novnc": "1.5.0",
     "@slack/web-api": "^7.15.2",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
@@ -55,6 +58,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.5.0",
+    "ws": "8.18.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -68,6 +72,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/react-router-dom": "^5.3.3",
+    "@types/ws": "8.5.12",
     "@vitejs/plugin-react": "^5.0.4",
     "@xyflow/react": "^12.10.2",
     "autoprefixer": "^10.4.21",

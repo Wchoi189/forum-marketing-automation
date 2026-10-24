@@ -1,0 +1,69 @@
+{
+  "spec_id": "s3-draft-path-resilience-v1",
+  "status": "proposed",
+  "purpose": "Keep the online ppomppu drafts as the content source of truth, make loading them survive the flakes that cost a run each, and mirror them one way into the workspace so the workspace stops drifting.",
+  "design_intent": "The operator edits drafts online; the workspace copies are outdated (research/01, F-05). So the fix is not a new content source but a sturdier read of the existing one. Pre-submit steps are idempotent and can be retried within a run; submit is not and never is. Errors are classified once, and the scheduler acts on the class instead of treating every failure as the same backoff.",
+  "review_source": ".planning/initiatives/publisher-resilience/research/01-assessment-20261024.md",
+  "addresses_findings": ["F-03", "F-05"],
+  "prerequisite": "PR-001 deployed, and DP-001 has seven days of data.",
+  "model_execution_guidance": {
+    "recommended_model": "Any capable model; Opus-class for DP-003",
+    "execution_mode": "design_first_then_implement",
+    "note": "DP-002 must never re-run submit-post. Assert that in a test before writing the retry."
+  },
+  "work_items": [
+    {
+      "id": "DP-001",
+      "title": "Measure the draft-row fix in production",
+      "target_files": [],
+      "action": "After PR-001, count draft-row locator timeouts and selector misses over seven days against the baseline of 10 and 3 per 14 days. If the row timeout is gone, close the row part of DP-002.",
+      "risk": "low"
+    },
+    {
+      "id": "DP-002",
+      "title": "In-run retry for idempotent pre-submit steps",
+      "target_files": ["lib/publisher/flow/runPublisherFlow.ts", "lib/playbookRunner.ts"],
+      "action": "When open-saved-drafts, confirm-load-draft-modal or the draft-row click fails, re-navigate to the write page and retry the non-submit half once, with a publisher.step.retried log line. A second failure fails the run as today. submit-post is excluded by construction.",
+      "risk": "medium"
+    },
+    {
+      "id": "DP-003",
+      "title": "Error taxonomy drives the scheduler",
+      "target_files": ["lib/publisher/diagnostics.ts", "lib/scheduler/run.ts", "lib/scheduler/types.ts"],
+      "action": "Map every PUBLISHER_* code and playbook failure to transient | terminal | platform. terminal (session lost, write permission denied) feeds SL-002's park; platform (maintenance, WAF 403) feeds existing block deadlines; transient keeps the error ladder. Unknown errors are transient. One table, unit tested.",
+      "risk": "medium"
+    },
+    {
+      "id": "DP-004",
+      "title": "One-way draft mirror into the workspace",
+      "target_files": ["lib/publisher/ui/draftModal.ts", "routes/api/logs.ts", "scripts/sync-drafts.ts", "templates/ppompu-ad-design-system/online-drafts/", ".agent/OPERATIONS.md"],
+      "action": "Two halves, because the container has no git checkout (templates/ is not in the image). In the container: on each successful draft load, capture title, body HTML and a hash of the loaded draft into ARTIFACTS_DIR/draft-mirror/ (latest per draft slot only; durable, retention row in OPERATIONS.md), log draft.changed when the hash differs from the last capture, and serve the latest capture at GET /api/drafts/mirror. In the workspace: scripts/sync-drafts.ts fetches that endpoint and writes templates/ppompu-ad-design-system/online-drafts/<slot>.html plus <slot>.meta.json (title, hash, capturedAt), so draft history is reviewable in git (Q-03). It never edits ad-data.yaml or other hand-maintained files; reconciling those stays a human step. Sync is one way: online to workspace.",
+      "risk": "low"
+    },
+    {
+      "id": "DP-005",
+      "title": "Selector drift early warning",
+      "target_files": ["lib/publisher/ui/selectorResolver.ts"],
+      "action": "Log which candidate index matched per step. Warn when a step matches only on a fallback candidate for three consecutive runs, so a ppomppu DOM change is visible before the last candidate stops matching.",
+      "risk": "low"
+    }
+  ],
+  "acceptance_criteria": [
+    "Over seven days, no run fails on a single transient pre-submit step failure.",
+    "No test or code path can invoke submit-post twice in one run.",
+    "Every failure carries a class, and the scheduler's next attempt reason follows from it.",
+    "The workspace draft copy matches the latest online draft hash after a successful publish."
+  ],
+  "out_of_scope": [
+    "Composing posts from workspace templates (rejected in research/01 while online drafts are the source of truth).",
+    "Writing to ppomppu drafts from the workspace."
+  ],
+  "session_boundary": {
+    "auto_stop": true,
+    "gate_criteria": [
+      "npm run lint passes with 0 errors",
+      "npm run test:unit and the playbook-runner integration test pass",
+      "tasks/publisher-resilience-tasks-v1.json updated with status and evidence"
+    ]
+  }
+}

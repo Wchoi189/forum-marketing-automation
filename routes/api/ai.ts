@@ -19,7 +19,7 @@ import {
   markAdvisorCacheApplied,
   getAdvisorTokenStats,
 } from '../../lib/aiAdvisor.js';
-import { readPublisherHistory } from '../../lib/publisherHistory.js';
+import { readPublisherHistory } from '../../lib/publisher/index.js';
 import { persistState } from '../../lib/state/index.js';
 import type { LogCache } from '../../lib/logCache.js';
 import type { SchedulerController } from '../routerTypes.js';

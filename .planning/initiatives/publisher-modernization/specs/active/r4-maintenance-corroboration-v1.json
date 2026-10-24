@@ -1,0 +1,80 @@
+{
+  "spec_id": "r4-maintenance-corroboration-v1",
+  "status": "proposed",
+  "purpose": "Stop the phase 3 maintenance detector from pausing the entire system because a user-submitted post title on a healthy board contained the substring 점검.",
+  "design_intent": "Phase 3 built a competent Korean datetime parser and wired it to a trigger with no corroboration requirement. A bare keyword hit is sufficient - HTTP 200 with a full board of rows still trips it. The observer already holds the disambiguating signal (rowCount) and does not use it. The fix is not a better keyword list; it is requiring the page to actually look unavailable before believing text that says it is.",
+  "review_source": ".planning/initiatives/publisher-modernization/review-20260905/01-assessment.md",
+  "addresses_findings": ["F-05"],
+  "prerequisite": "None strictly - R4 is independent of R1-R3 and may be pulled forward if a false-positive pause is observed in production.",
+  "model_execution_guidance": {
+    "recommended_model": "Deep reasoning model for MC-001 and MC-002; a fast model is adequate for MC-004 once the fixture exists",
+    "execution_mode": "fixture_first",
+    "note": "Capture the real board fixture before changing the detector. Without a realistic HTTP-200 fixture the change cannot be shown to work, and the existing maintenanceNotice.test.ts only exercises the true-positive direction."
+  },
+  "work_items": [
+    {
+      "id": "MC-001",
+      "title": "Require corroboration before declaring maintenance",
+      "target_files": ["lib/observer/boardDiagnostics.ts"],
+      "action": "parseMaintenanceNotice gains a required `signals` argument carrying rowCount and writeButtonCount. Replace the trigger at L82 with: maintenance = statusCode in {502,503,504} OR (keyword AND rowCount === 0 AND writeButtonCount === 0). getBoardDiagnostics already computes both counts and can pass them through. Every existing caller must be updated; the argument is required rather than optional so a missed call site is a compile error, not a silent revert to the old behaviour.",
+      "rationale": "The keyword list includes the unanchored substring 점검중 (L45), scanned against page.innerText('body') of a deals board carrying roughly twenty user-submitted post titles. On Ppomppu, 점검 (inspection) is ordinary commercial vocabulary.",
+      "risk": "medium"
+    },
+    {
+      "id": "MC-002",
+      "title": "Scope the time-range parse to the matched notice line",
+      "target_files": ["lib/observer/boardDiagnostics.ts"],
+      "action": "Both date-range regexes currently run against the whole textCombined. Once isMaintenance is true, timeRangeRegex (L144) matches any HH:MM ~ HH:MM or N시 ~ M시 anywhere on the page, and board rows and deal titles are full of times. Run the parse against the matched notice line (already computed as noticeSnippet) plus a small window of surrounding lines, not the entire body.",
+      "risk": "medium"
+    },
+    {
+      "id": "MC-003",
+      "title": "Cap the parsed maintenance window",
+      "target_files": ["lib/observer/boardDiagnostics.ts"],
+      "action": "A single unlucky match can currently set maintenanceBlockedUntil up to roughly 24 hours out, and that value is persisted to disk and survives restart. Cap the parsed window at a defensible maximum - 6 hours suggested. Anything longer falls back to the 30-minute default and logs a warning carrying the raw notice text, so a real long maintenance window is visible to the operator rather than silently applied.",
+      "risk": "low"
+    },
+    {
+      "id": "MC-004",
+      "title": "Add the false-positive regression fixture",
+      "target_files": ["tests/unit/maintenanceNotice.test.ts", "tests/fixtures/"],
+      "action": "Capture a realistic HTTP-200 Ppomppu board page whose post titles contain 점검 and at least one HH:MM ~ HH:MM string. Assert isMaintenance === false. This fixture is the regression guard and is worth taking from a real board page rather than hand-writing, because the failure mode is precisely that hand-written fixtures are too clean. Keep the existing true-positive tests passing unchanged.",
+      "risk": "low"
+    },
+    {
+      "id": "MC-005",
+      "title": "Replace string-sniffed control flow for the maintenance decision",
+      "target_files": ["lib/observer/observerRun.ts", "lib/publisher/publisherRun.ts", "contracts/models.ts"],
+      "action": "The publisher currently detects platform maintenance by testing `log.error?.includes('PLATFORM_MAINTENANCE')`. Carry the condition as a structured field on the observer result rather than as a substring of a human-readable error message. Low urgency but cheap while this file is open, and the string coupling will break the first time the message is reworded.",
+      "risk": "low"
+    }
+  ],
+  "acceptance_criteria": [
+    "A healthy HTTP-200 board fixture containing 점검 in a post title and a time range in another yields isMaintenance === false.",
+    "An HTTP 503 response yields isMaintenance === true regardless of body text.",
+    "A genuine maintenance page (keyword, zero rows, no write button) yields isMaintenance === true with the correct parsed window.",
+    "No parsed maintenance window exceeds the cap; one that would produces a warning log carrying the raw notice.",
+    "The publisher's maintenance branch is selected by a structured field, not a substring match."
+  ],
+  "out_of_scope": [
+    "Scheduler behaviour once maintenance is detected - that path is correct and R1's clamp already protects it.",
+    "Expanding the keyword list. The defect is the trigger condition, not keyword coverage."
+  ],
+  "session_boundary": {
+    "auto_stop": true,
+    "gate_criteria": [
+      "npm run lint:structure passes with 0 errors",
+      "npm run lint passes with 0 errors",
+      "npm run test:unit passes, including the new false-positive fixture and all pre-existing true-positive cases",
+      "npm run build passes"
+    ],
+    "handover_instructions": {
+      "generate_file": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+      "use_template": ".agent/session-handovers/template.json",
+      "required_fields": ["handover_id", "timestamp_utc", "completed_items", "artifacts_touched", "next_actions", "continuation_prompt", "constraints"],
+      "honesty_requirement": "Name only files that exist and claims verified by a command whose output you read.",
+      "constraints_to_forward_verbatim": "# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated.",
+      "continuation_prompt": "R4 (maintenance corroboration) is complete. Proceed per .planning/initiatives/publisher-modernization/specs/active/r5-doc-and-contract-drift-v1.json to close the documentation drift and the writer/reader contract gaps.\n\n# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated."
+    }
+  }
+}

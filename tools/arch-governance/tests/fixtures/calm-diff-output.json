@@ -1,0 +1,410 @@
+{
+  "nodesAdded": [
+    {
+      "unique-id": "redis-cache",
+      "node-type": "service",
+      "name": "Cache",
+      "description": "In-memory cache in the container.",
+      "metadata": {
+        "zone": "container"
+      }
+    }
+  ],
+  "nodesRemoved": [],
+  "nodesModified": [],
+  "nodesSame": [
+    {
+      "unique-id": "operator",
+      "node-type": "actor",
+      "name": "Operator",
+      "description": "Single operator using the browser UI and running repair scripts via docker exec."
+    },
+    {
+      "unique-id": "prod-container",
+      "node-type": "system",
+      "name": "Production container",
+      "description": "The one runtime: a single container on port 8080.",
+      "metadata": {
+        "zone": "container"
+      }
+    },
+    {
+      "unique-id": "web-frontend",
+      "node-type": "webclient",
+      "name": "Web frontend",
+      "description": "React build baked into the image and served by the API server; runs in the operator browser.",
+      "metadata": {
+        "zone": "client"
+      }
+    },
+    {
+      "unique-id": "api-server",
+      "node-type": "service",
+      "name": "API server",
+      "description": "Express server in the production container; runs in-process schedulers.",
+      "interfaces": [
+        {
+          "unique-id": "api-http",
+          "host": "localhost",
+          "port": 8080
+        }
+      ],
+      "metadata": {
+        "zone": "container"
+      }
+    },
+    {
+      "unique-id": "database-sqlite",
+      "node-type": "database",
+      "name": "SQLite database",
+      "description": "WAL-mode SQLite file on a named Docker volume inside the production container.",
+      "metadata": {
+        "zone": "container"
+      }
+    },
+    {
+      "unique-id": "telegram-bot-api",
+      "node-type": "system",
+      "name": "Telegram Bot API",
+      "description": "Outbound bot notifications.",
+      "metadata": {
+        "zone": "external",
+        "hosts": [
+          "api.telegram.org"
+        ]
+      }
+    },
+    {
+      "unique-id": "google-apis",
+      "node-type": "system",
+      "name": "Google APIs",
+      "description": "Sheets, Drive and OAuth.",
+      "metadata": {
+        "zone": "external",
+        "hosts": [
+          "www.googleapis.com",
+          "docs.google.com",
+          "drive.google.com"
+        ]
+      }
+    },
+    {
+      "unique-id": "upbit-api",
+      "node-type": "system",
+      "name": "Upbit API",
+      "description": "Exchange-rate observation (Tether in Won).",
+      "metadata": {
+        "zone": "external",
+        "hosts": [
+          "api.upbit.com"
+        ]
+      }
+    },
+    {
+      "unique-id": "coingecko-api",
+      "node-type": "system",
+      "name": "CoinGecko API",
+      "description": "Exchange-rate observation.",
+      "metadata": {
+        "zone": "external",
+        "hosts": [
+          "api.coingecko.com"
+        ]
+      }
+    },
+    {
+      "unique-id": "exchangerate-api",
+      "node-type": "system",
+      "name": "ExchangeRate-API",
+      "description": "Exchange-rate observation.",
+      "metadata": {
+        "zone": "external",
+        "hosts": [
+          "api.exchangerate-api.com"
+        ]
+      }
+    },
+    {
+      "unique-id": "tianapi",
+      "node-type": "system",
+      "name": "TianAPI",
+      "description": "Optional exchange-rate source, enabled by an API key.",
+      "metadata": {
+        "zone": "external",
+        "hosts": [
+          "apis.tianapi.com"
+        ]
+      }
+    },
+    {
+      "unique-id": "plane-api",
+      "node-type": "system",
+      "name": "Plane API",
+      "description": "Issue tracker integration with an inbound webhook.",
+      "metadata": {
+        "zone": "external",
+        "hosts": [
+          "api.plane.so",
+          "app.plane.so"
+        ]
+      }
+    },
+    {
+      "unique-id": "openai-api",
+      "node-type": "system",
+      "name": "OpenAI API",
+      "description": "Inventory text parsing.",
+      "metadata": {
+        "zone": "external",
+        "hosts": [
+          "api.openai.com"
+        ]
+      }
+    }
+  ],
+  "nodesRenamed": [],
+  "edgesAdded": [
+    {
+      "unique-id": "rel-api-cache",
+      "description": "API server reads and writes the cache.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "api-server"
+          },
+          "destination": {
+            "node": "redis-cache"
+          }
+        }
+      }
+    }
+  ],
+  "edgesRemoved": [],
+  "edgesModified": [
+    {
+      "original": {
+        "unique-id": "rel-api-db",
+        "description": "In-process SQLite access.",
+        "relationship-type": {
+          "connects": {
+            "source": {
+              "node": "api-server"
+            },
+            "destination": {
+              "node": "database-sqlite"
+            }
+          }
+        }
+      },
+      "updated": {
+        "unique-id": "rel-api-db",
+        "description": "API server reads and writes the database through a pool.",
+        "relationship-type": {
+          "connects": {
+            "source": {
+              "node": "api-server"
+            },
+            "destination": {
+              "node": "database-sqlite"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "edgesSame": [
+    {
+      "unique-id": "rel-operator-web",
+      "description": "Operator uses the web UI.",
+      "relationship-type": {
+        "interacts": {
+          "actor": "operator",
+          "nodes": [
+            "web-frontend"
+          ]
+        }
+      }
+    },
+    {
+      "unique-id": "rel-container",
+      "description": "What runs in the production container.",
+      "relationship-type": {
+        "deployed-in": {
+          "container": "prod-container",
+          "nodes": [
+            "api-server",
+            "database-sqlite",
+            "web-frontend"
+          ]
+        }
+      }
+    },
+    {
+      "unique-id": "rel-web-api",
+      "description": "Browser calls the API.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "web-frontend"
+          },
+          "destination": {
+            "node": "api-server",
+            "interfaces": [
+              "api-http"
+            ]
+          }
+        }
+      },
+      "protocol": "HTTP"
+    },
+    {
+      "unique-id": "rel-api-telegram",
+      "description": "Send notifications.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "api-server"
+          },
+          "destination": {
+            "node": "telegram-bot-api"
+          }
+        }
+      },
+      "protocol": "HTTPS"
+    },
+    {
+      "unique-id": "rel-api-google",
+      "description": "Sheets export and Drive.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "api-server"
+          },
+          "destination": {
+            "node": "google-apis"
+          }
+        }
+      },
+      "protocol": "HTTPS"
+    },
+    {
+      "unique-id": "rel-api-upbit",
+      "description": "Observe rates.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "api-server"
+          },
+          "destination": {
+            "node": "upbit-api"
+          }
+        }
+      },
+      "protocol": "HTTPS"
+    },
+    {
+      "unique-id": "rel-api-coingecko",
+      "description": "Observe rates.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "api-server"
+          },
+          "destination": {
+            "node": "coingecko-api"
+          }
+        }
+      },
+      "protocol": "HTTPS"
+    },
+    {
+      "unique-id": "rel-api-exrate",
+      "description": "Observe rates.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "api-server"
+          },
+          "destination": {
+            "node": "exchangerate-api"
+          }
+        }
+      },
+      "protocol": "HTTPS"
+    },
+    {
+      "unique-id": "rel-api-tianapi",
+      "description": "Observe rates (optional).",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "api-server"
+          },
+          "destination": {
+            "node": "tianapi"
+          }
+        }
+      },
+      "protocol": "HTTPS"
+    },
+    {
+      "unique-id": "rel-api-plane",
+      "description": "Create and update issues.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "api-server"
+          },
+          "destination": {
+            "node": "plane-api"
+          }
+        }
+      },
+      "protocol": "HTTPS"
+    },
+    {
+      "unique-id": "rel-plane-webhook",
+      "description": "Inbound webhook.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "plane-api"
+          },
+          "destination": {
+            "node": "api-server"
+          }
+        }
+      },
+      "protocol": "HTTPS"
+    },
+    {
+      "unique-id": "rel-api-openai",
+      "description": "Parse inventory text.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "api-server"
+          },
+          "destination": {
+            "node": "openai-api"
+          }
+        }
+      },
+      "protocol": "HTTPS"
+    }
+  ],
+  "edgesRenamed": [],
+  "invalidItems": {
+    "nodes": [],
+    "relationships": []
+  },
+  "adrDiffItems": [],
+  "controlItemsAdded": {},
+  "controlItemsRemoved": {},
+  "controlItemsUnchanged": {},
+  "controlItemsModified": {},
+  "metadataObjectsAdded": [],
+  "metadataObjectsRemoved": [],
+  "metadataObjectsUnchanged": [],
+  "metadataObjectsModified": []
+}

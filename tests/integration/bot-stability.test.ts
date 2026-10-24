@@ -13,7 +13,7 @@ import {
 } from "../../lib/resourceMonitor.js";
 import {
   setPublisherRunning,
-} from "../../lib/publisherStepStore.js";
+} from "../../lib/publisher/index.js";
 import { createApp } from "../../server.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -180,6 +180,7 @@ test("GET /api/health returns 200", async () => {
     const { status, data } = await fetchJson(baseUrl, "/api/health");
     assert.equal(status, 200);
     assert.equal(data.ok, true);
+    assert.equal(typeof data.gitSha, "string", "PR-004: the running build is reported");
   });
 });
 

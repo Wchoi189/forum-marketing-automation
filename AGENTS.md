@@ -5,7 +5,7 @@ Quick reference for AI agents working in this repository.
 ## Quick Start
 
 ```bash
-npm run mempalace:wake-up   # REQUIRED at session start
+npm run mempalace:wake-up   # optional memory refresh, never blocks
 npm run lint                # tsc (both configs) + ast-grep scan + structure check
 npm run lint:structure      # .structure.json policy only (~1s)
 npm run hooks:install       # pre-commit hook running the structure check
@@ -31,7 +31,12 @@ the repo root fails the build; put it in `.agent/` (how the system works now) or
 | Operations & Debugging | [.agent/OPERATIONS.md](.agent/OPERATIONS.md) |
 | Known Issues (KEDB) | [.agent/KNOWN_ISSUES.md](.agent/KNOWN_ISSUES.md) |
 | Test Framework | [tests/README.md](tests/README.md) |
-| Competitor Intel | [.planning/competitor-intel-playbook.md](.planning/competitor-intel-playbook.md) |
+| Competitor Intel | [.planning/initiatives/competitor-intel/playbook.md](.planning/initiatives/competitor-intel/playbook.md) |
+| Initiatives Portfolio | [.planning/README.md](.planning/README.md) |
+| Agent Skills Registry | [.agent/skills/registry.json](.agent/skills/registry.json) |
+| UI Schema Governance | [.agent/skills/ui-schema-governance.md](.agent/skills/ui-schema-governance.md) |
+| Refactor Engine | [.agent/skills/refactor-engine.md](.agent/skills/refactor-engine.md) |
+| Architecture Governance | [.agent/skills/arch-governance.md](.agent/skills/arch-governance.md) |
 
 ## Core Principles
 
@@ -42,12 +47,15 @@ the repo root fails the build; put it in `.agent/` (how the system works now) or
 ## Key Files
 
 ```
-config/env.ts                    # Environment parsing (canonical)
-.agent/contracts/                # Data and API contracts
-.planning/spec-kit/contracts/    # Behavior contracts and policies (current truth)
-.planning/spec-kit/reference/    # Reviewer pack: catalogs, inventories, guidelines
-.planning/spec-kit/specs/active/ # In-flight work — read this when orienting
-.planning/known-issues/          # KEDB entries
+config/env.ts                                # Environment parsing (canonical)
+tools/                                       # Isolated developer toolkits (@tools/*)
+.agent/contracts/                            # Data and API contracts
+.agent/skills/                               # Executable agent skills
+.planning/spec-kit/contracts/                # Behavior contracts and policies (current truth)
+.planning/spec-kit/reference/                # Reviewer pack: catalogs, inventories, guidelines
+.planning/initiatives/                       # Vertical initiative packages
+.planning/initiatives/*/specs/active/        # In-flight work — read this when orienting
+.planning/known-issues/                      # KEDB entries
 ```
 
 Specs carry a `status` of `proposed | active | shipped | superseded`, and the
@@ -57,8 +65,13 @@ current truth and carry no status.
 
 ## Session Workflow
 
-1. Run `npm run mempalace:wake-up` before reading source files
-2. Check KEDB for known issues before debugging anomalies
-3. Run `npm run lint` after code edits
-4. Run appropriate test suite for changes
-5. End session with `npm run mempalace:handover`
+Autonomy rules, escalation boundary and handover protocol: `CLAUDE.md`
+(Decision Authority) and [.agent/SESSION_PROTOCOL.md](.agent/SESSION_PROTOCOL.md).
+
+1. Check KEDB for known issues before debugging anomalies
+2. Run `npm run lint` after code edits
+3. Run appropriate test suite for changes
+4. Commit finished work. Do not ask first.
+
+`npm run mempalace:wake-up` and `npm run mempalace:handover` are optional and
+best effort. Skip them if the tool is missing or fails; they never block work.

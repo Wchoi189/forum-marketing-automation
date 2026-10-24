@@ -56,13 +56,14 @@ Emit a table:
 | Category | Candidates | Est. Bytes | Action |
 |----------|-----------|------------|--------|
 ```
-Then ask: "Prune now? (y/n)"
+Audit mode stops here. It changes nothing. Invoking `prune` is the go-ahead; no
+second confirmation, since every deletion goes through the git-tracked archive.
 
 ---
 
 ## Prune Phase (prune mode)
 
-After user confirms, execute:
+Execute without asking, honoring NEVER DELETE above:
 
 1. **Archive** completed planning files → `.planning/spec-kit/.completed/plans/`
 2. **Compress** old handover JSONs → single `.planning/spec-kit/.completed/handovers/summary.jsonl`

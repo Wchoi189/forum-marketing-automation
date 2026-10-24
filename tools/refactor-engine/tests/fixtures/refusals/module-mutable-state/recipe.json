@@ -1,0 +1,8 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "module-mutable-state",
+  "strategy": "split-module",
+  "source": "src/host.js",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "writer", "declarations": ["counter", "bump"] }, { "name": "reader", "declarations": ["read"] }]
+}

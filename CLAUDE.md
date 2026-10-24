@@ -1,3 +1,36 @@
+# Decision Authority
+
+Default to execution. The operator's mid-session and end-of-session answers have
+not improved outcomes and have added failure points; every question you skip
+saves them a decision. Full protocol: `.agent/SESSION_PROTOCOL.md`.
+
+1. **Decide from what exists.** If project principles, git history, the KEDB, or
+   developer ergonomics settle a choice, make it. Do not ask, do not offer
+   options, do not ask "now or later". If doing X completes the goal, do X.
+2. **Make the call, act, log it.** For ambiguity or a close trade-off, take the
+   reversible option, execute, and record it as a decision in the closing summary.
+3. **Known false positives get the documented fix immediately**, with no
+   confirmation. An undocumented gate failure is investigated, not escalated.
+4. **Ask only when an action is** (a) irreversibly destructive — force-push,
+   deleting work you did not create, deleting `artifacts/` databases; (b) an
+   outward effect the task did not call for — a real ppomppu publish, posting
+   credentials; or (c) in direct conflict with an instruction given this session.
+   Never weaken a fail-closed publisher check or retry login without a Turnstile
+   token (KE-004): that is not a question, the answer is no.
+5. **Commit by default.** Finished work is committed in the same turn, on a
+   branch (never on `main`). Stage explicit paths only, never `git add -A`: the
+   tree often holds files from another session. No push or PR unless asked.
+6. **Short closing.** What changed, what is next, a few lines. No operator-step
+   lists, no restated blockers, no verification tallies, no closing question.
+7. **Handover only when work stops unfinished** (context past ~4/5, or an
+   external blocker). Say once, in one sentence, past ~2/3. Never for routine
+   endings. A spec implementation session or milestone ends with the five-heading
+   summary in the protocol file.
+
+Hooks in `.claude/settings.json` enforce items 4–5 mechanically (blanket staging, force
+push, `commit -a`, commits on `main`, `rm -r artifacts/`). A block names the safe
+alternative: take it, do not ask.
+
 # Code Map
 
 ## Server / Bot
@@ -12,7 +45,7 @@
 | `lib/publisher/flow/runPublisherFlow.ts` | Splits playbook into non-submit and submit halves. Runs non-submit sequentially, then submit in parallel with `waitForPublishLandingUrl`. |
 | `lib/publisherStepStore.ts` | Shared in-memory step tracker. Written by `bot.ts` as publisher progresses; read by `GET /api/publisher-status`. |
 | `lib/publisherHistory.ts` | Append-only JSONL + Parquet log of every publisher run. |
-| `lib/analytics/` | Derived numbers from history, no browser and no state writes: `trends.ts` (hourly post-rate profile, scheduler interval multiplier, share of voice), `schedulerSignals.ts`, `competitors.ts` (competitor EDA payload). |
+| `lib/analytics/` | Derived numbers from history, no browser and no state writes: `trends.ts` (hourly post-rate profile, scheduler interval multiplier, share of voice), `schedulerSignals.ts` and `schedulerDiagnostics.ts` (signal classification and its bound-calibration view), `boardStats.ts` (the `/api/board-stats` and `/api/competitor-stats` summaries), `competitors.ts` (competitor EDA payload). `boardStats.ts` takes `ourAuthorSubstring` as an argument — routes pass `ENV.OUR_AUTHOR_SUBSTRING`, never a literal. |
 | `lib/logging/` | `logger` (pino) and `LOG_EVENT`. Always imported together. `lib/logCache.ts` is *not* part of this module — it caches `activity_log.json`, and folding it in would make logging and `resourceMonitor` mutually importing. |
 | `lib/browser/` | Chromium lifecycle: shared browser and contexts, page debug handlers, `evaluate()` name polyfill. Absorbed the former `lib/playwright/`. |
 | `lib/kakao/` | KakaoTalk skill: payload types and validator, Postgres message log (`db`, a namespace export), auto-reply. |
@@ -30,9 +63,11 @@
 |------|------|
 | `src/App.tsx` | Shell and routing only (156 lines). State lives in `src/hooks/`, views in `src/pages/`. |
 | `src/hooks/useAppData.ts` | Dashboard data orchestration: fetching, polling, refresh. The former App.tsx god-object's state layer. |
-| `src/pages/` | One file per route: Overview, Operations, Controls, PublisherRuns, CompetitorIntel, KakaoDashboard. |
+| `src/pages/` | One file per route: Overview, Operations, Controls, PublisherRuns, CompetitorIntel, KakaoDashboard, Analytics. |
 | `src/PipelineCanvas.tsx` | ReactFlow canvas. Prop `currentStep: PipelineStepId`. Six stages: `navigate → login-page → login → write-post → restore-draft → publish`. |
-| `src/AnalyticsPage.tsx` | Competitor EDA charts. Standalone route `/analytics`. Largest frontend file (799 lines) — decomposition candidate. |
+| `src/pages/AnalyticsPage.tsx` | Competitor EDA shell for `/analytics`: filter sidebar, KPI row, tab bar. Lazy-loaded in `src/main.tsx` so recharts stays out of the main chunk. |
+| `src/hooks/useCompetitorAnalytics.ts` | Filter state + fetch for `/api/analytics/competitors`. The page owns view state only. |
+| `src/components/analytics/` | One file per tab (`MarketTab`, `RankingsTab`, `BotIntelTab`) plus the pieces two of them share: `Heatmap`, `AuthorDrawer`, `BotBadge`, `KpiCard`. |
 
 ## Non-Obvious Architecture Facts
 
@@ -45,56 +80,24 @@
 **Scheduler:** Calls `runPublisher(false)` on each tick. Skips tick if `running=true`. Gap-policy skip is logged as non-success but is normal operation, not an error.
 
 **ppomppu login recovery gotchas:**
-- The `loginPromptVisible` diagnostic is **unreliable on the redirect hop**. When ppomppu redirects unauthenticated requests to `login.php?r_url=...`, the intermediate page shows "403 Forbidden" (nginx) or "Loading..." as its title — no "로그인" text exists in the body. The code now attempts login unconditionally whenever the write button is missing.
+- The `loginPromptVisible` diagnostic is **unreliable on the redirect hop**. When ppomppu redirects unauthenticated requests to `login.php?r_url=...`, the intermediate page shows "403 Forbidden" (nginx) or "Loading..." as its title — no "로그인" text exists in the body.
+- **The write button is not a session signal** — guests see 글쓰기 too. `getBoardDiagnostics().sessionState` reads the header (`로그아웃` link vs `a.gnb-btn-login`); gate on `isSessionUsable()`.
+- **The bot cannot log itself in.** Since 2026-10 the login form carries Cloudflare Turnstile; an expired session surfaces as `PUBLISHER_LOGIN_REQUIRED: reason=turnstile_unsolved` and needs a human-exported session (`npm run session:import`, runbook in `.agent/OPERATIONS.md`). Never add retries that post credentials without a Turnstile token (KE-004).
 - ppomppu WAF returns 403 on Playwright's default headless user agent. `DEFAULT_BROWSER_USER_AGENT` in `config/env.ts` is required, not optional.
 
 **Pipeline step tracking:** `publisherStepStore.ts` → `GET /api/publisher-status` (non-blocking). `src/hooks/useAppData.ts` runs a single adaptive interval: 5s base, dropping to 1.5s step polling while the publisher is running. Mapping: `playbookStepToCanvasStep()` in `publisherStepStore.ts`.
 
 **Observer refresh:** `POST /api/run-observer` blocks for 5–30s. `src/hooks/useAppData.ts` fires `silentRefreshObserver()` (no loading state) on mount and after every publish run.
 
-## API Surface
+## Reference Tables
 
-| Method | Path | Behavior |
-|--------|------|----------|
-| GET | `/api/logs` | `ActivityLog[]` from `activity_log.json` |
-| GET | `/api/board-stats` | `{ turnoverRate, shareOfVoice }` derived from logs |
-| GET | `/api/competitor-stats` | `CompetitorStat[]` from logs |
-| GET | `/api/trend-insights` | Hourly profile + scheduler multiplier |
-| GET | `/api/control-panel` | Full scheduler + observer state. `autoPublisher.running` = actively publishing. `nextTickEta` = ISO string of next attempt. |
-| POST | `/api/control-panel` | Save controls. Body = `ControlPanelState`. |
-| POST | `/api/run-observer` | **Blocking** 5–30s. Returns `{ success, log }`. |
-| POST | `/api/run-publisher` | **Blocking** 30–120s. Returns `PublisherRunResult`. |
-| GET | `/api/publisher-status` | `{ step: PublisherCanvasStep\|null, running: bool }`. Non-blocking. |
-| GET | `/api/publisher-history` | `PublisherHistoryEntry[]`. Query: `?limit=N`. |
-| GET | `/api/ai-recommendation` | `{ recommendation: AiAdvisorOutput\|null, contextBuiltAt, source }`. Returns `null` if `XAI_API_KEY` absent or advisor disabled. |
-| GET | `/api/health/resources` | RSS, heap, artifacts size, activity log count, browser profile stats, Chromium process count, threshold warnings. |
-| POST | `/api/resource/gc` | Triggers artifact rotation (deletes dirs >7 days old) and activity log pruning. Returns summary. |
-
-## Key Env Vars
-
-| Var | Default | Effect |
-|-----|---------|--------|
-| `DRY_RUN_MODE` | `false` | Skips submit click; records `dry_run` decision |
-| `BROWSER_HEADLESS` | `true` | Set `false` to watch browser |
-| `RUN_INTERVAL_MINUTES` | `60` | Scheduler base interval |
-| `MANUAL_OVERRIDE_ENABLED` | `true` | Gates force-publish |
-| `PUBLISHER_DEBUG_SCREENSHOTS` | `false` | Saves step screenshots to `artifacts/` |
-| `PUBLISHER_DEBUG_TRACE` | `false` | Saves Playwright trace zip |
-| `DEV_SKIP_BOT` | `false` | Skips scheduler/observer/publisher. Use during `npm run dev` to avoid resource contention between Vite and Playwright |
-| `OUR_AUTHOR_SUBSTRING` | `'shareplan'` | Substring matched (case-insensitive) to identify our posts for SoV computation |
-| `XAI_API_KEY` | _(absent)_ | Enables Grok 4 AI advisor. If absent, advisor endpoints return `null` recommendation |
-| `AI_ADVISOR_ENABLED` | `true` | Kill-switch for advisor without removing the API key |
-| `AI_ADVISOR_TIMEOUT_MS` | `8000` | Per-call timeout in ms (1000–30000). Advisor skips on timeout |
-| `NL_WEBHOOK_ENABLED` | `true` | Kill-switch for `/api/nl-command`. Returns 503 when false |
-| `NL_WEBHOOK_SECRET` | _(absent)_ | If set, requests must include `Authorization: Bearer <secret>` |
-
-Full parsing in `config/env.ts`. Schema in `.planning/spec-kit/manifest/schemas/env.schema.json`.
+API surface, key env vars and the spec-kit layout live in `.agent/REFERENCE.md`. Env parsing is canonical in `config/env.ts`.
 
 ## Workspace Layout
 
 | Path | Contents |
 |------|----------|
-| `.agent/` | Agent-facing docs: `ARCHITECTURE.md`, `OPERATIONS.md`, `KNOWN_ISSUES.md`, contracts, knowledge, session handovers |
+| `.agent/` | Agent-facing docs: `ARCHITECTURE.md`, `OPERATIONS.md`, `KNOWN_ISSUES.md`, `SESSION_PROTOCOL.md`, `REFERENCE.md`, contracts, knowledge, session handovers |
 | `.planning/` | Specs, roadmaps, audits, known-issue writeups |
 | `archive/` | Frozen, unreferenced content. Nothing here is loaded at runtime. See `archive/README.md` |
 | `artifacts/`, `data/`, `dist/` | Generated. All gitignored — do not commit files here |
@@ -118,31 +121,6 @@ than one file's worth of behavior, and it gets an `index.ts` plus an entry in
 `module_entry_points`. A single-purpose utility with no internal structure stays
 a loose file. A loose file that grows a companion becomes a directory in the
 same change.
-
-## Spec-Kit Layout
-
-`.planning/spec-kit/` holds three kinds of document, and the directory says which:
-
-| Path | Contents | Status field |
-|------|----------|--------------|
-| `contracts/` | Behavior contracts, policies, rulesets. **Loaded at runtime** by `config/runtime-validation.ts` and `lib/observer/policyLoader.ts` | None — a contract is current or superseded, never "done" |
-| `reference/` | Reviewer pack: API/route catalogs, screen inventories, design guidelines, risk registers | None |
-| `specs/active/` | In-flight and proposed work. **The only directory to read when orienting** | `proposed` or `active` |
-| `specs/shipped/` | Implemented; kept for the design rationale | `shipped` |
-| `specs/archive/` | Superseded or abandoned | `superseded` |
-| `plans/`, `tasks/`, `manifest/` | Execution plans, task lists, runtime manifests and JSON schemas | None |
-
-Status vocabulary is **closed** — `proposed | active | shipped | superseded` — and
-the directory must agree with the field. `npm run lint:structure` fails on a
-mismatch, an unknown status, a spec loose in `specs/`, or a status field appearing
-on a contract. Markdown specs declare status in YAML frontmatter.
-
-`contracts/` is the only spec-kit directory besides `manifest/` copied into the
-Docker image. A file the runtime reads belongs there, not in `specs/`.
-
-**Retention:** every directory that grows without bound has an owner row in the
-table in `.agent/OPERATIONS.md`. Add one when you add such a directory.
-`npm run clean:all -- --dry-run` shows what is prunable.
 
 ## Environment Loading
 

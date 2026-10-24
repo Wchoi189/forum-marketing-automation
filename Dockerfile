@@ -7,7 +7,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/* && \
     npm ci
 COPY . .
-RUN npm run build
+RUN npm run build && \
+    # noVNC ships CommonJS only; the login console viewer loads this ES module
+    # (entry kept in sync with NOVNC_ENTRY in lib/session/novncBundle.ts).
+    echo "export { default } from '@novnc/novnc/lib/rfb.js';" | \
+    npx esbuild --bundle --format=esm --minify --outfile=dist/novnc/rfb.js
 
 # ── Stage 2: Server dependencies + Playwright Chromium ───────────────────────
 FROM node:20-slim AS server-deps
@@ -25,13 +29,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM node:20-slim AS runtime
 
 # Install dumb-init, curl (HEALTHCHECK), openssh-server, and minimal Playwright Chromium runtime deps
-# Only shared libraries needed for headless Chromium (no fonts, X11, or build tools)
+# Only shared libraries needed for headless Chromium (no X11 or build tools).
+# fonts-nanum: Korean glyphs, so the login console and failure screenshots are readable.
+# tigervnc-standalone-server: Xvnc, the display the login console's headed Chromium runs on.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     dumb-init curl openssh-server sudo \
     libglib2.0-0 libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
     libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
     libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libx11-xcb1 libxfixes3 \
-    fonts-freefont-ttf && \
+    fonts-freefont-ttf fonts-nanum tigervnc-standalone-server && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -r app && useradd -r -g app -d /app -s /bin/bash app && \
     # Generate SSH host keys, configure sshd, set app user password
@@ -64,7 +70,6 @@ COPY --from=frontend-build --chown=app:app /build/dist ./dist
 # Copy application source
 COPY --chown=app:app tsconfig.json ./
 COPY --chown=app:app server.ts ./
-COPY --chown=app:app bot.ts ./
 COPY --chown=app:app mcp/ ./mcp/
 COPY --chown=app:app config/ ./config/
 COPY --chown=app:app contracts/ ./contracts/
@@ -76,6 +81,10 @@ COPY --chown=app:app ops/ ./ops/
 COPY --chown=app:app .planning/spec-kit/manifest/ .planning/spec-kit/manifest/
 COPY --chown=app:app .planning/spec-kit/contracts/ .planning/spec-kit/contracts/
 COPY --chown=app:app .agent/contracts/ .agent/contracts/
+
+# Late on purpose: a new commit invalidates only the layers from here on.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
 
 # Create persistent data directories (mounted as volumes at runtime)
 RUN mkdir -p /app/data/browser-profile /app/data/logs /app/data/artifacts && \

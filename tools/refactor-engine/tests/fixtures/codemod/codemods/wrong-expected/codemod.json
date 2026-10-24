@@ -1,0 +1,8 @@
+{
+  "$schema": "refactor-engine/codemod/1",
+  "id": "wrong-expected",
+  "engine": "grit",
+  "pattern": "rename.grit",
+  "why": "fixture: an expected file that does not match the output",
+  "include": ["src/**/*.js"]
+}

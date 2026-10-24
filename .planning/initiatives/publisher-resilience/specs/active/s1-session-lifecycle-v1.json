@@ -1,0 +1,113 @@
+{
+  "spec_id": "s1-session-lifecycle-v1",
+  "status": "proposed",
+  "purpose": "Treat the ppomppu login session as managed state with a known lifetime: detect its death once, stop spending runs on it, warn before it expires, and make the human refresh a single authenticated call instead of a docker cp procedure.",
+  "design_intent": "The bot cannot log itself in (KE-004) and the session lasts about a week (F-02). Both facts are permanent constraints, so the design goal is not automatic login but zero surprise: the operator hears about expiry before it happens, a dead session costs one failed run rather than eleven, and the scheduler resumes on its own once a fresh session is verified. The session record lives in lib/state so the dashboard, scheduler and import endpoint read one authority.",
+  "review_source": ".planning/initiatives/publisher-resilience/research/01-assessment-20261024.md",
+  "addresses_findings": ["F-01", "F-02", "F-03"],
+  "prerequisite": "PR-001 deployed (KE-004 fix running in production).",
+  "model_execution_guidance": {
+    "recommended_model": "Deep reasoning model (Opus-class) for SL-002; any capable model for the rest",
+    "execution_mode": "design_first_then_implement",
+    "note": "SL-002 adds a row to the nextAttemptAt decision table. Write the table entries in tests/unit/nextAttempt.test.ts first; AttemptReason strings are an operational contract (see the comment on the type)."
+  },
+  "work_items": [
+    {
+      "id": "SL-001",
+      "title": "Session record in runtime state",
+      "target_files": ["lib/state/types.ts", "lib/state/publisher.ts", "lib/state/index.ts"],
+      "action": "Add `session: { status: 'unknown' | 'healthy' | 'expiring' | 'dead'; importedAt: string | null; lastVerifiedAt: string | null; lostAt: string | null; lostReason: string | null }` to the persisted state with stateVersion concurrency. The publisher sets lastVerifiedAt on every run that sees sessionState=logged_in, and dead + lostReason when it throws PUBLISHER_LOGIN_REQUIRED. 'expiring' is derived, not stored: importedAt older than SESSION_EXPECTED_LIFETIME_HOURS minus SESSION_EXPIRY_WARNING_HOURS.",
+      "risk": "low"
+    },
+    {
+      "id": "SL-002",
+      "title": "Scheduler parks on a dead session",
+      "target_files": ["lib/scheduler/types.ts", "lib/scheduler/nextAttempt.ts", "lib/scheduler/run.ts", "tests/unit/nextAttempt.test.ts"],
+      "action": "Add SchedulerTickOutcome `{ type: 'session_lost' }` and AttemptReason 'session_required'. While session.status is 'dead', a tick launches no browser and runs no observer: it returns 'session_required' and rechecks at SESSION_RECHECK_MINUTES. consecutiveFailures is not incremented, so the error ladder is not entered. The park ends when SL-003 verifies an import, not on a timer.",
+      "risk": "medium"
+    },
+    {
+      "id": "SL-003",
+      "title": "Authenticated session import endpoint",
+      "target_files": ["routes/api/session.ts", "lib/browser/sessionImport.ts", "lib/browser/shared.ts", ".agent/OPERATIONS.md"],
+      "action": "POST /api/session/import accepting a browser cookie export. Requires Authorization: Bearer SESSION_IMPORT_SECRET (timing-safe compare); returns 503 when the secret is unset. Filters to first-party non-tracking cookies, answers 'unchanged' without a probe when the PHPSESSID/pmn fingerprint matches the saved state, refuses with 409 while a publisher run or another import is active, merges (server cf_clearance wins), probes the merged set (SL-004), and writes atomically with a rolling .bak only when the probe sees logged_in. A logged-out push returns 422 and leaves the saved state untouched. Slack on import and on rejection. Never logs cookie values. Once SL-001 exists, success also sets session.status=healthy and importedAt=now, which un-parks the scheduler.",
+      "risk": "medium"
+    },
+    {
+      "id": "SL-004",
+      "title": "Cheap session probe",
+      "target_files": ["lib/observer/boardDiagnostics.ts", "lib/browser/sessionProbe.ts"],
+      "action": "probeSession(): one context with saved state and EF-001 resource blocking, load the board list, return getBoardDiagnostics().sessionState. Used by SL-003 to verify an import, and by the scheduler once per SESSION_PROBE_INTERVAL_HOURS so a session that dies between publishes is detected without a failed publish. If the EF-002 spike shows the HTTP path passes the WAF, switch the probe to it.",
+      "risk": "low"
+    },
+    {
+      "id": "SL-005",
+      "title": "Expiry and death alerts",
+      "target_files": ["lib/state/publisher.ts", "lib/notifications.ts", "src/pages/OverviewPage.tsx", "routes/api/control.ts"],
+      "action": "Expose session in GET /api/control-panel. Dashboard banner for 'expiring' (age and expected death time) and 'dead' (reason and the import command). Send one Slack message through sendSlackNotification (lib/notifications.ts, SLACK_WEBHOOK_URL) on each transition into expiring or dead, never repeated per tick: dedupe on the transition, as publisherRun.ts already does for publishBlockedUntil. While parked, suppress the generic 'Publisher Failed' message. Channel decided by Q-01: dashboard + Slack webhook.",
+      "risk": "low"
+    },
+    {
+      "id": "SL-006",
+      "title": "Store first-party cookies only",
+      "target_files": ["lib/browser/shared.ts", "lib/browser/sessionImport.ts", "tests/unit/sessionImport.test.ts"],
+      "action": "saveStorageState and the import merge keep cookies whose domain ends in ppomppu.co.kr, minus a denylist of ad and analytics names (m_gad_pos*, __gads, __gpi, __eoi, cto_*, _ga*, _pubcid, _sharedID*, _cc_id, adfit_sdk_id, FCCDCF, FCNEC). Keep anything unknown. Expected: 444 cookies to under 70.",
+      "risk": "low"
+    },
+    {
+      "id": "SL-007",
+      "title": "Session lifetime telemetry",
+      "target_files": ["lib/logging/events.ts", "lib/publisher/history.ts"],
+      "action": "Log session.imported, session.verified (first per hour at most), session.lost with importedAt and age. After three lifetimes, set SESSION_EXPECTED_LIFETIME_HOURS from the observed minimum and record the data in this initiative's research folder.",
+      "risk": "low"
+    },
+    {
+      "id": "SL-008",
+      "title": "Assisted login from the server (realised as SL-010)",
+      "target_files": [],
+      "action": "Built as SL-010 without noVNC or a headed browser: a CDP screencast of the headless server Chromium renders Turnstile, and a person can solve it there.",
+      "risk": "high"
+    },
+    {
+      "id": "SL-010",
+      "title": "Server-side login console (primary recovery)",
+      "target_files": ["lib/session/loginConsole.ts", "lib/session/consolePage.ts", "routes/api/session.ts", "lib/publisher/publisherRun.ts", "Dockerfile"],
+      "action": "Recovery must not depend on a desktop PC that has offline days (operator, 2026-10-25). The server's own Chromium opens login.php, fills ID/password from env and ticks 자동로그인, and streams the page via CDP screencast to a token-protected viewer (SSE frames, taps and text posted back). A person taps Turnstile and 로그인 from any tailnet device; the console polls the header and saves the session (keepSessionCookies) when logged_in, then closes. Cookies originate from the server IP, so no copy and no cf_clearance mismatch. Triggers: PUBLISHER_LOGIN_REQUIRED opens one automatically (at most every 3 h) and posts the link to Slack; /session/console lets anyone on the tailnet ask for a link, which goes to Slack only; the bearer endpoint returns the URL to a shell. One console at a time, 15-minute TTL, unguessable token compared in constant time. fonts-nanum added so the page is readable. Credentials are filled, never submitted, by the bot: the submit is the person's action after passing Turnstile (KE-004 unchanged).",
+      "risk": "medium"
+    },
+    {
+      "id": "SL-011",
+      "title": "Measure whether 자동로그인 outlives the ~7-day session",
+      "target_files": [],
+      "action": "The first console login logs session.imported with persistentCookies (names and expiry dates only). If a login cookie with a long expiry appears and the session survives past day 7 without a console login, renewal is automatic and SL-005's expiry warning can be relaxed. Record the result as lifetime data point 2 in SL-007.",
+      "risk": "low"
+    },
+    {
+      "id": "SL-009",
+      "title": "Optional session sync from a desktop browser",
+      "target_files": ["tools/session-sync-extension/manifest.json", "tools/session-sync-extension/background.js", "scripts/session-sync-setup.ts", ".agent/OPERATIONS.md"],
+      "action": "Demoted to optional by SL-010: it needs a desktop browser that is online, and the operator's PC has offline days. Kept because it costs nothing when unused. Original design: a Chrome MV3 extension in the operator's everyday browser listens to chrome.cookies.onChanged for PHPSESSID/pmn on ppomppu.co.kr, debounces 3 s, and posts all ppomppu.co.kr cookies to SL-003; a 30-minute alarm re-sends (the server answers 'unchanged' without a probe). It remembers a fingerprint the bot rejected (422) so a dead browser session is not re-probed every 30 minutes, retries 409/network errors after 2 minutes, and reports state on the toolbar badge. npm run session:sync-setup generates the secret into .env.docker and writes the gitignored config.local.json, so setup is one command plus Load unpacked. The person still solves Turnstile, by logging in as any visitor does; nothing automates the challenge (research/01, Rejected).",
+      "risk": "medium"
+    }
+  ],
+  "acceptance_criteria": [
+    "A session death produces exactly one publisher.run.failed with PUBLISHER_LOGIN_REQUIRED, then zero browser launches until an import is verified.",
+    "An import through POST /api/session/import un-parks the scheduler without a container restart or file copy.",
+    "A dead session is restored from a phone in under a minute, with no desktop PC online and no file copied (SL-010).",
+    "The dashboard shows session age and status, and an expiring banner appears before the expected death time.",
+    "browser-storage-state.json holds no ad or analytics cookies after the next saved run.",
+    "No cookie value appears in any log line, response body, or artifact."
+  ],
+  "out_of_scope": [
+    "Any automated login or challenge solving (rejected in research/01).",
+    "Observer transport changes - that is S2."
+  ],
+  "session_boundary": {
+    "auto_stop": true,
+    "gate_criteria": [
+      "npm run lint passes with 0 errors",
+      "npm run test:unit passes, including the new nextAttempt rows",
+      "tasks/publisher-resilience-tasks-v1.json updated with status and evidence for every touched item"
+    ]
+  }
+}

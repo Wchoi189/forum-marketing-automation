@@ -1,0 +1,10 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "computed-this-accepted",
+  "strategy": "split-class",
+  "source": "src/host.js",
+  "host": "Host",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "Part", "members": ["call"] }],
+  "accept": [{ "code": "RF-COMPUTED-THIS", "member": "call", "reason": "key is one of two known method names, checked by the caller" }]
+}

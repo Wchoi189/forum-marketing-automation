@@ -4,7 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import App from './App.tsx';
 import './index.css';
 
-const AnalyticsPage = React.lazy(() => import('./AnalyticsPage.tsx').then(module => ({ default: module.AnalyticsPage })));
+const AnalyticsPage = React.lazy(() => import('./pages/AnalyticsPage.tsx').then(module => ({ default: module.AnalyticsPage })));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

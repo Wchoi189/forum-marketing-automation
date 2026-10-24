@@ -109,18 +109,14 @@ mine_memory_scope() {
   local include_plans="$2"
   ensure_room_initialized "${PROJECT_ROOT}/.agent/state"
   ensure_room_initialized "${PROJECT_ROOT}/.agent/session-handovers"
-  # specs/ holds only lifecycle buckets now, so each is mined explicitly rather
-  # than relying on mp recursing into subdirectories.
-  ensure_room_initialized "${PROJECT_ROOT}/.planning/spec-kit/specs/active"
-  ensure_room_initialized "${PROJECT_ROOT}/.planning/spec-kit/specs/shipped"
+  ensure_room_initialized "${PROJECT_ROOT}/.planning/initiatives"
   ensure_room_initialized "${PROJECT_ROOT}/.planning/spec-kit/contracts"
   ensure_room_initialized "${PROJECT_ROOT}/.planning/spec-kit/reference"
   ensure_room_initialized "${PROJECT_ROOT}/templates/ppompu-ad-design-system/ui_kits/ppompu-ad"
 
   mp mine "${PROJECT_ROOT}/.agent/state" --wing "$wing"
   mp mine "${PROJECT_ROOT}/.agent/session-handovers" --wing "$wing"
-  mp mine "${PROJECT_ROOT}/.planning/spec-kit/specs/active" --wing "$wing"
-  mp mine "${PROJECT_ROOT}/.planning/spec-kit/specs/shipped" --wing "$wing"
+  mp mine "${PROJECT_ROOT}/.planning/initiatives" --wing "$wing"
   mp mine "${PROJECT_ROOT}/.planning/spec-kit/contracts" --wing "$wing"
   mp mine "${PROJECT_ROOT}/.planning/spec-kit/reference" --wing "$wing"
   mp mine "${PROJECT_ROOT}/templates/ppompu-ad-design-system/ui_kits/ppompu-ad" --wing "$wing"

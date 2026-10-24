@@ -1,0 +1,97 @@
+{
+  "handover_id": "handover-20260905-0120",
+  "timestamp_utc": "2026-09-04T16:20:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "completed",
+  "objective": "Execute system stability validation and verify production deployment readiness following completion of all 4 phases of publisher-architecture-modernization-v1.",
+  "non_goals": [
+    "Refactoring existing UI component layouts or design systems",
+    "Deploying live code to production AWS infrastructure directly in this session"
+  ],
+  "current_state": {
+    "completed": [
+      "VAL-001: Verified workspace structure integrity via `npm run lint:structure`. Passed with 0 errors across 615 tracked files. Ratchet baseline held at 42 cross-module imports.",
+      "VAL-002: Verified complete static typecheck and code scan via `npm run lint` (`tsc --noEmit`, `tsc --project tsconfig.server.json --noEmit`, `ast-grep scan`, `lint:structure`). Passed with 0 errors.",
+      "VAL-003: Verified full automated test suite with 100% pass rate: 96/96 unit tests (`npm run test:unit`), 62/62 integration tests (`npm run test:integration`), 1/1 parser MCP test (`npm run test:mcp:parser`), and 119/119 competitor intel tests (`npm run test:competitor-intel`) for a total of 278 passing tests.",
+      "VAL-004: Verified production web bundle build via `npm run build` (Vite production build completed in 5.60s with zero errors/warnings).",
+      "VAL-005: Verified deployment scripts and permissions under `ops/deploy/` and `ops/systemd/`. Ensured executable (+x / 100755) permissions in git index for deploy-release.sh, rollback-release.sh, load-env-from-ssm.sh, healthcheck.sh, and cleanup-artifacts.sh to prevent systemd ExecStartPre / ExecStartPost permission denied failures upon release archive extraction.",
+      "VAL-006: Audited runtime systemd service definition (`ops/systemd/marketing-automation.service`), memory bounds (--max-old-space-size=400, MemoryHigh=450M, MemoryMax=500M), healthcheck timeouts, and SSM secret bootstrapping.",
+      "VAL-007: Verified Known Issues Database (KEDB). Confirmed KE-001 (scheduler interval revert) and KE-002 (Playwright NVMe wear/OOM) remain resolved; KE-003 is latent and non-blocking.",
+      "VAL-008: Formally updated `publisher-modernization` initiative status to `shipped` in `.planning/initiatives/publisher-modernization/README.md` and `.planning/README.md`."
+    ],
+    "gaps": []
+  },
+  "status": "success",
+  "decisions_locked": [
+    {
+      "decision": "Formal Initiative Closure",
+      "rationale": "All 4 phases (Bloat Pruning, Scheduler Stabilization, Maintenance Engine, State Consolidation) have been validated end-to-end with 278 passing tests and clean type checks. Initiative status updated to 'shipped'."
+    },
+    {
+      "decision": "Git Index Executable Permissions for Ops Scripts",
+      "rationale": "Deployment archives created by tar extract file permissions directly from the repository. Setting git mode 100755 for ops deployment, rollback, and systemd scripts ensures ExecStartPre and ExecStartPost run smoothly without permission errors."
+    },
+    {
+      "decision": "Production Readiness Attestation",
+      "rationale": "The system satisfies all production constraints: fail-closed env validation, authoritative state locking, automated 1-post/hr rate limit cooldown, 503 maintenance window auto-pausing, bounded memory limits, automated rollback mechanism, and healthcheck polling."
+    }
+  ],
+  "acceptance_criteria": [
+    "Structure check passes with 0 errors",
+    "Lint and dual tsc configs pass with 0 errors",
+    "All unit, integration, mcp, and competitor intel tests pass",
+    "Vite production build succeeds without errors",
+    "Deploy and systemd scripts are executable and verified",
+    "All modernization specs are shipped and reflected in portfolio documentation"
+  ],
+  "implementation_plan": [
+    ".planning/initiatives/publisher-modernization/plans/publisher-architecture-modernization.plan.json"
+  ],
+  "practical_recommendations": [
+    "Before triggering GitHub Actions `deploy-aws` workflow, ensure the target EC2 instance has SSM agent active and AWS_DEPLOY_ROLE_ARN secret configured.",
+    "Verify target SSM Parameter Store path contains required keys PPOMPPU_USER_ID, PPOMPPU_USER_PW, BOT_PROFILE_DIR, ACTIVITY_LOG_PATH.",
+    "On initial deploy, monitor `systemctl status marketing-automation.service` and CloudWatch logs for the first publish cycle to verify 60-minute cooldown adherence."
+  ],
+  "completed_items": [
+    "Full automated test suite regression execution (278 passing tests)",
+    "Production bundle build validation (`npm run build`)",
+    "Ops script git executable permissions update (+x)",
+    "Initiative portfolio status update to 'shipped'",
+    "Production deployment readiness verification"
+  ],
+  "pending_items": [],
+  "decisions": [
+    "Verified all stability benchmarks and confirmed system is production deployment ready."
+  ],
+  "constraints": [
+    "Target host must run Node.js 20+ and have Chromium dependencies installed (`playwright install --with-deps chromium`).",
+    "Memory limits (500M hard cap) must be respected on 512MB VPS instances."
+  ],
+  "env_requirements": [
+    "PPOMPPU_USER_ID",
+    "PPOMPPU_USER_PW",
+    "FORUM_PRIMARY_ID=ppomppu",
+    "BOT_PROFILE_DIR",
+    "ACTIVITY_LOG_PATH"
+  ],
+  "next_actions": [
+    "Commit Phase 4 & production readiness changes to git.",
+    "Merge chore branch to main and trigger GitHub Actions deploy workflow when ready for VPS release."
+  ],
+  "artifacts_touched": [
+    "ops/deploy/deploy-release.sh",
+    "ops/deploy/rollback-release.sh",
+    "ops/systemd/load-env-from-ssm.sh",
+    "ops/systemd/healthcheck.sh",
+    "ops/systemd/cleanup-artifacts.sh",
+    ".planning/initiatives/publisher-modernization/README.md",
+    ".planning/README.md",
+    ".agent/state/state.index.json",
+    ".agent/session-handovers/handover-20260905-0120.json"
+  ],
+  "continuation_prompt": "System stability validation and production deployment readiness checks are complete and verified. All 4 phases of publisher-architecture-modernization-v1 are shipped. Proceed with git commit and staging/release deployment."
+}

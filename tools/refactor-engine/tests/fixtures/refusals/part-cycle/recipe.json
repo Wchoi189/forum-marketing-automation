@@ -1,0 +1,8 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "part-cycle",
+  "strategy": "split-module",
+  "source": "src/host.js",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "a", "declarations": ["A_BASE", "A"] }, { "name": "b", "declarations": ["B_BASE"] }]
+}

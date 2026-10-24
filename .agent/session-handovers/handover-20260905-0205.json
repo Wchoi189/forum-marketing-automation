@@ -1,0 +1,180 @@
+{
+  "handover_id": "handover-20260905-0205",
+  "timestamp_utc": "2026-09-04T17:05:00Z",
+  "session_type": "m2m-evaluator-ready",
+  "source_agent": "antigravity",
+  "target_agent": "reviewer-evaluator-model",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "completed",
+  "objective": "Complete handover for secondary model evaluation: Modernization of Publisher Architecture (Phases 1-4), system stability validation, and production deployment readiness.",
+  "executive_summary": "All 4 phases of publisher-architecture-modernization-v1 are complete, shipped, and rigorously validated with 278 passing tests across unit, integration, mcp, and competitor intel suites. The implementation completely eliminates the 1-post/hr rate limit retry storm (5-minute spin loop), handles platform maintenance (HTTP 503 / '점검 중입니다') via auto-pausing datetime regex, eliminates 10 dead scripts (~55KB), consolidates state into an authoritative reactive store, retires the legacy bot.ts adapter, and hardens deployment scripts with 100755 permissions.",
+  "evaluation_guide_for_second_model": {
+    "role": "Independent Senior Software & Reliability Architect Reviewer",
+    "evaluation_mandate": "Evaluate the correctness, test coverage, architectural hygiene, failure-mode mitigation, and operational readiness of the publisher modernization initiative.",
+    "key_review_vectors": [
+      {
+        "vector": "1. Rate-Limit & Cooldown Gating (Elimination of 5-min Retry Storm)",
+        "files_to_inspect": [
+          "lib/publisher/cooldown.ts",
+          "lib/publisher/publisherRun.ts",
+          "lib/publisher/ui/rateLimit.ts",
+          "lib/publisher/flow/runPublisherFlow.ts",
+          "lib/scheduler/run.ts",
+          "tests/unit/publisherCooldown.test.ts"
+        ],
+        "invariants_to_verify": [
+          "Pre-flight check in `publisherRun.ts` (L178-L218) inspects `publisherHistory` and skips Chromium launch when elapsed time < 60 minutes.",
+          "`runPublisherFlow.ts` hooks `page.once('dialog')` before `click-write` to capture alert text, aborting before `open-saved-drafts` if rate-limited.",
+          "`detectRateLimit` in `rateLimit.ts` accurately extracts remaining minutes from text or dialog.",
+          "`scheduler/run.ts` schedules the next tick for `cooldownRemainingMinutes + 1` on `rate_limited`, completely replacing the old hardcoded 5-minute loop (`PUBLISHER_FAIL_RECHECK_INTERVAL = 5`)."
+        ]
+      },
+      {
+        "vector": "2. Platform Maintenance Auto-Pause Engine (HTTP 503 / '점검 중')",
+        "files_to_inspect": [
+          "lib/observer/boardDiagnostics.ts",
+          "lib/observer/observerRun.ts",
+          "lib/publisher/publisherRun.ts",
+          "lib/scheduler/run.ts",
+          "tests/unit/boardDiagnostics.test.ts"
+        ],
+        "invariants_to_verify": [
+          "`boardDiagnostics.ts` detects HTTP 502/503/504 and regex matches Korean datetime ranges (e.g., '2026-08-18 02:00 ~ 06:00', '새벽 2시 ~ 6시') with +5m buffer.",
+          "`observerRun.ts` treats 503 maintenance as a structured diagnostic (`PLATFORM_MAINTENANCE`) rather than crashing with `BOARD_ACCESS_DENIED`.",
+          "`scheduler/run.ts` schedules the next tick directly to the maintenance end time and preserves zero `consecutiveFailures` (no panic alerts on Slack)."
+        ]
+      },
+      {
+        "vector": "3. State Architecture & Concurrency Authority",
+        "files_to_inspect": [
+          "lib/state/store.ts",
+          "lib/state/persistence.ts",
+          "lib/state/index.ts",
+          "tests/unit/stateStore.test.ts"
+        ],
+        "invariants_to_verify": [
+          "`RuntimeStateStore` acts as the single in-memory source of truth with deterministic `stateVersion` increments.",
+          "Enforces optimistic locking (`expectedVersion`) throwing `StateVersionConflictError` on stale updates.",
+          "Debounces disk persistence to `runtime-controls.json` to prevent I/O thrashing.",
+          "Subscribers receive synchronous updates on patch."
+        ]
+      },
+      {
+        "vector": "4. Modularity, Script Hygiene & Elimination of bot.ts",
+        "files_to_inspect": [
+          ".structure.json",
+          "scripts/check-structure.ts",
+          "lib/publisher/flow/runPublisherFlow.ts",
+          "lib/publisher/history.ts",
+          "lib/publisher/stepStore.ts",
+          "lib/publisher/index.ts"
+        ],
+        "invariants_to_verify": [
+          "Legacy monolithic `bot.ts` is deleted with zero references remaining in the codebase.",
+          "Micro-files (`timeouts.ts`, `loadPublisherPlaybook.ts`, `stateTransitions.ts`, `ui/submit.ts`) were cleanly consolidated into `runPublisherFlow.ts` while keeping it at 269 lines (well under 500-line budget).",
+          "`npm run lint:structure` passes with 0 errors and ratchet baseline reduced from 50 to 42."
+        ]
+      },
+      {
+        "vector": "5. Production Deployment Readiness",
+        "files_to_inspect": [
+          "ops/systemd/marketing-automation.service",
+          "ops/systemd/load-env-from-ssm.sh",
+          "ops/systemd/healthcheck.sh",
+          "ops/deploy/deploy-release.sh",
+          "ops/deploy/rollback-release.sh",
+          "config/env.ts"
+        ],
+        "invariants_to_verify": [
+          "All deployment and systemd scripts have executable permissions in git (`100755`).",
+          "V8 heap capped at `--max-old-space-size=400` with cgroup limits (`MemoryHigh=450M`, `MemoryMax=500M`) for 512MB VPS protection.",
+          "`config/env.ts` and `load-env-from-ssm.sh` fail closed on missing required credentials."
+        ]
+      }
+    ],
+    "verification_commands_to_run": [
+      { "name": "Structure Check", "cmd": "npm run lint:structure" },
+      { "name": "Full Lint & Typecheck", "cmd": "npm run lint" },
+      { "name": "Unit Tests (96 tests)", "cmd": "npm run test:unit" },
+      { "name": "Integration Tests (62 tests)", "cmd": "npm run test:integration" },
+      { "name": "Parser MCP Test (1 test)", "cmd": "npm run test:mcp:parser" },
+      { "name": "Competitor Intel Tests (119 tests)", "cmd": "npm run test:competitor-intel" },
+      { "name": "Production Web Build", "cmd": "npm run build" }
+    ]
+  },
+  "implementation_reference_map": {
+    "phase_1_bloat_pruning": {
+      "spec": ".planning/initiatives/publisher-modernization/specs/shipped/phase1-bloat-pruning-v1.json",
+      "changes": [
+        "Removed 10 dead/orphaned scripts (~55KB dead code)",
+        "Cleaned obsolete npm run script entries from package.json",
+        "Ratcheted .structure.json baseline from 50 to 42"
+      ]
+    },
+    "phase_2_rate_limit_stabilization": {
+      "spec": ".planning/initiatives/publisher-modernization/specs/shipped/phase2-publisher-scheduler-stabilization-v1.json",
+      "core_files": [
+        "lib/publisher/cooldown.ts",
+        "lib/publisher/publisherRun.ts",
+        "lib/publisher/ui/rateLimit.ts",
+        "lib/publisher/flow/runPublisherFlow.ts",
+        "lib/scheduler/run.ts"
+      ],
+      "tests": "tests/unit/publisherCooldown.test.ts"
+    },
+    "phase_3_maintenance_engine": {
+      "spec": ".planning/initiatives/publisher-modernization/specs/shipped/phase3-maintenance-engine-v1.json",
+      "core_files": [
+        "lib/observer/boardDiagnostics.ts",
+        "lib/observer/observerRun.ts",
+        "lib/publisher/publisherRun.ts",
+        "lib/scheduler/run.ts",
+        "lib/state/publisher.ts"
+      ],
+      "tests": "tests/unit/boardDiagnostics.test.ts"
+    },
+    "phase_4_state_and_consolidation": {
+      "spec": ".planning/initiatives/publisher-modernization/specs/shipped/phase4-state-architecture-consolidation-v1.json",
+      "core_files": [
+        "lib/state/store.ts",
+        "lib/state/persistence.ts",
+        "lib/publisher/flow/runPublisherFlow.ts",
+        "lib/publisher/history.ts",
+        "lib/publisher/stepStore.ts",
+        "lib/publisher/index.ts",
+        "bot.ts (deleted)"
+      ],
+      "tests": "tests/unit/stateStore.test.ts"
+    },
+    "production_readiness": {
+      "ops_scripts_chmod_100755": [
+        "ops/deploy/deploy-release.sh",
+        "ops/deploy/rollback-release.sh",
+        "ops/systemd/load-env-from-ssm.sh",
+        "ops/systemd/healthcheck.sh",
+        "ops/systemd/cleanup-artifacts.sh"
+      ],
+      "systemd_service": "ops/systemd/marketing-automation.service",
+      "portfolio_docs": [
+        ".planning/initiatives/publisher-modernization/README.md",
+        ".planning/README.md"
+      ]
+    }
+  },
+  "current_test_results": {
+    "total_tests": 278,
+    "passing": 278,
+    "failing": 0,
+    "skipped": 2,
+    "structure_check": "PASS (0 errors, 1 warning on baseline 42)",
+    "lint_and_tsc": "PASS (0 errors across tsconfig.json and tsconfig.server.json)",
+    "vite_build": "PASS (5.60s build time)"
+  },
+  "next_actions": [
+    "Second model to review code changes against the review vectors defined above.",
+    "Verify that test and lint suites execute cleanly in the evaluator environment.",
+    "Proceed with git commit and staging/release deployment."
+  ],
+  "continuation_prompt": "Review publisher-architecture-modernization-v1 implementation per evaluation_guide_for_second_model in .agent/session-handovers/handover-20260905-0205.json."
+}

@@ -1,0 +1,10 @@
+{
+  "$schema": "refactor-engine/codemod/1",
+  "id": "unlisted",
+  "engine": "grit",
+  "pattern": "rename-call.grit",
+  "why": "fixture: oldCall becomes newCall",
+  "include": ["src/**/*.js"],
+  "exclude": ["src/legacy/**"],
+  "ratchet": "old-call"
+}

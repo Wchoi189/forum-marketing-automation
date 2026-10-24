@@ -1,0 +1,8 @@
+{
+  "scope": { "include": ["src/**/*.js"], "exclude": ["**/node_modules/**"] },
+  "limits": { "fileLines": 400, "functionLines": 100 },
+  "patterns": [],
+  "baseline": "refactor-engine.baseline.json",
+  "receipts": "receipts",
+  "verify": { "commands": [{ "name": "check", "argv": ["node", "tests/render.check.js"] }] }
+}

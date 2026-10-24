@@ -1,0 +1,53 @@
+{
+  "handover_id": "handover-20260918-2335",
+  "timestamp_utc": "2026-09-18T14:35:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "next_agent",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "implementation",
+  "objective": "Develop Ad Template Data Schema & Compiler Pipeline",
+  "non_goals": [],
+  "current_state": {
+    "completed": [
+      "Extracted redesign-v5v1.html to ad-data.yaml",
+      "Created ad-template-engine compiler package",
+      "Tested generator.ts to build static HTML",
+      "Passed linter checks"
+    ],
+    "gaps": []
+  },
+  "status": "completed",
+  "decisions_locked": [
+    "Use ad-1.0 schema version for static marketing templates to differentiate from interactive ui-schema-engine contracts."
+  ],
+  "acceptance_criteria": [
+    "ad-data.yaml accurately represents all sections",
+    "compiler script outputs valid HTML with original inline styles"
+  ],
+  "implementation_plan": [],
+  "practical_recommendations": [],
+  "completed_items": [
+    "templates/ppompu-ad-design-system/ui_kits/ppompu-ad/ad-data.yaml",
+    "tools/ad-template-engine/package.json",
+    "tools/ad-template-engine/tsconfig.json",
+    "tools/ad-template-engine/generator.ts",
+    "templates/ppompu-ad-design-system/ui_kits/ppompu-ad/dist/index.html"
+  ],
+  "pending_items": [],
+  "decisions": [],
+  "constraints": [],
+  "env_requirements": [],
+  "next_actions": [
+    "Review compiled output or adapt ad-data.yaml as needed."
+  ],
+  "artifacts_touched": [
+    "templates/ppompu-ad-design-system/ui_kits/ppompu-ad/ad-data.yaml",
+    "tools/ad-template-engine/package.json",
+    "tools/ad-template-engine/tsconfig.json",
+    "tools/ad-template-engine/generator.ts",
+    ".agent/skills/registry.json",
+    ".agent/skills/ad-template-engine.md"
+  ]
+}

@@ -75,3 +75,36 @@ test("detectRateLimit handles error gracefully", async () => {
   const result = await detectRateLimit(page);
   assert.strictEqual(result.blocked, false);
 });
+
+test("detectRateLimit detects rate limit from capturedDialogText", async () => {
+  const page = mockPage("일반 게시판 목록") as Page;
+  const dialogText = "글 등록 후 60분이 지나야 다음 게시물을 등록할 수 있습니다. (25분 후에 등록할 수 있습니다.)";
+  const result = await detectRateLimit(page, dialogText);
+
+  assert.strictEqual(result.blocked, true);
+  if (result.blocked) {
+    assert.strictEqual(result.remainingMinutes, 25);
+  }
+});
+
+test("detectRateLimit matches variant phrasing (1시간 이내에 1개)", async () => {
+  const page = mockPage("1시간 이내에 1개의 글만 등록 가능합니다. 15분 후 등록 가능.") as Page;
+  const result = await detectRateLimit(page);
+
+  assert.strictEqual(result.blocked, true);
+  if (result.blocked) {
+    assert.strictEqual(result.remainingMinutes, 15);
+  }
+});
+
+test("detectRateLimit matches variant dialog text (60분이 지나야)", async () => {
+  const page = mockPage("일반 본문") as Page;
+  const dialogText = "60분이 지나야 새로운 글을 쓸 수 있습니다. 42분 후에 등록할 수 있습니다.";
+  const result = await detectRateLimit(page, dialogText);
+
+  assert.strictEqual(result.blocked, true);
+  if (result.blocked) {
+    assert.strictEqual(result.remainingMinutes, 42);
+  }
+});
+

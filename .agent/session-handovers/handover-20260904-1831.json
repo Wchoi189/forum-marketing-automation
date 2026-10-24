@@ -1,0 +1,154 @@
+{
+  "handover_id": "handover-20260904-1831",
+  "timestamp_utc": "2026-09-04T18:31:14Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "claude-opus-5",
+  "target_agent": "claude-opus-5",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "implementation",
+  "objective": "Implement R1 of the publisher-modernization remediation (spec .planning/initiatives/publisher-modernization/specs/active/r1-publisher-gate-ordering-v1.json), addressing findings F-01, F-02 and F-09.",
+  "non_goals": [
+    "computeEffectiveIntervalMinutes, the preset system, and the default-value duplication (R2)",
+    "State ownership between the scheduler closure and RuntimeStateStore (R3)",
+    "Maintenance detection logic in lib/observer/boardDiagnostics.ts (R4)",
+    "CLAUDE.md / contract drift (R5) - CLAUDE.md is still stale and was deliberately not touched"
+  ],
+  "status": "complete",
+
+  "current_state": {
+    "completed": [
+      "RTG-001 - rate-limit gate moved ahead of runObserver()",
+      "RTG-002 - success split out of the gap_skip scheduling branch",
+      "RTG-003 - active block deadlines are non-shortenable in scheduleNext()",
+      "RTG-004 - concurrency skip has its own already_running decision",
+      "RTG-005 - tautological cooldown tests deleted, four real regression guards added"
+    ],
+    "gaps": [
+      "No production run has happened yet. Every claim below is from unit/integration tests and static reading, not from an observed live run log.",
+      "PUBLISHER_DECISIONS in lib/publisher/constants.ts is still not the source of truth for PublisherRunDecision in contracts/models.ts - two hand-maintained lists that must be edited together. Not in R1 scope; worth folding into R5.",
+      "F-06 (adaptive machinery unreachable) is now *more* true: post_publish_cooldown and already_running are two more branches that bypass computeEffectiveIntervalMinutes. This is expected - R2 is the item that fixes it."
+    ]
+  },
+
+  "completed_items": [
+    {
+      "id": "RTG-001",
+      "commit": "779ab03",
+      "title": "Move the rate-limit gate ahead of the observer",
+      "what_changed": "Both rate-limit gates (the in-memory publishBlockedUntil check and the STAB-001 60-minute publisherHistory gatekeeper) were extracted into lib/publisher/cooldownGate.ts and are now invoked immediately after the maintenance pre-flight, before `log = await observe()` in lib/publisher/publisherRun.ts. The 60-minute window became PUBLISH_COOLDOWN_WINDOW_MS in lib/publisher/constants.ts.",
+      "why_a_new_file": "publisherRun.ts hit 511 lines after the in-place block move and `npm run lint:structure` failed on the 500-line size budget. Extraction was the fix, not an unprompted refactor.",
+      "behavior_change": "The `rate_limited` result no longer carries gapInfo. There is no observer log at that point. Verified by grep that the only gapInfo consumers are lib/scheduler/run.ts:173/176/202, none of which read it on the rate_limited path.",
+      "test_seam_added": "runPublisher(force, overrides) gained an optional second argument, `{ runObserver }`. Node is v20.20.2 here and `mock.module` requires Node 22.3+, so an injected seam was the only way to satisfy the spec's 'asserted by spy, not by log inspection' requirement.",
+      "verified_by": "bash scripts/run-tests.sh tests/unit/publisherCooldown.test.ts - the guard asserts observerCalls === 0 and decision === 'rate_limited'."
+    },
+    {
+      "id": "RTG-002",
+      "commit": "0274b55",
+      "title": "Split success out of the gap_skip scheduling branch",
+      "what_changed": "The SchedulerTickOutcome 'success' variant carries a new `cooldownApplies` boolean. A `published_verified` result now schedules PUBLISH_COOLDOWN_WINDOW_MINUTES + 1 (61 minutes) under reason 'post_publish_cooldown'. lib/scheduler/run.ts imports the constant from lib/publisher/index.js so the gate and the schedule cannot drift.",
+      "deviation_from_spec": "The spec said 'give success its own branch'. dry_run also maps to the success outcome, but lib/publisher/history.ts:104 shows getLastSuccessfulPublish only matches decision === 'published_verified', so a dry run starts no cooldown. Making dry_run wait 61 minutes would have been an unrequested behavior regression for a debugging mode, so dry_run stays on gapRecheckIntervalMinutes. Guarded by a test.",
+      "verified_by": "Two tests in tests/unit/schedulerStabilization.test.ts: verified publish schedules >60 and <=61 minutes; dry run schedules >2 and <=3 minutes."
+    },
+    {
+      "id": "RTG-003",
+      "commit": "6f704a4",
+      "title": "Make an active block deadline non-shortenable",
+      "what_changed": "scheduleNext() in lib/scheduler/run.ts now reads publishBlockedUntil and maintenanceBlockedUntil via getPublisherControls() from lib/state/index.js, and clamps the computed deadline to the later of the two when either exceeds it. The losing schedule is logged with status:'clamped', clampedBy, discardedReason and discardedMinutes. The setTimeout delay is computed from the clamped deadline, not from nextMinutes.",
+      "deviation_from_spec": "The spec said max(now + nextMinutes, blockUntil). The implementation uses blockUntil + 60s, matching the 1-minute buffer the existing rate_limited branch already applies. A clamp to the exact boundary would fire a tick at the instant the block expires and risk bouncing straight back into rate_limited.",
+      "verified_by": "tests/unit/schedulerStabilization.test.ts - with publishBlockedUntil 45 minutes out, scheduler.setControls({ baseIntervalMinutes: 5 }) leaves nextTickEta at or after the block deadline and no earlier than before the call."
+    },
+    {
+      "id": "RTG-004",
+      "commit": "9434d3c",
+      "title": "Give the concurrency skip its own decision",
+      "what_changed": "'already_running' added to PublisherRunDecision in contracts/models.ts and to PUBLISHER_DECISIONS in lib/publisher/constants.ts (which also picked up the system_maintenance entry it was missing). The guard in runPublisher() returns it instead of 'publisher_error'. lib/scheduler/run.ts adds an { type: 'already_running' } outcome that schedules a 1-minute retry and does not touch consecutiveFailures. lib/analytics/schedulerSignals.ts classifies it non_adaptive alongside observer_error / manual_override_disabled / rate_limited / system_maintenance.",
+      "side_effect_checked": "lib/aiAdvisor.ts:157 counts failures as decision === 'publisher_error' || 'observer_error', so it now correctly ignores overlaps. No other consumer of the decision string exists in routes/ or src/ (grep, no hits).",
+      "verified_by": "Two tests: publisherCooldown.test.ts asserts an overlapping runPublisher returns 'already_running'; schedulerStabilization.test.ts asserts consecutiveFailures stays 0 and the next tick is <= 1 minute."
+    },
+    {
+      "id": "RTG-005",
+      "commit": "779ab03 (deletions) and the per-item commits above (additions)",
+      "title": "Replace the tautological cooldown tests with real gate coverage",
+      "what_changed": "The two tests at the former tests/unit/publisherCooldown.test.ts:49-70 were deleted. They re-implemented the cooldown arithmetic in the test body and asserted against themselves. Four real guards replaced them, each landed in the same commit as the item it guards, per the spec's execution_mode.",
+      "note": "RTG-005 has no separate commit by design - the spec required each work item to land with its regression test, so batching the tests into a fifth commit would have contradicted RTG-001's own instruction."
+    }
+  ],
+
+  "gate_results": [
+    {
+      "command": "npm run lint:structure",
+      "result": "pass",
+      "output_read": "structure OK (619 tracked files, 1 warning(s)). The one warning is the pre-existing module_entry_points notice: 42 cross-module imports, baseline 42, not failing. The baseline was neither raised nor lowered by this session."
+    },
+    {
+      "command": "npm run lint",
+      "result": "pass",
+      "output_read": "tsc --noEmit, tsc --project tsconfig.server.json --noEmit and ast-grep scan all clean, then lint:structure as above."
+    },
+    {
+      "command": "npm run test:unit",
+      "result": "pass",
+      "output_read": "tests 100, pass 100, fail 0. Baseline before this session was 96; net +4 is minus 2 deleted tautologies, plus 6 new guards (1 for RTG-001, 2 for RTG-002, 1 for RTG-003, 2 for RTG-004)."
+    },
+    {
+      "command": "npm run build",
+      "result": "pass",
+      "output_read": "vite build, 'built in 5.53s', no errors."
+    },
+    {
+      "command": "npm run test:integration",
+      "result": "pass",
+      "output_read": "tests 62, pass 62, fail 0. Not required by the spec's gate; run because RTG-004 changed a decision string that tests/integration/api.integration.test.ts asserts on."
+    }
+  ],
+
+  "artifacts_touched": [
+    { "path": "lib/publisher/cooldownGate.ts", "change": "created - evaluatePublishCooldown(runId), the extracted local rate-limit pre-flight" },
+    { "path": "lib/publisher/publisherRun.ts", "change": "modified - gate call moved before the observer; PublisherRunOverrides seam; already_running decision" },
+    { "path": "lib/publisher/constants.ts", "change": "modified - PUBLISH_COOLDOWN_WINDOW_MS, PUBLISH_COOLDOWN_WINDOW_MINUTES, SYSTEM_MAINTENANCE, ALREADY_RUNNING" },
+    { "path": "lib/publisher/index.ts", "change": "modified - re-exports the two cooldown constants and the PublisherRunOverrides type" },
+    { "path": "lib/scheduler/run.ts", "change": "modified - post_publish_cooldown branch, already_running branch, block-deadline clamp" },
+    { "path": "lib/analytics/schedulerSignals.ts", "change": "modified - already_running classified non_adaptive" },
+    { "path": "contracts/models.ts", "change": "modified - already_running added to PublisherRunDecision" },
+    { "path": "tests/unit/publisherCooldown.test.ts", "change": "modified - two tautologies deleted, two guards added" },
+    { "path": "tests/unit/schedulerStabilization.test.ts", "change": "modified - four guards added" }
+  ],
+
+  "acceptance_criteria": [
+    { "criterion": "A publisher run during a known cooldown launches no browser context - asserted by spy, not by log inspection.", "status": "met", "evidence": "tests/unit/publisherCooldown.test.ts, 'publisher run during an active cooldown never invokes the observer', asserts observerCalls === 0 with an injected runObserver." },
+    { "criterion": "The run log after a verified publish shows one publish followed by one long wait, with no rate_limited entry three minutes later.", "status": "not yet observable", "evidence": "The code path is covered by a unit test asserting a ~61-minute schedule, but no production run has occurred. This is the criterion the one-day soak below is for." },
+    { "criterion": "POST /api/control-panel during an active cooldown leaves nextTickEta unchanged or later, never earlier.", "status": "met at the scheduler level", "evidence": "tests/unit/schedulerStabilization.test.ts exercises scheduler.setControls directly, not the HTTP route. routes/api/control.ts:304-312 was read and calls scheduler.setControls, which is the clamped path, but no test drives the route end to end." },
+    { "criterion": "An overlapping manual publish run does not increment consecutiveFailures.", "status": "met", "evidence": "tests/unit/schedulerStabilization.test.ts, 'scheduler does not count an already_running skip as a failure'." }
+  ],
+
+  "decisions": [
+    "Extracted lib/publisher/cooldownGate.ts rather than adding a size_budgets exemption - the 500-line budget failure was a real signal that the file holds two concerns.",
+    "Added a runObserver injection seam to runPublisher instead of a module mock, because Node 20.20.2 predates mock.module.",
+    "dry_run keeps the gap-recheck pace; only published_verified triggers the 61-minute post-publish schedule.",
+    "The block clamp adds a 1-minute buffer past the deadline rather than landing exactly on it."
+  ],
+
+  "pending_items": [
+    "Observe one full day of production run logs and confirm the shape: one publish, one ~61-minute wait, no rate_limited entry three minutes after a success.",
+    "R2 - .planning/initiatives/publisher-modernization/specs/active/r2-scheduling-decision-unification-v1.json. Blocked on the soak above.",
+    "The r1 spec file still has \"status\": \"proposed\". If the project treats a shipped spec as moving to specs/shipped/, that move has NOT been made - lint:structure enforces directory/status agreement, so change both together or neither."
+  ],
+
+  "next_actions": [
+    "Deploy and let the scheduler run for at least one full publish cycle.",
+    "Read the run log for the scheduler.next.scheduled events. Expect reason 'post_publish_cooldown' after a verified publish and reason 'block_deadline_clamp' if a control-panel save lands during a cooldown.",
+    "Only after that evidence exists, begin R2."
+  ],
+
+  "env_requirements": [
+    "Node 20.20.2 (the runObserver injection seam exists because this predates mock.module).",
+    "Tests run through scripts/run-tests.sh, which redirects ARTIFACTS_DIR, BOT_PROFILE_DIR and ACTIVITY_LOG_PATH into a temp directory removed on exit."
+  ],
+
+  "continuation_prompt": "R1 (publisher gate ordering) is complete. Do NOT start R2 yet - R1 must run in production for at least one full day and the run log must show the expected shape (one publish, one long wait, no post-success failure entry) before R2 begins. When that gate is met, proceed per .planning/initiatives/publisher-modernization/specs/active/r2-scheduling-decision-unification-v1.json.\n\n# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated.",
+
+  "constraints": [
+    "# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated."
+  ]
+}

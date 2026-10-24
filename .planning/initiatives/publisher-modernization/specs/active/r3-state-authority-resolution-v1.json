@@ -1,0 +1,102 @@
+{
+  "spec_id": "r3-state-authority-resolution-v1",
+  "status": "proposed",
+  "purpose": "Make RuntimeStateStore actually authoritative for scheduler controls, or explicitly demote it - and close the in-memory bypass, the swallowed persist failures, and the startup double-init that phase 4 claimed to have removed.",
+  "design_intent": "Phase 4 shipped RuntimeStateStore as 'the single in-memory source of truth'. For scheduler settings it is a write-behind mirror: routes/api/control.ts mutates the scheduler closure, reads it back with scheduler.getState(), then persists those values into the store. The store never informs the scheduler of anything - store.subscribe() has no scheduler subscriber anywhere in the codebase. The system pays the cost of both designs and gets the guarantees of neither. Pick one and mean it.",
+  "review_source": ".planning/initiatives/publisher-modernization/review-20260905/01-assessment.md",
+  "addresses_findings": ["F-04", "F-08", "F-11"],
+  "prerequisite": "r2-scheduling-decision-unification-v1 shipped. R2 collapses the default sets; doing R3 first would move ownership of values that still disagree.",
+  "model_execution_guidance": {
+    "recommended_model": "Deep reasoning model (Opus-class)",
+    "execution_mode": "decide_then_implement",
+    "note": "SAR-001 is a design decision that must be made and recorded before any code moves. Do not implement both options and pick later - the half-migrated state is exactly what phase 4 produced."
+  },
+  "work_items": [
+    {
+      "id": "SAR-001",
+      "title": "Choose and record the ownership model",
+      "target_files": [".planning/initiatives/publisher-modernization/specs/active/r3-state-authority-resolution-v1.json"],
+      "action": "Option A (recommended): the store owns, the scheduler reads. The scheduler stops holding `controls` in its closure and reads getRuntimeStateStore().getSchedulerControls() at the top of each tick. routes/api/control.ts writes only to the store and stops calling scheduler.setControls. scheduler.getState() becomes a thin projection. This removes the read-back-then-persist dance at control.ts:304-345 entirely. Option B: the scheduler owns and the store drops the scheduler mirror - cheaper, but scheduler settings then do not survive restart, which is not acceptable for this system. Record the choice and rationale before editing code.",
+      "risk": "low"
+    },
+    {
+      "id": "SAR-002",
+      "title": "Implement the chosen ownership model",
+      "target_files": ["lib/scheduler/run.ts", "lib/state/store.ts", "lib/state/scheduler.ts", "routes/api/control.ts"],
+      "action": "For Option A: remove the `controls` closure variable and the setControls/setIntervalMinutes/applyPreset write path; the scheduler reads controls per tick from the store. Preserve the R1 RTG-003 clamp and the R2 nextAttemptAt call unchanged. routes/api/control.ts persists the operator's patch to the store and returns the store's projection - it no longer reads scheduler state back to decide what to persist. Note that the scheduler must still re-arm its timer when an interval-affecting setting changes; do that via store.subscribe(), which finally gives that mechanism a consumer.",
+      "risk": "high"
+    },
+    {
+      "id": "SAR-003",
+      "title": "Close the in-memory bypass",
+      "target_files": ["lib/state/store.ts", "lib/state/publisher.ts", "lib/state/observer.ts"],
+      "action": "setPublisherControlsInMemory (store.ts:236) bumps no stateVersion, notifies no listener, and persists nothing - callers must remember to also call persistPublishBlockedUntil, which re-applies the same patch through patch(). Route the in-memory setters through patch() so version, listeners, and persistence stay coherent, and remove the now-redundant second call at each call site (lib/publisher/publisherRun.ts, lib/observer/observerRun.ts:135-136).",
+      "risk": "medium"
+    },
+    {
+      "id": "SAR-004",
+      "title": "Stop swallowing persistence failures",
+      "target_files": ["lib/publisher/publisherRun.ts", "lib/observer/observerRun.ts"],
+      "action": "Replace `.catch(() => null)` on persistPublishBlockedUntil / persistMaintenanceBlockedUntil with an error-level log carrying a named event. A disk failure currently leaves memory and disk permanently disagreeing with no signal anywhere.",
+      "risk": "low"
+    },
+    {
+      "id": "SAR-005",
+      "title": "Fix startup double-init and the dead skipBot guard",
+      "target_files": ["lib/state/store.ts", "server.ts"],
+      "action": "Guard init() with the `initialized` flag so a second call is a no-op. At server.ts:172-175, readPersistedSchedulerControls() calls store.ensureInitialized() concurrently with initRuntimeStateStore() calling store.init() unguarded - two overlapping disk reads and two applyPatchInMemory passes. Also, initRuntimeStateStore() is guarded behind !skipBot while the sibling call initialises the store unconditionally, making the guard dead and misleading. Resolve to one explicit init.",
+      "risk": "medium"
+    },
+    {
+      "id": "SAR-006",
+      "title": "Make getState() side-effect free",
+      "target_files": ["lib/scheduler/run.ts", "routes/api/control.ts"],
+      "action": "scheduler.getState() (run.ts:376) calls computeEffectiveIntervalMinutes -> recalcTrendFactor, which writes trendFactor and lastTrendRecalculatedAt and issues deps.getLogs() plus deps.getPublisherHistory(). GET /api/control-panel calls getState(), so dashboard polling determines when the trend factor recalibrates and the trendRecalibrationDays setting is enforced against a clock a browser tab resets. Move recalibration to an explicit tick-time call; getState() reads the last computed value.",
+      "risk": "medium"
+    },
+    {
+      "id": "SAR-007",
+      "title": "Clear expired block timestamps",
+      "target_files": ["lib/state/publisher.ts", "lib/publisher/publisherRun.ts"],
+      "action": "publishBlockedUntil and maintenanceBlockedUntil are never cleared once passed, so runtime-controls.json and the dashboard carry stale block timestamps indefinitely. Clear on read when the deadline is in the past.",
+      "risk": "low"
+    },
+    {
+      "id": "SAR-008",
+      "title": "Give optimistic concurrency real coverage or remove it",
+      "target_files": ["lib/state/store.ts", "tests/unit/stateStore.test.ts"],
+      "action": "patch(patch, expectedVersion) implements version checking, but every internal caller passes undefined - only the HTTP route supplies a version. Decide whether internal writers should participate. If yes, thread expectedVersion through and test a real conflict. If no, document in the module header that the mechanism guards the HTTP path only, so the next reader does not assume a guarantee that is not there.",
+      "risk": "low"
+    }
+  ],
+  "acceptance_criteria": [
+    "Exactly one component owns scheduler controls, and the ownership is stated in the module header of the owning file.",
+    "No code path mutates store state without bumping stateVersion and notifying listeners.",
+    "A persistence failure produces an error-level log line, not silence.",
+    "store.init() is called exactly once per process; a second call is a proven no-op.",
+    "GET /api/control-panel performs no state mutation - asserted by a test that polls it repeatedly and checks lastTrendRecalculatedAt is unchanged.",
+    "The R1 and R2 regression guards still pass unchanged."
+  ],
+  "out_of_scope": [
+    "Maintenance detection - that is R4.",
+    "Documentation drift - that is R5."
+  ],
+  "session_boundary": {
+    "auto_stop": true,
+    "gate_criteria": [
+      "npm run lint:structure passes with 0 errors",
+      "npm run lint passes with 0 errors",
+      "npm run test:unit and npm run test:integration pass",
+      "The R1 and R2 regression guards pass unchanged",
+      "npm run build passes"
+    ],
+    "handover_instructions": {
+      "generate_file": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+      "use_template": ".agent/session-handovers/template.json",
+      "required_fields": ["handover_id", "timestamp_utc", "completed_items", "artifacts_touched", "next_actions", "continuation_prompt", "constraints", "ownership_decision"],
+      "honesty_requirement": "Name only files that exist and claims verified by a command whose output you read.",
+      "constraints_to_forward_verbatim": "# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated.",
+      "continuation_prompt": "R3 (state authority resolution) is complete. Proceed per .planning/initiatives/publisher-modernization/specs/active/r4-maintenance-corroboration-v1.json to stop the maintenance detector from pausing the system on a healthy board.\n\n# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated."
+    }
+  }
+}

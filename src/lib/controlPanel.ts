@@ -4,6 +4,7 @@ import type {
   CompetitorStat,
   DraftItem,
   PublisherHistoryEntry,
+  SessionView,
   TrendInsights
 } from '../../contracts/models.js';
 
@@ -13,6 +14,7 @@ export type {
   CompetitorStat,
   DraftItem,
   PublisherHistoryEntry,
+  SessionView,
   TrendInsights
 };
 
@@ -97,6 +99,8 @@ export type ControlPanelState = {
   autoPublisher: AutoPublisherControlState;
   nlWebhookEnabled: boolean;
   lastObserverResult?: LastObserverResult | null;
+  /** Server-owned; absent until the first fetch. */
+  session?: SessionView;
 };
 
 export function gapPolicySourceLabel(o: ObserverControlState): string {

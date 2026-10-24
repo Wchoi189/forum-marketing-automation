@@ -1,0 +1,9 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "host-not-exported",
+  "strategy": "split-class",
+  "source": "src/host.js",
+  "host": "Helper",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "Part", "members": ["one"] }]
+}

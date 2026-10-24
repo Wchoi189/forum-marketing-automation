@@ -1,0 +1,118 @@
+{
+  "$schema": "https://calm.finos.org/release/1.0/meta/calm.json",
+  "unique-id": "fixture-shop",
+  "name": "Fixture shop",
+  "description": "A four-node architecture used only by the toolkit's tests.",
+  "nodes": [
+    {
+      "unique-id": "customer",
+      "node-type": "actor",
+      "name": "Customer",
+      "description": "Uses the web client."
+    },
+    {
+      "unique-id": "web",
+      "node-type": "webclient",
+      "name": "Web client",
+      "description": "Single-page app in the browser.",
+      "metadata": {
+        "zone": "client"
+      }
+    },
+    {
+      "unique-id": "api",
+      "node-type": "service",
+      "name": "API",
+      "description": "HTTP API in the container.",
+      "interfaces": [
+        {
+          "unique-id": "api-http",
+          "host": "localhost",
+          "port": 8080
+        }
+      ],
+      "metadata": {
+        "zone": "container"
+      }
+    },
+    {
+      "unique-id": "store",
+      "node-type": "database",
+      "name": "Store",
+      "description": "Embedded database in the container."
+    },
+    {
+      "unique-id": "payments",
+      "node-type": "system",
+      "name": "Payments provider",
+      "description": "External payments API.",
+      "metadata": {
+        "zone": "external",
+        "hosts": [
+          "api.payments.example.com"
+        ]
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "unique-id": "rel-customer-web",
+      "description": "Customer uses the web client.",
+      "relationship-type": {
+        "interacts": {
+          "actor": "customer",
+          "nodes": [
+            "web"
+          ]
+        }
+      }
+    },
+    {
+      "unique-id": "rel-web-api",
+      "description": "Web client calls the API.",
+      "protocol": "HTTP",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "web"
+          },
+          "destination": {
+            "node": "api",
+            "interfaces": [
+              "api-http"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "unique-id": "rel-api-store",
+      "description": "API reads and writes the store in-process.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "api"
+          },
+          "destination": {
+            "node": "store"
+          }
+        }
+      }
+    },
+    {
+      "unique-id": "rel-api-payments",
+      "description": "API charges through the payments provider.",
+      "protocol": "HTTPS",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "api"
+          },
+          "destination": {
+            "node": "payments"
+          }
+        }
+      }
+    }
+  ]
+}

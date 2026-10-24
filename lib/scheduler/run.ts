@@ -5,14 +5,52 @@
  * Import through lib/scheduler/index.ts, not directly.
  */
 
-import { clamp } from '../utils.js';
-import { applyScheduleJitter } from '../scheduleJitter.js';
-import { computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoice, shareOfVoiceMultiplierFromSoV, COMBINED_MULTIPLIER_MIN, COMBINED_MULTIPLIER_MAX, summarizeSchedulerSignals } from '../analytics/index.js';
+import { computeTurnoverAnalysis, trendMultiplierFromAvgRate, computeShareOfVoice, shareOfVoiceMultiplierFromSoV, summarizeSchedulerSignals } from '../analytics/index.js';
 import { logger, LOG_EVENT } from '../logging/index.js';
 import { ENV } from '../../config/env.js';
+import { getPublisherControls, getSessionRecord, isSessionParked, isSessionProbeDue } from '../state/index.js';
 
-import { PRESET_CONFIG, isHourInRange, normalizeAutoPublisherControls } from './presets.js';
-import type { AutoPublisherControls, ControlPanelPreset, BotDeps } from './types.js';
+import { defaultAutoPublisherControls } from './defaults.js';
+import { PUBLISH_COOLDOWN_WINDOW_MINUTES } from '../publisher/index.js';
+
+import { nextAttemptAt, BLOCK_FIELDS } from './nextAttempt.js';
+import type { AttemptReason } from './nextAttempt.js';
+import { PRESET_CONFIG, normalizeAutoPublisherControls } from './presets.js';
+import type { AutoPublisherControls, ControlPanelPreset, BotDeps, SchedulerTickOutcome } from './types.js';
+
+/** Multipliers feeding the adaptive branch of `nextAttemptAt`. */
+type AdaptiveMultipliers = { trend: number; sov: number; opportunity: number };
+const NEUTRAL_MULTIPLIERS: AdaptiveMultipliers = { trend: 1, sov: 1, opportunity: 1 };
+
+/** Operator-facing sentence for one scheduling decision. */
+function describeSchedule(
+  reason: AttemptReason,
+  nextMinutes: number,
+  baseMinutes: number,
+  nextTickEta: string,
+  consecutiveFailures: number
+): string {
+  switch (reason) {
+    case 'rate_limited_cooldown':
+      return `[Scheduler] Cooldown active — next tick scheduled in ${nextMinutes} minute(s) (${baseMinutes - 1}m cooldown + 1m buffer)`;
+    case 'system_maintenance':
+      return `[Scheduler] Platform maintenance active — next tick scheduled in ${nextMinutes} minute(s) at ${nextTickEta}`;
+    case 'error_backoff':
+      return `[Scheduler] Error backoff active (failure count=${consecutiveFailures}) — next tick scheduled in ${nextMinutes} minute(s)`;
+    case 'post_publish_cooldown':
+      return `[Scheduler] Publish verified — next tick scheduled in ${nextMinutes} minute(s) (${PUBLISH_COOLDOWN_WINDOW_MINUTES}m platform cooldown + 1m buffer)`;
+    case 'gap_recheck':
+      return `[Scheduler] Gap monitoring — re-checking in ${nextMinutes} minute(s)`;
+    case 'already_running':
+      return `[Scheduler] A publisher run is already active — retrying in ${nextMinutes} minute(s)`;
+    case 'session_required':
+      return `[Scheduler] ppomppu session is dead — parked, no browser launched; re-checking in ${nextMinutes} minute(s). Log in through the session console to resume.`;
+    case 'block_deadline_clamp':
+      return `[Scheduler] Block deadline active — next tick scheduled at ${nextTickEta}`;
+    case 'adaptive':
+      return `[Scheduler] Next tick scheduled in ${nextMinutes} minute(s) at ${nextTickEta}`;
+  }
+}
 
 export function startScheduler(
   deps: BotDeps,
@@ -24,22 +62,26 @@ export function startScheduler(
       ? (persistedState.preset as ControlPanelPreset)
       : 'balanced';
   let preset: ControlPanelPreset = resolvedPreset;
+  // Defaults come from the single source in ./defaults.ts. Persisted state wins for
+  // every field it supplies; `intervalMinutes` is the caller's override for the base.
+  const fallback = defaultAutoPublisherControls();
   const baseDefaults: AutoPublisherControls = {
-    enabled: persistedState?.enabled ?? true,
+    ...fallback,
+    enabled: persistedState?.enabled ?? fallback.enabled,
     baseIntervalMinutes: Math.max(1, persistedState?.baseIntervalMinutes ?? intervalMinutes),
-    quietHoursStart: persistedState?.quietHoursStart ?? 3,
-    quietHoursEnd: persistedState?.quietHoursEnd ?? 5,
-    quietHoursMultiplier: persistedState?.quietHoursMultiplier ?? 1.8,
-    activeHoursStart: persistedState?.activeHoursStart ?? 8,
-    activeHoursEnd: persistedState?.activeHoursEnd ?? 23,
-    activeHoursMultiplier: persistedState?.activeHoursMultiplier ?? 0.8,
-    trendAdaptiveEnabled: persistedState?.trendAdaptiveEnabled ?? true,
-    trendWindowDays: persistedState?.trendWindowDays ?? 7,
-    trendRecalibrationDays: persistedState?.trendRecalibrationDays ?? 7,
-    scheduleJitterPercent: persistedState?.scheduleJitterPercent ?? ENV.SCHEDULER_JITTER_PERCENT,
-    scheduleJitterMode: persistedState?.scheduleJitterMode ?? ENV.SCHEDULER_JITTER_MODE,
-    targetPublishIntervalMinutes: persistedState?.targetPublishIntervalMinutes ?? 0,
-    gapRecheckIntervalMinutes: persistedState?.gapRecheckIntervalMinutes ?? 3,
+    quietHoursStart: persistedState?.quietHoursStart ?? fallback.quietHoursStart,
+    quietHoursEnd: persistedState?.quietHoursEnd ?? fallback.quietHoursEnd,
+    quietHoursMultiplier: persistedState?.quietHoursMultiplier ?? fallback.quietHoursMultiplier,
+    activeHoursStart: persistedState?.activeHoursStart ?? fallback.activeHoursStart,
+    activeHoursEnd: persistedState?.activeHoursEnd ?? fallback.activeHoursEnd,
+    activeHoursMultiplier: persistedState?.activeHoursMultiplier ?? fallback.activeHoursMultiplier,
+    trendAdaptiveEnabled: persistedState?.trendAdaptiveEnabled ?? fallback.trendAdaptiveEnabled,
+    trendWindowDays: persistedState?.trendWindowDays ?? fallback.trendWindowDays,
+    trendRecalibrationDays: persistedState?.trendRecalibrationDays ?? fallback.trendRecalibrationDays,
+    scheduleJitterPercent: persistedState?.scheduleJitterPercent ?? fallback.scheduleJitterPercent,
+    scheduleJitterMode: persistedState?.scheduleJitterMode ?? fallback.scheduleJitterMode,
+    targetPublishIntervalMinutes: persistedState?.targetPublishIntervalMinutes ?? fallback.targetPublishIntervalMinutes,
+    gapRecheckIntervalMinutes: persistedState?.gapRecheckIntervalMinutes ?? fallback.gapRecheckIntervalMinutes,
   };
   let controls = normalizeAutoPublisherControls(baseDefaults);
   let timer: NodeJS.Timeout | null = null;
@@ -47,40 +89,46 @@ export function startScheduler(
   let running = false;
   let nextTickEta: string | null = null;
   let lastTrendRecalculatedAt = 0;
-  let trendFactor = 1;
+  let multipliers: AdaptiveMultipliers = { ...NEUTRAL_MULTIPLIERS };
   let lastObserverResult: { status: string; currentGap: number; requiredGap: number; checkedAt: string } | null = null;
 
-  const recalcTrendFactor = async (): Promise<number> => {
+  /**
+   * Recompute the adaptive multipliers, honouring the recalibration interval.
+   *
+   * Returns the three factors separately rather than a single product so
+   * `nextAttemptAt` can name each one in `inputsUsed`.
+   */
+  const recalcMultipliers = async (): Promise<AdaptiveMultipliers> => {
     if (!controls.trendAdaptiveEnabled) {
-      trendFactor = 1;
-      return 1;
+      multipliers = { ...NEUTRAL_MULTIPLIERS };
+      return multipliers;
     }
     const now = Date.now();
     const minAgeMs = controls.trendRecalibrationDays * 24 * 60 * 60 * 1000;
     if (lastTrendRecalculatedAt > 0 && now - lastTrendRecalculatedAt < minAgeMs) {
-      return trendFactor;
+      return multipliers;
     }
 
     const logs = await deps.getLogs();
     const analysis = computeTurnoverAnalysis(logs, controls.trendWindowDays);
 
     if (analysis.recentSnapshotCount < 3 || analysis.pairSampleCount < 3) {
-      trendFactor = 1;
+      multipliers = { ...NEUTRAL_MULTIPLIERS };
       lastTrendRecalculatedAt = now;
-      return trendFactor;
+      return multipliers;
     }
 
-    trendFactor = trendMultiplierFromAvgRate(analysis.avgNewPostsPerHour);
+    const trend = trendMultiplierFromAvgRate(analysis.avgNewPostsPerHour);
 
-    let sovFactor = 1;
+    let sov = 1;
     try {
       const sovPercent = computeShareOfVoice(logs, controls.trendWindowDays, ENV.OUR_AUTHOR_SUBSTRING);
-      sovFactor = shareOfVoiceMultiplierFromSoV(sovPercent);
+      sov = shareOfVoiceMultiplierFromSoV(sovPercent);
     } catch (err) {
       logger.warn({ event: 'scheduler_sov_fallback', err }, '[Scheduler] SoV computation failed; using sovFactor=1');
     }
-    trendFactor = Math.max(COMBINED_MULTIPLIER_MIN, Math.min(COMBINED_MULTIPLIER_MAX, trendFactor * sovFactor));
 
+    let opportunity = 1;
     if (deps.getPublisherHistory) {
       try {
         const historyLimit = Math.max(40, Math.min(200, controls.trendWindowDays * 24));
@@ -89,10 +137,7 @@ export function startScheduler(
           windowDays: controls.trendWindowDays,
           nowMs: now,
         });
-        trendFactor = Math.max(
-          COMBINED_MULTIPLIER_MIN,
-          Math.min(COMBINED_MULTIPLIER_MAX, trendFactor * signalSummary.isolatedMultiplier)
-        );
+        opportunity = signalSummary.isolatedMultiplier;
         logger.info(
           {
             event: 'scheduler_signal_isolation_applied',
@@ -116,32 +161,43 @@ export function startScheduler(
       }
     }
 
+    multipliers = { trend, sov, opportunity };
     lastTrendRecalculatedAt = now;
-    return trendFactor;
+    return multipliers;
   };
 
+  /** Read the two block deadlines that can push a schedule later. */
+  const readBlocks = (): Record<(typeof BLOCK_FIELDS)[number], string | null> => {
+    const blockControls = getPublisherControls();
+    return {
+      publishBlockedUntil: blockControls.publishBlockedUntil ?? null,
+      maintenanceBlockedUntil: blockControls.maintenanceBlockedUntil ?? null,
+    };
+  };
+
+  /**
+   * The interval a `normal` outcome would produce right now. Reported on the control
+   * panel; it goes through `nextAttemptAt` so the number the operator sees and the
+   * number the timer uses cannot drift.
+   */
   const computeEffectiveIntervalMinutes = async (): Promise<number> => {
-    const hour = new Date().getHours();
-    let multiplier = 1;
-    if (isHourInRange(hour, controls.quietHoursStart, controls.quietHoursEnd)) {
-      multiplier *= controls.quietHoursMultiplier;
-    }
-    if (isHourInRange(hour, controls.activeHoursStart, controls.activeHoursEnd)) {
-      multiplier *= controls.activeHoursMultiplier;
-    }
-    multiplier *= await recalcTrendFactor();
-    let effective = clamp(controls.baseIntervalMinutes * multiplier, 1, 1440);
-    if (controls.targetPublishIntervalMinutes > 0) {
-      const t = controls.targetPublishIntervalMinutes;
-      effective = clamp(Math.round(effective * 0.5 + t * 0.5), 1, 1440);
-    }
-    return effective;
+    const current = await recalcMultipliers();
+    return nextAttemptAt({
+      now: Date.now(),
+      lastOutcome: { type: 'normal' },
+      blocks: { publishBlockedUntil: null, maintenanceBlockedUntil: null },
+      controls,
+      multipliers: current,
+    }).nextMinutes;
   };
 
-  // Dynamic gap recheck intervals based on how close the gap is to becoming safe
-  const PUBLISHER_FAIL_RECHECK_INTERVAL = 5; // 5 minutes after a failed publish attempt when gap was safe
+  let consecutiveFailures = 0;
 
-  const tick = async (): Promise<{ currentGap: number; requiredGap: number } | false | undefined> => {
+  const tick = async (): Promise<SchedulerTickOutcome | false> => {
+    // SL-005: the timer keeps firing while disabled, so the expiry warning does too.
+    await deps.session?.checkExpiry().catch((err) =>
+      logger.warn({ event: 'scheduler_session_expiry_check_failed', err }, '[Scheduler] Session expiry check failed')
+    );
     if (!enabled) {
       return false;
     }
@@ -153,37 +209,82 @@ export function startScheduler(
       return false;
     }
 
+    // SL-002: a dead session cannot be revived by the bot (KE-004). Launch nothing
+    // and leave consecutiveFailures alone until an import marks it healthy.
+    if (isSessionParked()) {
+      return { type: 'session_lost' };
+    }
+
     running = true;
     const tickStartedAt = Date.now();
-    let wasGapSkip = false;
-    let wasSuccessPublish = false;
-    let wasPublisherFailGapSafe = false;
-    let gapInfo: { currentGap: number; requiredGap: number } | undefined = undefined;
+    let outcome: SchedulerTickOutcome = { type: 'normal' };
     try {
       logger.info({ event: LOG_EVENT.schedulerTickStarted }, '[Scheduler] Tick started');
       const result = await deps.runPublisher(false);
-      wasGapSkip = result.decision === 'gap_policy';
-      if (wasGapSkip) {
-        gapInfo = result.gapInfo;
+
+      if (result.decision === 'gap_policy') {
+        consecutiveFailures = 0;
+        outcome = { type: 'gap_skip', gapInfo: result.gapInfo };
       } else if (result.decision === 'published_verified' || result.decision === 'dry_run') {
-        wasSuccessPublish = true;
-        gapInfo = result.gapInfo; // { currentGap: 0, requiredGap: N }
-      } else if (result.gapInfo) {
-        // Publisher failed but the gap was already safe — retry sooner than the full interval
-        wasPublisherFailGapSafe = true;
-        gapInfo = result.gapInfo;
+        consecutiveFailures = 0;
+        // Only a verified publish starts the platform's one-post-per-hour
+        // cooldown. A dry run submits nothing, so it keeps the gap-recheck pace.
+        outcome = {
+          type: 'success',
+          cooldownApplies: result.decision === 'published_verified',
+          gapInfo: result.gapInfo ?? { currentGap: 0, requiredGap: 4 },
+        };
+      } else if (result.decision === 'rate_limited') {
+        // Expected rate-limit cooldown — do NOT increment consecutiveFailures
+        const remaining =
+          result.cooldownRemainingMinutes && result.cooldownRemainingMinutes > 0
+            ? result.cooldownRemainingMinutes
+            : 60;
+        outcome = { type: 'rate_limited', remainingMinutes: remaining };
+      } else if (result.decision === 'system_maintenance') {
+        // Expected platform maintenance pause — do NOT increment consecutiveFailures
+        const remaining =
+          result.maintenanceRemainingMinutes && result.maintenanceRemainingMinutes > 0
+            ? result.maintenanceRemainingMinutes
+            : 30;
+        outcome = { type: 'system_maintenance', remainingMinutes: remaining };
+      } else if (result.decision === 'already_running') {
+        // Benign overlap with a manual run — leave consecutiveFailures alone and
+        // come back in a minute rather than entering the error backoff.
+        outcome = { type: 'already_running' };
+      } else if (result.decision === 'publisher_error' && isSessionParked()) {
+        // This run found the session dead (PUBLISHER_LOGIN_REQUIRED): park, not backoff.
+        outcome = { type: 'session_lost' };
+      } else if (result.decision === 'publisher_error' || result.decision === 'observer_error') {
+        consecutiveFailures += 1;
+        outcome = { type: 'unexpected_error', consecutiveFailures };
+      } else {
+        outcome = { type: 'normal' };
       }
+
+      // SL-004: a gap skip never reaches the board, so a session can die unseen
+      // between publishes. Probe it when no run has verified it for a while.
+      if (outcome.type === 'gap_skip' && deps.session && isSessionProbeDue(getSessionRecord(), Date.now())) {
+        const sessionState = await deps.session.probe().catch((err) => {
+          logger.warn({ event: 'scheduler_session_probe_failed', err }, '[Scheduler] Session probe failed');
+          return 'unknown' as const;
+        });
+        if (sessionState === 'logged_out' && isSessionParked()) outcome = { type: 'session_lost' };
+      }
+
       if (result.log) {
         lastObserverResult = {
           status: result.log.status,
           currentGap: result.log.current_gap_count,
-          requiredGap: result.log.gap_threshold_min ?? gapInfo?.requiredGap ?? 0,
+          requiredGap: result.log.gap_threshold_min ?? result.gapInfo?.requiredGap ?? 0,
           checkedAt: result.log.timestamp,
         };
       }
     } catch (error: any) {
+      consecutiveFailures += 1;
+      outcome = { type: 'unexpected_error', consecutiveFailures };
       logger.error(
-        { event: LOG_EVENT.schedulerTickFailed, status: 'error', error: String(error?.message ?? error) },
+        { event: LOG_EVENT.schedulerTickFailed, status: 'error', consecutiveFailures, error: String(error?.message ?? error) },
         '[Scheduler] Tick failed'
       );
     } finally {
@@ -194,66 +295,71 @@ export function startScheduler(
       running = false;
     }
 
-    // After a successful publish, enter gap-recheck mode immediately so the gap
-    // never grows unchecked for a full interval before the next post.
-    if (wasGapSkip || wasSuccessPublish || wasPublisherFailGapSafe) {
-      return gapInfo;
-    }
-    return false;
+    return outcome;
   };
 
-  const scheduleNext = async (fromGapSkip: boolean | { currentGap: number; requiredGap: number } = false) => {
+  /**
+   * Arm the next timer. Call, clamp, setTimeout, log - and nothing else.
+   *
+   * Every scheduling decision, including the block clamp and the adaptive interval,
+   * belongs to `nextAttemptAt`. Keeping arithmetic out of here is what makes the
+   * decision table in tests/unit/nextAttempt.test.ts authoritative.
+   */
+  const scheduleNext = async (outcome: SchedulerTickOutcome | false = false) => {
     if (timer) {
       clearTimeout(timer);
     }
-    let nextMinutes: number;
-    let baseMinutes: number;
 
-    if (fromGapSkip && typeof fromGapSkip === 'object') {
-      // Gap is not yet safe but we have gap information - use dynamic interval based on how close we are
-      const gapDiff = fromGapSkip.requiredGap - fromGapSkip.currentGap;
-      if (gapDiff <= 0) {
-        // Gap was already safe but publish failed — retry in 5 minutes to avoid hammering on persistent errors
-        baseMinutes = PUBLISHER_FAIL_RECHECK_INTERVAL;
-        nextMinutes = PUBLISHER_FAIL_RECHECK_INTERVAL;
-      } else {
-        baseMinutes = controls.gapRecheckIntervalMinutes;
-        nextMinutes = controls.gapRecheckIntervalMinutes;
-      }
-    } else if (fromGapSkip) {
-      // Gap is not yet safe — re-check soon rather than waiting the full interval.
-      baseMinutes = controls.gapRecheckIntervalMinutes;
-      nextMinutes = controls.gapRecheckIntervalMinutes;
-    } else {
-      baseMinutes = await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes);
-      nextMinutes = applyScheduleJitter(
-        baseMinutes,
-        controls.scheduleJitterPercent,
-        controls.scheduleJitterMode,
-        Math.random
+    const lastOutcome: SchedulerTickOutcome = outcome === false ? { type: 'normal' } : outcome;
+    const current = lastOutcome.type === 'normal'
+      ? await recalcMultipliers().catch(() => multipliers)
+      : multipliers;
+
+    const attempt = nextAttemptAt({
+      now: Date.now(),
+      lastOutcome,
+      blocks: readBlocks(),
+      controls,
+      multipliers: current,
+      random: Math.random,
+    });
+
+    if (attempt.clamp) {
+      const blockedUntil = new Date(attempt.clamp.blockedUntilMs).toISOString();
+      logger.info(
+        {
+          event: LOG_EVENT.schedulerNextScheduled,
+          status: 'clamped',
+          clampedBy: attempt.clamp.field,
+          blockedUntil,
+          discardedReason: attempt.clamp.discardedReason,
+          discardedMinutes: attempt.clamp.discardedMinutes,
+        },
+        `[Scheduler] Schedule clamped — ${attempt.clamp.discardedReason} wanted ${attempt.clamp.discardedMinutes} minute(s) but ${attempt.clamp.field} is active until ${blockedUntil}`
       );
     }
-    nextTickEta = new Date(Date.now() + nextMinutes * 60 * 1000).toISOString();
+
+    nextTickEta = new Date(attempt.at).toISOString();
     logger.info(
       {
         event: LOG_EVENT.schedulerNextScheduled,
-        nextMinutes,
-        baseMinutes,
-        jitterPercent: fromGapSkip ? 0 : controls.scheduleJitterPercent,
-        jitterMode: fromGapSkip ? 'none' : controls.scheduleJitterMode,
-        reason: fromGapSkip ? 'gap_recheck' : 'normal',
+        nextMinutes: attempt.nextMinutes,
+        baseMinutes: attempt.baseMinutes,
+        jitterPercent: attempt.jitterPercent,
+        jitterMode: attempt.jitterMode,
+        reason: attempt.reason,
+        inputsUsed: attempt.inputsUsed,
       },
-      fromGapSkip
-        ? `[Scheduler] Gap not safe — re-checking in ${nextMinutes} minute(s) (current=${typeof fromGapSkip === 'object' ? fromGapSkip.currentGap : 'unknown'}, required=${typeof fromGapSkip === 'object' ? fromGapSkip.requiredGap : 'unknown'})`
-        : '[Scheduler] Next tick scheduled'
+      describeSchedule(attempt.reason, attempt.nextMinutes, attempt.baseMinutes, nextTickEta, consecutiveFailures)
     );
+
     timer = setTimeout(() => {
       void (async () => {
         nextTickEta = null;
-        const gapSkip = await tick();
-        await scheduleNext(gapSkip);
+        const tickOutcome = await tick();
+        await scheduleNext(tickOutcome);
       })();
-    }, nextMinutes * 60 * 1000);
+    }, Math.max(0, attempt.at - Date.now()));
   };
 
   // Fire an initial tick shortly after startup so the publisher doesn't sit idle for
@@ -264,10 +370,11 @@ export function startScheduler(
   timer = setTimeout(() => {
     void (async () => {
       nextTickEta = null;
-      const gapSkip = await tick();
-      await scheduleNext(gapSkip ?? false);
+      const tickOutcome = await tick();
+      await scheduleNext(tickOutcome);
     })();
   }, STARTUP_TICK_DELAY_MS);
+
 
   logger.info(
     {
@@ -285,7 +392,13 @@ export function startScheduler(
         timer = null;
       }
     },
-    runNow: tick,
+    runNow: async () => {
+      const tickOutcome = await tick();
+      if (tickOutcome !== false) {
+        await scheduleNext(tickOutcome);
+      }
+      return tickOutcome;
+    },
     setEnabled: (nextEnabled: boolean) => {
       enabled = nextEnabled;
     },
@@ -296,7 +409,7 @@ export function startScheduler(
     setControls: (patch: Partial<AutoPublisherControls>) => {
       controls = normalizeAutoPublisherControls(controls, patch);
       if (controls.trendAdaptiveEnabled === false) {
-        trendFactor = 1;
+        multipliers = { ...NEUTRAL_MULTIPLIERS };
       }
       void scheduleNext(false);
     },
@@ -314,6 +427,7 @@ export function startScheduler(
       enabled,
       effectiveIntervalMinutes: await computeEffectiveIntervalMinutes().catch(() => controls.baseIntervalMinutes),
       running,
+      consecutiveFailures,
       nextTickEta: enabled ? nextTickEta : null,
       lastObserverResult,
     }),

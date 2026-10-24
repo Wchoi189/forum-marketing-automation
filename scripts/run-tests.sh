@@ -24,6 +24,9 @@ export PPOMPPU_USER_ID="test-user"
 export PPOMPPU_USER_PW="test-pass"
 export XAI_API_KEY="test-xai-key"
 export NL_WEBHOOK_SECRET="test-secret"
+export SESSION_IMPORT_SECRET="test-session-secret"
+# Empty, not unset: dotenv would fill an unset one from .env and tests would post to Slack.
+export SLACK_WEBHOOK_URL=""
 
 mkdir -p "$ARTIFACTS_DIR" "$BOT_PROFILE_DIR"
 
@@ -46,4 +49,4 @@ for arg in "$@"; do
 done
 shopt -u nullglob
 
-exec npx tsx --test "${files[@]}"
+exec npx tsx --test --test-concurrency=1 "${files[@]}"

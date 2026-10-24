@@ -1,0 +1,7 @@
+{
+  "scope": { "include": ["src/**/*.js", "src/**/*.ts"], "exclude": ["**/node_modules/**"] },
+  "limits": { "fileLines": 400, "functionLines": 100 },
+  "patterns": [],
+  "baseline": "refactor-engine.baseline.json",
+  "receipts": "receipts"
+}

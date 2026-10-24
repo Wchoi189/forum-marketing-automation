@@ -64,7 +64,68 @@
           "artifacts:/app/data/artifacts"
         ]
       }
+    },
+    {
+      "id": "ui-schema-governance",
+      "name": "UI Schema Governance",
+      "description": "Validate UI schema contracts (*.ui-schema.yaml), audit field drift against DB schema (NOT NULL / enum alignment), and distill compact prompt DSL for LLMs using @tools/ui-schema-engine.",
+      "triggers": ["ui-schema", "ui-schema-validate", "ui-schema-audit", "ui-schema-prompt", "ui-field-contract"],
+      "modes": {
+        "validate": "Check syntax of *.ui-schema.yaml contracts against ui-schema.v1.schema.json",
+        "audit": "Audit UI field contracts against DB schema for required-not-null and enum-options-match drift",
+        "prompt": "Distill UI contract into ultra-compact prompt DSL block (<180 tokens/view) for LLM generation",
+        "extract": "Extract UI schema contracts from running app via headless Playwright aria crawler"
+      },
+      "safety": {
+        "isolated_install": "npm ci --prefix tools/ui-schema-engine",
+        "exit_code_3_skip": true
+      }
+    },
+    {
+      "id": "refactor-engine",
+      "name": "Refactor Engine",
+      "description": "Audit codebase limits (file/function length), scan AST-grep/regex anti-patterns, maintain technical debt baselines, and execute automated class/module splits behind facades.",
+      "triggers": ["refactor-engine", "refactor-audit", "refactor-baseline", "code-ratchet", "module-split"],
+      "modes": {
+        "audit": "Scan files or staged diffs for line length and anti-pattern breaches",
+        "baseline": "Lower or raise technical debt grandfathering baseline",
+        "split": "Plan, apply, and verify byte-for-byte class or module extractions"
+      },
+      "safety": {
+        "isolated_install": "npm ci --prefix tools/refactor-engine",
+        "exit_code_3_skip": true,
+        "write_lowers_only": "baseline --write only lowers counts; raises require explicit reason"
+      }
+    },
+    {
+      "id": "arch-governance",
+      "name": "Architecture Governance",
+      "description": "FINOS CALM architecture-as-code model validation, network topology rule enforcement, egress host checking, and visual docify generation.",
+      "triggers": ["arch-governance", "arch-validate", "calm-model", "topology-check", "docify"],
+      "modes": {
+        "validate": "Strict CALM model validation against forbidden connections and undeclared egress",
+        "diff": "Compare candidate CALM model against baseline model",
+        "docify": "Build rendered architecture diagrams and markdown documentation"
+      },
+      "safety": {
+        "isolated_install": "npm ci --prefix tools/arch-governance",
+        "exit_code_3_skip": true
+      }
+    },
+    {
+      "id": "ad-template-engine",
+      "name": "Ad Template Engine",
+      "description": "Compiler engine for building static ad template HTML from YAML schema data.",
+      "triggers": ["ad-template", "ad-schema", "ad-generator", "marketing-template"],
+      "modes": {
+        "generate": "Compile ad-data.yaml into static HTML layout",
+        "extract": "Extract ad fields from HTML template into ad-data.yaml"
+      },
+      "safety": {
+        "isolated_install": "npm ci --prefix tools/ad-template-engine",
+        "exit_code_4_fail": true
+      }
     }
   ],
-  "notes": "context-hygiene skill added 2026-04-10; mempalace-management added 2026-04-19; resource-docker-management added 2026-05-25"
+  "notes": "context-hygiene added 2026-04-10; mempalace-management added 2026-04-19; resource-docker-management added 2026-05-25; toolkit governance skills (ui-schema, refactor-engine, arch-governance) added 2026-09-18; ad-template-engine added 2026-09-19"
 }

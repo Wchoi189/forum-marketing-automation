@@ -1,0 +1,74 @@
+{
+  "plan_id": "publisher-architecture-modernization-v1",
+  "purpose": "Execute a phased, verifiable architecture modernization of the marketing-automation publishing stack to eliminate 5-minute retry storms, automate platform maintenance window pauses, prune severe codebase bloat, and unify state authority.",
+  "design_intent": "Move from defensive, heroic fallback chains and fragmented state files to an authoritative state machine, proactive history-driven gating, clean maintenance window parsing, and pruned scripts.",
+  "problem_statement": "The publisher currently suffers from severe architectural coupling (double browser launches), conflicting configurations (hardcoded 5-min loops overriding hourly limits), unhandled platform maintenance (503s treated as critical crashes), and script sprawl (>55KB orphaned scripts).",
+  "governance": {
+    "session_boundary_enforcement": "mandatory_stop_and_handover_per_phase",
+    "handover_directory": ".agent/session-handovers",
+    "handover_suffix_format": "YYYYMMDD-HHMM",
+    "continuation_prompt_required": true,
+    "model_selection_policy": "tiered_execution_with_automated_batching_and_hitl"
+  },
+  "phases": [
+    {
+      "phase_id": "Phase-1",
+      "name": "Immediate Bloat Pruning & Script Hygiene",
+      "spec_ref": ".planning/spec-kit/specs/active/phase1-bloat-pruning-v1.json",
+      "recommended_model": "Gemini Flash (Low / Med)",
+      "model_rationale": "Mechanical file removals, dead reference scrubbing, and script pruning require fast execution speed and low latency. Runs in automated small batches with Human-In-The-Loop (HITL) git diff verification.",
+      "estimated_effort": "2-3 hours (1 SP)",
+      "session_boundary": {
+        "stop_condition": "Orphaned scripts deleted, package.json cleaned, lint:structure and test:unit passing.",
+        "handover_target": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+        "continuation_prompt": "Continue with Phase 2 of publisher-architecture-modernization-v1: implement the proactive 60-minute cooldown gatekeeper and eliminate the hardcoded 5-minute retry loop in lib/scheduler/run.ts per .planning/spec-kit/specs/active/phase2-publisher-scheduler-stabilization-v1.json."
+      }
+    },
+    {
+      "phase_id": "Phase-2",
+      "name": "Publisher & Scheduler Stabilization (Hourly Cooldown & Loop Elimination)",
+      "spec_ref": ".planning/spec-kit/specs/active/phase2-publisher-scheduler-stabilization-v1.json",
+      "recommended_model": "Gemini Flash (High) / Deep Thinking Model",
+      "model_rationale": "Involves timing calculations, scheduler loop redesign, backoff scheduling, and Playwright dialog event interception.",
+      "estimated_effort": "4-5 hours (3 SP)",
+      "session_boundary": {
+        "stop_condition": "Pre-flight history check active, 5m spin loop replaced with cooldown alignment, alert dialogs captured, tests passing.",
+        "handover_target": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+        "continuation_prompt": "Continue with Phase 3 of publisher-architecture-modernization-v1: implement the platform maintenance window regex parser and scheduler pause engine per .planning/spec-kit/specs/active/phase3-maintenance-engine-v1.json."
+      }
+    },
+    {
+      "phase_id": "Phase-3",
+      "name": "Platform Maintenance Detection & Dynamic Pause Engine",
+      "spec_ref": ".planning/spec-kit/specs/active/phase3-maintenance-engine-v1.json",
+      "recommended_model": "Gemini Flash (High) / Deep Thinking Model",
+      "model_rationale": "Requires robust Korean datetime regex extraction, timezone normalization (KST/UTC), scheduler timer pause integration, and Slack alert deduplication.",
+      "estimated_effort": "4-5 hours (3 SP)",
+      "session_boundary": {
+        "stop_condition": "Maintenance parser handles datetime ranges, scheduler respects maintenanceBlockedUntil, Slack disarms failure alarms on 503, tests passing.",
+        "handover_target": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+        "continuation_prompt": "Continue with Phase 4 of publisher-architecture-modernization-v1: execute state unification, publisher state machine consolidation, and elimination of the legacy bot.ts adapter per .planning/spec-kit/specs/active/phase4-state-architecture-consolidation-v1.json."
+      }
+    },
+    {
+      "phase_id": "Phase-4",
+      "name": "Architecture Consolidation, Unified State & Micro-File Cleanup",
+      "spec_ref": ".planning/spec-kit/specs/active/phase4-state-architecture-consolidation-v1.json",
+      "recommended_model": "Hybrid (Flash Med for caller repointing; Flash High for state unification)",
+      "model_rationale": "State store unification and FSM lifecycle require strong reasoning; repointing imports across callers and inlining micro-files is executed via automated batching with Flash Med.",
+      "estimated_effort": "6-8 hours (4 SP)",
+      "session_boundary": {
+        "stop_condition": "State store unified, micro-files inlined into flow.ts, bot.ts deleted, full test and lint suite passing with 0 regressions.",
+        "handover_target": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+        "continuation_prompt": "All 4 phases of publisher-architecture-modernization-v1 are complete. Review handover and run full system regression checklist."
+      }
+    }
+  ],
+  "references": {
+    "constitution": ".planning/spec-kit/constitution.md",
+    "architecture_assessment": "docs/publisher-assessment/publisher-architecture-assessment.md",
+    "bug_report": "docs/publisher-assessment/bug-report-publisher-failures.md",
+    "assessment_report": "docs/publisher-assessment/assessment-report.md",
+    "docs_architecture_assessment": "docs/publisher-assessment/planning-documentation-architecture-assessment.md"
+  }
+}

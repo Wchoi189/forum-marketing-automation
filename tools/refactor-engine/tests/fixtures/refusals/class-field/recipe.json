@@ -1,0 +1,9 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "class-field",
+  "strategy": "split-class",
+  "source": "src/host.js",
+  "host": "Host",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "Part", "members": ["count", "bump"] }]
+}

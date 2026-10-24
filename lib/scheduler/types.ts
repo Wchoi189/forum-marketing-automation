@@ -5,7 +5,7 @@
  */
 
 import type { ActivityLog, PublisherHistoryEntry } from '../../contracts/models.js';
-import type { PublisherRunResult } from '../../bot.js';
+import type { PublisherRunResult } from '../publisher/index.js';
 import type { ScheduleJitterMode } from '../scheduleJitter.js';
 
 /**
@@ -16,6 +16,13 @@ export type BotDeps = {
   runPublisher: (force?: boolean) => Promise<PublisherRunResult>;
   getLogs: () => Promise<ActivityLog[]>;
   getPublisherHistory?: (limit: number) => Promise<PublisherHistoryEntry[]>;
+  /** ppomppu session upkeep (lib/session/health.ts). Absent in tests and DEV_SKIP_BOT. */
+  session?: {
+    /** Browser-free; one Slack warning per imported session entering 'expiring'. */
+    checkExpiry: () => Promise<unknown>;
+    /** Loads the board with the saved cookies; marks the session verified or dead. */
+    probe: () => Promise<'logged_in' | 'logged_out' | 'unknown'>;
+  };
 };
 
 /**
@@ -55,9 +62,35 @@ export type ObserverPacingPatch = {
 };
 
 /**
+ * The pacing fields a preset governs.
+ *
+ * Total, not partial: a preset used to omit `gapRecheckIntervalMinutes`, so switching
+ * presets inherited whatever the previous one happened to leave behind. Requiring
+ * every field makes preset selection deterministic.
+ *
+ * `enabled` is excluded on purpose - it is the operator's kill-switch, and choosing a
+ * pacing profile must never restart a scheduler the operator stopped.
+ */
+export type PresetAutoPublisherControls = Required<Omit<AutoPublisherControls, 'enabled'>>;
+
+/**
  * Preset configuration for observer and publisher controls.
  */
 export type PresetConfig = {
   observer: ObserverPacingPatch;
-  autoPublisher: Partial<AutoPublisherControls>;
+  autoPublisher: PresetAutoPublisherControls;
 };
+/**
+ * Result of one scheduler tick. This is the sole input `nextAttemptAt` reads about
+ * what just happened, so every publisher decision must map onto exactly one variant.
+ */
+export type SchedulerTickOutcome =
+  | { type: 'rate_limited'; remainingMinutes: number }
+  | { type: 'system_maintenance'; remainingMinutes: number }
+  | { type: 'gap_skip'; gapInfo?: { currentGap: number; requiredGap: number } }
+  | { type: 'success'; cooldownApplies: boolean; gapInfo?: { currentGap: number; requiredGap: number } }
+  | { type: 'already_running' }
+  | { type: 'unexpected_error'; consecutiveFailures: number }
+  /** SL-002: the ppomppu session is dead; nothing runs until a person's login is imported. */
+  | { type: 'session_lost' }
+  | { type: 'normal' };

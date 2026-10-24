@@ -1,0 +1,9 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "ts-class",
+  "strategy": "split-class",
+  "source": "src/host.ts",
+  "host": "Host",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "Part", "members": ["one"] }]
+}

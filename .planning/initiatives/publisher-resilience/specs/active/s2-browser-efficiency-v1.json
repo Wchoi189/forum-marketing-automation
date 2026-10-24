@@ -1,0 +1,77 @@
+{
+  "spec_id": "s2-browser-efficiency-v1",
+  "status": "proposed",
+  "purpose": "Launch Chromium only when a tick can actually publish, and make each launch cheap: block third-party load, decide the gap without a browser where the WAF allows it, and stop writing duplicate failure artifacts.",
+  "design_intent": "77 % of ticks render a full ad-laden page only to learn the gap is too small (F-04). The observer needs a few rows of board HTML, which lib/competitor-ad-parser already parses with Cheerio. The ordering principle extends R1: cheapest gate first, browser last. Every change is measured against the EF-006 baseline so the efficiency claim is evidence, not intent.",
+  "review_source": ".planning/initiatives/publisher-resilience/research/01-assessment-20261024.md",
+  "addresses_findings": ["F-04"],
+  "prerequisite": "EF-006 baseline recorded. EF-003 additionally requires the EF-002 spike verdict.",
+  "model_execution_guidance": {
+    "recommended_model": "Any capable model",
+    "execution_mode": "measure_then_change",
+    "note": "Record the EF-006 baseline before EF-001; otherwise the gain cannot be shown. Research 04 (Obscura) in publisher-modernization is prior art for the observer transport."
+  },
+  "work_items": [
+    {
+      "id": "EF-001",
+      "title": "Resource blocking for every bot context",
+      "target_files": ["lib/browser/shared.ts", "lib/browser/resourceBlocking.ts"],
+      "action": "context.route: abort image, media and font requests, and any third-party host outside an allowlist (ppomppu.co.kr and subdomains, challenges.cloudflare.com, static Cloudflare hosts). Allowlist, not denylist, so new ad vendors are blocked by default. Gate behind BROWSER_BLOCK_THIRD_PARTY (default true). Verify the write page editor, draft modal and submit still work in DRY_RUN_MODE before enabling in production.",
+      "risk": "medium"
+    },
+    {
+      "id": "EF-002",
+      "title": "Spike: HTTP-only observer against the WAF",
+      "target_files": ["scripts/spike-http-observer.ts"],
+      "action": "Fetch the board list with the bot user agent and the saved first-party cookies over plain HTTP from the production host, at observer cadence for 24 h. Record status codes, challenge pages, and whether boardParser output matches the Chromium observer on the same tick. Verdict green only with zero challenges and matching rows. Delete the script when the verdict is recorded.",
+      "risk": "low"
+    },
+    {
+      "id": "EF-003",
+      "title": "Browserless observer and gate-first ticks",
+      "target_files": ["lib/observer/observerRun.ts", "lib/observer/boardParser.ts", "lib/publisher/publisherRun.ts"],
+      "action": "Only if EF-002 is green: the observer fetches and parses over HTTP; Chromium is created only after the cooldown, maintenance, session and gap gates pass. Keep the Chromium observer as a fallback selected on a challenge response, and log which path ran. If EF-002 is red, close this item and rely on EF-001.",
+      "risk": "medium"
+    },
+    {
+      "id": "EF-004",
+      "title": "On-demand browser lifecycle",
+      "target_files": ["lib/browser/shared.ts", "lib/resourceMonitor.ts"],
+      "action": "Replace the server-lifetime browser plus recycle-every-15-contexts with launch on first use and close after BROWSER_IDLE_CLOSE_MINUTES with no active context. At an hourly publish cadence, launch cost is negligible next to an idle Chromium's resident memory.",
+      "risk": "low"
+    },
+    {
+      "id": "EF-005",
+      "title": "Deduplicate failure artifacts",
+      "target_files": ["lib/publisher/publisherRun.ts", "lib/resourceMonitor.ts"],
+      "action": "When a failure has the same error code as the previous run, skip the trace zip and keep only the screenshot. Add a size cap for artifacts/publisher-runs/ to the existing rotation (scope unchanged: never widen PUBLISHER_RUNS_DIR).",
+      "risk": "low"
+    },
+    {
+      "id": "EF-006",
+      "title": "Baseline and after metrics",
+      "target_files": [".planning/initiatives/publisher-resilience/research/02-efficiency-metrics.md"],
+      "action": "Per 24 h of scheduler-enabled operation: Chromium launches, browser contexts, network bytes (docker stats delta), peak RSS, artifacts MB written, mean publish duration. Record before EF-001 and after each of EF-001, EF-003, EF-004.",
+      "risk": "low"
+    }
+  ],
+  "acceptance_criteria": [
+    "A gap-policy skip launches no browser (if EF-003 shipped) or loads no third-party resources (if only EF-001 shipped).",
+    "Network bytes per 24 h fall by at least half against the EF-006 baseline.",
+    "Publish success rate over 7 days is not lower than the baseline.",
+    "Repeated identical failures add no trace zips."
+  ],
+  "out_of_scope": [
+    "Replacing Chromium for the publisher (rejected in publisher-modernization research 04).",
+    "Image size reduction - track separately if wanted."
+  ],
+  "session_boundary": {
+    "auto_stop": true,
+    "gate_criteria": [
+      "npm run lint passes with 0 errors",
+      "npm run test:unit passes",
+      "A DRY_RUN_MODE publish passes end to end with blocking enabled",
+      "tasks/publisher-resilience-tasks-v1.json updated with status and evidence"
+    ]
+  }
+}

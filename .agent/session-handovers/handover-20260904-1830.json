@@ -1,0 +1,103 @@
+{
+  "handover_id": "handover-20260904-1830",
+  "timestamp_utc": "2026-09-04T09:30:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "completed",
+  "objective": "Execute Phase 3 (Platform Maintenance Window & Dynamic Scheduler Pause Engine) of publisher-architecture-modernization-v1 per phase3-maintenance-engine-v1.json.",
+  "non_goals": [
+    "Consolidating micro-files or state authority (scheduled for Phase 4)",
+    "Retiring the legacy bot.ts adapter (scheduled for Phase 4)"
+  ],
+  "current_state": {
+    "completed": [
+      "MAINT-001: Implemented Korean maintenance notice regex parser in lib/observer/boardDiagnostics.ts with support for date/time ranges ('2026년 8월 18일 21:00 ~ 23:00', '02:00 ~ 06:00', '새벽 2시 ~ 6시', overnight roll), KST-to-UTC conversion with +5m safety buffer, and 30m fallback for unspecified time windows.",
+      "MAINT-002: Added maintenanceBlockedUntil tracking and persistence across lib/state/types.ts, lib/state/persistence.ts, lib/state/publisher.ts, and lib/state/index.ts. Extended PublisherRunDecision with 'system_maintenance' and classified it as non_adaptive in lib/analytics/schedulerSignals.ts.",
+      "MAINT-003: Integrated dynamic scheduler pause in lib/scheduler/run.ts. When decision is system_maintenance, the scheduler calculates remaining minutes until maintenance window end, sets nextTickEta accordingly, and preserves zero consecutiveFailures without incrementing error backoff.",
+      "MAINT-004: Rationalized Slack maintenance alerts in lib/publisher/publisherRun.ts to dispatch informative '🚧 Platform Maintenance Detected' notices with window-based deduplication while completely suppressing repetitive '❌ Publisher Failed' alarms during the maintenance window.",
+      "Pre-flight browser avoidance: In lib/publisher/publisherRun.ts, active maintenanceBlockedUntil immediately aborts and returns decision 'system_maintenance' before spawning Playwright BrowserContext or running the observer.",
+      "Added unit test suites tests/unit/maintenanceNotice.test.ts (11 tests) and extended tests/unit/schedulerStabilization.test.ts (91/91 passing unit tests, 62/62 passing integration tests).",
+      "Moved phase3-maintenance-engine-v1.json to specs/shipped/ with status 'shipped' and updated .planning/initiatives/publisher-modernization/README.md.",
+      "Verified workspace integrity: npm run lint:structure, npm run lint, and full npm test all green with 0 errors."
+    ],
+    "gaps": [
+      "Phase 4 (State Architecture Consolidation) ready for implementation per .planning/initiatives/publisher-modernization/specs/active/phase4-state-architecture-consolidation-v1.json."
+    ]
+  },
+  "status": "success",
+  "decisions_locked": [
+    {
+      "decision": "Natural Language Regex & Timezone Normalization",
+      "rationale": "Regex patterns handle variant Korean date, period (새벽/오전/오후), and time delimiters, converting KST (+9h) to UTC with a +5m safety buffer and a deterministic 30m fallback when time is unspecified."
+    },
+    {
+      "decision": "Dynamic Maintenance Pause in Scheduler",
+      "rationale": "Scheduling the next tick directly to the maintenance window expiration eliminates pointless 5-minute browser retries and avoids polluting consecutive error counts during planned platform outages."
+    },
+    {
+      "decision": "Informative Slack Alert Rationalization",
+      "rationale": "Switching to info-level '🚧' notices with deduplication on maintenanceBlockedUntil eliminates operator alert fatigue from repetitive '❌' critical failure notifications."
+    },
+    {
+      "decision": "Pre-flight Chromium Spawn Avoidance",
+      "rationale": "Checking maintenanceBlockedUntil prior to browser initialization prevents wasted CPU and memory churn on headless Chromium launches during active maintenance windows."
+    }
+  ],
+  "acceptance_criteria": [
+    "Unit tests for maintenance regex parsing pass with various Korean formats",
+    "Scheduler correctly pauses and sets nextTickEta to maintenance window end",
+    "npm run lint passes with 0 errors",
+    "npm run test:unit passes all tests (91 pass)",
+    "npm run test:integration passes all tests (62 pass)"
+  ],
+  "implementation_plan": [
+    ".planning/initiatives/publisher-modernization/plans/publisher-architecture-modernization.plan.json"
+  ],
+  "practical_recommendations": [
+    "Phase 4 involves consolidating micro-files in lib/publisher/ (inlining timeouts, loadPublisherPlaybook, stateTransitions, submit into runPublisherFlow) and unifying reactive state authority.",
+    "Perform micro-file consolidation in small, verifiable batches with git diff and unit test verification after each batch."
+  ],
+  "completed_items": [
+    "MAINT-001: Korean maintenance notice parser & schedule extractor in lib/observer/boardDiagnostics.ts",
+    "MAINT-002: Maintenance state tracking and persistence in lib/state/ (types, persistence, publisher)",
+    "MAINT-003: Dynamic scheduler maintenance pause engine in lib/scheduler/run.ts",
+    "MAINT-004: Slack alert rationalization and pre-flight Chromium avoidance in lib/publisher/publisherRun.ts",
+    "Shipped Phase 3 spec and updated initiative documentation"
+  ],
+  "pending_items": [
+    "Phase 4: State Architecture Consolidation (phase4-state-architecture-consolidation-v1.json)"
+  ],
+  "decisions": [
+    "Completed Phase 3 with strict adherence to session boundary and small automated batching."
+  ],
+  "constraints": [
+    "Do not proceed to Phase 4 in the same turn without operator review."
+  ],
+  "env_requirements": [],
+  "next_actions": [
+    "Read .planning/initiatives/publisher-modernization/specs/active/phase4-state-architecture-consolidation-v1.json",
+    "Consolidate micro-files in lib/publisher/ (CONS-001)",
+    "Unify publisher state authority into reactive state store (CONS-002)",
+    "Retire legacy bot.ts adapter (CONS-003)"
+  ],
+  "artifacts_touched": [
+    "lib/observer/boardDiagnostics.ts",
+    "lib/observer/observerRun.ts",
+    "contracts/models.ts",
+    "lib/state/types.ts",
+    "lib/state/persistence.ts",
+    "lib/state/publisher.ts",
+    "lib/state/index.ts",
+    "lib/analytics/schedulerSignals.ts",
+    "lib/publisher/publisherRun.ts",
+    "lib/scheduler/run.ts",
+    "tests/unit/maintenanceNotice.test.ts",
+    "tests/unit/schedulerStabilization.test.ts",
+    ".planning/initiatives/publisher-modernization/specs/shipped/phase3-maintenance-engine-v1.json",
+    ".planning/initiatives/publisher-modernization/README.md"
+  ],
+  "continuation_prompt": "Phase 3 (Maintenance Engine) is complete and verified. Proceed to Phase 4 per .planning/initiatives/publisher-modernization/specs/active/phase4-state-architecture-consolidation-v1.json to execute runtime state unification, publisher state machine consolidation, and elimination of legacy adapters."
+}

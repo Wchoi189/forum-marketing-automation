@@ -15,6 +15,11 @@ dist/
 # source of truth for anything in the repo.
 activity_log.json
 ppomppu_profile/
+# Browser cookie exports and storage states are live login sessions.
+cookies-*.json
+*storage-state*.json
+# Holds SESSION_IMPORT_SECRET; written by npm run session:sync-setup.
+tools/session-sync-extension/config.local.json
 
 # ── Generated artifacts ─────────────────────────────────────────────────────
 # artifacts/ holds publisher screenshots and traces, the competitor-intel

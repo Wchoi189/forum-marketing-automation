@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tools/ui-schema-engine/schemas/governance-rules.schema.json",
+  "title": "UI Governance Config",
+  "description": "Per-repository configuration for the UI schema drift validator.",
+  "type": "object",
+  "required": ["dbSchema", "views"],
+  "additionalProperties": false,
+  "properties": {
+    "dbSchema": {
+      "type": "string",
+      "description": "Path to the SQL DDL schema file (relative to repo root)."
+    },
+    "views": {
+      "type": "string",
+      "description": "Glob pattern for *.ui-schema.yaml contract files, relative to repo root. E.g. specs/078-*/contracts/views/*.ui-schema.yaml"
+    },
+    "rules": {
+      "type": "array",
+      "description": "Array of governance rule overrides. Omit to use all defaults.",
+      "items": {
+        "type": "object",
+        "required": ["rule"],
+        "additionalProperties": false,
+        "properties": {
+          "rule":    { "type": "string", "enum": ["required-not-null", "enum-options-match"], "description": "Rule identifier." },
+          "enabled": { "type": "boolean", "default": true },
+          "tables":  { "type": "array", "items": { "type": "string" }, "description": "Restrict this rule to specific table names." }
+        }
+      }
+    }
+  }
+}

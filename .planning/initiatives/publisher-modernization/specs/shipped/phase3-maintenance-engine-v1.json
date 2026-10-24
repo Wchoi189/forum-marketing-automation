@@ -1,0 +1,56 @@
+{
+  "spec_id": "phase3-maintenance-engine-v1",
+  "status": "shipped",
+  "purpose": "Detect platform server maintenance ('점검 중 입니다'), extract the specified maintenance window, pause publishing activities dynamically, and disarm false-positive Slack alarms.",
+  "design_intent": "Transform unhandled HTTP 503 errors from critical system failures into structured operational pause events, preventing redundant browser runs and eliminating operator alert fatigue.",
+  "model_execution_guidance": {
+    "recommended_model": "Gemini Flash (High) / Deep Thinking Model",
+    "execution_mode": "regex_and_scheduling_implementation_with_automated_batching",
+    "note": "Requires Korean natural language regex parsing, timezone normalization (KST to UTC), and timer state integration. Fast models (Gemini Flash High) should be batched: Batch 1 for regex parser + unit test suite; Batch 2 for scheduler pause integration + Slack alert logic."
+  },
+  "work_items": [
+    {
+      "id": "MAINT-001",
+      "title": "Korean maintenance notice & schedule parser engine",
+      "target_files": ["lib/observer/boardDiagnostics.ts", "lib/observer/observerRun.ts"],
+      "action": "Add isMaintenance, maintenanceNotice, and maintenanceUntil to BoardDiagnostics. Recognize HTTP 503/502/504 and Korean keywords ('점검 안내', '시스템 점검 중'). Implement regex extractor for datetime ranges ('2026년 8월 18일 21:00 ~ 23:00', '02:00 ~ 06:00') and convert to UTC resume time with +5m buffer. Fallback to 30m pause if time is unspecified.",
+      "risk": "medium"
+    },
+    {
+      "id": "MAINT-002",
+      "title": "Maintenance state tracking and persistence",
+      "target_files": ["lib/state/publisher.ts", "lib/state/persistence.ts", "lib/state/types.ts"],
+      "action": "Add maintenanceBlockedUntil to PublisherControls with serialization to runtime-controls.json.",
+      "risk": "low"
+    },
+    {
+      "id": "MAINT-003",
+      "title": "Dynamic scheduler maintenance pause integration",
+      "target_files": ["lib/scheduler/run.ts"],
+      "action": "When run decision is system_maintenance or maintenanceBlockedUntil is active, calculate remaining minutes and schedule the next tick directly to the resume timestamp. Skip all intermediate browser launches.",
+      "risk": "medium"
+    },
+    {
+      "id": "MAINT-004",
+      "title": "Informative Slack maintenance notifications",
+      "target_files": ["lib/publisher/publisherRun.ts", "lib/notifications.ts"],
+      "action": "Dispatch an informative '🚧 Platform Maintenance Detected' notification containing the notice text and expected resumption time. Suppress repetitive failure alerts (❌) during the maintenance window.",
+      "risk": "low"
+    }
+  ],
+  "session_boundary": {
+    "auto_stop": true,
+    "gate_criteria": [
+      "Unit tests for maintenance regex parsing pass with various Korean formats",
+      "Scheduler correctly pauses and sets nextTickEta to maintenance window end",
+      "npm run lint passes with 0 errors",
+      "npm run test:unit passes all tests"
+    ],
+    "handover_instructions": {
+      "generate_file": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+      "use_template": ".agent/session-handovers/template.json",
+      "required_fields": ["handover_id", "timestamp_utc", "completed_items", "artifacts_touched", "next_actions"],
+      "continuation_prompt": "Phase 3 (Maintenance Engine) is complete. Proceed to Phase 4 per .planning/spec-kit/specs/active/phase4-state-architecture-consolidation-v1.json to execute runtime state unification, publisher state machine consolidation, and elimination of legacy adapters."
+    }
+  }
+}

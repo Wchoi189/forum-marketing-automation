@@ -1,0 +1,8 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "module-location-sensitive",
+  "strategy": "split-module",
+  "source": "src/host.js",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "auth", "declarations": ["tokenPath", "getAuthClient", "getSheetsClient", "getDriveClient"] }]
+}

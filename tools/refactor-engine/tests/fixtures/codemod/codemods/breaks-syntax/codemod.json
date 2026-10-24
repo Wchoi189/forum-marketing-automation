@@ -1,0 +1,8 @@
+{
+  "$schema": "refactor-engine/codemod/1",
+  "id": "breaks-syntax",
+  "engine": "grit",
+  "pattern": "breaks-syntax.grit",
+  "why": "fixture: inserting a declaration into a single-statement position does not parse",
+  "include": ["src/**/*.js"]
+}

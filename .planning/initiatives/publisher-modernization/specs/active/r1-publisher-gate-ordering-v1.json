@@ -1,0 +1,81 @@
+{
+  "spec_id": "r1-publisher-gate-ordering-v1",
+  "status": "proposed",
+  "purpose": "Stop the two production-affecting defects that survived phases 1-4: a guaranteed-wasted Chromium launch three minutes after every successful publish, and the control-panel save that silently cancels an active cooldown or maintenance pause.",
+  "design_intent": "Surgical, no structural change. R1 exists to stop operational bleeding before R2 touches architecture. Every change here is a block move, a branch split, or a clamp - each independently revertable. The cheap local check must happen before the expensive network check; a pending block deadline is state, not a side effect of a setter.",
+  "review_source": ".planning/initiatives/publisher-modernization/review-20260905/01-assessment.md",
+  "addresses_findings": ["F-01", "F-02", "F-09"],
+  "model_execution_guidance": {
+    "recommended_model": "Deep reasoning model (Opus-class)",
+    "execution_mode": "sequential_with_test_gate_per_item",
+    "note": "Small diffs, high blast radius. Each work item must land with its regression test before the next begins. Do not batch RTG-001 and RTG-003 into one commit - RTG-003 is the guard that proves RTG-001 stayed fixed."
+  },
+  "work_items": [
+    {
+      "id": "RTG-001",
+      "title": "Move the rate-limit gate ahead of the observer",
+      "target_files": ["lib/publisher/publisherRun.ts"],
+      "action": "Relocate both rate-limit gates - the publishBlockedUntil check (currently ~L230-260) and the STAB-001 publisherHistory 60-minute gatekeeper (currently L262-300) - to sit immediately beside the maintenance pre-flight gate, BEFORE `log = await runObserver()` at L185. The maintenance gate already has the correct shape; make the rate-limit gates match it. Note that gapInfo currently derives from the observer log; when the gate fires before the observer runs there is no log, so omit gapInfo rather than fabricating it, and confirm no caller depends on it for the rate_limited decision.",
+      "rationale": "runObserver() launches Chromium at lib/observer/observerRun.ts:119. Gating after it means the platform's 1-post/hour ceiling is rediscovered by browsing the site, three minutes after we already knew we had posted.",
+      "risk": "medium"
+    },
+    {
+      "id": "RTG-002",
+      "title": "Split success out of the gap_skip scheduling branch",
+      "target_files": ["lib/scheduler/run.ts"],
+      "action": "At L253, `outcome.type === 'gap_skip' || outcome.type === 'success'` share the gapRecheckIntervalMinutes branch (default 3 minutes). Give 'success' its own branch that schedules the known cooldown window + 1 minute buffer. The cooldown length is known locally and needs no I/O. Keep gap_skip on gapRecheckIntervalMinutes. Use the same cooldown constant that RTG-001 reads so the two cannot drift.",
+      "risk": "low"
+    },
+    {
+      "id": "RTG-003",
+      "title": "Make an active block deadline non-shortenable",
+      "target_files": ["lib/scheduler/run.ts"],
+      "action": "In scheduleNext(), after computing nextMinutes and before setTimeout, clamp the deadline: nextAt = max(now + nextMinutes, publishBlockedUntil, maintenanceBlockedUntil). Read the block timestamps from lib/state at that point. Log the clamp when it fires, with the reason that lost.",
+      "rationale": "setControls / applyPreset / setIntervalMinutes (run.ts:358,365,374) each end with `void scheduleNext(false)`, which clears the pending timer and reschedules at the normal interval. routes/api/control.ts:304-312 calls setControls on every control-panel POST. Clamping at the single scheduleNext site neutralises the override trap without policing three setters.",
+      "risk": "low"
+    },
+    {
+      "id": "RTG-004",
+      "title": "Give the concurrency skip its own decision",
+      "target_files": ["contracts/models.ts", "lib/publisher/publisherRun.ts", "lib/scheduler/run.ts", "lib/analytics/schedulerSignals.ts"],
+      "action": "Add 'already_running' to PublisherRunDecision. Return it from the guard at publisherRun.ts:483 instead of 'publisher_error'. In the scheduler tick switch, treat it as retry-in-1-minute and do not touch consecutiveFailures. Classify it in schedulerSignals.ts alongside the other non-opportunity decisions.",
+      "rationale": "A manual POST /api/run-publisher overlapping a scheduler tick currently counts as a failure and triggers the 15/30/60-minute error backoff.",
+      "risk": "low"
+    },
+    {
+      "id": "RTG-005",
+      "title": "Replace the tautological cooldown tests with real gate coverage",
+      "target_files": ["tests/unit/publisherCooldown.test.ts", "tests/unit/schedulerStabilization.test.ts"],
+      "action": "Delete the two tests at publisherCooldown.test.ts:49-70 - they re-implement the cooldown arithmetic in the test body and assert against themselves, and pass with the production module deleted. Replace with: (1) a publisher run with publishBlockedUntil in the future invokes runObserver ZERO times, via an injected spy - this is the RTG-001 regression guard; (2) scheduler.setControls({}) during an active cooldown does not move nextTickEta earlier - the RTG-003 guard; (3) a 'success' outcome schedules approximately 61 minutes, not 3 - the RTG-002 guard.",
+      "risk": "low"
+    }
+  ],
+  "acceptance_criteria": [
+    "A publisher run during a known cooldown launches no browser context - asserted by spy, not by log inspection.",
+    "The run log after a verified publish shows one publish followed by one long wait, with no rate_limited entry three minutes later.",
+    "POST /api/control-panel during an active cooldown leaves nextTickEta unchanged or later, never earlier.",
+    "An overlapping manual publish run does not increment consecutiveFailures."
+  ],
+  "out_of_scope": [
+    "Any change to computeEffectiveIntervalMinutes, the preset system, or the default-value duplication - that is R2.",
+    "Any change to state ownership between the scheduler closure and RuntimeStateStore - that is R3.",
+    "Maintenance detection logic - that is R4."
+  ],
+  "session_boundary": {
+    "auto_stop": true,
+    "gate_criteria": [
+      "npm run lint:structure passes with 0 errors",
+      "npm run lint passes with 0 errors",
+      "npm run test:unit passes, including the three new regression guards from RTG-005",
+      "npm run build passes"
+    ],
+    "handover_instructions": {
+      "generate_file": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+      "use_template": ".agent/session-handovers/template.json",
+      "required_fields": ["handover_id", "timestamp_utc", "completed_items", "artifacts_touched", "next_actions", "continuation_prompt", "constraints"],
+      "honesty_requirement": "Name only files that exist and claims that were verified by a command whose output you read. The handover for phases 1-4 named lib/publisher/cooldown.ts and tests/unit/boardDiagnostics.test.ts, neither of which exists, and asserted a Chromium-launch saving the code ordering did not deliver. A handover is a map for the next session; a wrong map costs more than no map.",
+      "constraints_to_forward_verbatim": "# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated.",
+      "continuation_prompt": "R1 (publisher gate ordering) is complete. Do NOT start R2 yet - R1 must run in production for at least one full day and the run log must show the expected shape (one publish, one long wait, no post-success failure entry) before R2 begins. When that gate is met, proceed per .planning/initiatives/publisher-modernization/specs/active/r2-scheduling-decision-unification-v1.json.\n\n# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated."
+    }
+  }
+}

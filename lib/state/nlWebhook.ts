@@ -2,19 +2,21 @@
  * lib/state/nlWebhook.ts
  *
  * Persistence for the NL webhook kill-switch.
+ * Delegates to RuntimeStateStore.
  */
 
 import type { StateMeta } from './types.js';
-import { persistState, readPersistedState } from './persistence.js';
+import { persistState } from './persistence.js';
+import { getRuntimeStateStore } from './store.js';
 
 /**
- * Read the persisted NL webhook enable flag.
+ * Read the persisted NL webhook enable flag from store authority.
  * Returns null when nothing has been persisted, so callers can fall back to ENV.
  */
 export async function readPersistedNlWebhookEnabled(): Promise<boolean | null> {
-  const data = await readPersistedState();
-  if (typeof data.nlWebhookEnabled === 'boolean') return data.nlWebhookEnabled;
-  return null;
+  const store = getRuntimeStateStore();
+  await store.ensureInitialized();
+  return store.getNlWebhookEnabled();
 }
 
 /**

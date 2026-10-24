@@ -1,0 +1,9 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "path-refs",
+  "strategy": "split-class",
+  "source": "src/orders.js",
+  "host": "Orders",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "Counting", "members": ["count"] }]
+}

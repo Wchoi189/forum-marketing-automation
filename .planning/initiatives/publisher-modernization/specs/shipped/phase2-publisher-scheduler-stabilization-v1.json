@@ -1,0 +1,56 @@
+{
+  "spec_id": "phase2-publisher-scheduler-stabilization-v1",
+  "status": "shipped",
+  "purpose": "Enforce proactive 60-minute publishing cooldown, eliminate the 5-minute scheduler retry storm on safe-gap errors, and intercept browser alert dialogs cleanly.",
+  "design_intent": "Protect the forum account and server resources by preventing Chromium launches during the 60-minute cooldown window, while replacing the aggressive 5-minute error loop with intelligent backoff and cooldown alignment.",
+  "model_execution_guidance": {
+    "recommended_model": "Gemini Flash (High) / Deep Thinking Model",
+    "execution_mode": "algorithmic_implementation_with_automated_batching",
+    "note": "Requires precise time arithmetic, Playwright event lifecycle handling, and scheduler timer reconfiguration. Fast models (Gemini Flash High) should execute changes in discrete batches (e.g., pre-flight gatekeeper first, scheduler loop second) with automated test verification after each batch."
+  },
+  "work_items": [
+    {
+      "id": "STAB-001",
+      "title": "Proactive 60-minute cooldown pre-flight gatekeeper",
+      "target_files": ["lib/publisher/publisherRun.ts", "lib/publisherHistory.ts"],
+      "action": "Before creating browser context in runPublisher(), query publisherHistory for the last successful publish. If elapsed time < 60 minutes, abort immediately without launching Chromium, calculate remaining minutes, set publishBlockedUntil, and return decision: 'rate_limited'.",
+      "risk": "medium"
+    },
+    {
+      "id": "STAB-002",
+      "title": "Eliminate 5-minute scheduler spin loop",
+      "target_files": ["lib/scheduler/run.ts"],
+      "action": "Remove hardcoded PUBLISHER_FAIL_RECHECK_INTERVAL = 5 for safe-gap errors. If run decision is rate_limited, schedule next tick for now + remainingMinutes + 1m buffer. If an unexpected error occurs, apply progressive exponential backoff (15m -> 30m -> 60m).",
+      "risk": "medium"
+    },
+    {
+      "id": "STAB-003",
+      "title": "Intercept browser alert dialogs & expand rate-limit regex",
+      "target_files": ["lib/publisher/flow/runPublisherFlow.ts", "lib/publisher/ui/rateLimit.ts"],
+      "action": "Hook page.once('dialog') before clicking write button in runPublisherFlow.ts to capture Ppomppu alert text before auto-dismissal. Expand RATE_LIMIT_MARKER to match variant phrasing ('60분이 지나야', '1시간 이내에 1개').",
+      "risk": "low"
+    },
+    {
+      "id": "STAB-004",
+      "title": "Rationalize Slack rate-limit notifications",
+      "target_files": ["lib/publisher/publisherRun.ts", "lib/notifications.ts"],
+      "action": "Demote rate_limited decisions from critical failure alerts (❌) to debug logging or a single quiet status notification.",
+      "risk": "low"
+    }
+  ],
+  "session_boundary": {
+    "auto_stop": true,
+    "gate_criteria": [
+      "Unit tests for cooldown calculation pass",
+      "Scheduler schedules next tick after cooldown period, not 5 minutes",
+      "npm run lint passes with 0 errors",
+      "npm run test:unit passes all tests"
+    ],
+    "handover_instructions": {
+      "generate_file": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+      "use_template": ".agent/session-handovers/template.json",
+      "required_fields": ["handover_id", "timestamp_utc", "completed_items", "artifacts_touched", "next_actions"],
+      "continuation_prompt": "Phase 2 (Publisher & Scheduler Stabilization) is complete. Proceed to Phase 3 per .planning/spec-kit/specs/active/phase3-maintenance-engine-v1.json to implement platform maintenance window parsing ('점검 중 입니다') and the scheduler dynamic pause engine."
+    }
+  }
+}

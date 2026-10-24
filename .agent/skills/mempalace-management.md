@@ -4,7 +4,7 @@
 
 **Invocation:** Run as an agent skill when the user requests `/mempalace-management wake-up`, `/mempalace-management checkpoint`, or `/mempalace-management handover`.
 
-**CLI Wrapper:** Use `scripts/mempalace-loop.sh` for a consistent local command flow (global palace: `/parent/project-artifacts/mempalace/palace`, wing: `marketing_automation`), or npm aliases:
+**CLI Wrapper:** Use `scripts/mempalace-loop.sh` for a consistent local command flow (global palace: `~/.mempalace/palace`, wing: `marketing_automation`), or npm aliases:
 - `npm run mempalace:seed`
 - `npm run mempalace:wake-up`
 - `npm run mempalace:checkpoint`
@@ -69,7 +69,9 @@ Use this after each meaningful micro-task (decision, blocker, accepted slice).
 
 ## Handover Mode
 
-At session end:
+Only when work stops unfinished (see `.agent/SESSION_PROTOCOL.md`), or when the user invokes it. Not a routine end-of-session step.
+
+When it applies:
 
 1. Create a new handover file from `.agent/session-handovers/template.json`.
 2. Update `.agent/state/state.index.json`:

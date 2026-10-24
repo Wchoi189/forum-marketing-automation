@@ -1,0 +1,112 @@
+{
+  "handover_id": "handover-20260904-2130",
+  "timestamp_utc": "2026-09-04T12:30:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "antigravity",
+  "target_agent": "antigravity",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "completed",
+  "objective": "Execute Phase 4 (State Architecture Consolidation) of publisher-architecture-modernization-v1 per phase4-state-architecture-consolidation-v1.json.",
+  "non_goals": [
+    "Changing publishing DOM selector heuristics",
+    "Modifying external REST API endpoints or payloads"
+  ],
+  "current_state": {
+    "completed": [
+      "CONS-001: Consolidated micro-files in lib/publisher/ (inlined timeouts.ts, loadPublisherPlaybook.ts, stateTransitions.ts, and ui/submit.ts into lib/publisher/flow/runPublisherFlow.ts), eliminating import bloat and keeping runPublisherFlow.ts at 268 lines well below the 500-line budget. Deleted 4 micro-files and cleaned empty core/ directory.",
+      "CONS-002: Implemented unified reactive RuntimeStateStore in lib/state/store.ts with authoritative in-memory state, deterministic stateVersion increments, subscriber notifications, and debounced disk persistence to runtime-controls.json. Updated persistence.ts, observer.ts, publisher.ts, scheduler.ts, nlWebhook.ts, and index.ts to delegate to the store while preserving 100% backward-compatible function signatures.",
+      "CONS-003: Relocated loose publisher files into lib/publisher/ (moved lib/publisherHistory.ts to lib/publisher/history.ts and lib/publisherStepStore.ts to lib/publisher/stepStore.ts). Exported history and stepStore APIs through lib/publisher/index.ts and repointed all callers across server.ts, routes/api/, publisherRun.ts, and tests.",
+      "CONS-004: Repointed callers of legacy bot.ts adapter to canonical module entry points (lib/observer/index.ts, lib/publisher/index.ts, lib/browser/index.ts, lib/state/index.ts, lib/logCache.ts). Moved shutdownBrowser and registerSignalHandlers to lib/browser/. Removed bot.ts and deleted it from root allowed_files in .structure.json.",
+      "Ratchet gain: Reduced cross-module boundary warnings from 50 to 42 in .structure.json.",
+      "Added unit test suite tests/unit/stateStore.test.ts verifying in-memory reactivity, version increments, concurrency conflict detection, and listener subscriptions (96/96 passing unit tests, 62/62 passing integration tests, 119/119 passing competitor-intel tests, 1/1 parser MCP test).",
+      "Moved phase4-state-architecture-consolidation-v1.json to specs/shipped/ with status 'shipped' and updated .planning/initiatives/publisher-modernization/README.md.",
+      "Verified workspace integrity: npm run lint:structure, npm run lint, and full npm test all green with 0 errors."
+    ],
+    "gaps": []
+  },
+  "status": "success",
+  "decisions_locked": [
+    {
+      "decision": "Micro-File Inlining into runPublisherFlow",
+      "rationale": "Consolidating 4 single-function micro-files into runPublisherFlow.ts reduces import bloat, keeps the module cohesive and easily maintainable at 268 lines (under the 500-line limit), and unifies flow orchestration."
+    },
+    {
+      "decision": "Authoritative Reactive RuntimeStateStore",
+      "rationale": "Placing state authority in an in-memory reactive store prevents file-based race conditions and optimistic concurrency clobbering across concurrent scheduler, observer, publisher, and control panel operations."
+    },
+    {
+      "decision": "Module Boundary Alignment for Publisher Utilities",
+      "rationale": "Relocating loose root-level publisher files into lib/publisher/ and exporting them via lib/publisher/index.ts establishes strict adherence to .structure.json module entry point policies."
+    },
+    {
+      "decision": "Complete Retirement of bot.ts",
+      "rationale": "All consumers now import directly from domain module entry points (lib/observer, lib/publisher, lib/browser, lib/state, lib/logCache), eliminating the last legacy monolithic adapter."
+    }
+  ],
+  "acceptance_criteria": [
+    "All micro-files consolidated without behavioral regression",
+    "bot.ts deleted and zero references remain in code",
+    "Unified reactive store eliminates optimistic concurrency clobbering",
+    "npm run lint passes with 0 errors",
+    "npm run lint:structure passes with 0 errors",
+    "npm test passes full suite (unit + integration + mcp + competitor intel)"
+  ],
+  "implementation_plan": [
+    ".planning/initiatives/publisher-modernization/plans/publisher-architecture-modernization.plan.json"
+  ],
+  "practical_recommendations": [
+    "All 4 phases of publisher-architecture-modernization-v1 are now successfully shipped.",
+    "System is ready for end-to-end regression validation and production deployment readiness checks."
+  ],
+  "completed_items": [
+    "CONS-001: Consolidate micro-files in lib/publisher/",
+    "CONS-002: Unified reactive runtime state store in lib/state/store.ts",
+    "CONS-003: Relocate loose publisher files into lib/publisher/ (history.ts, stepStore.ts)",
+    "CONS-004: Repoint callers and eliminate legacy bot.ts adapter",
+    "Ratchet boundary baseline lowered from 50 to 42 in .structure.json",
+    "Shipped Phase 4 spec and updated initiative documentation"
+  ],
+  "pending_items": [],
+  "decisions": [
+    "Successfully finalized Phase 4 and completed the Publisher Architecture Modernization initiative."
+  ],
+  "constraints": [],
+  "env_requirements": [],
+  "next_actions": [
+    "Run system stability validation and verify production deployment readiness."
+  ],
+  "artifacts_touched": [
+    "lib/publisher/flow/runPublisherFlow.ts",
+    "lib/publisher/index.ts",
+    "lib/publisher/publisherRun.ts",
+    "lib/publisher/ui/draftModal.ts",
+    "lib/playbookRunner.ts",
+    "lib/observer/observerRun.ts",
+    "lib/publisher/history.ts",
+    "lib/publisher/stepStore.ts",
+    "lib/state/store.ts",
+    "lib/state/persistence.ts",
+    "lib/state/observer.ts",
+    "lib/state/publisher.ts",
+    "lib/state/scheduler.ts",
+    "lib/state/nlWebhook.ts",
+    "lib/state/index.ts",
+    "lib/browser/shared.ts",
+    "lib/browser/index.ts",
+    "lib/scheduler/types.ts",
+    "server.ts",
+    "routes/api/control.ts",
+    "routes/api/ai.ts",
+    "routes/api/logs.ts",
+    "routes/api/nl.ts",
+    ".structure.json",
+    "tests/unit/stateStore.test.ts",
+    "tests/unit/publisherCooldown.test.ts",
+    "tests/integration/api.integration.test.ts",
+    "tests/integration/bot-stability.test.ts",
+    ".planning/initiatives/publisher-modernization/specs/shipped/phase4-state-architecture-consolidation-v1.json",
+    ".planning/initiatives/publisher-modernization/README.md"
+  ],
+  "continuation_prompt": "All 4 phases of publisher-architecture-modernization-v1 are complete. Execute system stability validation and verify production deployment readiness."
+}

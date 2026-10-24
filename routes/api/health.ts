@@ -8,6 +8,7 @@
  */
 
 import { Router } from 'express';
+import { ENV } from '../../config/env.js';
 import { getResourceMetrics, checkResourceThresholds, runGarbageCollection } from '../../lib/resourceMonitor.js';
 
 export type HealthRouterDeps = {
@@ -21,6 +22,7 @@ export function createHealthRouter(deps: HealthRouterDeps): Router {
     res.json({
       ok: true,
       service: 'marketing-automation',
+      gitSha: ENV.GIT_SHA,
       timestamp: new Date().toISOString()
     });
   });
@@ -29,7 +31,7 @@ export function createHealthRouter(deps: HealthRouterDeps): Router {
     try {
       const metrics = await getResourceMetrics();
       const warnings = await checkResourceThresholds();
-      res.json({ ...metrics, warnings });
+      res.json({ ...metrics, warnings, gitSha: ENV.GIT_SHA });
     } catch (error) {
       res.status(500).json({ error: "Failed to get resource metrics" });
     }

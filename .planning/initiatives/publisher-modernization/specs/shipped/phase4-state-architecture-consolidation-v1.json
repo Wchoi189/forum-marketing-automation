@@ -1,0 +1,63 @@
+{
+  "spec_id": "phase4-state-architecture-consolidation-v1",
+  "status": "shipped",
+  "purpose": "Consolidate micro-files in lib/publisher/, unify state authority into a reactive store to eliminate concurrency clobbering, and retire the legacy bot.ts adapter.",
+  "design_intent": "Complete the architectural modernization by retiring technical debt, resolving multi-file state drift, and establishing a clean, unified module hierarchy.",
+  "model_execution_guidance": {
+    "recommended_model": "Hybrid: Gemini Flash (Med) for mechanical refactoring; Gemini Flash (High) for state store",
+    "execution_mode": "automated_batch_with_hitl",
+    "note": "Caller repointing and micro-file inlining should be performed in small, verifiable batches using automated scripts with Gemini Flash Med. State store consolidation requires Gemini Flash High or Deep Thinking model. Automated batch script runs git diff and unit tests after each batch with Human-In-The-Loop review."
+  },
+  "work_items": [
+    {
+      "id": "CONS-001",
+      "title": "Consolidate micro-files in lib/publisher/",
+      "target_files": [
+        "lib/publisher/flow/loadPublisherPlaybook.ts",
+        "lib/publisher/flow/stateTransitions.ts",
+        "lib/publisher/ui/submit.ts",
+        "lib/publisher/core/timeouts.ts",
+        "lib/publisher/flow/runPublisherFlow.ts"
+      ],
+      "action": "Inline single-function micro-files into cohesive publisher flow modules to eliminate import bloat.",
+      "risk": "low"
+    },
+    {
+      "id": "CONS-002",
+      "title": "Unified reactive runtime state store",
+      "target_files": ["lib/state/store.ts", "lib/state/persistence.ts", "lib/state/index.ts"],
+      "action": "Consolidate fragmented observer/publisher/scheduler state into a single authoritative in-memory store with debounced disk persistence, eliminating optimistic concurrency clobbering.",
+      "risk": "medium"
+    },
+    {
+      "id": "CONS-003",
+      "title": "Relocate loose publisher files into lib/publisher/",
+      "target_files": ["lib/publisherHistory.ts", "lib/publisherStepStore.ts", "lib/publisher/"],
+      "action": "Move lib/publisherHistory.ts to lib/publisher/history.ts and lib/publisherStepStore.ts to lib/publisher/stepStore.ts. Update barrel exports.",
+      "risk": "low"
+    },
+    {
+      "id": "CONS-004",
+      "title": "Repoint callers and eliminate legacy bot.ts adapter",
+      "target_files": ["bot.ts", "server.ts", "routes/"],
+      "action": "Repoint all remaining imports of bot.ts to respective lib/ module entry points. Delete bot.ts.",
+      "risk": "medium"
+    }
+  ],
+  "session_boundary": {
+    "auto_stop": true,
+    "gate_criteria": [
+      "All micro-files consolidated without behavioral regression",
+      "bot.ts deleted and zero references remain",
+      "npm run lint passes with 0 errors",
+      "npm run lint:structure passes with 0 errors",
+      "npm test passes full suite (unit + integration)"
+    ],
+    "handover_instructions": {
+      "generate_file": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+      "use_template": ".agent/session-handovers/template.json",
+      "required_fields": ["handover_id", "timestamp_utc", "completed_items", "artifacts_touched", "next_actions"],
+      "continuation_prompt": "All 4 phases of publisher-architecture-modernization-v1 are complete. Execute system stability validation and verify production deployment readiness."
+    }
+  }
+}

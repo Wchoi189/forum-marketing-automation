@@ -14,7 +14,6 @@
   },
   "include": [
     "server.ts",
-    "bot.ts",
     "lib/**/*.ts",
     "config/**/*.ts",
     "scripts/**/*.ts",

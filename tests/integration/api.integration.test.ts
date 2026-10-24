@@ -469,7 +469,7 @@ test("GET /api/scheduler-signals returns diagnostics contract-shaped payload", a
 });
 
 test("isPublishSuccessUrl accepts final view/list URLs and rejects write_ok interim", async () => {
-  const { isPublishSuccessUrl } = await import("../../lib/publisher/ui/submit.js");
+  const { isPublishSuccessUrl } = await import("../../lib/publisher/index.js");
   const boardId = "gonggu";
 
   assert.equal(
@@ -497,7 +497,7 @@ test("isPublishSuccessUrl accepts final view/list URLs and rejects write_ok inte
 });
 
 test("waitForPublishLandingUrl accepts late redirect after waiter timeout via retry buffer", async () => {
-  const { waitForPublishLandingUrl } = await import("../../lib/publisher/ui/submit.js");
+  const { waitForPublishLandingUrl } = await import("../../lib/publisher/index.js");
 
   const listeners: Array<(frame: { url: () => string }) => void> = [];
   let currentUrl = "https://www.ppomppu.co.kr/zboard/unlimit_write_ok.php?id=gonggu&no=201742";
@@ -530,7 +530,7 @@ test("waitForPublishLandingUrl accepts late redirect after waiter timeout via re
 });
 
 test("waitForPublishLandingUrl fails closed on wrong landing board URL", async () => {
-  const { waitForPublishLandingUrl } = await import("../../lib/publisher/ui/submit.js");
+  const { waitForPublishLandingUrl } = await import("../../lib/publisher/index.js");
 
   const listeners: Array<(frame: { url: () => string }) => void> = [];
   let currentUrl = "https://www.ppomppu.co.kr/zboard/unlimit_write_ok.php?id=gonggu&no=201742";
@@ -562,7 +562,7 @@ test("waitForPublishLandingUrl fails closed on wrong landing board URL", async (
 });
 
 test("waitForPublishLandingUrl timeout path includes last URL diagnostics", async () => {
-  const { waitForPublishLandingUrl } = await import("../../lib/publisher/ui/submit.js");
+  const { waitForPublishLandingUrl } = await import("../../lib/publisher/index.js");
 
   const listeners: Array<(frame: { url: () => string }) => void> = [];
   let currentUrl = "https://www.ppomppu.co.kr/zboard/unlimit_write_ok.php?id=gonggu&no=201742";

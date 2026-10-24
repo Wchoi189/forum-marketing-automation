@@ -1,0 +1,9 @@
+{
+  "$schema": "refactor-engine/recipe/1",
+  "name": "location-sensitive",
+  "strategy": "split-class",
+  "source": "src/host.js",
+  "host": "Host",
+  "targetDirectory": "parts",
+  "parts": [{ "name": "Auth", "members": ["tokenPath"] }]
+}

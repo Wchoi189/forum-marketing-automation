@@ -1,0 +1,111 @@
+{
+  "handover_id": "handover-20260905-0346",
+  "timestamp_utc": "2026-09-05T03:46:00Z",
+  "session_type": "m2m-hybrid",
+  "source_agent": "claude-opus-5",
+  "target_agent": "claude-opus-5",
+  "project_id": "ppomppu-ott-bot",
+  "active_workflow_id": "ppomppu-gonggu-v1",
+  "phase": "deployment-and-observation",
+  "objective": "Unblock the R1 production gate: push the R1 commits, rebuild and restart the container, and start the one-day observation window before R2 may begin.",
+  "non_goals": [
+    "R2 (r2-scheduling-decision-unification-v1) - not started, gate not yet met",
+    "computeEffectiveIntervalMinutes, the preset system, default-value duplication (R2)",
+    "State ownership between the scheduler closure and RuntimeStateStore (R3)",
+    "Maintenance detection logic (R4)",
+    "CLAUDE.md / contract drift (R5) - CLAUDE.md still lists bot.ts and lib/publisherStepStore.ts, both stale"
+  ],
+  "status": "complete",
+
+  "current_state": {
+    "completed": [
+      "R1 code (commits 779ab03, 0274b55, 6f704a4, 9434d3c) verified present in the running container.",
+      "Deployment blocker found and fixed: Dockerfile copied bot.ts, deleted in ec134e5, so every image build since has failed. No image had ever carried the phase 1-4 or R1 code.",
+      "Container marketing-automation-app-1 recreated from a fresh image at 2026-09-05T03:45Z and reports health=healthy.",
+      "First live tick shows R1 working: decision rate_limited in 23ms with no observer/Chromium launch, next tick scheduled 28 minutes out."
+    ],
+    "gaps": [
+      "The one-day observation window has only just started (2026-09-05T03:45Z). The R2 gate is NOT met.",
+      "No post-success evidence yet: the 'post_publish_cooldown' scheduling reason has not been observed live, because no publish has succeeded since the restart. The observed live evidence so far covers RTG-001 (gate before observer) and the rate_limited_cooldown branch only.",
+      "The prior deployed image was built 2026-07-17. This restart shipped phases 1-4 AND R1 together, so a regression seen in the window is not necessarily R1's.",
+      "Kakao DB is unreachable in the container (getaddrinfo ENOTFOUND ocr-postgres) and Kakao features are disabled. Pre-existing, unrelated to R1."
+    ]
+  },
+
+  "decisions": [
+    {
+      "decision": "Fixed the Dockerfile in this session rather than deferring to R5.",
+      "why": "It was the actual blocker for the R1 gate. Without it, no amount of waiting would produce production evidence. The change is two deletions and touches no R1/R2/R3/R4 surface."
+    },
+    {
+      "decision": "Deployed phases 1-4 and R1 in one image.",
+      "why": "The image was two months stale; there is no separable intermediate build. Recorded as a gap so that regressions in the observation window are not misattributed to R1."
+    }
+  ],
+
+  "completed_items": [
+    {
+      "id": "GATE-CHECKS",
+      "title": "Re-ran the R1 gate suite before deploying",
+      "verified_by": "npm run lint:structure (structure OK, 620 tracked files, 1 warning), npm run lint (exit 0), npm run test:unit (100 pass / 0 fail), npm run build (built in 5.44s)"
+    },
+    {
+      "id": "PUSH",
+      "title": "Pushed the five R1 commits",
+      "verified_by": "git push output 'ec134e5..636b86b chore/analytics-page -> chore/analytics-page'"
+    },
+    {
+      "id": "DOCKERFILE-FIX",
+      "commit": "dc6526a",
+      "title": "Removed the stale bot.ts copy that broke every image build",
+      "what_changed": "Deleted 'COPY --chown=app:app bot.ts ./' from Dockerfile and the \"bot.ts\" entry from tsconfig.server.json.",
+      "verified_by": "First build failed with 'failed to compute cache key: ... \"/bot.ts\": not found' (exit 1). After the fix, docker compose build app exited 0 and named docker.io/library/marketing-automation-app:latest. npx tsc --project tsconfig.server.json --noEmit exited 0 after the tsconfig edit."
+    },
+    {
+      "id": "DEPLOY",
+      "title": "Recreated the container from the new image",
+      "verified_by": "docker compose up -d app: 'Container marketing-automation-app-1 Recreated / Started'. docker inspect health status went starting -> healthy. In-container check: lib/publisher/cooldownGate.ts exists, 'already_running' appears 1x in contracts/models.ts and 7x in lib/scheduler/run.ts, bot.ts absent."
+    }
+  ],
+
+  "live_evidence_observed": {
+    "source": "docker logs --since 5m marketing-automation-app-1, 2026-09-05T03:45Z",
+    "facts": [
+      "scheduler.started baseIntervalMinutes=60, first tick in 10s.",
+      "scheduler_controls_loaded enabled=true, preset=balanced, gapRecheckIntervalMinutes=3.",
+      "publisher.run.finished runId=ee504ab8-758f-40c8-8f43-f9ac68bfaea5 decision=rate_limited durationMs=23 - a 23ms run cannot have launched Chromium, which is the RTG-001 acceptance criterion met live.",
+      "scheduler.next.scheduled nextMinutes=28 reason=rate_limited_cooldown, message '27m cooldown + 1m buffer' - not the pre-R1 5-minute retry loop."
+    ],
+    "not_yet_observed": [
+      "reason=post_publish_cooldown after a verified publish (RTG-002)",
+      "reason=block_deadline_clamp from a control-panel save during a cooldown (RTG-003)",
+      "decision=already_running from an overlapping manual run (RTG-004)"
+    ]
+  },
+
+  "next_actions": [
+    "Wait until at least 2026-09-06T03:45Z - one full day of the new image running.",
+    "Read the production run log: docker exec marketing-automation-app-1 cat /app/data/artifacts/publisher-history/2026-09-06.jsonl (and the 09-05 file). Expected shape: published_verified followed by roughly one hour of quiet, no publisher_error or rate_limited entry ~3 minutes after the success.",
+    "Read the scheduler reasons: docker logs marketing-automation-app-1 2>&1 | grep scheduler.next.scheduled. Expect reason=post_publish_cooldown after a verified publish.",
+    "Only after that evidence exists, begin R2 per .planning/initiatives/publisher-modernization/specs/active/r2-scheduling-decision-unification-v1.json.",
+    "Unrelated cleanup available whenever convenient: the working tree still has four handover files moved to .agent/session-handovers/archive/ uncommitted, and .planning/initiatives/publisher-modernization/ (review-20260905/, specs/active/) is untracked."
+  ],
+
+  "env_requirements": [
+    "Deploy is docker compose (docker-compose.yml, service 'app'). Volumes marketing-automation-bot-profile, -logs, -artifacts persist across rebuilds; the browser session and publisher history survived this restart.",
+    ".env.docker has DRY_RUN_MODE=\"false\" and DEV_SKIP_BOT=false, so the deployed container publishes for real.",
+    "Production publisher history lives at /app/data/artifacts/publisher-history/YYYY-MM-DD.jsonl inside the container, not in the repo's artifacts/ directory, which is empty on this host."
+  ],
+
+  "artifacts_touched": [
+    { "path": "Dockerfile", "change": "modified - removed the bot.ts COPY line (commit dc6526a)" },
+    { "path": "tsconfig.server.json", "change": "modified - removed the bot.ts include entry (commit dc6526a)" },
+    { "path": ".agent/session-handovers/handover-20260905-0346.json", "change": "created - this file" }
+  ],
+
+  "continuation_prompt": "R1 (publisher gate ordering) is implemented AND deployed. The container was recreated from a fresh image at 2026-09-05T03:45Z; the first live tick confirmed RTG-001 (decision rate_limited in 23ms, no Chromium launch) and the rate_limited_cooldown scheduling branch. Do NOT start R2 until 2026-09-06T03:45Z at the earliest, and not before reading the production evidence: /app/data/artifacts/publisher-history/2026-09-05.jsonl and 2026-09-06.jsonl inside marketing-automation-app-1 must show one published_verified followed by a long quiet gap with no rate_limited or publisher_error entry about three minutes later, and docker logs must show scheduler.next.scheduled with reason=post_publish_cooldown after that publish. If that evidence is present, proceed per .planning/initiatives/publisher-modernization/specs/active/r2-scheduling-decision-unification-v1.json. If it is absent or contradicts the expected shape, do not start R2 - diagnose R1 instead.\n\n# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated.",
+
+  "constraints": [
+    "# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated."
+  ]
+}

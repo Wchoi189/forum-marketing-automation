@@ -34,7 +34,8 @@ lib/
 ├── observer/             # Board observation and parsing
 ├── browser/              # Chromium lifecycle: shared browser, debug handlers, eval polyfill
 ├── logging/              # pino instance + LOG_EVENT vocabulary
-├── analytics/            # Derived numbers from history: trends, scheduler signals, competitor EDA
+├── analytics/            # Derived numbers from history: trends, scheduler signals + calibration,
+│                         #   board/competitor summaries, competitor EDA
 ├── kakao/                # KakaoTalk skill: webhook types, Postgres log, auto-reply
 ├── competitor-intel/     # Competitor ad extraction pipeline (crawls and writes)
 ├── competitor-store/     # SQLite corpus of extracted ads + dashboard read model
@@ -42,9 +43,19 @@ lib/
 └── parser/               # DOM projection and diff utilities
 
 src/                      # React UI (control panel)
+├── pages/                # One file per route, shells only — App.tsx and AnalyticsPage.tsx
+├── hooks/                # Data orchestration: fetching, polling, filter state
+├── components/           # Views, grouped by the page or domain that owns them
+└── lib/                  # Browser-side pure helpers (formatting, CSV)
 contracts/                # Shared type definitions
 config/                   # Environment and validation
 ```
+
+A route file holds view state and layout. Anything that fetches belongs in
+`src/hooks/`, anything that derives or formats belongs in `src/lib/`, and a
+section large enough to name belongs in `src/components/`. `src/App.tsx`
+(1800 → 156 lines) and `src/pages/AnalyticsPage.tsx` (799 → 227) were both
+decomposed along exactly those three seams.
 
 **When a `lib/` entry becomes a directory:** it is a directory with an
 `index.ts` when it owns a domain concept with more than one file's worth of
@@ -91,20 +102,12 @@ suite. Absolute host paths in source are blocked by
 
 ## Agent OS Integration
 
-Standards documents live in `archive/agent-os/standards/` (archived 2026-08-08 —
-they were not being maintained). The slash commands that consume them still
-resolve from `.claude/commands/agent-os/`:
-
-| Command | Purpose |
-|---------|---------|
-| `/discover-standards` | Extract patterns and conventions from the codebase |
-| `/index-standards` | Update the standards index with new descriptions |
-| `/inject-standards` | Inject relevant standards into AI context |
-| `/plan-product` | Create structured plans for new features |
-| `/shape-spec` | Develop specifications for implementations |
-
-If the commands do not appear, confirm `.claude/commands/agent-os/` exists and
-restart the session to reload them.
+Retired from this project on 2026-10-24. The standards documents
+(`archive/agent-os/`) and the slash commands (`archive/agent-os-commands/`) are
+frozen. Every command ran an ask, draft, confirm loop that conflicts with the
+default-to-execution rules in `CLAUDE.md`. The same names still exist as
+user-level plugin skills (`agent-os:*`), which run only when invoked by name.
+To restore the project copies: `git mv archive/agent-os-commands .claude/commands/agent-os`.
 
 ### Principles the standards encoded
 

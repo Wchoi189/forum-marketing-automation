@@ -33,6 +33,16 @@ npx playwright show-trace <path-to-trace.zip>
 
 Temporarily set `PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT=100` (and optionally `LOG_LEVEL=debug`).
 
+## Deploying
+
+`npm run deploy` (scripts/deploy.sh) rebuilds from the working tree, keeps the
+running image as `marketing-automation-app:rollback-<date>-<sha>`, waits for an
+in-flight publisher run, restarts, and exits 0 once `GET /api/health` reports
+the new `gitSha`. The Operations page shows the same value. `-dirty` means files
+the image uses differed from that commit. Rollback: `docker tag <rollback tag>
+marketing-automation-app:latest && docker compose up -d app`. A bare
+`docker compose build` reports `gitSha: unknown`.
+
 ## Retention & Garbage Collection
 
 Every directory that grows without bound has exactly one owner listed here. If
@@ -66,6 +76,110 @@ inside git.
 `npm run clean:all` prunes regenerable files on demand; `-- --dry-run` lists
 what it would remove without deleting.
 
+## Restoring the ppomppu session
+
+Symptom: `PUBLISHER_LOGIN_REQUIRED: reason=turnstile_unsolved` (or `login_rejected`)
+in `publisher.run.failed`, or `session.lost reason=probe_logged_out`. The bot
+cannot log in by itself (KE-004); a person must.
+
+Warnings before and at death (SL-004/SL-005):
+
+- **Expiring:** `SESSION_EXPECTED_LIFETIME_HOURS` (168) minus
+  `SESSION_EXPIRY_WARNING_HOURS` (24) after the last import, the Overview page
+  shows an amber banner and Slack gets one "ppomppu session expiring" message.
+  A console login then renews it early.
+- **Dead:** a red banner, and one Slack message per death (the login console
+  link, or a plain "session dead" when no console can be offered). The
+  scheduler parks; "Publisher Failed" messages are suppressed while parked.
+- **Probe:** a gap-skip tick never loads the board, so the scheduler probes the
+  saved session when nothing has verified it for `SESSION_PROBE_INTERVAL_HOURS`
+  (6). Only a `logged_out` header marks it dead; `unknown` changes nothing.
+
+### Default: login console (any device, no desktop needed)
+
+The server opens a plain Chromium on login.php inside a private VNC desktop
+(Xvnc), with the ID, password and 자동로그인 already filled, and shows it on a
+token-protected page (noVNC). A person taps the Turnstile check and 로그인. The
+server reads the new login cookies from that browser's profile on disk (within
+~30 s, Chromium's flush interval), probes them in the bot's browser and saves
+them if logged in; the page then says Done. Cookies come from the server's IP,
+so nothing leaves the server.
+
+The console browser has **no automation attached** (no Playwright, no CDP, no
+user-agent override). Turnstile spun forever in the earlier Playwright console
+because that browser claimed Windows Chrome while reporting Linux. Do not add
+CDP, Playwright or identity overrides to the console browser: `--remote-debugging-*`
+alone makes Chromium report `navigator.webdriver = true`.
+
+- **Automatic:** when a run fails with `PUBLISHER_LOGIN_REQUIRED`, Slack gets a
+  "ppomppu login needed" link (at most every 3 h; each link lives 15 min).
+- **On demand, no Slack:** open `PUBLIC_BASE_URL/session/console` (tailnet:
+  `http://100.124.62.44:3000/session/console`), enter `SESSION_IMPORT_SECRET`
+  as the console key and press "Open login console here"; the console opens in
+  the same window. The key can be remembered on the device, or bookmarked as
+  `…/session/console#key=<secret>`, which opens the console on load. The
+  fragment never reaches the server, but it does sit in browser history and
+  bookmarks, so use it only on the operator's own devices. If a console is
+  already open (e.g. the automatic one), this joins it.
+- **On demand, via Slack:** same page, "Send login link to Slack instead". No
+  key needed; the link goes to Slack only, never back to the page.
+- **From a shell:** `curl -X POST localhost:3000/api/session/console -H
+  "Authorization: Bearer $SESSION_IMPORT_SECRET"` returns the URL directly.
+
+Needs `SESSION_IMPORT_SECRET` and `PUBLIC_BASE_URL` in `.env.docker`. The
+`session.imported` log line lists which login cookies have a real expiry date
+(names only): that shows whether 자동로그인 lets the session outlive ~7 days.
+
+### Optional: browser session sync extension
+
+Only useful while a desktop Chrome that is logged in to ppomppu can reach the
+bot; it is not a dependency. That Chrome pushes its ppomppu cookies to
+`POST /api/session/import` whenever `PHPSESSID` or `pmn` change, and every 30
+minutes. The bot probes the board with them and saves only a logged-in session,
+keeping its own `cf_clearance`. Slack reports each refresh or rejection.
+
+One-time setup:
+
+1. `npm run session:sync-setup` — generates `SESSION_IMPORT_SECRET` in
+   `.env.docker` if absent and writes the gitignored
+   `tools/session-sync-extension/config.local.json`.
+2. `docker compose up -d app` if a secret was generated.
+3. chrome://extensions → Developer mode → Load unpacked →
+   `tools/session-sync-extension`.
+
+After that, recovering an expired session is: log in to ppomppu in that Chrome
+(tick 자동로그인; you solve Turnstile as any visitor does). The badge on the
+extension icon is blank when synced; hover it for the last result.
+
+### Manual fallback: cookie export
+
+Use when the extension cannot reach the bot (remote host) or Chrome is not available.
+
+1. Log in to ppomppu in a normal browser as the bot account and tick 자동로그인.
+2. Export the `ppomppu.co.kr` cookies as JSON (Cookie-Editor's export works).
+   Save it as `cookies-*.json` so `.gitignore` covers it — it is a live session.
+3. Wait until `GET /api/publisher-status` reports `running: false`.
+4. Merge into the deployed state. The bot's own `cf_clearance` is kept, because
+   Cloudflare binds it to the server's IP:
+
+   ```bash
+   C=marketing-automation-app-1
+   docker cp $C:/app/data/browser-profile/browser-storage-state.json ./state.json
+   npm run session:import -- cookies-export.json --state ./state.json
+   docker cp ./state.json $C:/app/data/browser-profile/browser-storage-state.json
+   docker exec -u root $C chown app:app /app/data/browser-profile/browser-storage-state.json
+   rm ./state.json ./state.json.bak-* cookies-export.json
+   ```
+
+   Add `--verify` on a machine whose IP Cloudflare accepts to open the board
+   with the merged cookies and report `session=logged_in`.
+
+   Or skip the copies: `curl -X POST localhost:3000/api/session/import -H
+   "Authorization: Bearer $SESSION_IMPORT_SECRET" -H 'Content-Type: application/json'
+   -d "{\"cookies\": $(cat cookies-export.json)}"` verifies and saves in one step.
+5. Trigger `POST /api/run-publisher` or wait for the next tick, and check for
+   `published_verified`.
+
 ## Selector Strategy
 
 - Prefer stable class/text combinations and scoped locators over absolute XPath.
@@ -80,7 +194,7 @@ what it would remove without deleting.
 | API/publisher changes | `npm run test:integration` |
 | Parser/runtime changes | `npm run test` |
 
-Do not weaken fail-closed checks without explicit approval.
+Never weaken fail-closed checks. If one blocks the task, fix the cause instead.
 
 ## Gap Health Semantics
 

@@ -1,0 +1,45 @@
+{
+  "scope": {
+    "include": [
+      "src/**/*.js"
+    ],
+    "exclude": []
+  },
+  "limits": {
+    "fileLines": 40,
+    "functionLines": 10
+  },
+  "patterns": [
+    {
+      "id": "coalesce-param",
+      "kind": "regex",
+      "regex": "COALESCE\\(\\s*\\?",
+      "why": "fixture: COALESCE(?, col) drops explicit nulls"
+    },
+    {
+      "id": "prepare-in-loop",
+      "kind": "ast-grep",
+      "language": "javascript",
+      "why": "fixture: prepare a statement once, outside the loop",
+      "rule": {
+        "rule": {
+          "kind": "no_such_kind_xyz"
+        }
+      }
+    }
+  ],
+  "baseline": "baseline.json",
+  "receipts": "receipts",
+  "verify": {
+    "commands": [
+      {
+        "name": "check",
+        "argv": [
+          "node",
+          "-e",
+          "0"
+        ]
+      }
+    ]
+  }
+}

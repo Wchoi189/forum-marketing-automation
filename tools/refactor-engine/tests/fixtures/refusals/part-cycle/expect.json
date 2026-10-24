@@ -1,0 +1,1 @@
+{ "code": "RF-PART-CYCLE", "declaration": "a", "message": "a → b → a", "exit": 2 }

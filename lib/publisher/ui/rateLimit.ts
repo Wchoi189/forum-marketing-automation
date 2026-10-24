@@ -9,10 +9,13 @@ import type { Page } from "playwright";
 import { logger, LOG_EVENT } from "../../logging/index.js";
 
 /** Korean text indicating rate limit is active. */
-const RATE_LIMIT_MARKER = "글 등록 후 60분이 지나야 다음 게시물을 등록할 수 있습니다";
+export const RATE_LIMIT_MARKER = "글 등록 후 60분이 지나야 다음 게시물을 등록할 수 있습니다";
+
+/** Regex patterns matching Ppomppu rate limit warning messages (in alert dialogs or write page). */
+const RATE_LIMIT_REGEX = /(?:60분|1시간)\s*(?:이내|이\s*지나야|에\s*1개)|글\s*등록\s*후\s*60분이\s*지나야/i;
 
 /** Regex to extract remaining minutes from rate limit message. */
-const REMAINING_TIME_REGEX = /(\d+)\s*분\s*후에\s*등록할\s*수\s*있습니다/;
+const REMAINING_TIME_REGEX = /(\d+)\s*분\s*(?:후에\s*등록할\s*수\s*있습니다|후\s*등록|후)/;
 
 export type RateLimitInfo = {
   /** Rate limit is active. */
@@ -32,30 +35,45 @@ export type RateLimitStatus =
   | RateLimitInfo;
 
 /**
- * Check if the current page shows a rate limit message.
+ * Check if the current page or an intercepted dialog shows a rate limit message.
  * Should be called after clicking "글쓰기" button.
  */
-export async function detectRateLimit(page: Page): Promise<RateLimitStatus> {
+export async function detectRateLimit(
+  page: Page,
+  capturedDialogText?: string | null
+): Promise<RateLimitStatus> {
   try {
     const bodyText = await page.textContent("body").catch(() => "");
-    if (!bodyText?.includes(RATE_LIMIT_MARKER)) {
+    const fullText = [capturedDialogText, bodyText].filter(Boolean).join("\n");
+
+    const isRateLimited =
+      Boolean(capturedDialogText && RATE_LIMIT_REGEX.test(capturedDialogText)) ||
+      fullText.includes(RATE_LIMIT_MARKER) ||
+      RATE_LIMIT_REGEX.test(fullText);
+
+    if (!isRateLimited) {
       return { blocked: false };
     }
 
     // Extract remaining minutes
-    const match = bodyText.match(REMAINING_TIME_REGEX);
+    const match = fullText.match(REMAINING_TIME_REGEX);
     let remainingMinutes = 60; // Default to full hour if parsing fails
     if (match) {
-      remainingMinutes = Math.max(1, parseInt(match[1], 10) || 60);
+      const parsed = parseInt(match[1] ?? "", 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        remainingMinutes = parsed;
+      }
     }
 
     // Extract server time
-    const serverTimeMatch = bodyText.match(/현재\s*서버시간:\s*(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
+    const serverTimeMatch = fullText.match(/현재\s*서버시간:\s*(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
     const serverTime = serverTimeMatch?.[1] ?? null;
 
     // Extract previous registration time
-    const prevRegMatch = bodyText.match(/이전\s*등록시간:\s*(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
+    const prevRegMatch = fullText.match(/이전\s*등록시간:\s*(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
     const previousRegTime = prevRegMatch?.[1] ?? null;
+
+    const source = capturedDialogText && RATE_LIMIT_REGEX.test(capturedDialogText) ? "dialog" : "page";
 
     const info: RateLimitInfo = {
       blocked: true,
@@ -68,11 +86,13 @@ export async function detectRateLimit(page: Page): Promise<RateLimitStatus> {
     logger.info(
       {
         event: LOG_EVENT.publisherRateLimited,
+        source,
         remainingMinutes,
         serverTime,
         previousRegTime,
+        dialogText: capturedDialogText ?? undefined,
       },
-      `[Publisher] Rate limit detected — ${remainingMinutes} minutes remaining`
+      `[Publisher] Rate limit detected (${source}) — ${remainingMinutes} minutes remaining`
     );
 
     return info;

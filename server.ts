@@ -6,26 +6,21 @@ import cors from "cors";
 import { rateLimit } from "express-rate-limit";
 import { pathToFileURL } from "url";
 import { createServer as createViteServer } from "vite";
-import {
-  getLogs,
-  runObserver,
-  runPublisher,
-  initBotControls,
-  registerSignalHandlers,
-} from "./bot.js";
-import { getSharedLogCache } from "./lib/logCache.js";
-import { initSharedBrowser } from "./lib/browser/index.js";
+import { runObserver } from "./lib/observer/index.js";
+import { runPublisher, readPublisherHistory } from "./lib/publisher/index.js";
+import { getSharedLogCache, initSharedLogCache } from "./lib/logCache.js";
+import { initSharedBrowser, registerSignalHandlers } from "./lib/browser/index.js";
 import { ENV } from "./config/env.js";
 import { WATCH_IGNORED } from "./config/watch.js";
 import { validateRuntimeContracts } from "./config/runtime-validation.js";
 import { logger, LOG_EVENT } from "./lib/logging/index.js";
-import { readPublisherHistory } from "./lib/publisherHistory.js";
 import {
   startScheduler,
   type BotDeps,
   type ControlPanelPreset,
 } from "./lib/scheduler/index.js";
 import {
+  initRuntimeStateStore,
   readPersistedSchedulerControls,
   readPersistedNlWebhookEnabled,
 } from "./lib/state/index.js";
@@ -40,8 +35,16 @@ import { createControlRouter, buildControlPanelResponse } from "./routes/api/con
 import { createAiRouter } from "./routes/api/ai.js";
 import { createNlRouter } from "./routes/api/nl.js";
 import { createKakaoRouter } from "./routes/api/kakao.js";
+import { createSessionRouter, type SessionRouterDeps } from "./routes/api/session.js";
+import { attachConsoleVncBridge, checkSessionExpiry, probeSavedSession } from "./lib/session/index.js";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Shared Log Cache & Helpers ───────────────────────────────────────────────
+
+initSharedLogCache(ENV.ACTIVITY_LOG_PATH, 15_000);
+
+export async function getLogs() {
+  return getSharedLogCache().get();
+}
 
 function getDefaultDeps(): BotDeps {
   if (ENV.DEV_SKIP_BOT) {
@@ -52,7 +55,13 @@ function getDefaultDeps(): BotDeps {
       getPublisherHistory: readPublisherHistory,
     };
   }
-  return { runObserver, runPublisher, getLogs, getPublisherHistory: readPublisherHistory };
+  return {
+    runObserver,
+    runPublisher,
+    getLogs,
+    getPublisherHistory: readPublisherHistory,
+    session: { checkExpiry: () => checkSessionExpiry(), probe: () => probeSavedSession() },
+  };
 }
 
 type SchedulerController = ReturnType<typeof startScheduler>;
@@ -62,7 +71,11 @@ type SchedulerController = ReturnType<typeof startScheduler>;
 export function createApp(
   deps: BotDeps = getDefaultDeps(),
   scheduler?: SchedulerController,
-  opts: { initialNlWebhookEnabled?: boolean } = {}
+  opts: {
+    initialNlWebhookEnabled?: boolean;
+    probeSession?: SessionRouterDeps['probe'];
+    openLoginConsole?: SessionRouterDeps['openConsole'];
+  } = {}
 ) {
   const app = express();
   let nlWebhookEnabledRuntime: boolean = opts.initialNlWebhookEnabled ?? ENV.NL_WEBHOOK_ENABLED;
@@ -84,7 +97,8 @@ export function createApp(
   const observerLimiter = shouldSkipRateLimit ? NOOP : rateLimit({ windowMs: 60_000, limit: 5, standardHeaders: true, legacyHeaders: false });
 
   const SKIP_RATE_PATHS = ["/kakao-webhook", "/api/publisher-status", "/api/health/resources", "/api/health"];
-  const SKIP_RATE_PATTERNS = [/\.js(\?|$)/, /\.css(\?|$)/, /\.svg(\?|$)/, /\.(png|jpg|jpeg|gif|ico|woff2?)(\?|$)/];
+  // Login console state stream (SSE) is token-gated; its desktop runs over a WebSocket.
+  const SKIP_RATE_PATTERNS = [/\.js(\?|$)/, /\.css(\?|$)/, /\.svg(\?|$)/, /\.(png|jpg|jpeg|gif|ico|woff2?)(\?|$)/, /^\/api\/session\/console\/[^/]+\/events$/];
 
   app.use((req, res, next) => {
     if (SKIP_RATE_PATTERNS.some(p => p.test(req.path))) return next();
@@ -142,6 +156,8 @@ export function createApp(
 
   app.use(createKakaoRouter());
 
+  app.use(createSessionRouter({ probe: opts.probeSession, openConsole: opts.openLoginConsole }));
+
   // ── Global error handler ──────────────────────────────────────────────────
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const message = err instanceof Error ? err.message : String(err);
@@ -170,7 +186,7 @@ export async function startServer() {
   const [persistedScheduler, persistedNlWebhookEnabled] = await Promise.all([
     readPersistedSchedulerControls(),
     readPersistedNlWebhookEnabled(),
-    skipBot ? Promise.resolve() : initBotControls(),
+    skipBot ? Promise.resolve() : initRuntimeStateStore(),
   ]);
   const scheduler = skipBot ? undefined : startScheduler(getDefaultDeps(), ENV.RUN_INTERVAL_MINUTES, persistedScheduler);
   if (!skipBot && Object.keys(persistedScheduler).length > 0) {
@@ -238,6 +254,7 @@ export async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
+    attachConsoleVncBridge(httpServer);
     httpServer.listen(PORT, "0.0.0.0", () => {
       logger.info({ event: LOG_EVENT.serverStarted, port: PORT, host: "0.0.0.0" }, `Server running on http://localhost:${PORT}`);
     });
@@ -250,9 +267,10 @@ export async function startServer() {
     app.get("*", (req, res) => { res.sendFile(path.join(distPath, "index.html")); });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     logger.info({ event: LOG_EVENT.serverStarted, port: PORT, host: "0.0.0.0" }, `Server running on http://localhost:${PORT}`);
   });
+  attachConsoleVncBridge(server);
 }
 
 const isDirectRun = Boolean(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href);

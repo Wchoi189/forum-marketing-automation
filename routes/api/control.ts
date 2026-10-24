@@ -30,21 +30,25 @@ import {
   readPersistedNlWebhookEnabled,
   readStateMeta,
   persistAllControlPanelSettings,
+  getSessionRecord,
+  sessionView,
   StateVersionConflictError,
 } from '../../lib/state/index.js';
 import type { ObserverControlsWithGap } from '../../lib/state/index.js';
 import {
   getObserverControlsWithGap,
 } from '../../lib/observer/policyLoader.js';
-import { getPublisherStatus } from '../../lib/publisherStepStore.js';
+import { getPublisherStatus } from '../../lib/publisher/index.js';
 import { PARSER_OPTIONS } from '../../lib/observer/parserSignal.js';
 import {
   PRESET_CONFIG,
+  defaultAutoPublisherControls,
   type BotDeps,
   type AutoPublisherControls,
   type ControlPanelPreset,
 } from '../../lib/scheduler/index.js';
 import type { SchedulerController } from '../routerTypes.js';
+import type { SessionView } from '../../contracts/models.js';
 
 // ── Shared control panel response builder ─────────────────────────────────────
 
@@ -81,6 +85,8 @@ export type ControlPanelResponse = {
     requiredGap: number;
     checkedAt: string;
   } | null;
+  /** ppomppu login session (SL-005); drives the dashboard banner. */
+  session: SessionView;
 };
 
 export async function buildControlPanelResponse(
@@ -90,23 +96,10 @@ export async function buildControlPanelResponse(
 ): Promise<ControlPanelResponse> {
   const [autoPublisherState, observer, publisher, stateMeta] = await Promise.all([
     (scheduler ? scheduler.getState() : Promise.resolve(null)).then((st) =>
+      // No scheduler (DEV_SKIP_BOT): report the defaults it would have started with.
       st ?? {
-        enabled: true,
-        baseIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
-        effectiveIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
-        quietHoursStart: 3,
-        quietHoursEnd: 5,
-        quietHoursMultiplier: 1.8,
-        activeHoursStart: 8,
-        activeHoursEnd: 23,
-        activeHoursMultiplier: 0.8,
-        trendAdaptiveEnabled: true,
-        trendWindowDays: 7,
-        trendRecalibrationDays: 7,
-        scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT,
-        scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
-        targetPublishIntervalMinutes: 0,
-        gapRecheckIntervalMinutes: 3,
+        ...defaultAutoPublisherControls(),
+        effectiveIntervalMinutes: defaultAutoPublisherControls().baseIntervalMinutes,
         running: false,
         lastObserverResult: null,
       }
@@ -125,6 +118,7 @@ export async function buildControlPanelResponse(
     publisher,
     autoPublisher: autoPublisherState,
     lastObserverResult: autoPublisherState.lastObserverResult ?? null,
+    session: sessionView(getSessionRecord(), Date.now()),
   };
 }
 
@@ -312,13 +306,12 @@ export function createControlRouter(opts: ControlRouterDeps): Router {
         if (!hasPreset) scheduler.setControls(body.autoPublisher);
       }
 
+      // No scheduler (DEV_SKIP_BOT): report the defaults it would have started with,
+      // read from the single source rather than a literal that drifts away from it.
       const autoPublisherState = (scheduler ? await scheduler.getState() : null) ?? {
-        enabled: true, baseIntervalMinutes: ENV.RUN_INTERVAL_MINUTES, effectiveIntervalMinutes: ENV.RUN_INTERVAL_MINUTES,
-        quietHoursStart: 3, quietHoursEnd: 5, quietHoursMultiplier: 1.8,
-        activeHoursStart: 8, activeHoursEnd: 23, activeHoursMultiplier: 0.8,
-        trendAdaptiveEnabled: true, trendWindowDays: 7, trendRecalibrationDays: 7,
-        scheduleJitterPercent: ENV.SCHEDULER_JITTER_PERCENT, scheduleJitterMode: ENV.SCHEDULER_JITTER_MODE,
-        targetPublishIntervalMinutes: 0, gapRecheckIntervalMinutes: 3, running: false
+        ...defaultAutoPublisherControls(),
+        effectiveIntervalMinutes: defaultAutoPublisherControls().baseIntervalMinutes,
+        running: false,
       };
 
       const currentObserver = await getObserverControlsWithGap();

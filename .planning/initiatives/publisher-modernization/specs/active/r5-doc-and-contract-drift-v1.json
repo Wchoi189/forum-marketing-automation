@@ -1,0 +1,86 @@
+{
+  "spec_id": "r5-doc-and-contract-drift-v1",
+  "status": "proposed",
+  "purpose": "Make CLAUDE.md accurate again and make its inaccuracy structurally impossible to reintroduce; close the writer/reader contract gaps where one module consumes something no module produces.",
+  "design_intent": "For a project whose stated concern is maintenance burden over time, a lying map is the highest-leverage defect in the review. CLAUDE.md is loaded into every agent session and currently documents four files that no longer exist. Fixing the text is a one-hour job that decays back within two features; the deliverable here is the enforcement, and the text update is a side effect of building it.",
+  "review_source": ".planning/initiatives/publisher-modernization/review-20260905/01-assessment.md",
+  "addresses_findings": ["F-07", "F-10", "F-11"],
+  "prerequisite": "R1-R4 shipped. R5 documents the end state, so running it earlier means documenting a codebase that is about to change.",
+  "model_execution_guidance": {
+    "recommended_model": "Fast model is adequate for DCD-002 and DCD-004; DCD-001 needs a model that will actually read the tree rather than trust the existing text",
+    "execution_mode": "enforcement_first",
+    "note": "Build the check in DCD-002 before rewriting the text in DCD-001. Run the check, let it produce the list of stale paths, then fix what it reports. Writing the prose first and the check second reproduces the drift by hand."
+  },
+  "work_items": [
+    {
+      "id": "DCD-001",
+      "title": "Rewrite the CLAUDE.md Code Map and API Surface against the current tree",
+      "target_files": ["CLAUDE.md", "AGENTS.md"],
+      "action": "Known stale entries: bot.ts, lib/publisherStepStore.ts, lib/publisherHistory.ts, and src/AnalyticsPage.tsx are documented and all four are gone - the code moved to lib/publisher/* and src/pages/*. The API Surface table omits the rate_limited and system_maintenance decisions and POST /api/nl-command entirely. Regenerate both sections from the tree rather than editing the existing text in place, and add the scheduling-decision entry point that R2 created.",
+      "risk": "low"
+    },
+    {
+      "id": "DCD-002",
+      "title": "Fail the build when the Code Map names a path that does not exist",
+      "target_files": ["scripts/check-structure.ts", ".structure.json"],
+      "action": "Extend lint:structure to parse the CLAUDE.md Code Map tables, extract the repo-relative paths, and error on any that is absent from the tree. This is the cheapest possible enforcement and it makes this class of drift impossible to reintroduce silently. Keep it an error, not a warning - a warning is what the module-boundary baseline already is, and drift accumulated under it.",
+      "risk": "low"
+    },
+    {
+      "id": "DCD-003",
+      "title": "Resolve the gap_policy writer/reader gap",
+      "target_files": ["lib/publisher/publisherRun.ts", "lib/analytics/schedulerSignals.ts"],
+      "action": "recordPublisherRun is skipped when decision === 'gap_policy' (publisherRun.ts:116), while schedulerSignals.ts:143 classifies gap_policy entries and derives gapRecheckCount from them. gapRecheckCount is therefore structurally always zero, and opportunityScore - which feeds a multiplier back into the scheduler - is computed from a systematically truncated sample. Either record gap_policy outcomes to history, or delete the gap_policy branch in schedulerSignals.ts and state in the module header that gap skips are not observable from history. Both are acceptable; the current arrangement, where a reader consumes what no writer produces, is not. If recording, check the volume against the retention row in .agent/OPERATIONS.md first - gap skips are the most frequent outcome.",
+      "risk": "medium"
+    },
+    {
+      "id": "DCD-004",
+      "title": "Move direct process.env reads into config/env.ts",
+      "target_files": ["lib/observer/policyLoader.ts", "config/env.ts"],
+      "action": "policyLoader.ts:163 and :194 read process.env.OBSERVER_GAP_THRESHOLD directly, against CLAUDE.md's rule that config/env.ts is the only place to read env. Sweep for other direct reads outside config/env.ts while in here, and consider an ast-grep rule alongside the existing no-absolute-host-paths.yml so the rule is enforced rather than merely stated.",
+      "risk": "low"
+    },
+    {
+      "id": "DCD-005",
+      "title": "Document the gap-threshold resolution chain, or collapse it",
+      "target_files": ["lib/observer/policyLoader.ts", "CLAUDE.md"],
+      "action": "Publish/skip is gated by a four-layer chain: spec contract baseline, then OBSERVER_GAP_THRESHOLD env, then persisted gapPersistedOverride, then gapSourcePin arbitrating between the first two. gapSourcePin exists solely to resolve an ambiguity the design created. Either collapse the chain, or document the precedence explicitly in CLAUDE.md so the operator can predict which value is in force. Collapsing is preferable but is a behaviour change and needs its own decision record.",
+      "risk": "medium"
+    },
+    {
+      "id": "DCD-006",
+      "title": "Record the review outcome in the initiative README",
+      "target_files": [".planning/initiatives/publisher-modernization/README.md"],
+      "action": "The README currently presents phases 1-4 as shipped with no note that an independent review found S1 defects in the shipped result. Add a row pointing at review-20260905/ and the R1-R5 specs, so the next reader does not take the phase table as the whole story.",
+      "risk": "low"
+    }
+  ],
+  "acceptance_criteria": [
+    "npm run lint:structure fails when a path is removed from the tree while CLAUDE.md still names it - proven by deliberately breaking it once and observing the failure.",
+    "Every path named in the CLAUDE.md Code Map exists.",
+    "No module consumes a decision value that no module writes.",
+    "No process.env read outside config/env.ts, enforced rather than stated.",
+    "The initiative README points at the review and the remediation specs."
+  ],
+  "out_of_scope": [
+    "Rewriting .agent/ARCHITECTURE.md or the reference pack - separate scope, and it does not have CLAUDE.md's per-session blast radius."
+  ],
+  "session_boundary": {
+    "auto_stop": true,
+    "gate_criteria": [
+      "npm run lint:structure passes with 0 errors, with the new Code Map check active",
+      "npm run lint passes with 0 errors",
+      "npm run test:unit and npm run test:integration pass",
+      "The R1-R4 regression guards pass unchanged",
+      "npm run build passes"
+    ],
+    "handover_instructions": {
+      "generate_file": ".agent/session-handovers/handover-YYYYMMDD-HHMM.json",
+      "use_template": ".agent/session-handovers/template.json",
+      "required_fields": ["handover_id", "timestamp_utc", "completed_items", "artifacts_touched", "next_actions", "continuation_prompt", "constraints"],
+      "honesty_requirement": "Name only files that exist and claims verified by a command whose output you read. This spec exists because a previous handover did neither.",
+      "constraints_to_forward_verbatim": "# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated.",
+      "continuation_prompt": "R5 is complete and the R1-R5 remediation of publisher-architecture-modernization-v1 is finished. Move the r1-r5 specs from specs/active/ to specs/shipped/ and update their status fields to 'shipped' - lint:structure enforces that the directory and the status agree. Then re-read .planning/initiatives/publisher-modernization/review-20260905/01-assessment.md and confirm every finding F-01 through F-11 is either fixed or explicitly recorded as accepted, and only then consider new publisher features. The Obscura browser evaluation in research/04 should be re-measured after R1, not before - most of the browser load it measured was F-01's wasted launches.\n\n# Constraints\nIf context becomes saturated, stop immediately and provide a session handover and include a continuation prompt and instructions to stop if context becomes saturated."
+    }
+  }
+}

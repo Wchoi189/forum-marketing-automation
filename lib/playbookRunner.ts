@@ -1,9 +1,12 @@
 import type { Locator, Page } from "playwright";
 
-import { DEFAULT_VERIFY_TEXT_TIMEOUT_MS, PLAYBOOK_LOCATOR_TIMEOUT_MS } from "./publisher/core/timeouts.js";
+import {
+  DEFAULT_VERIFY_TEXT_TIMEOUT_MS,
+  PLAYBOOK_LOCATOR_TIMEOUT_MS,
+  clickSubmitButton,
+} from "./publisher/index.js";
 import { resolveFirstVisibleLocator } from "./publisher/ui/selectorResolver.js";
 import { confirmLoadDraftFromModal } from "./publisher/ui/draftModal.js";
-import { clickSubmitButton } from "./publisher/ui/submit.js";
 
 export type PlaybookAction = "navigate" | "click" | "change" | "select" | "submit" | "verify_text";
 

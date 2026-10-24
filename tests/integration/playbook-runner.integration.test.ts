@@ -110,6 +110,9 @@ type DraftModalMockState = {
   closeButtonClearsFreeze: boolean;
   fallbackCloseClearsFreeze: boolean;
   escapeClearsFreeze: boolean;
+  /** Row click lands but Playwright's action times out (busy main thread). */
+  rowClickTimesOut?: boolean;
+  previewVisible?: boolean;
 };
 
 function createDraftModalPage(state: DraftModalMockState) {
@@ -154,6 +157,11 @@ function createDraftModalPage(state: DraftModalMockState) {
                   throw new Error("element is not visible");
                 }
                 state.clickedRowIndexes.push(index);
+                if (state.rowClickTimesOut) {
+                  const timeout = new Error("locator.click: Timeout 5000ms exceeded.");
+                  timeout.name = "TimeoutError";
+                  throw timeout;
+                }
               }
             })
           };
@@ -202,6 +210,7 @@ function createDraftModalPage(state: DraftModalMockState) {
         return {
           last: () => ({
             waitFor: async () => undefined,
+            isVisible: async () => state.previewVisible ?? true,
             locator: (innerSelector: string) =>
               innerSelector === 'button:has-text("불러오기"):visible' ? previewLoadButton : { first: () => ({}) }
           })
@@ -286,5 +295,46 @@ test("confirm-load-draft-modal fails closed when freeze persists after fallbacks
         "confirm-load-draft-modal"
       ),
     /draft preview modal still open/
+  );
+});
+
+function timedOutRowClickState(previewVisible: boolean): DraftModalMockState {
+  return {
+    freeze: false,
+    modalVisible: true,
+    rowCount: 1,
+    rowSelectable: [true],
+    clickedRowIndexes: [],
+    previewLoadButtonCount: 1,
+    closeButtonVisible: false,
+    closeButtonClearsFreeze: false,
+    fallbackCloseClearsFreeze: false,
+    escapeClearsFreeze: false,
+    rowClickTimesOut: true,
+    previewVisible
+  };
+}
+
+test("confirm-load-draft-modal proceeds when the row click times out but the preview opened", async () => {
+  const page = createDraftModalPage(timedOutRowClickState(true));
+  await assert.doesNotReject(() =>
+    confirmLoadDraftFromModal(
+      page as never,
+      { boardEntryUrl: "https://example.com", draftItemIndex: 1 },
+      "confirm-load-draft-modal"
+    )
+  );
+});
+
+test("confirm-load-draft-modal rethrows a row click timeout when no preview opened", async () => {
+  const page = createDraftModalPage(timedOutRowClickState(false));
+  await assert.rejects(
+    () =>
+      confirmLoadDraftFromModal(
+        page as never,
+        { boardEntryUrl: "https://example.com", draftItemIndex: 1 },
+        "confirm-load-draft-modal"
+      ),
+    /Timeout 5000ms exceeded/
   );
 });

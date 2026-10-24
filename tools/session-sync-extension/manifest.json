@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "ppomppu Session Sync",
+  "version": "1.0.0",
+  "description": "Pushes this browser's ppomppu login cookies to the marketing-automation bot whenever they change.",
+  "permissions": ["cookies", "alarms", "storage"],
+  "host_permissions": [
+    "https://*.ppomppu.co.kr/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "ppomppu Session Sync"
+  }
+}

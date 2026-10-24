@@ -1,0 +1,7 @@
+language js
+
+`mark($a);` as $statement where {
+  $program <: not contains `declared`,
+  $statement => `const declared = $a;
+$statement`
+}
