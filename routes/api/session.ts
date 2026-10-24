@@ -7,8 +7,9 @@
  *   GET  /session/console                         entry page: open a console here (secret) or link to Slack
  *   POST /api/session/console/request             open a console, link to Slack only
  *   GET  /session/console/:token                  console viewer page
- *   GET  /api/session/console/:token/events       screencast + state (SSE)
- *   POST /api/session/console/:token/input        tap / text / key from the viewer
+ *   GET  /api/session/console/:token/events       console state (SSE)
+ *   WS   /api/session/console/:token/vnc          the console desktop (lib/session/vncBridge.ts)
+ *   GET  /session/novnc/rfb.js                    noVNC client for the viewer
  *
  * The bot cannot log itself in (KE-004), so a logged-in browser pushes its
  * ppomppu cookies here: tools/session-sync-extension does it on every login
@@ -39,12 +40,14 @@ import {
 import { probeSession, type SessionProbeResult } from '../../lib/observer/index.js';
 import { getPublisherStatus } from '../../lib/publisher/index.js';
 import {
+  CONSOLE_IMPORT_SOURCE,
+  currentLoginConsole,
   findLoginConsole,
+  loadNovncBundle,
   openLoginConsole,
   renderConsolePage,
   renderConsoleRequestPage,
   type ConsoleEvent,
-  type ConsoleInput,
 } from '../../lib/session/index.js';
 
 const NOOP = (_req: unknown, _res: unknown, next: () => void) => next();
@@ -58,28 +61,7 @@ export type SessionRouterDeps = {
   openConsole?: typeof openLoginConsole;
 };
 
-const CONSOLE_KEYS = new Set(['Enter', 'Backspace', 'Tab']);
 const SSE_HEARTBEAT_MS = 20_000;
-
-/** Validate a viewer input. Returns null for anything the console should not forward. */
-function parseConsoleInput(body: unknown): ConsoleInput | null {
-  const input = (body ?? {}) as Record<string, unknown>;
-  switch (input.type) {
-    case 'click':
-      return Number.isFinite(input.x) && Number.isFinite(input.y)
-        && (input.x as number) >= 0 && (input.y as number) >= 0 && (input.x as number) <= 2000 && (input.y as number) <= 4000
-        ? { type: 'click', x: input.x as number, y: input.y as number }
-        : null;
-    case 'text':
-      return typeof input.text === 'string' && input.text.length > 0 && input.text.length <= 200 ? { type: 'text', text: input.text } : null;
-    case 'key':
-      return typeof input.key === 'string' && CONSOLE_KEYS.has(input.key) ? { type: 'key', key: input.key as 'Enter' | 'Backspace' | 'Tab' } : null;
-    case 'reload':
-      return { type: 'reload' };
-    default:
-      return null;
-  }
-}
 
 const digest = (value: string) => createHash('sha256').update(value).digest();
 
@@ -116,8 +98,13 @@ export function createSessionRouter(deps: SessionRouterDeps = {}): Router {
     if (getPublisherStatus().running) { res.status(409).json({ error: 'publisher_running' }); return; }
     if (importInFlight) { res.status(409).json({ error: 'import_in_progress' }); return; }
 
+    // The login console's own browser pushes here too; it shows the outcome on
+    // its page, and its guest-session pushes are expected rejections, not alerts.
+    const fromConsole = source === CONSOLE_IMPORT_SOURCE ? currentLoginConsole() : null;
+
     const base = readSavedCookies();
     if (sessionFingerprint(base) === incomingFingerprint) {
+      fromConsole?.noteImport('unchanged');
       res.json({ status: 'unchanged' });
       return;
     }
@@ -140,10 +127,14 @@ export function createSessionRouter(deps: SessionRouterDeps = {}): Router {
           { event: LOG_EVENT.sessionImportRejected, source, reason: 'not_logged_in', sessionState: result.sessionState },
           '[Session] Imported cookies do not carry a login; saved state left unchanged',
         );
-        void sendSlackNotification(
-          `⚠️ *ppomppu session push rejected* (${source})\n> The pushed cookies are not logged in (session=${result.sessionState}). Log in to ppomppu in the browser.`,
-          'warn',
-        );
+        if (fromConsole) {
+          fromConsole.noteImport('rejected');
+        } else {
+          void sendSlackNotification(
+            `⚠️ *ppomppu session push rejected* (${source})\n> The pushed cookies are not logged in (session=${result.sessionState}). Log in to ppomppu in the browser.`,
+            'warn',
+          );
+        }
         res.status(422).json({ status: 'rejected', sessionState: result.sessionState });
         return;
       }
@@ -159,6 +150,7 @@ export function createSessionRouter(deps: SessionRouterDeps = {}): Router {
         '[Session] Session imported and verified',
       );
       void sendSlackNotification(`🔑 *ppomppu session refreshed* (${source})\n> Verified logged in; the next publisher run uses it.`, 'info');
+      fromConsole?.noteImport('imported');
       res.json({ status: 'imported', sessionState: result.sessionState, cookieCount: merged.length });
     } finally {
       importInFlight = false;
@@ -206,24 +198,16 @@ export function createSessionRouter(deps: SessionRouterDeps = {}): Router {
     res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
     res.flushHeaders();
     const unsubscribe = loginConsole.subscribe((event: ConsoleEvent) => {
-      if (event.type === 'frame') res.write(`event: frame\ndata: ${event.data}\n\n`);
-      else res.write(`event: state\ndata: ${JSON.stringify({ state: event.state, detail: event.detail })}\n\n`);
+      res.write(`event: state\ndata: ${JSON.stringify({ state: event.state, detail: event.detail })}\n\n`);
     });
     const heartbeat = setInterval(() => res.write(': keep-alive\n\n'), SSE_HEARTBEAT_MS);
     req.on('close', () => { clearInterval(heartbeat); unsubscribe(); });
   });
 
-  router.post('/api/session/console/:token/input', async (req, res) => {
-    const loginConsole = findLoginConsole(req.params.token);
-    if (!loginConsole?.open) { res.status(404).json({ error: 'console_closed' }); return; }
-    const input = parseConsoleInput(req.body);
-    if (!input) { res.status(400).json({ error: 'invalid_input' }); return; }
-    try {
-      await loginConsole.input(input);
-      res.json({ ok: true });
-    } catch (err) {
-      res.status(409).json({ error: err instanceof Error ? err.message : String(err) });
-    }
+  router.get('/session/novnc/rfb.js', async (_req, res) => {
+    const bundle = await loadNovncBundle();
+    if (!bundle) { res.status(503).type('text/plain').send('noVNC bundle unavailable'); return; }
+    res.set('Cache-Control', 'public, max-age=86400').type('application/javascript').send(bundle);
   });
 
   return router;

@@ -1,10 +1,11 @@
 /**
  * lib/session/consolePage.ts
  *
- * The viewer for the login console: a self-contained page (no build step, no
- * dashboard bundle) that shows the server browser's screencast and forwards
- * taps and typed text. Sized for a phone.
+ * The viewer for the login console: a self-contained page (no dashboard
+ * bundle) that shows the server browser's desktop over VNC. Sized for a phone.
  */
+
+import { DESKTOP_SIZE } from './consoleDesktop.js';
 
 /**
  * Entry page without a token. Two ways in:
@@ -86,6 +87,11 @@ export function renderConsoleRequestPage(): string {
 </html>`;
 }
 
+/**
+ * The console viewer: the server browser's VNC desktop through noVNC. Taps and
+ * keys reach the browser as ordinary X input. Phone keyboards do not open on a
+ * canvas, so typed text and the few keys a login needs have their own controls.
+ */
 export function renderConsolePage(token: string): string {
   const base = `/api/session/console/${encodeURIComponent(token)}`;
   return `<!doctype html>
@@ -102,7 +108,7 @@ export function renderConsolePage(token: string): string {
   main { max-width: 440px; margin: 0 auto; padding: 12px 16px 24px; }
   #status { padding: 8px 10px; border-radius: 6px; background: var(--panel); margin-bottom: 10px; }
   #status.ok { border-left: 4px solid #2e7d32; } #status.warn { border-left: 4px solid var(--accent); }
-  #screen { width: 100%; display: block; border: 1px solid #8884; border-radius: 6px; background: #fff; touch-action: manipulation; }
+  #screen { width: 100%; aspect-ratio: ${DESKTOP_SIZE.width} / ${DESKTOP_SIZE.height}; border: 1px solid #8884; border-radius: 6px; background: #fff; overflow: hidden; touch-action: none; }
   .row { display: flex; gap: 8px; margin-top: 10px; }
   input[type=text] { flex: 1; min-width: 0; padding: 10px; font-size: 16px; border-radius: 6px; border: 1px solid #8886; background: var(--panel); color: var(--fg); }
   button { padding: 10px 12px; font-size: 15px; border-radius: 6px; border: 1px solid #8886; background: var(--panel); color: var(--fg); }
@@ -112,43 +118,52 @@ export function renderConsolePage(token: string): string {
 <body>
 <main>
   <div id="status">Connecting…</div>
-  <img id="screen" alt="Server browser">
+  <div id="screen"></div>
   <div class="row">
     <input id="text" type="text" autocomplete="off" autocapitalize="off" placeholder="Type into the focused field">
     <button id="send">Send</button>
   </div>
   <div class="row">
-    <button data-key="Enter">Enter</button>
-    <button data-key="Backspace">⌫</button>
-    <button data-key="Tab">Tab</button>
-    <button id="reload">Reload form</button>
+    <button data-key="0xff0d">Enter</button>
+    <button data-key="0xff08">⌫</button>
+    <button data-key="0xff09">Tab</button>
+    <button data-key="0xffc2">Reload page</button>
   </div>
   <p class="hint">ID and password are already filled in. Tap the security check (보안 확인), then 로그인. The session is saved automatically.</p>
 </main>
-<script>
+<script type="module">
+  import novnc from '/session/novnc/rfb.js';
+  const RFB = novnc.default ?? novnc;
   const base = ${JSON.stringify(base)};
-  const screen = document.getElementById('screen');
   const status = document.getElementById('status');
   const labels = { starting: 'Starting the server browser…', ready: 'Ready: tap the security check, then 로그인.', succeeded: 'Done.', failed: 'Failed.', expired: 'Expired.', closed: 'Closed.' };
+  let finished = false;
   function show(state, detail) {
     status.textContent = labels[state] + (detail ? ' ' + detail : '');
     status.className = state === 'succeeded' ? 'ok' : (detail || state !== 'ready') ? 'warn' : '';
   }
-  async function send(input) {
-    const res = await fetch(base + '/input', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
-    if (!res.ok) show('closed', '(' + res.status + ')');
-  }
+
+  const ws = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + base + '/vnc';
+  const rfb = new RFB(document.getElementById('screen'), ws);
+  rfb.scaleViewport = true;
+  rfb.showDotCursor = true;
+  rfb.addEventListener('disconnect', () => { if (!finished) show('closed', 'Screen connection lost. Reload this page to reconnect.'); });
+
   const events = new EventSource(base + '/events');
-  events.addEventListener('frame', (e) => { screen.src = 'data:image/jpeg;base64,' + e.data; });
-  events.addEventListener('state', (e) => { const s = JSON.parse(e.data); show(s.state, s.detail); if (!['starting', 'ready'].includes(s.state)) events.close(); });
-  events.onerror = () => show('closed', 'Connection lost.');
-  screen.addEventListener('click', (e) => {
-    const r = screen.getBoundingClientRect();
-    send({ type: 'click', x: Math.round((e.clientX - r.left) * screen.naturalWidth / r.width), y: Math.round((e.clientY - r.top) * screen.naturalHeight / r.height) });
+  events.addEventListener('state', (e) => {
+    const s = JSON.parse(e.data);
+    show(s.state, s.detail);
+    if (!['starting', 'ready'].includes(s.state)) { finished = true; events.close(); rfb.disconnect(); }
   });
-  document.getElementById('send').onclick = () => { const t = document.getElementById('text'); if (t.value) { send({ type: 'text', text: t.value }); t.value = ''; } };
-  document.querySelectorAll('[data-key]').forEach((b) => { b.onclick = () => send({ type: 'key', key: b.dataset.key }); });
-  document.getElementById('reload').onclick = () => send({ type: 'reload' });
+
+  // X keysyms: Latin-1 maps to itself, everything else to 0x01000000 + code point.
+  const keysym = (ch) => { const cp = ch.codePointAt(0); return cp < 0x100 ? cp : 0x01000000 + cp; };
+  document.getElementById('send').onclick = () => {
+    const t = document.getElementById('text');
+    for (const ch of t.value) rfb.sendKey(keysym(ch));
+    t.value = '';
+  };
+  document.querySelectorAll('[data-key]').forEach((b) => { b.onclick = () => rfb.sendKey(Number(b.dataset.key)); });
 </script>
 </body>
 </html>`;

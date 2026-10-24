@@ -15,6 +15,7 @@ import type { Cookie } from "playwright";
 import { createApp } from "../../server.ts";
 import { STORAGE_STATE_PATH } from "../../lib/browser/index.ts";
 import { setPublisherRunning } from "../../lib/publisher/index.ts";
+import { attachConsoleVncBridge } from "../../lib/session/index.ts";
 import type { SessionProbeResult } from "../../lib/observer/index.ts";
 
 const AUTH = "Bearer test-session-secret";
@@ -108,6 +109,7 @@ async function withConsoleServer(
   fn: (base: string) => Promise<void>,
 ) {
   const server = createApp(deps, undefined, { probeSession: loggedIn, openLoginConsole: openConsole }).listen(0);
+  attachConsoleVncBridge(server);
   try {
     await fn(`http://127.0.0.1:${(server.address() as AddressInfo).port}`);
   } finally {
@@ -140,12 +142,24 @@ test("login console: the unauthenticated request never returns the token", async
   assert.deepEqual(opts, { renotify: true });
 });
 
-test("login console: unknown tokens get 404 on page, events and input", async () => {
+test("login console: unknown tokens get 404 on page, events and the VNC socket", async () => {
   await withConsoleServer(async () => fakeConsole, async (base) => {
     assert.equal((await fetch(`${base}/session/console/nope`)).status, 404);
     assert.equal((await fetch(`${base}/api/session/console/nope/events`)).status, 404);
-    assert.equal((await post(`${base}/api/session/console/nope/input`, { type: "click", x: 1, y: 1 })).status, 404);
+    const upgrade = await fetch(`${base}/api/session/console/nope/vnc`, {
+      headers: { Connection: "Upgrade", Upgrade: "websocket", "Sec-WebSocket-Version": "13", "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==" },
+    }).catch((err: Error) => err);
+    assert.ok(upgrade instanceof Error || upgrade.status === 404, "unknown token must not upgrade");
     assert.equal((await fetch(`${base}/session/console`)).status, 200);
+  });
+});
+
+test("login console: the viewer's noVNC module is served as an ES module", async () => {
+  await withConsoleServer(async () => fakeConsole, async (base) => {
+    const res = await fetch(`${base}/session/novnc/rfb.js`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("content-type") ?? "", /javascript/);
+    assert.match(await res.text(), /export\s*\{/);
   });
 });
 

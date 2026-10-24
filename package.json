@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@novnc/novnc": "1.5.0",
     "@slack/web-api": "^7.15.2",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
@@ -56,6 +57,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.5.0",
+    "ws": "8.18.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -69,6 +71,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/react-router-dom": "^5.3.3",
+    "@types/ws": "8.5.12",
     "@vitejs/plugin-react": "^5.0.4",
     "@xyflow/react": "^12.10.2",
     "autoprefixer": "^10.4.21",

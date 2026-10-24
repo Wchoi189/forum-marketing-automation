@@ -36,6 +36,7 @@ import { createAiRouter } from "./routes/api/ai.js";
 import { createNlRouter } from "./routes/api/nl.js";
 import { createKakaoRouter } from "./routes/api/kakao.js";
 import { createSessionRouter, type SessionRouterDeps } from "./routes/api/session.js";
+import { attachConsoleVncBridge } from "./lib/session/index.js";
 
 // ── Shared Log Cache & Helpers ───────────────────────────────────────────────
 
@@ -90,8 +91,8 @@ export function createApp(
   const observerLimiter = shouldSkipRateLimit ? NOOP : rateLimit({ windowMs: 60_000, limit: 5, standardHeaders: true, legacyHeaders: false });
 
   const SKIP_RATE_PATHS = ["/kakao-webhook", "/api/publisher-status", "/api/health/resources", "/api/health"];
-  // Login console viewer traffic (taps, keystrokes, SSE) is token-gated and bursty.
-  const SKIP_RATE_PATTERNS = [/\.js(\?|$)/, /\.css(\?|$)/, /\.svg(\?|$)/, /\.(png|jpg|jpeg|gif|ico|woff2?)(\?|$)/, /^\/api\/session\/console\/[^/]+\/(input|events)$/];
+  // Login console state stream (SSE) is token-gated; its desktop runs over a WebSocket.
+  const SKIP_RATE_PATTERNS = [/\.js(\?|$)/, /\.css(\?|$)/, /\.svg(\?|$)/, /\.(png|jpg|jpeg|gif|ico|woff2?)(\?|$)/, /^\/api\/session\/console\/[^/]+\/events$/];
 
   app.use((req, res, next) => {
     if (SKIP_RATE_PATTERNS.some(p => p.test(req.path))) return next();
@@ -247,6 +248,7 @@ export async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
+    attachConsoleVncBridge(httpServer);
     httpServer.listen(PORT, "0.0.0.0", () => {
       logger.info({ event: LOG_EVENT.serverStarted, port: PORT, host: "0.0.0.0" }, `Server running on http://localhost:${PORT}`);
     });
@@ -259,9 +261,10 @@ export async function startServer() {
     app.get("*", (req, res) => { res.sendFile(path.join(distPath, "index.html")); });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     logger.info({ event: LOG_EVENT.serverStarted, port: PORT, host: "0.0.0.0" }, `Server running on http://localhost:${PORT}`);
   });
+  attachConsoleVncBridge(server);
 }
 
 const isDirectRun = Boolean(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href);
