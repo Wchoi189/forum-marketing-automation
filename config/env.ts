@@ -90,6 +90,8 @@ type EnvConfig = {
   SESSION_PROBE_INTERVAL_HOURS: number;
   /** Base URL operators reach the server at (login console links in Slack). */
   PUBLIC_BASE_URL: string;
+  /** Commit the image was built from, `-dirty` when runtime files differed from it. Set by scripts/deploy.sh. */
+  GIT_SHA: string;
   /** Kill-switch for /kakao-webhook endpoint. Returns 503 when false. */
   KAKAO_WEBHOOK_ENABLED: boolean;
   /** Kakao Open Builder bot ID. Used to validate incoming skill payloads. Null = no validation. */
@@ -279,6 +281,7 @@ function buildEnv(): EnvConfig {
     SESSION_EXPIRY_WARNING_HOURS: optionalInt("SESSION_EXPIRY_WARNING_HOURS", 24, 0, 24 * 30),
     SESSION_PROBE_INTERVAL_HOURS: optionalInt("SESSION_PROBE_INTERVAL_HOURS", 6, 1, 24 * 7),
     PUBLIC_BASE_URL: optionalString("PUBLIC_BASE_URL", "http://localhost:3000"),
+    GIT_SHA: optionalString("GIT_SHA", "unknown"),
     KAKAO_WEBHOOK_ENABLED: optionalBool("KAKAO_WEBHOOK_ENABLED", false),
     KAKAO_OPENBUILDER_BOT_ID: optionalStringOrNull("KAKAO_OPENBUILDER_BOT_ID"),
     KAKAO_ADMIN_KEY: optionalStringOrNull("KAKAO_ADMIN_KEY"),

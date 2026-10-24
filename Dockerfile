@@ -82,6 +82,10 @@ COPY --chown=app:app .planning/spec-kit/manifest/ .planning/spec-kit/manifest/
 COPY --chown=app:app .planning/spec-kit/contracts/ .planning/spec-kit/contracts/
 COPY --chown=app:app .agent/contracts/ .agent/contracts/
 
+# Late on purpose: a new commit invalidates only the layers from here on.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
+
 # Create persistent data directories (mounted as volumes at runtime)
 RUN mkdir -p /app/data/browser-profile /app/data/logs /app/data/artifacts && \
     chown -R app:app /app/data

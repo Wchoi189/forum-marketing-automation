@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Eye, Users, ChevronUp, ChevronDown } from 'lucide-react';
 import { type UseAppDataReturn } from '../hooks/useAppData';
+import { useRunningBuild } from '../hooks/useRunningBuild';
 
 function Th({ label, active, dir, onClick, center }: { label: string; active: boolean; dir: 'asc' | 'desc'; onClick: () => void; center?: boolean }) {
   return (
@@ -13,6 +14,7 @@ function Th({ label, active, dir, onClick, center }: { label: string; active: bo
 }
 
 export default function OperationsPage({ app }: { app: UseAppDataReturn }) {
+  const runningBuild = useRunningBuild();
   const [sortConfig, setSortConfig] = useState<{ key: 'author' | 'frequency' | 'avgViews', direction: 'asc' | 'desc' }>({ key: 'frequency', direction: 'desc' });
   const handleSort = (key: 'author' | 'frequency' | 'avgViews') => setSortConfig((c) => ({ key, direction: c.key === key && c.direction === 'desc' ? 'asc' : 'desc' }));
   const sorted = [...app.competitorStats].sort((a, b) => {
@@ -86,6 +88,10 @@ export default function OperationsPage({ app }: { app: UseAppDataReturn }) {
         ))}
       </div>
     </motion.div>
+
+    <p className="text-[10px] font-mono opacity-40 text-right">
+      Running build: {runningBuild ?? 'unavailable'}
+    </p>
     </>
   );
 }

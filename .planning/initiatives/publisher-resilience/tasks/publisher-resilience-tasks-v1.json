@@ -60,10 +60,10 @@
       "title": "Expose the running commit and make main the deploy source",
       "detail": "Bake GIT_SHA into the image and return it from GET /api/health/resources; show it on the Operations page. Merge the 17 commits on fix/ppomppu-session-recovery into main through a PR so a deploy from main is never stale again. Addresses F-01.",
       "owner": "agent",
-      "status": "pending",
+      "status": "in_progress",
       "blocked_on": null,
-      "evidence": null,
-      "updated": "2026-10-24"
+      "evidence": "Commit stamp done: npm run deploy (scripts/deploy.sh) builds with GIT_SHA=<sha>[-dirty], keeps a rollback tag, waits for an idle publisher, and verifies GET /api/health gitSha after restart; also on /api/health/resources and the Operations page. Live: deploy reported b01a0ac-dirty. Open: merging this branch into main needs a push and PR, which wait for the operator's go (CLAUDE.md rule 5).",
+      "updated": "2026-10-25"
     },
     { "id": "SL-001", "phase": 1, "owner": "agent", "status": "done", "blocked_on": null, "evidence": "lib/state/session.ts: session record persisted in runtime-controls.json via the store (stateVersion). Publisher marks verified on sessionState=logged_in and dead on PUBLISHER_LOGIN_REQUIRED (first loss wins); importSession marks healthy on a verified import. expiring derived from SESSION_EXPECTED_LIFETIME_HOURS (168) - SESSION_EXPIRY_WARNING_HOURS (24). tests/unit/sessionState.test.ts. Current production session has importedAt=null until the next import (no expiring warning for it).", "updated": "2026-10-25" },
     { "id": "SL-002", "phase": 1, "owner": "agent", "status": "done", "blocked_on": null, "evidence": "SchedulerTickOutcome session_lost, AttemptReason session_required, SESSION_RECHECK_MINUTES=10. A parked tick calls nothing; the run that hits PUBLISHER_LOGIN_REQUIRED maps to session_lost, not the error ladder. Decision-table rows in tests/unit/nextAttempt.test.ts; end-to-end park and resume in tests/unit/schedulerStabilization.test.ts. Manual /api/run-publisher is not gated (lets a person verify a session by hand).", "updated": "2026-10-25" },
@@ -99,6 +99,7 @@
     "2026-10-25 Operator: manual cookie curation breaks automation. Added SL-009 (browser session sync), SL-008 dropped. SL-003 and SL-006 done, SL-004 partly, all in 854c835 and deployed. PR-002 now means: load the extension and log in once in Chrome.",
     "2026-10-25 Operator: recovery must not depend on a PC with offline days. Added SL-010 (server-side login console, 2fa66f8, deployed) and SL-011 (자동로그인 lifetime). SL-009 demoted to optional. PR-002 now means: one login through the console from any tailnet device.",
     "2026-10-25 SL-004 (scheduler probe) and SL-005 (banner, expiry and death Slack) done. SL-011 check date: 2026-11-01.",
-    "2026-10-25 75d427f deployed (rollback image marketing-automation-app:rollback-20261025-cb918e6). PR-002 and PR-003 done (operator login, published_verified 18:53Z). EF-002 unblocked. DP-001 window ends 2026-11-01."
+    "2026-10-25 75d427f deployed (rollback image marketing-automation-app:rollback-20261025-cb918e6). PR-002 and PR-003 done (operator login, published_verified 18:53Z). EF-002 unblocked. DP-001 window ends 2026-11-01.",
+    "2026-10-25 PR-004 in progress: running commit exposed and deploy scripted; branch merge to main awaits a push/PR go-ahead."
   ]
 }

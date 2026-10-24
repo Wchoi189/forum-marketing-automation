@@ -33,7 +33,8 @@
     "test:integration": "bash scripts/run-tests.sh tests/integration/api.integration.test.ts tests/integration/playbook-runner.integration.test.ts tests/integration/nlWebhook.test.ts tests/integration/sessionImportApi.test.ts tests/integration/bot-stability.test.ts",
     "test:competitor-intel": "bash scripts/run-tests.sh 'tests/unit/competitor-intel/*.test.ts' 'tests/integration/competitor-intel.integration.test.ts'",
     "clean:all": "bash scripts/clean-workspace.sh",
-    "agent:friction": "tsx scripts/session-friction.ts"
+    "agent:friction": "tsx scripts/session-friction.ts",
+    "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

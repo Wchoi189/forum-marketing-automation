@@ -33,6 +33,16 @@ npx playwright show-trace <path-to-trace.zip>
 
 Temporarily set `PUBLISHER_TRACE_SUCCESS_SAMPLE_PERCENT=100` (and optionally `LOG_LEVEL=debug`).
 
+## Deploying
+
+`npm run deploy` (scripts/deploy.sh) rebuilds from the working tree, keeps the
+running image as `marketing-automation-app:rollback-<date>-<sha>`, waits for an
+in-flight publisher run, restarts, and exits 0 once `GET /api/health` reports
+the new `gitSha`. The Operations page shows the same value. `-dirty` means files
+the image uses differed from that commit. Rollback: `docker tag <rollback tag>
+marketing-automation-app:latest && docker compose up -d app`. A bare
+`docker compose build` reports `gitSha: unknown`.
+
 ## Retention & Garbage Collection
 
 Every directory that grows without bound has exactly one owner listed here. If
