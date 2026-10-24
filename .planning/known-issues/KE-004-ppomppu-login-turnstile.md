@@ -84,6 +84,19 @@ device. The bot saves the session once the header shows it logged in. The
 optional `tools/session-sync-extension` (`854c835`) does the same from a
 desktop Chrome when one is online.
 
+First live use of that console (2026-10-25): Turnstile spun for over a minute
+after the tap and never passed. The console browser was the bot's headless
+Playwright Chromium: its user agent said Windows Chrome 146 while
+`navigator.platform` said Linux and the binary was Chromium 149, it had
+headless-shell traits (no `window.chrome`, no plugins), and Playwright's CDP
+was attached to the Turnstile iframe. The setup was the problem, not the
+browser brand: another Chromium build (e.g. ungoogled) under the same
+Playwright launch would carry the same contradictions. Since `15f44a7` the console
+is a plain headed Chromium on Xvnc with nothing attached, driven over noVNC;
+`navigator.webdriver` is false because nothing drives it. Side finding:
+`brunhild.challenges.cloudflare.com` failing with `ERR_NAME_NOT_RESOLVED` is
+Cloudflare's IPv6-only probe on an IPv4-only line, and harmless.
+
 ## Lessons
 
 - `writeButtonCount` is not a session signal on ppomppu. Check the header.

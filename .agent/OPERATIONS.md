@@ -73,10 +73,18 @@ in `publisher.run.failed`. The bot cannot log in by itself (KE-004); a person mu
 
 ### Default: login console (any device, no desktop needed)
 
-The server's own Chromium opens login.php with the ID, password and 자동로그인
-already filled, and streams it to a token-protected page. A person taps the
-Turnstile check and 로그인; the bot detects the logged-in header and saves the
-session itself. Cookies come from the server's IP, so nothing is copied.
+The server opens a plain Chromium on login.php inside a private VNC desktop
+(Xvnc), with the ID, password and 자동로그인 already filled, and shows it on a
+token-protected page (noVNC). A person taps the Turnstile check and 로그인. The
+browser's built-in copy of the session-sync extension pushes the new cookies to
+`/api/session/import`, which probes and saves them; the page then says Done.
+Cookies come from the server's IP, so nothing leaves the server.
+
+The console browser has **no automation attached** (no Playwright, no CDP, no
+user-agent override). Turnstile spun forever in the earlier Playwright console
+because that browser claimed Windows Chrome while reporting Linux. Do not add
+CDP, Playwright or identity overrides to the console browser: `--remote-debugging-*`
+alone makes Chromium report `navigator.webdriver = true`.
 
 - **Automatic:** when a run fails with `PUBLISHER_LOGIN_REQUIRED`, Slack gets a
   "ppomppu login needed" link (at most every 3 h; each link lives 15 min).

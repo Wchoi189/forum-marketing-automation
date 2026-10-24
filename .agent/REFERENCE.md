@@ -26,7 +26,7 @@ For env vars, `config/env.ts` is canonical.
 | POST | `/api/session/import` | Bearer `SESSION_IMPORT_SECRET`. Body `{ cookies, source? }` (browser cookie export). Probes the board with the merged cookies and saves only when `logged_in`. `200 imported\|unchanged`, `422` not logged in, `409` publisher running, `503` secret unset. |
 | POST | `/api/session/console` | Bearer `SESSION_IMPORT_SECRET`. Opens (or returns) the login console; `{ token, url, expiresAt, reason }`. |
 | POST | `/api/session/console/request` | No auth. Opens a console and posts its link to Slack; the response never contains the token. |
-| GET | `/session/console` and `/session/console/:token` | Entry page ("send login link to Slack") and the console viewer. Viewer traffic: `/api/session/console/:token/events` (SSE) and `/input`. |
+| GET | `/session/console` and `/session/console/:token` | Entry page (open a console here with the key, or send the link to Slack) and the console viewer. Viewer traffic: `/api/session/console/:token/events` (SSE state), WebSocket `/api/session/console/:token/vnc` (the desktop), `/session/novnc/rfb.js` (noVNC client). |
 
 ## Key Env Vars
 

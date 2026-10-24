@@ -27,8 +27,11 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 import { ENV } from '../../config/env.js';
 
-/** Phone-shaped, so the viewer is readable on the device most likely to open it. */
-export const DESKTOP_SIZE = { width: 430, height: 932 };
+/**
+ * Phone-shaped, so the viewer is readable on the device most likely to open
+ * it. 500 is Chromium's minimum window width; a narrower display clips the page.
+ */
+export const DESKTOP_SIZE = { width: 500, height: 1000 };
 
 const SYNC_EXTENSION_DIR = path.join(ENV.PROJECT_ROOT, 'tools', 'session-sync-extension');
 const START_TIMEOUT_MS = 15_000;
