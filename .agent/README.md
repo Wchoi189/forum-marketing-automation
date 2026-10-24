@@ -42,12 +42,13 @@ they inherit the developer `.env` and write into the real workspace.
 
 ## Session Start
 
-**MANDATORY** — run before reading source files:
+Optional. A memory refresh, not a gate. If the tool is missing or errors, skip it
+and start work:
 
 ```bash
 npm run mempalace:wake-up
 ```
 
-Then call `mempalace_status` (MCP) to confirm palace state.
+Rules for deciding without asking and for handovers: [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md).
 
 See [MemPalace spec](../.planning/spec-kit/specs/active/mempalace-memory-loop-v1.json) for details.

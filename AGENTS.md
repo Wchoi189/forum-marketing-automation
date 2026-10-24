@@ -5,7 +5,7 @@ Quick reference for AI agents working in this repository.
 ## Quick Start
 
 ```bash
-npm run mempalace:wake-up   # REQUIRED at session start
+npm run mempalace:wake-up   # optional memory refresh, never blocks
 npm run lint                # tsc (both configs) + ast-grep scan + structure check
 npm run lint:structure      # .structure.json policy only (~1s)
 npm run hooks:install       # pre-commit hook running the structure check
@@ -65,8 +65,13 @@ current truth and carry no status.
 
 ## Session Workflow
 
-1. Run `npm run mempalace:wake-up` before reading source files
-2. Check KEDB for known issues before debugging anomalies
-3. Run `npm run lint` after code edits
-4. Run appropriate test suite for changes
-5. End session with `npm run mempalace:handover`
+Autonomy rules, escalation boundary and handover protocol: `CLAUDE.md`
+(Decision Authority) and [.agent/SESSION_PROTOCOL.md](.agent/SESSION_PROTOCOL.md).
+
+1. Check KEDB for known issues before debugging anomalies
+2. Run `npm run lint` after code edits
+3. Run appropriate test suite for changes
+4. Commit finished work. Do not ask first.
+
+`npm run mempalace:wake-up` and `npm run mempalace:handover` are optional and
+best effort. Skip them if the tool is missing or fails; they never block work.

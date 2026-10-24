@@ -1,3 +1,32 @@
+# Decision Authority
+
+Default to execution. The operator's mid-session and end-of-session answers have
+not improved outcomes and have added failure points; every question you skip
+saves them a decision. Full protocol: `.agent/SESSION_PROTOCOL.md`.
+
+1. **Decide from what exists.** If project principles, git history, the KEDB, or
+   developer ergonomics settle a choice, make it. Do not ask, do not offer
+   options, do not ask "now or later". If doing X completes the goal, do X.
+2. **Make the call, act, log it.** For ambiguity or a close trade-off, take the
+   reversible option, execute, and record it as a decision in the closing summary.
+3. **Known false positives get the documented fix immediately**, with no
+   confirmation. An undocumented gate failure is investigated, not escalated.
+4. **Ask only when an action is** (a) irreversibly destructive — force-push,
+   deleting work you did not create, deleting `artifacts/` databases; (b) an
+   outward effect the task did not call for — a real ppomppu publish, posting
+   credentials; or (c) in direct conflict with an instruction given this session.
+   Never weaken a fail-closed publisher check or retry login without a Turnstile
+   token (KE-004): that is not a question, the answer is no.
+5. **Commit by default.** Finished work is committed in the same turn, on a
+   branch (never on `main`). Stage explicit paths only, never `git add -A`: the
+   tree often holds files from another session. No push or PR unless asked.
+6. **Short closing.** What changed, what is next, a few lines. No operator-step
+   lists, no restated blockers, no verification tallies, no closing question.
+7. **Handover only when work stops unfinished** (context past ~4/5, or an
+   external blocker). Say once, in one sentence, past ~2/3. Never for routine
+   endings. A spec implementation session or milestone ends with the five-heading
+   summary in the protocol file.
+
 # Code Map
 
 ## Server / Bot
@@ -98,7 +127,7 @@ Full parsing in `config/env.ts`. Schema in `.planning/spec-kit/manifest/schemas/
 
 | Path | Contents |
 |------|----------|
-| `.agent/` | Agent-facing docs: `ARCHITECTURE.md`, `OPERATIONS.md`, `KNOWN_ISSUES.md`, contracts, knowledge, session handovers |
+| `.agent/` | Agent-facing docs: `ARCHITECTURE.md`, `OPERATIONS.md`, `KNOWN_ISSUES.md`, `SESSION_PROTOCOL.md`, contracts, knowledge, session handovers |
 | `.planning/` | Specs, roadmaps, audits, known-issue writeups |
 | `archive/` | Frozen, unreferenced content. Nothing here is loaded at runtime. See `archive/README.md` |
 | `artifacts/`, `data/`, `dist/` | Generated. All gitignored — do not commit files here |
